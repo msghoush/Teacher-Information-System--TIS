@@ -10,7 +10,7 @@ import os
 import re
 import uuid
 from zoneinfo import ZoneInfo
-from urllib.parse import quote_plus, urlsplit
+from urllib.parse import parse_qs, quote_plus, urlsplit
 
 import auth
 import audit
@@ -132,6 +132,7 @@ SAFE_LOGIN_CONTINUATION_PATTERNS = (
         r"commercial-choice|plan|checkout|billing-status)$"
     ),
 )
+OAUTH_NEXT_COOKIE = "tis_saas_oauth_next"
 
 
 def _safe_next(next_path: str | None) -> str:
@@ -155,6 +156,34 @@ def _safe_next(next_path: str | None) -> str:
     ):
         return cleaned
     return "/saas/account"
+
+
+def _post_auth_destination(db: Session, account, next_path: str | None = None) -> str:
+    default_destination = customer_journey_service.login_destination(db, account)
+    requested = str(next_path or "").strip()
+    safe_next = _safe_next(requested)
+    if not requested or safe_next != requested:
+        return default_destination
+    parsed = urlsplit(safe_next)
+    if parsed.path != "/saas/subscription":
+        return default_destination
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    if set(params) - {"organization_uuid"} or any(len(values) != 1 for values in params.values()):
+        return default_destination
+    requested_uuid = str((params.get("organization_uuid") or [""])[0]).strip()
+    accesses = customer_journey_service.list_organization_account_accesses(db, account)
+    billing_accesses = tuple(item for item in accesses if item.can_manage_billing)
+    if requested_uuid:
+        selected = next(
+            (
+                item
+                for item in billing_accesses
+                if item.organization_uuid == requested_uuid
+            ),
+            None,
+        )
+        return safe_next if selected is not None else default_destination
+    return safe_next if len(billing_accesses) == 1 else default_destination
 
 
 def _test_deletion_log_context(current_user, organization, *, deletion_mode: str) -> dict[str, object]:
@@ -215,17 +244,17 @@ def _verification_required_redirect(email: str = ""):
     return RedirectResponse(target, status_code=302)
 
 
-def _login_required_redirect():
-    return RedirectResponse(
-        "/saas/login?notice=" + quote_plus("Please sign in to your TIS Account."),
-        status_code=302,
-    )
+def _login_required_redirect(next_path: str = ""):
+    target = "/saas/login?notice=" + quote_plus("Please sign in to your TIS Account.")
+    if next_path:
+        target += "&next_path=" + quote_plus(_safe_next(next_path))
+    return RedirectResponse(target, status_code=302)
 
 
-def _require_verified_account(request: Request, db: Session):
+def _require_verified_account(request: Request, db: Session, *, next_path: str = ""):
     account = _current_account(request, db)
     if not account:
-        return None, None, _login_required_redirect()
+        return None, None, _login_required_redirect(next_path)
     session_row = service.get_session_from_request(db, request)
     if _account_needs_verification(account):
         return None, None, _verification_required_redirect(str(getattr(account, "email", "") or ""))
@@ -777,7 +806,7 @@ def login_page(
     current_account = _current_account(request, db)
     if current_account:
         return RedirectResponse(
-            customer_journey_service.login_destination(db, current_account),
+            _post_auth_destination(db, current_account, next_path),
             status_code=302,
         )
     return _render(
@@ -1098,6 +1127,9 @@ def login(
     next_path: str = Form(""),
     db: Session = Depends(get_db),
 ):
+    continuation_query = (
+        "&next_path=" + quote_plus(_safe_next(next_path)) if next_path else ""
+    )
     if service.is_rate_limited(
         db,
         event_type="login",
@@ -1107,7 +1139,11 @@ def login(
         window_minutes=service.LOGIN_RATE_LIMIT_WINDOW_MINUTES,
     ):
         return RedirectResponse(
-            url="/saas/login?error=Too+many+login+attempts.+Please+wait+before+trying+again.",
+            url=(
+                "/saas/login?error=Too+many+login+attempts."
+                "+Please+wait+before+trying+again."
+                + continuation_query
+            ),
             status_code=302,
         )
     account = service.authenticate_account(db, email, password)
@@ -1121,7 +1157,11 @@ def login(
         )
         db.commit()
         return RedirectResponse(
-            url="/saas/login?error=Invalid+email+or+password.&email=" + quote_plus(str(email or "")),
+            url=(
+                "/saas/login?error=Invalid+email+or+password.&email="
+                + quote_plus(str(email or ""))
+                + continuation_query
+            ),
             status_code=302,
         )
     if _account_needs_verification(account):
@@ -1129,6 +1169,7 @@ def login(
             url=(
                 "/saas/auth/verification-required?email="
                 + quote_plus(str(getattr(account, "email", "") or email or ""))
+                + continuation_query
             ),
             status_code=302,
         )
@@ -1138,7 +1179,7 @@ def login(
         db, account, source="successful_login"
     )
     db.commit()
-    destination = customer_journey_service.login_destination(db, account)
+    destination = _post_auth_destination(db, account, next_path)
     response = RedirectResponse(url=destination, status_code=302)
     return service.set_session_cookies(
         response,
@@ -1517,10 +1558,68 @@ def account_billing(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/subscription", response_class=HTMLResponse)
-def subscription_portal(request: Request, db: Session = Depends(get_db)):
-    account, _session_row, redirect = _require_verified_account(request, db)
+def subscription_portal(
+    request: Request,
+    organization_uuid: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    requested_organization_uuid = str(organization_uuid or "").strip()
+    continuation = "/saas/subscription"
+    if requested_organization_uuid:
+        continuation += "?organization_uuid=" + quote_plus(requested_organization_uuid)
+    account, _session_row, redirect = _require_verified_account(
+        request,
+        db,
+        next_path=continuation,
+    )
     if redirect:
         return redirect
+    account_accesses = customer_journey_service.list_organization_account_accesses(
+        db, account
+    )
+    selected_access = None
+    if account_accesses:
+        if requested_organization_uuid:
+            selected_access = next(
+                (
+                    item
+                    for item in account_accesses
+                    if item.organization_uuid == requested_organization_uuid
+                ),
+                None,
+            )
+            if selected_access is None:
+                raise HTTPException(status_code=403, detail="Billing access is not available.")
+        else:
+            selected_group_id = int(
+                getattr(account, "_selected_school_group_id", 0) or 0
+            )
+            selected_access = next(
+                (
+                    item
+                    for item in account_accesses
+                    if int(getattr(item.school_group, "id", 0) or 0)
+                    == selected_group_id
+                ),
+                None,
+            )
+            if selected_access is None:
+                billing_accesses = tuple(
+                    item for item in account_accesses if item.can_manage_billing
+                )
+                if len(billing_accesses) == 1:
+                    selected_access = billing_accesses[0]
+                elif len(billing_accesses) > 1:
+                    return RedirectResponse(
+                        "/saas/account?notice="
+                        + quote_plus(
+                            "Choose an organization before opening Billing & Subscription."
+                        ),
+                        status_code=302,
+                    )
+        if selected_access is None or not selected_access.can_manage_billing:
+            raise HTTPException(status_code=403, detail="Billing access is not available.")
+        setattr(account, "_selected_school_group_id", int(selected_access.school_group.id))
     demo_journey = customer_journey_service.resolve_demo_subscription_journey(
         db, account
     )
@@ -1534,7 +1633,7 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
                 demo_journey.school_group.id,
                 demo_journey.configuration_error,
             )
-        return _render(
+        response = _render(
             request,
             "saas/demo_subscription.html",
             {
@@ -1548,13 +1647,23 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
                 "error": request.query_params.get("error", ""),
             },
         )
+        if requested_organization_uuid and selected_access is not None:
+            response.set_cookie(
+                service.SAAS_ORGANIZATION_COOKIE,
+                selected_access.organization_uuid,
+                **auth.secure_cookie_kwargs(
+                    request,
+                    max_age=service.session_max_age_seconds(),
+                ),
+            )
+        return response
     portal = subscription_portal_service.build_subscription_portal(db, account)
     billing_history = None
     try:
         billing_history = billing_history_service.build_billing_history(db, account, portal)
     except billing_history_service.BillingHistoryAccessError:
         pass
-    return _render(
+    response = _render(
         request,
         "saas/subscription.html",
         {
@@ -1571,6 +1680,16 @@ def subscription_portal(request: Request, db: Session = Depends(get_db)):
             ).strip(),
         },
     )
+    if requested_organization_uuid and selected_access is not None:
+        response.set_cookie(
+            service.SAAS_ORGANIZATION_COOKIE,
+            selected_access.organization_uuid,
+            **auth.secure_cookie_kwargs(
+                request,
+                max_age=service.session_max_age_seconds(),
+            ),
+        )
+    return response
 
 
 @router.post("/subscription/demo/select")
@@ -1875,8 +1994,9 @@ def subscription_branch_management(request: Request, db: Session = Depends(get_d
     if redirect:
         return redirect
     portal = subscription_portal_service.build_subscription_portal(db, account)
+    change_context = None
     try:
-        subscription_change_service.resolve_change_context(db, account)
+        change_context = subscription_change_service.resolve_change_context(db, account)
         can_manage = portal.pending_change is None
         access_error = ""
     except subscription_change_service.SubscriptionChangeError as exc:
@@ -1905,6 +2025,33 @@ def subscription_branch_management(request: Request, db: Session = Depends(get_d
     proposed_teachers = _proposed_count(
         "proposed_teachers", portal.active_teacher_count
     )
+    resulting_minimum_eligible_plan_name = portal.minimum_eligible_plan_name
+    if change_context is not None:
+        plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == change_context.subscription.plan_id,
+            models.SubscriptionPlan.is_active.is_(True),
+        ).one_or_none()
+        if plan is not None:
+            try:
+                proposed_snapshot = (
+                    branch_pricing_quote_service.build_organization_capacity_snapshot(
+                        db,
+                        school_group_id=change_context.resolution.school_group_id,
+                        current_plan=plan,
+                        proposed_branch_count=requested_quantity,
+                        proposed_system_user_count=proposed_system_users,
+                        proposed_teacher_count=proposed_teachers,
+                    )
+                )
+                resulting_minimum_eligible_plan_name = (
+                    "Custom"
+                    if proposed_snapshot.custom_required
+                    else proposed_snapshot.minimum_eligible_plan_name
+                    or "Not Available"
+                )
+            except ValueError:
+                resulting_minimum_eligible_plan_name = "Not Available"
+    paid_branch_quantity = int(portal.paid_branch_quantity or 0)
     return _render(request, "saas/subscription_branches.html", {
         "account": account,
         "subscription_portal": portal,
@@ -1912,6 +2059,11 @@ def subscription_branch_management(request: Request, db: Session = Depends(get_d
         "requested_quantity": requested_quantity,
         "proposed_system_users": proposed_system_users,
         "proposed_teachers": proposed_teachers,
+        "additional_paid_branches_requested": max(
+            requested_quantity - paid_branch_quantity,
+            0,
+        ),
+        "resulting_minimum_eligible_plan_name": resulting_minimum_eligible_plan_name,
         "access_error": access_error,
         "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
         "notice": request.query_params.get("notice", ""),
@@ -5157,7 +5309,7 @@ def delete_pending_organization(
 
 
 @router.get("/auth/{provider}/start")
-def oauth_start(provider: str, request: Request):
+def oauth_start(provider: str, request: Request, next_path: str = Query("")):
     authorization_url, state_token, verifier = oauth.build_authorization_url(request, provider)
     response = RedirectResponse(authorization_url, status_code=302)
     response.set_cookie(
@@ -5170,6 +5322,15 @@ def oauth_start(provider: str, request: Request):
         verifier,
         **auth.secure_cookie_kwargs(request, max_age=oauth.OAUTH_MAX_AGE_SECONDS),
     )
+    if next_path:
+        response.set_cookie(
+            OAUTH_NEXT_COOKIE,
+            _safe_next(next_path),
+            **auth.secure_cookie_kwargs(
+                request,
+                max_age=oauth.OAUTH_MAX_AGE_SECONDS,
+            ),
+        )
     return response
 
 
@@ -5215,7 +5376,11 @@ def oauth_callback(
         db.rollback()
         return PlainTextResponse("OAuth sign-in could not be completed.", status_code=400)
     notice = quote_plus(str(policy.warning or ""))
-    destination = customer_journey_service.login_destination(db, account)
+    destination = _post_auth_destination(
+        db,
+        account,
+        str(request.cookies.get(OAUTH_NEXT_COOKIE) or ""),
+    )
     if notice and destination == "/saas/account":
         destination += f"?notice={notice}"
     response = RedirectResponse(
@@ -5224,6 +5389,7 @@ def oauth_callback(
     )
     response.delete_cookie(oauth.OAUTH_STATE_COOKIE, **auth.secure_cookie_kwargs(request))
     response.delete_cookie(oauth.OAUTH_PKCE_COOKIE, **auth.secure_cookie_kwargs(request))
+    response.delete_cookie(OAUTH_NEXT_COOKIE, **auth.secure_cookie_kwargs(request))
     return service.set_session_cookies(
         response,
         session_token=session_token,

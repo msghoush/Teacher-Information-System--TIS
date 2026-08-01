@@ -89,7 +89,7 @@
     .billing-error .btn { margin-top:13px; }
     .btn.destructive { border-color:#e3a2aa; background:#fff; color:#a11d2f; box-shadow:none; }
     .btn.destructive:hover { border-color:#c86f7b; background:#fff7f8; box-shadow:0 10px 22px rgba(161, 29, 47, .1); }
-    .capacity-usage-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .capacity-usage-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; }
     .capacity-usage-grid .metric-card.is-exhausted { border-color:#edc56c; background:#fffaf0; }
     .capacity-alert { margin-top:12px; }
     .comparison-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
@@ -109,25 +109,13 @@
     .scheduled-plan-state { margin-top:auto; border:1px solid #f0c36a; border-radius:6px; background:#fff8e8; padding:10px 12px; color:#5f4a20; text-align:center; }
     .scheduled-plan-state strong, .scheduled-plan-state span { display:block; }
     .scheduled-plan-state span { margin-top:3px; font-size:12px; }
-    .features-disclosure { border:1px solid var(--line); border-radius:8px; background:#fff; }
-    .features-disclosure summary { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:16px 18px; color:var(--brand-dark); cursor:pointer; font-weight:900; list-style:none; }
-    .features-disclosure summary::-webkit-details-marker { display:none; }
-    .features-disclosure summary::after { color:var(--brand); content:"+"; font-size:21px; font-weight:700; }
-    .features-disclosure[open] summary::after { content:"-"; }
-    .features-summary-copy { display:block; margin-top:3px; color:var(--muted); font-size:12px; font-weight:700; }
-    .feature-groups { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:0 22px; border-top:1px solid var(--line); padding:8px 18px 16px; }
-    .feature-group { min-width:0; padding:10px 0; }
-    .feature-group h3 { margin:0 0 5px; color:#31506f; font-size:13px; letter-spacing:0; }
-    .feature-row { display:flex; align-items:center; justify-content:space-between; gap:12px; border-top:1px solid #edf2f7; padding:8px 0; }
-    .feature-row strong { color:#172033; font-size:13px; }
-    .feature-state { flex:0 0 auto; color:#64748b; font-size:11px; font-weight:900; white-space:nowrap; }
-    .feature-state.is-included { color:#137c78; }
     .support-band { display:flex; align-items:center; justify-content:space-between; gap:20px; border:1px solid #b9cfe6; border-left:4px solid #4b83ba; border-radius:8px; background:#f4f8fc; padding:20px 22px; }
     .support-band h2 { margin-bottom:6px; color:var(--brand-dark); }
     .support-band p { margin:0; color:#40556f; }
     @media (max-width:900px) {
         .overview-grid { grid-template-columns:1fr; }
         .supporting-metrics { grid-template-columns:repeat(3, minmax(0, 1fr)); grid-template-rows:auto; }
+        .capacity-usage-grid { grid-template-columns:repeat(2, minmax(0, 1fr)); }
         .comparison-grid { grid-template-columns:1fr; }
         .billing-summary-grid { grid-template-columns:repeat(3, minmax(0, 1fr)); }
     }
@@ -137,7 +125,7 @@
         .plan-overview { padding:19px 16px; }
         .plan-overview h2 { font-size:26px; }
         .recurring-price strong { font-size:30px; }
-        .overview-facts, .supporting-metrics, .pending-details, .feature-groups, .billing-summary-grid, .capacity-usage-grid { grid-template-columns:1fr; }
+        .overview-facts, .supporting-metrics, .pending-details, .billing-summary-grid, .capacity-usage-grid { grid-template-columns:1fr; }
         .lifecycle-badge, .pending-status { white-space:normal; }
         .subscription-actions, .subscription-actions .btn { width:100%; }
         .billing-table th, .billing-table td { padding:13px 14px; }
@@ -178,13 +166,13 @@
             </div>
             <dl class="overview-facts">
                 <div class="overview-fact"><dt>{{ subscription_portal.overview_date_label }}</dt><dd>{{ subscription_portal.overview_date_value }}</dd></div>
-                <div class="overview-fact"><dt>Branch Usage</dt><dd>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }} paid / {{ subscription_portal.active_branch_count }} active</dd></div>
+                <div class="overview-fact"><dt>Paid Branch Quantity</dt><dd>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }} currently paid</dd></div>
             </dl>
         </article>
         <div class="supporting-metrics" aria-label="Subscription metrics">
             <article class="metric-card"><span>Billing Interval</span><strong>{{ subscription_portal.billing_interval_label }}</strong><small>Recurring billing schedule</small></article>
-            <article class="metric-card"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong><small>{{ subscription_portal.active_branch_count }} currently active</small></article>
-            <article class="metric-card"><span>Available Branch Capacity</span><strong>{{ subscription_portal.remaining_paid_capacity if subscription_portal.remaining_paid_capacity is not none else "Not Available" }}</strong><small>{% if subscription_portal.is_over_capacity %}Capacity requires review{% elif subscription_portal.is_at_capacity %}All paid capacity is in use{% else %}Branch seats available{% endif %}</small></article>
+            <article class="metric-card"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong><small>Confirmed recurring billed quantity</small></article>
+            <article class="metric-card"><span>Plan Branch Ceiling</span><strong>{% if subscription_portal.plan_branch_limit is not none %}Up to {{ subscription_portal.plan_branch_limit }}{% else %}Not Available{% endif %}</strong><small>Maximum active branches supported by {{ subscription_portal.plan_name }}</small></article>
         </div>
     </section>
 
@@ -192,9 +180,10 @@
         <div class="portal-section-head"><div><h2 id="organization-capacity-title">Organization Capacity</h2><p>Eligibility is evaluated across active branches, system users, and teachers together.</p></div></div>
         {% if subscription_portal.capacity_available %}
         <div class="capacity-usage-grid">
-            <article class="metric-card{% if subscription_portal.remaining_plan_branches == 0 %} is-exhausted{% endif %}"><span>Active Branches</span><strong>{{ subscription_portal.active_branch_count }} / {{ subscription_portal.plan_branch_limit }}</strong><small>{{ subscription_portal.remaining_plan_branches }} available within {{ subscription_portal.plan_name }}</small></article>
-            <article class="metric-card{% if subscription_portal.remaining_system_users == 0 %} is-exhausted{% endif %}"><span>System Users</span><strong>{{ subscription_portal.active_system_user_count }} / {{ subscription_portal.plan_system_user_limit }}</strong><small>{{ subscription_portal.remaining_system_users }} available within {{ subscription_portal.plan_name }}</small></article>
-            <article class="metric-card{% if subscription_portal.remaining_teachers == 0 %} is-exhausted{% endif %}"><span>Teachers</span><strong>{{ subscription_portal.active_teacher_count }} / {{ subscription_portal.plan_teacher_limit }}</strong><small>{{ subscription_portal.remaining_teachers }} available within {{ subscription_portal.plan_name }}</small></article>
+            <article class="metric-card"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong><small>{{ subscription_portal.active_branch_count }} active branch{% if subscription_portal.active_branch_count != 1 %}es{% endif %} currently required</small></article>
+            <article class="metric-card{% if subscription_portal.remaining_plan_branches == 0 %} is-exhausted{% endif %}"><span>Plan Branch Ceiling</span><strong>Up to {{ subscription_portal.plan_branch_limit }}</strong><small>{{ subscription_portal.plan_name }} supports up to {{ subscription_portal.plan_branch_limit }} active branch{% if subscription_portal.plan_branch_limit != 1 %}es{% endif %}</small></article>
+            <article class="metric-card{% if subscription_portal.remaining_system_users == 0 %} is-exhausted{% endif %}"><span>System Users</span><strong>{{ subscription_portal.active_system_user_count }} of {{ subscription_portal.plan_system_user_limit }}</strong><small>{{ subscription_portal.remaining_system_users }} included capacity remaining</small></article>
+            <article class="metric-card{% if subscription_portal.remaining_teachers == 0 %} is-exhausted{% endif %}"><span>Teachers</span><strong>{{ subscription_portal.active_teacher_count }} of {{ subscription_portal.plan_teacher_limit }}</strong><small>{{ subscription_portal.remaining_teachers }} included capacity remaining</small></article>
         </div>
         {% if not subscription_portal.current_plan_capacity_eligible %}<div class="alert warning capacity-alert">Current usage requires {{ subscription_portal.minimum_eligible_plan_name }}. Review capacity before making another subscription change.</div>{% endif %}
         {% else %}<div class="billing-error" role="status"><strong>Capacity information is temporarily unavailable.</strong><p>Please contact TIS Support before changing the subscription.</p></div>{% endif %}
@@ -332,7 +321,6 @@
                 {% if plan.is_current %}<p class="plan-capacity-state">Current usage: {{ subscription_portal.active_branch_count }} branch{% if subscription_portal.active_branch_count != 1 %}es{% endif %}, {{ subscription_portal.active_system_user_count }} system users, {{ subscription_portal.active_teacher_count }} teachers.</p>
                 {% elif plan.direction == "downgrade" and not plan.capacity_eligible %}<p class="plan-capacity-state is-blocked">Not currently eligible. {{ plan.capacity_reason }}</p>{% endif %}
                 {% endif %}
-                {% if plan.included_features %}<ul>{% for feature in plan.included_features %}<li>{{ feature }}</li>{% endfor %}</ul>{% else %}<p class="page-subtitle">Commercial feature details are being finalized.</p>{% endif %}
                 {% if plan.is_current %}<div class="current-plan-state">Your current subscription</div>
                 {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code == subscription_portal.pending_change.target_plan_code %}<div class="scheduled-plan-state"><strong>Scheduled</strong><span>Effective {{ subscription_portal.pending_change.effective_date_label }}</span></div>
                 {% elif plan.contact_only %}<div class="plan-action"><a class="btn secondary" href="mailto:{{ support_email }}">Contact TIS Support</a></div>
@@ -342,22 +330,6 @@
             </article>
             {% endfor %}
         </div>
-    </section>
-
-    <section class="portal-section" aria-label="Included subscription features">
-        <details class="features-disclosure">
-            <summary><span>Features Included<span class="features-summary-copy">Review capabilities available through your confirmed subscription.</span></span></summary>
-            <div class="feature-groups">
-                {% for group in subscription_portal.feature_groups %}
-                <section class="feature-group">
-                    <h3>{{ group.label }}</h3>
-                    {% for feature in group.features %}
-                    <div class="feature-row"><strong>{{ feature.name }}</strong><span class="feature-state{% if feature.included %} is-included{% endif %}">{{ "Included" if feature.included else "Not Included" }}</span></div>
-                    {% endfor %}
-                </section>
-                {% endfor %}
-            </div>
-        </details>
     </section>
 
     <section class="support-band">

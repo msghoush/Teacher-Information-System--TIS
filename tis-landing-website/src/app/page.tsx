@@ -35,7 +35,7 @@ import type { CSSProperties, ElementType, PointerEvent as ReactPointerEvent, Rea
 import type { LucideIcon } from "lucide-react";
 
 const tisAppBaseUrl = normalizeConfiguredUrl(process.env.NEXT_PUBLIC_TIS_APP_BASE_URL);
-const signInUrl = buildTisAppUrl("/saas/login");
+const organizationSignInUrl = buildTisAppUrl("/saas/login");
 const openTisAppUrl = buildTisAppUrl("/login");
 const requestDemoUrl = buildTisAppUrl("/saas/signup?intent=demo");
 const subscribeNowUrl = buildTisAppUrl("/saas/signup?intent=subscribe");
@@ -510,10 +510,10 @@ function Header({
 
           <div className="flex items-center gap-2 md:hidden">
             <a
-              href={signInUrl}
+              href={organizationSignInUrl}
               className="focus-ring button-secondary inline-flex h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean"
             >
-              Sign In
+              Organization Sign In
             </a>
             <button
               type="button"
@@ -571,10 +571,10 @@ function Header({
         </nav>
 
         <a
-          href={signInUrl}
+          href={organizationSignInUrl}
           className="focus-ring button-secondary hidden h-10 items-center justify-center rounded-xl px-4 text-sm font-bold text-ocean md:inline-flex"
         >
-          Sign In
+          Organization Sign In
         </a>
       </div>
     </header>
@@ -1316,8 +1316,8 @@ function Footer() {
         </div>
 
         <div className="flex flex-col gap-3 text-sm text-slate-300 md:items-end">
-          <a className="footer-link" href={signInUrl}>
-            Sign In
+          <a className="footer-link" href={organizationSignInUrl}>
+            Organization Sign In
           </a>
           <a className="footer-link" href={openTisAppUrl}>
             Open TIS App

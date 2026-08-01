@@ -4,7 +4,7 @@
     .quantity-shell { max-width:960px; margin:0 auto; }
     .quantity-header h1 { margin:5px 0 8px; color:var(--brand-dark); font-size:32px; letter-spacing:0; }
     .quantity-header p { color:var(--muted); line-height:1.55; }
-    .quantity-summary { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; margin:20px 0; }
+    .quantity-summary { display:grid; grid-template-columns:repeat(4, minmax(0, 1fr)); gap:12px; margin:20px 0; }
     .quantity-stat { border:1px solid var(--line); border-radius:8px; background:#fff; padding:15px; }
     .quantity-stat span { display:block; color:var(--muted); font-size:12px; font-weight:800; margin-bottom:6px; }
     .quantity-stat strong { color:var(--brand-dark); font-size:21px; }
@@ -24,16 +24,22 @@
     <header class="quantity-header"><span class="page-eyebrow">Subscription Management</span><h1>Review organization capacity</h1><p>Review branch, system-user, and teacher requirements together before changing your subscription.</p></header>
     {% if notice %}<div class="alert success">{{ notice }}</div>{% endif %}
     {% if error or access_error %}<div class="alert error">{{ error or access_error }}</div>{% endif %}
-    <section class="quantity-summary">
-        <div class="quantity-stat"><span>Active Branches</span><strong>{{ subscription_portal.active_branch_count }} / {{ subscription_portal.plan_branch_limit if subscription_portal.plan_branch_limit is not none else "-" }}</strong></div>
-        <div class="quantity-stat"><span>System Users</span><strong>{{ subscription_portal.active_system_user_count }} / {{ subscription_portal.plan_system_user_limit if subscription_portal.plan_system_user_limit is not none else "-" }}</strong></div>
-        <div class="quantity-stat"><span>Teachers</span><strong>{{ subscription_portal.active_teacher_count }} / {{ subscription_portal.plan_teacher_limit if subscription_portal.plan_teacher_limit is not none else "-" }}</strong></div>
+    <section class="quantity-summary" aria-label="Current paid quantity and plan capacity">
+        <div class="quantity-stat"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong></div>
+        <div class="quantity-stat"><span>Plan Branch Ceiling</span><strong>{% if subscription_portal.plan_branch_limit is not none %}Up to {{ subscription_portal.plan_branch_limit }}{% else %}Not Available{% endif %}</strong></div>
+        <div class="quantity-stat"><span>System Users</span><strong>{{ subscription_portal.active_system_user_count }} of {{ subscription_portal.plan_system_user_limit if subscription_portal.plan_system_user_limit is not none else "-" }}</strong></div>
+        <div class="quantity-stat"><span>Teachers</span><strong>{{ subscription_portal.active_teacher_count }} of {{ subscription_portal.plan_teacher_limit if subscription_portal.plan_teacher_limit is not none else "-" }}</strong></div>
     </section>
-    <section class="capacity-limits" aria-label="Available plan capacity">
-        <h2>Available {{ subscription_portal.plan_name }} capacity</h2>
-        <p>{{ subscription_portal.remaining_plan_branches if subscription_portal.remaining_plan_branches is not none else "-" }} branches, {{ subscription_portal.remaining_system_users if subscription_portal.remaining_system_users is not none else "-" }} system users, and {{ subscription_portal.remaining_teachers if subscription_portal.remaining_teachers is not none else "-" }} teachers remain within the current plan limits.</p>
-        <p>Confirmed paid branches: {{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}.</p>
+    <section class="capacity-limits" aria-label="Current paid quantity and requested capacity">
+        <h2>Branch billing and {{ subscription_portal.plan_name }} limits</h2>
+        <p><strong>Confirmed paid branches:</strong> {{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}.</p>
+        <p><strong>Required active branches:</strong> {{ requested_quantity }}.</p>
+        <p><strong>Maximum supported by {{ subscription_portal.plan_name }}:</strong> {% if subscription_portal.plan_branch_limit is not none %}{{ subscription_portal.plan_branch_limit }} active branches{% else %}Not Available{% endif %}.</p>
+        <p><strong>Additional billed branches requested:</strong> {{ additional_paid_branches_requested }}.</p>
+        <p><strong>Resulting minimum eligible plan:</strong> {{ resulting_minimum_eligible_plan_name }}.</p>
+        <p>System users: {{ subscription_portal.active_system_user_count }} of {{ subscription_portal.plan_system_user_limit if subscription_portal.plan_system_user_limit is not none else "-" }}. Teachers: {{ subscription_portal.active_teacher_count }} of {{ subscription_portal.plan_teacher_limit if subscription_portal.plan_teacher_limit is not none else "-" }}.</p>
     </section>
+    {% if additional_paid_branches_requested > 0 %}<div class="alert info">Adding {{ additional_paid_branches_requested }} branch{% if additional_paid_branches_requested != 1 %}es{% endif %} will increase your billed quantity from {{ subscription_portal.paid_branch_quantity }} to {{ requested_quantity }}. A billing preview is required before this change can be submitted.</div>{% endif %}
     {% if subscription_portal.pending_change %}
     <div class="alert info">A subscription change is already in progress. Complete or cancel it before starting another.</div>
     {% elif can_manage %}

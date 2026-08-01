@@ -145,11 +145,6 @@ def _plan_comparison(
                 "upgrade" if subscription_plan_change_service.PLAN_ORDER.get(profile.plan_code, 0) > subscription_plan_change_service.PLAN_ORDER.get(current_plan_code, 0)
                 else "downgrade"
             ),
-            "included_features": tuple(
-                value.display_name
-                for value in profile.entitlements.values()
-                if value.granted and value.key != "quota.active_branches"
-            ),
             "max_branches": getattr(plan, "max_branches", None),
             "max_system_users": getattr(plan, "max_system_users", None),
             "max_teachers": getattr(plan, "max_teachers", None),
@@ -162,7 +157,6 @@ def _plan_comparison(
         "plan_name": "Custom",
         "is_current": False,
         "direction": "custom",
-        "included_features": (),
         "max_branches": None,
         "max_system_users": None,
         "max_teachers": None,

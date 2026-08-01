@@ -292,11 +292,11 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
 
     def test_starter_professional_and_enterprise_pages_render(self):
         cases = (
-            ("starter", "Starter", "Not Included"),
-            ("professional", "Professional", "Advanced Reporting"),
-            ("enterprise_ai", "Enterprise AI", "AI"),
+            ("starter", "Starter"),
+            ("professional", "Professional"),
+            ("enterprise_ai", "Enterprise AI"),
         )
-        for plan_code, plan_name, expected_feature in cases:
+        for plan_code, plan_name in cases:
             with self.subTest(plan=plan_code):
                 fixture = self._create_subscription(
                     plan_code=plan_code,
@@ -308,10 +308,43 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 self.assertEqual(response.status_code, 200)
                 self.assertIn('class="brand-symbol-frame"', response.text)
                 self.assertIn(plan_name, response.text)
-                self.assertIn(expected_feature, response.text)
                 self.assertIn("Paid Branches", response.text)
-                self.assertIn("Available Branch Capacity", response.text)
+                self.assertIn("Plan Branch Ceiling", response.text)
+                self.assertNotIn("Available Branch Capacity", response.text)
+                self.assertNotIn("Commercial feature details are being finalized", response.text)
+                self.assertNotIn("Features Included", response.text)
                 self.assertIn("July 01, 2027", response.text)
+
+    def test_paid_branch_quantity_is_separate_from_enterprise_plan_ceiling(self):
+        fixture = self._create_subscription(
+            plan_code="enterprise_ai",
+            quantity=1,
+            active_branches=1,
+            next_billed_at=datetime(2027, 7, 1),
+        )
+        response = self._open(fixture)
+        self.assertEqual(response.status_code, 200)
+        normalized = " ".join(response.text.split())
+        self.assertIn("Paid Branch Quantity</dt><dd>1 currently paid", normalized)
+        self.assertIn("Plan Branch Ceiling", normalized)
+        self.assertIn("Up to 25", normalized)
+        self.assertIn("Enterprise AI supports up to 25 active branches", normalized)
+        self.assertNotIn("1 / 25", normalized)
+        self.assertNotIn("24 branches available", normalized)
+
+        review = self.client.get(
+            "/saas/subscription/branches?requested_quantity=2",
+            follow_redirects=False,
+        )
+        self.assertEqual(review.status_code, 200)
+        review_text = " ".join(review.text.split())
+        self.assertIn("Confirmed paid branches:</strong> 1", review_text)
+        self.assertIn("Required active branches:</strong> 2", review_text)
+        self.assertIn("Maximum supported by Enterprise AI:</strong> 25 active branches", review_text)
+        self.assertIn("Additional billed branches requested:</strong> 1", review_text)
+        self.assertIn("Adding 1 branch will increase your billed quantity from 1 to 2", review_text)
+        self.assertIn("A billing preview is required", review_text)
+        self.assertIn("Resulting minimum eligible plan:</strong> Professional", review_text)
 
     def test_portal_view_uses_resolver_quantities_and_feature_groups(self):
         fixture = self._create_subscription(
@@ -356,10 +389,10 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn("Active", response.text)
         self.assertIn("per year", response.text)
         self.assertIn("August 18, 2027", response.text)
-        self.assertIn("2 paid / 1 active", response.text)
+        self.assertIn("2 currently paid", response.text)
         self.assertNotIn('<section class="pending-change"', response.text)
-        self.assertIn("Features Included", response.text)
-        self.assertIn("<details", response.text)
+        self.assertNotIn("Features Included", response.text)
+        self.assertNotIn("features-disclosure", response.text)
 
     def test_pending_change_card_renders_scheduled_and_processing_states(self):
         cases = (
@@ -521,7 +554,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn("Invoice History", response.text)
         self.assertNotIn("Coming Soon", response.text)
         self.assertIn("Subscription Actions", response.text)
-        self.assertIn("features-disclosure", response.text)
+        self.assertNotIn("features-disclosure", response.text)
         self.client.cookies.clear()
         db = self.Session()
         try:
@@ -554,7 +587,10 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.assertIn("grid-template-columns:1fr", template)
         self.assertIn("overview-grid", template)
         self.assertIn("plan-overview", template)
-        self.assertIn("features-disclosure", template)
+        self.assertNotIn("features-disclosure", template)
+        self.assertNotIn("Commercial feature details are being finalized", template)
+        self.assertNotIn("Features Included", template)
+        self.assertNotIn("plan.included_features", template)
         self.assertGreaterEqual(template.lower().count("<form"), 2)
         self.assertIn('/saas/subscription/plans/preview', template)
         self.assertIn("cancel scheduled reduction", template.lower())

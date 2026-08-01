@@ -21,8 +21,8 @@
     </div>
 </form>
 <div class="actions" style="margin-top:18px;">
-    {% if google_enabled %}<a class="btn oauth" href="/saas/auth/google/start">Continue with Google</a>{% endif %}
-    {% if microsoft_enabled %}<a class="btn oauth" href="/saas/auth/microsoft/start">Continue with Microsoft</a>{% endif %}
+    {% if google_enabled %}<a class="btn oauth" href="/saas/auth/google/start{% if next_path %}?next_path={{ next_path | urlencode }}{% endif %}">Continue with Google</a>{% endif %}
+    {% if microsoft_enabled %}<a class="btn oauth" href="/saas/auth/microsoft/start{% if next_path %}?next_path={{ next_path | urlencode }}{% endif %}">Continue with Microsoft</a>{% endif %}
 </div>
 <form method="post" action="/saas/auth/resend-verification" style="margin-top:20px;">
     <label for="resend_email">Need a new email verification link?</label>

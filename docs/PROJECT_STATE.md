@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Project State
 
+## Subscription Capacity Presentation And Account Billing Access
+
+Subscription Management and Review Capacity now present paid branch quantity
+separately from the plan branch ceiling. Additional required branches are
+identified as additional billed quantity, while system-user and teacher counts
+remain non-billed plan-eligibility ceilings. Customer plan cards no longer show
+unapproved feature claims or feature placeholders.
+
+Authorized operational organization owners and explicitly billing-authorized
+account managers can open the existing Organization Account Billing &
+Subscription page from System Configuration. The bridge and destination both
+revalidate tenant/account linkage and permissions. Missing SaaS authentication
+preserves only the approved internal subscription continuation through sign-in;
+invalid, unrelated, and external destinations fail closed. The Next.js landing
+page now labels this centralized customer entry Organization Sign In. Paddle
+quantity, pricing, entitlement, lifecycle, webhook, and provider-authority
+behavior are unchanged.
+
 ## Organization Account Sign-In Routing
 
 Activated organization owners and account-authorized linked users now land on

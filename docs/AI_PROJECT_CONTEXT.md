@@ -7,6 +7,31 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Subscription Capacity Presentation And Billing Entry
+
+Customer subscription pages distinguish confirmed paid branch quantity from
+the active plan's branch ceiling. Every active branch remains a Paddle quantity
+unit; the plan ceiling describes only the largest organization the plan can
+support. System-user and teacher counts remain included eligibility ceilings
+and never become provider quantity. Review Capacity shows current paid branches,
+required active branches, additional billed branches, the plan ceiling, and the
+resulting minimum eligible plan without describing unused plan ceiling as
+prepaid capacity. Until the commercial feature matrix is approved, customer
+plan cards show only plan identity, three capacity ceilings, current/eligibility
+state, and permitted plan-change actions.
+
+An authorized operational organization owner or user with
+`subscriptions.manage_billing` sees Billing & Subscription under System
+Configuration. The bridge revalidates the operational user, selected tenant,
+SaaS account-user link, and billing authority, then opens the existing
+Organization Account subscription page. If SaaS account authentication is
+required, only an allowlisted internal continuation is preserved through
+password or social sign-in. Multiple-organization selection remains explicit,
+restricted customers retain permitted recovery access, and external return
+destinations fail back to Organization Account. The public landing action is
+labelled Organization Sign In and continues to use centralized `/saas/login`;
+it never defaults an organization owner into operations.
+
 ## Organization Account Sign-In Boundary
 
 Public and onboarding SaaS Sign In authenticate through `/saas/login` and then

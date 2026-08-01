@@ -410,6 +410,8 @@ M5: Platform access, permissions, and owner controls
 - Added provider-sourced billing history and protected, freshly resolved invoice downloads.
 - Added webhook idempotency, strict provider/local relationship validation, manual-review fail-closed paths, diagnostics, and guarded reconciliation tooling.
 - Unified active subscription capacity review across branches, non-teacher system users, and teachers. Required upgrades use the highest capacity dimension, Paddle quantity remains branch-only, and scheduled downgrades/reductions revalidate capacity at their effective boundary.
+- Subscription presentation separates paid branch quantity from the plan's maximum branch ceiling; unused ceiling is never described as prepaid capacity. Customer plan comparison remains limited to approved plan identity, capacity, eligibility, and action information until the commercial feature matrix is approved.
+- Linked operational organization owners and billing-authorized account managers can enter the existing Organization Account subscription page from System Configuration. Tenant/account linkage is revalidated and only an allowlisted internal billing continuation survives SaaS authentication. The public landing customer entry is labelled Organization Sign In and targets centralized SaaS login.
 
 ## Paddle And Payment Architecture Summary
 
