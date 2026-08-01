@@ -89,13 +89,19 @@
     .billing-error .btn { margin-top:13px; }
     .btn.destructive { border-color:#e3a2aa; background:#fff; color:#a11d2f; box-shadow:none; }
     .btn.destructive:hover { border-color:#c86f7b; background:#fff7f8; box-shadow:0 10px 22px rgba(161, 29, 47, .1); }
-    .comparison-grid { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
+    .capacity-usage-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+    .capacity-usage-grid .metric-card.is-exhausted { border-color:#edc56c; background:#fffaf0; }
+    .capacity-alert { margin-top:12px; }
+    .comparison-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
     .plan-panel { position:relative; display:flex; min-width:0; flex-direction:column; border:1px solid var(--line); border-radius:8px; background:#fff; padding:17px; transition:border-color .18s ease, background-color .18s ease, transform .18s ease; }
     .plan-panel:hover { border-color:#bdccdc; transform:translateY(-1px); }
     .plan-panel.is-current { border-color:#8db8e3; background:#f6faff; box-shadow:inset 0 3px 0 #0a4ea3; }
     .plan-panel.is-current:hover { border-color:#79a9d9; }
     .plan-panel h3 { margin:0 0 9px; color:var(--brand-dark); font-size:18px; letter-spacing:0; }
     .plan-panel ul { margin:0 0 15px; padding-left:18px; color:var(--muted); font-size:13px; line-height:1.55; }
+    .plan-capacity-list { border-top:1px solid var(--line); padding-top:12px; }
+    .plan-capacity-state { margin:0 0 13px; color:var(--muted); font-size:12px; line-height:1.45; }
+    .plan-capacity-state.is-blocked { color:#8a5a13; }
     .plan-panel .plan-action { margin-top:auto; }
     .plan-panel .plan-action .btn { width:100%; }
     .current-label { align-self:flex-start; margin-bottom:10px; border:1px solid #b9d4ef; border-radius:999px; background:#eaf3ff; padding:5px 9px; color:#0a4ea3; font-size:10px; font-weight:900; text-transform:uppercase; }
@@ -131,7 +137,7 @@
         .plan-overview { padding:19px 16px; }
         .plan-overview h2 { font-size:26px; }
         .recurring-price strong { font-size:30px; }
-        .overview-facts, .supporting-metrics, .pending-details, .feature-groups, .billing-summary-grid { grid-template-columns:1fr; }
+        .overview-facts, .supporting-metrics, .pending-details, .feature-groups, .billing-summary-grid, .capacity-usage-grid { grid-template-columns:1fr; }
         .lifecycle-badge, .pending-status { white-space:normal; }
         .subscription-actions, .subscription-actions .btn { width:100%; }
         .billing-table th, .billing-table td { padding:13px 14px; }
@@ -152,7 +158,7 @@
         <div>
             <span class="page-eyebrow">Subscription Management</span>
             <h1>Your TIS subscription</h1>
-            <p>Review your plan, billing schedule, paid branch capacity, and available subscription actions.</p>
+            <p>Review your plan, billing schedule, organization capacity, and available subscription actions.</p>
         </div>
     </header>
 
@@ -180,6 +186,18 @@
             <article class="metric-card"><span>Paid Branches</span><strong>{{ subscription_portal.paid_branch_quantity if subscription_portal.paid_branch_quantity is not none else "Not Available" }}</strong><small>{{ subscription_portal.active_branch_count }} currently active</small></article>
             <article class="metric-card"><span>Available Branch Capacity</span><strong>{{ subscription_portal.remaining_paid_capacity if subscription_portal.remaining_paid_capacity is not none else "Not Available" }}</strong><small>{% if subscription_portal.is_over_capacity %}Capacity requires review{% elif subscription_portal.is_at_capacity %}All paid capacity is in use{% else %}Branch seats available{% endif %}</small></article>
         </div>
+    </section>
+
+    <section class="portal-section" aria-labelledby="organization-capacity-title">
+        <div class="portal-section-head"><div><h2 id="organization-capacity-title">Organization Capacity</h2><p>Eligibility is evaluated across active branches, system users, and teachers together.</p></div></div>
+        {% if subscription_portal.capacity_available %}
+        <div class="capacity-usage-grid">
+            <article class="metric-card{% if subscription_portal.remaining_plan_branches == 0 %} is-exhausted{% endif %}"><span>Active Branches</span><strong>{{ subscription_portal.active_branch_count }} / {{ subscription_portal.plan_branch_limit }}</strong><small>{{ subscription_portal.remaining_plan_branches }} available within {{ subscription_portal.plan_name }}</small></article>
+            <article class="metric-card{% if subscription_portal.remaining_system_users == 0 %} is-exhausted{% endif %}"><span>System Users</span><strong>{{ subscription_portal.active_system_user_count }} / {{ subscription_portal.plan_system_user_limit }}</strong><small>{{ subscription_portal.remaining_system_users }} available within {{ subscription_portal.plan_name }}</small></article>
+            <article class="metric-card{% if subscription_portal.remaining_teachers == 0 %} is-exhausted{% endif %}"><span>Teachers</span><strong>{{ subscription_portal.active_teacher_count }} / {{ subscription_portal.plan_teacher_limit }}</strong><small>{{ subscription_portal.remaining_teachers }} available within {{ subscription_portal.plan_name }}</small></article>
+        </div>
+        {% if not subscription_portal.current_plan_capacity_eligible %}<div class="alert warning capacity-alert">Current usage requires {{ subscription_portal.minimum_eligible_plan_name }}. Review capacity before making another subscription change.</div>{% endif %}
+        {% else %}<div class="billing-error" role="status"><strong>Capacity information is temporarily unavailable.</strong><p>Please contact TIS Support before changing the subscription.</p></div>{% endif %}
     </section>
 
     {% if subscription_portal.pending_change %}
@@ -224,11 +242,9 @@
     <section class="portal-section" aria-labelledby="subscription-actions-title">
         <div class="portal-section-head"><div><h2 id="subscription-actions-title">Subscription Actions</h2><p>Changes are previewed before they are submitted to the billing provider.</p></div></div>
         <div class="subscription-actions">
-            {% if subscription_portal.can_increase_quantity %}<a class="btn" href="/saas/subscription/branches">Add Branch Capacity</a>{% endif %}
-            {% if subscription_portal.can_decrease_quantity %}<a class="btn secondary" href="/saas/subscription/branches">Reduce Branch Capacity</a>{% endif %}
-            {% if subscription_portal.can_upgrade %}<a class="btn" href="#plan-comparison">Upgrade Plan</a>{% endif %}
-            {% if subscription_portal.can_downgrade %}<a class="btn secondary" href="#plan-comparison">Downgrade Plan</a>{% endif %}
-            {% if subscription_portal.can_cancel %}<a class="btn destructive" href="/saas/subscription/cancel">Cancel Subscription</a>{% endif %}
+            {% if subscription_portal.can_increase_quantity or subscription_portal.can_decrease_quantity %}<a class="btn" href="/saas/subscription/branches">Review Capacity</a>{% endif %}
+            {% if subscription_portal.can_upgrade or subscription_portal.can_downgrade %}<a class="btn secondary" href="#plan-comparison">Change Plan</a>{% endif %}
+            {% if subscription_portal.can_cancel %}<a class="btn destructive" href="/saas/subscription/cancel">Cancel at Period End</a>{% endif %}
         </div>
     </section>
     {% endif %}
@@ -308,12 +324,21 @@
             <article class="plan-panel{% if plan.is_current %} is-current{% endif %}">
                 {% if plan.is_current %}<span class="current-label">Current Plan</span>{% endif %}
                 <h3>{{ plan.plan_name }}</h3>
+                {% if plan.contact_only %}
+                <ul class="plan-capacity-list"><li>Capacity beyond 25 branches</li><li>Capacity beyond 100 system users</li><li>Capacity beyond 500 teachers</li></ul>
+                <p class="plan-capacity-state{% if plan.capacity_eligible %} is-blocked{% endif %}">{{ plan.capacity_reason }}</p>
+                {% else %}
+                <ul class="plan-capacity-list"><li>Up to {{ plan.max_branches }} active branch{% if plan.max_branches != 1 %}es{% endif %}</li><li>Up to {{ plan.max_system_users }} system users</li><li>Up to {{ plan.max_teachers }} teachers</li></ul>
+                {% if plan.is_current %}<p class="plan-capacity-state">Current usage: {{ subscription_portal.active_branch_count }} branch{% if subscription_portal.active_branch_count != 1 %}es{% endif %}, {{ subscription_portal.active_system_user_count }} system users, {{ subscription_portal.active_teacher_count }} teachers.</p>
+                {% elif plan.direction == "downgrade" and not plan.capacity_eligible %}<p class="plan-capacity-state is-blocked">Not currently eligible. {{ plan.capacity_reason }}</p>{% endif %}
+                {% endif %}
                 {% if plan.included_features %}<ul>{% for feature in plan.included_features %}<li>{{ feature }}</li>{% endfor %}</ul>{% else %}<p class="page-subtitle">Commercial feature details are being finalized.</p>{% endif %}
                 {% if plan.is_current %}<div class="current-plan-state">Your current subscription</div>
                 {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code == subscription_portal.pending_change.target_plan_code %}<div class="scheduled-plan-state"><strong>Scheduled</strong><span>Effective {{ subscription_portal.pending_change.effective_date_label }}</span></div>
-                {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code != subscription_portal.pending_change.target_plan_code %}<div class="plan-action"><a class="btn secondary" href="/saas/subscription/plans/{{ subscription_portal.pending_change.request_uuid }}/replace?target_plan_code={{ plan.plan_code }}">Replace With {{ plan.plan_name }}</a></div>
+                {% elif plan.contact_only %}<div class="plan-action"><a class="btn secondary" href="mailto:{{ support_email }}">Contact TIS Support</a></div>
+                {% elif subscription_portal.pending_change and subscription_portal.pending_change.can_manage_schedule and plan.plan_code != subscription_portal.pending_change.target_plan_code and plan.capacity_eligible %}<div class="plan-action"><a class="btn secondary" href="/saas/subscription/plans/{{ subscription_portal.pending_change.request_uuid }}/replace?target_plan_code={{ plan.plan_code }}">Replace With {{ plan.plan_name }}</a></div>
                 {% elif plan.direction == "upgrade" and subscription_portal.can_upgrade %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn" type="submit">Preview Upgrade</button></form>
-                {% elif plan.direction == "downgrade" and subscription_portal.can_downgrade %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn secondary" type="submit">Preview Downgrade</button></form>{% endif %}
+                {% elif plan.direction == "downgrade" and subscription_portal.can_downgrade and plan.capacity_eligible %}<form class="plan-action" method="post" action="/saas/subscription/plans/preview"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><input type="hidden" name="target_plan_code" value="{{ plan.plan_code }}"><button class="btn secondary" type="submit">Preview Downgrade</button></form>{% endif %}
             </article>
             {% endfor %}
         </div>

@@ -1889,13 +1889,29 @@ def subscription_branch_management(request: Request, db: Session = Depends(get_d
         requested_quantity = int(submitted_quantity)
     except (TypeError, ValueError):
         requested_quantity = portal.paid_branch_quantity or 1
-    if requested_quantity < 1:
-        requested_quantity = portal.paid_branch_quantity or 1
+    minimum_branch_proposal = max(int(portal.active_branch_count or 0), 1)
+    if requested_quantity < minimum_branch_proposal:
+        requested_quantity = max(
+            int(portal.paid_branch_quantity or 0), minimum_branch_proposal
+        )
+    def _proposed_count(name: str, fallback: int) -> int:
+        try:
+            return max(int(request.query_params.get(name, fallback)), 0)
+        except (TypeError, ValueError):
+            return fallback
+    proposed_system_users = _proposed_count(
+        "proposed_system_users", portal.active_system_user_count
+    )
+    proposed_teachers = _proposed_count(
+        "proposed_teachers", portal.active_teacher_count
+    )
     return _render(request, "saas/subscription_branches.html", {
         "account": account,
         "subscription_portal": portal,
         "can_manage": can_manage,
         "requested_quantity": requested_quantity,
+        "proposed_system_users": proposed_system_users,
+        "proposed_teachers": proposed_teachers,
         "access_error": access_error,
         "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
         "notice": request.query_params.get("notice", ""),
@@ -1907,6 +1923,8 @@ def subscription_branch_management(request: Request, db: Session = Depends(get_d
 def preview_subscription_branch_change(
     request: Request,
     requested_quantity: int = Form(...),
+    proposed_system_users: int | None = Form(None),
+    proposed_teachers: int | None = Form(None),
     csrf_token: str = Form(""),
     db: Session = Depends(get_db),
 ):
@@ -1915,12 +1933,83 @@ def preview_subscription_branch_change(
         return redirect
     _require_saas_csrf(session_row, csrf_token)
     try:
-        row = subscription_change_service.preview_quantity_change(db, account, requested_quantity)
+        context = subscription_change_service.resolve_change_context(db, account, lock=True)
+        plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == context.subscription.plan_id,
+            models.SubscriptionPlan.is_active.is_(True),
+        ).one_or_none()
+        if plan is None:
+            raise subscription_change_service.SubscriptionChangeError(
+                "Subscription capacity is temporarily unavailable.",
+                code="capacity_plan_unavailable",
+                status_code=409,
+            )
+        snapshot = branch_pricing_quote_service.build_organization_capacity_snapshot(
+            db,
+            school_group_id=context.resolution.school_group_id,
+            current_plan=plan,
+            proposed_branch_count=requested_quantity,
+            proposed_system_user_count=proposed_system_users,
+            proposed_teacher_count=proposed_teachers,
+        )
+        if snapshot.custom_required:
+            raise subscription_change_service.SubscriptionChangeError(
+                "This capacity requires a Custom subscription. Please contact the TIS team.",
+                code="custom_plan_required",
+                status_code=409,
+            )
+        current_rank = subscription_plan_change_service.PLAN_ORDER.get(
+            str(plan.plan_code or ""), 0
+        )
+        required_rank = subscription_plan_change_service.PLAN_ORDER.get(
+            str(snapshot.minimum_eligible_plan_code or ""), 0
+        )
+        if required_rank > current_rank:
+            row = subscription_plan_change_service.preview_plan_change(
+                db,
+                account,
+                snapshot.minimum_eligible_plan_code,
+                proposed_branch_count=requested_quantity,
+                proposed_system_user_count=proposed_system_users,
+                proposed_teacher_count=proposed_teachers,
+            )
+            destination = f"/saas/subscription/plans/{row.request_uuid}/confirm"
+        elif requested_quantity != int(context.subscription.quantity or 0):
+            row = subscription_change_service.preview_quantity_change(
+                db, account, requested_quantity
+            )
+            destination = f"/saas/subscription/branches/{row.request_uuid}/confirm"
+        else:
+            db.commit()
+            return RedirectResponse(
+                "/saas/subscription/branches?notice="
+                + quote_plus(
+                    "The proposed capacity fits your current plan and does not change billed branch quantity."
+                ),
+                status_code=302,
+            )
         db.commit()
     except subscription_change_service.SubscriptionChangeError as exc:
         db.commit()
-        return _subscription_change_error(exc, "/saas/subscription/branches", requested_quantity=requested_quantity)
-    return RedirectResponse(f"/saas/subscription/branches/{row.request_uuid}/confirm", status_code=302)
+        params = (
+            f"requested_quantity={requested_quantity}"
+            f"&proposed_system_users={proposed_system_users if proposed_system_users is not None else ''}"
+            f"&proposed_teachers={proposed_teachers if proposed_teachers is not None else ''}"
+        )
+        return _subscription_change_error(
+            exc, f"/saas/subscription/branches?{params}"
+        )
+    except ValueError as exc:
+        db.commit()
+        params = (
+            f"requested_quantity={requested_quantity}"
+            f"&proposed_system_users={proposed_system_users if proposed_system_users is not None else ''}"
+            f"&proposed_teachers={proposed_teachers if proposed_teachers is not None else ''}"
+        )
+        return _redirect_error(
+            f"/saas/subscription/branches?{params}", str(exc)
+        )
+    return RedirectResponse(destination, status_code=302)
 
 
 @router.get("/subscription/branches/{request_uuid}/confirm", response_class=HTMLResponse)

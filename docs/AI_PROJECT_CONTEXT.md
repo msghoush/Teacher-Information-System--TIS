@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-07-31
+last_updated: 2026-08-01
 recommended_first_read: true
 ---
 
@@ -131,6 +131,23 @@ system-user capacity, but their teacher records consume teacher capacity.
 Starter is 1/5/25, Professional 5/20/100, and Enterprise AI 25/100/500.
 Exceeding any Enterprise AI limit requires the contact-only Custom path and
 cannot create Paddle checkout.
+
+Active Subscription Management uses that same three-dimension authority. The
+Review Capacity flow accepts proposed branch, system-user, and teacher totals,
+selects the minimum eligible plan from all three, and records the capacity
+snapshot on a generated plan-change preview. Branch growth may therefore
+produce one combined plan-and-quantity upgrade, while system-user and teacher
+growth affects plan eligibility only. Paddle quantity always remains the branch
+quantity; user and teacher counts never become billable units.
+
+Plan downgrades remain scheduled for the next billing boundary and are checked
+against all three live operational counts both before submission and again when
+provider evidence says the downgrade is effective. If capacity no longer fits,
+local activation stops in manual review and the current safe entitlement state
+is preserved. Quantity reductions receive the same effective-date capacity
+check. Cancellation remains provider-scheduled at paid-period end, preserves
+tenant data and access through that date, and may be reversed while provider
+lifecycle rules allow it.
 
 ## Returning Customer Journey And Commercial Expiry
 
