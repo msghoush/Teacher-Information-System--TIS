@@ -391,9 +391,11 @@ Guardrails:
 7. Scheduled plan or quantity changes may be canceled or replaced before their effective boundary when provider state agrees.
 8. Cancellation is scheduled at period end; reversal removes the provider-scheduled cancellation after reauthorization and validation.
 9. The centralized lifecycle resolver exposes only actions valid for current provider/local state.
-10. Billing history is read from Paddle transactions. Invoice download reauthorizes the user and requests a fresh provider URL.
-11. Operational login, protected requests, and returning-customer routing use the same contract-linked commercial access projection. The specialized plan-change webhook synchronizes provider subscription status, but the target plan becomes authoritative only after the existing required provider signals are both confirmed.
-12. If production provider state is confirmed but local commercial status is stale, an operator replays the attributable stored, signature-verified Paddle webhook through the existing reconciliation path. Operators do not edit subscription or lifecycle status fields manually. Replay may synchronize the current `PaymentSubscription.status`, but it cannot bypass the separate provider payment signal required to activate a target plan.
+10. Billing Contact is explicit organization-owned state. Initial checkout requires a confirmed billing email, legal/billing name, and supported country/address data. Authorized owners and `subscriptions.manage_billing` users may update it without changing login identity.
+11. TIS reuses the mapped Paddle customer, synchronizes its explicit billing email, creates or reuses one attributable active Paddle Business, persists address/business mappings, updates the active subscription identity, and includes `business_id` on future initial transactions. Historical billing documents are not silently revised.
+12. Billing history is read from Paddle transactions. `paid` displays Payment received - processing; only `completed` displays Paid and satisfies the existing final processing signal. Invoice download reauthorizes the user and requests a fresh provider URL.
+13. Operational login, protected requests, and returning-customer routing use the same contract-linked commercial access projection. The specialized plan-change webhook synchronizes provider subscription status, but the target plan becomes authoritative only after the existing required provider signals are both confirmed.
+14. If production provider state is confirmed but local commercial status is stale, an operator replays the attributable stored, signature-verified Paddle webhook through the existing reconciliation path. Operators do not edit subscription or lifecycle status fields manually. Replay may synchronize the current `PaymentSubscription.status`, but it cannot bypass the separate provider payment signal required to activate a target plan.
 
 Guardrails:
 
@@ -404,6 +406,8 @@ Guardrails:
 - webhook processing is idempotent,
 - ambiguous outcomes enter manual review,
 - return pages and local requests are not payment confirmation.
+- organization billing identity is tenant-scoped and provider mappings are revalidated before synchronization,
+- user login email is never an implicit permanent billing-email authority,
 - stale or unrelated organization-level subscription rows cannot supersede the TenantProvisioningLink and SubscriptionContract-linked subscription,
 - canceled subscriptions retain access only until the confirmed paid period ends; ambiguous evidence fails closed without being mislabeled as expired,
 - renewal guidance is shown only for genuine expiration, not payment processing, past due, paused, suspended, archived, or inconsistent commercial evidence.

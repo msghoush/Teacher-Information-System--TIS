@@ -200,13 +200,21 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
             is_plan_change = row.change_type in subscription_plan_change_service.PLAN_CHANGE_TYPES
             is_cancellation = row.change_type == subscription_lifecycle_service.CANCELLATION_REQUEST
             is_reversal = row.change_type == subscription_lifecycle_service.CANCELLATION_REVERSAL
+            payment_received = bool(
+                row.status == "payment_pending"
+                and row.provider_payment_received_at
+            )
             pending = {
                 "request_uuid": row.request_uuid,
                 "change_type": row.change_type,
                 "status": row.status,
                 "status_label": {
                     "previewed": "Awaiting confirmation",
-                    "payment_pending": "Upgrade payment confirmation pending" if is_plan_change else "Payment confirmation pending",
+                    "payment_pending": (
+                        "Payment received — processing"
+                        if payment_received
+                        else "Payment is still pending"
+                    ),
                     "scheduled": (
                         "Cancellation scheduled" if is_cancellation
                         else "Plan downgrade scheduled" if is_plan_change
@@ -222,15 +230,16 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
                     "Scheduled Cancellation" if is_cancellation and row.status == "scheduled"
                     else "Cancellation Reversal" if is_reversal
                     else "Scheduled Plan Change" if is_plan_change and row.status == "scheduled"
+                    else "Subscription update in progress" if payment_received
                     else "Pending Subscription Change" if is_plan_change or is_cancellation
                     else "Pending branch-capacity change"
                 ),
                 "message": (
-                    f"Your {lifecycle.pending_target_plan} upgrade is awaiting payment confirmation."
-                    if is_plan_change
-                    and row.change_type == subscription_plan_change_service.UPGRADE
-                    and row.status == "payment_pending"
-                    and lifecycle.pending_target_plan
+                    "Paddle received the payment and is finalizing your subscription update. "
+                    "No action is required. This usually completes automatically within a few minutes."
+                    if payment_received
+                    else "Payment is still pending."
+                    if row.status == "payment_pending"
                     else ""
                 ),
                 "target_plan_name": (

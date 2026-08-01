@@ -408,6 +408,9 @@ M5: Platform access, permissions, and owner controls
 - Added plan upgrades and scheduled downgrades using Paddle-authoritative previews and proration behavior.
 - Added scheduled cancellation and reversal while preserving paid access through the confirmed effective period.
 - Added provider-sourced billing history and protected, freshly resolved invoice downloads.
+- Added an explicit organization-owned billing profile for the confirmed billing email, legal/billing identity, contact, optional registration/tax identifiers, and supported address fields. Login email and billing email are independent authorities.
+- Mapped Paddle customers now retain `provider_address_id` and `provider_business_id`. Authorized billing changes synchronize the existing customer, reuse or update one attributable active Paddle Business, update the active subscription identity, and attach the business to future initial transactions. Historical invoices are not rewritten automatically.
+- Paddle `paid` and `completed` remain separate lifecycle evidence: paid is customer-visible payment receipt while provider processing continues; completed remains required for final reconciliation.
 - Added webhook idempotency, strict provider/local relationship validation, manual-review fail-closed paths, diagnostics, and guarded reconciliation tooling.
 - Unified active subscription capacity review across branches, non-teacher system users, and teachers. Required upgrades use the highest capacity dimension, Paddle quantity remains branch-only, and scheduled downgrades/reductions revalidate capacity at their effective boundary.
 - Subscription presentation separates paid branch quantity from the plan's maximum branch ceiling; unused ceiling is never described as prepaid capacity. Customer plan comparison remains limited to approved plan identity, capacity, eligibility, and action information until the commercial feature matrix is approved.

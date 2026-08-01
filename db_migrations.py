@@ -4858,6 +4858,90 @@ def _subscription_capacity_dimensions(engine, connection):
         )
 
 
+def _organization_billing_identity(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS organization_billing_profiles (
+            id {id_sql},
+            pending_organization_id INTEGER NOT NULL,
+            billing_email VARCHAR(180) NOT NULL,
+            billing_email_normalized VARCHAR(180) NOT NULL,
+            billing_organization_name VARCHAR(180) NOT NULL,
+            billing_contact_name VARCHAR(180),
+            company_number VARCHAR(180),
+            tax_identifier VARCHAR(180),
+            country_code VARCHAR(2) NOT NULL,
+            country_name VARCHAR(120),
+            region_name VARCHAR(160),
+            city_name VARCHAR(160),
+            district_name VARCHAR(160),
+            neighborhood_name VARCHAR(160),
+            confirmed_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            provider_sync_status VARCHAR(20) NOT NULL DEFAULT 'not_started',
+            provider_synced_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations (id),
+            CONSTRAINT ck_organization_billing_profiles_sync_status CHECK (
+                provider_sync_status IN ('not_started','pending','synced','failed')
+            )
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "organization_billing_profiles",
+        "uq_organization_billing_profiles_org",
+        "pending_organization_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "organization_billing_profiles",
+        "ix_organization_billing_profiles_email",
+        "billing_email_normalized",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "provider_address_id",
+        "provider_address_id VARCHAR(120)",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "provider_business_id",
+        "provider_business_id VARCHAR(120)",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "uq_payment_customers_provider_address_id",
+        "provider_address_id",
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "payment_customers",
+        "uq_payment_customers_provider_business_id",
+        "provider_business_id",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        "subscription_change_requests",
+        "provider_payment_received_at",
+        f"provider_payment_received_at {datetime_type}",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5043,6 +5127,11 @@ MIGRATIONS = (
         migration_id="20260729_001_subscription_capacity_dimensions",
         description="Add per-branch system-user and teacher estimates with separate plan limits",
         apply=_subscription_capacity_dimensions,
+    ),
+    Migration(
+        migration_id="20260801_001_organization_billing_identity",
+        description="Add explicit organization billing profiles and Paddle address/business mappings",
+        apply=_organization_billing_identity,
     ),
 )
 

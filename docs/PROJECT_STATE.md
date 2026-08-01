@@ -7,6 +7,29 @@ source_of_truth: true
 
 # TIS Project State
 
+## Explicit Organization Billing Identity
+
+Organization Account Billing & Subscription now owns a confirmed billing
+profile independent from SaaS authentication. The profile stores billing email,
+legal/billing organization name, contact, optional company/tax identifiers, and
+the existing supported address structure. Initial Secure Payment confirms this
+profile; only organization owners or linked users with
+`subscriptions.manage_billing` may view or update it for an active tenant.
+
+The mapped Paddle customer is reused and synchronized after an authorized
+billing change. Its active address and one attributable Paddle Business are
+created or updated and persisted as `PaymentCustomer.provider_address_id` and
+`PaymentCustomer.provider_business_id`; the active
+subscription identity and future initial transaction use those mappings.
+Ambiguous mappings fail closed. Login-email changes never mutate billing email,
+billing-email changes never mutate authentication, and historical invoices are
+not silently revised.
+
+Provider `paid` is now presented as payment received while processing and is
+recorded separately from final confirmation. Provider `completed` remains the
+required reconciliation signal and renders as Paid. No webhook completion rule
+or subscription authority changed.
+
 ## Subscription Capacity Presentation And Account Billing Access
 
 Subscription Management and Review Capacity now present paid branch quantity

@@ -1445,6 +1445,8 @@ class PaymentCustomer(Base):
     __tablename__ = "payment_customers"
     __table_args__ = (
         Index("uq_payment_customers_provider_customer_id", "provider_customer_id", unique=True),
+        Index("uq_payment_customers_provider_address_id", "provider_address_id", unique=True),
+        Index("uq_payment_customers_provider_business_id", "provider_business_id", unique=True),
         Index("ix_payment_customers_pending_org", "pending_organization_id"),
         Index("ix_payment_customers_saas_account", "saas_account_id"),
     )
@@ -1454,10 +1456,57 @@ class PaymentCustomer(Base):
     saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
     provider = Column(String(30), nullable=False, default="paddle")
     provider_customer_id = Column(String(120), nullable=False, unique=True)
+    provider_address_id = Column(String(120), unique=True)
+    provider_business_id = Column(String(120), unique=True)
     email = Column(String(180))
     name = Column(String(180))
     country_code = Column(String(2))
     status = Column(String(30), nullable=False, default="active")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class OrganizationBillingProfile(Base):
+    __tablename__ = "organization_billing_profiles"
+    __table_args__ = (
+        Index(
+            "uq_organization_billing_profiles_org",
+            "pending_organization_id",
+            unique=True,
+        ),
+        Index(
+            "ix_organization_billing_profiles_email",
+            "billing_email_normalized",
+        ),
+        CheckConstraint(
+            "provider_sync_status IN ('not_started','pending','synced','failed')",
+            name="ck_organization_billing_profiles_sync_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    pending_organization_id = Column(
+        Integer,
+        ForeignKey("pending_organizations.id"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    billing_email = Column(String(180), nullable=False)
+    billing_email_normalized = Column(String(180), nullable=False, index=True)
+    billing_organization_name = Column(String(180), nullable=False)
+    billing_contact_name = Column(String(180))
+    company_number = Column(String(180))
+    tax_identifier = Column(String(180))
+    country_code = Column(String(2), nullable=False)
+    country_name = Column(String(120))
+    region_name = Column(String(160))
+    city_name = Column(String(160))
+    district_name = Column(String(160))
+    neighborhood_name = Column(String(160))
+    confirmed_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    provider_sync_status = Column(String(20), nullable=False, default="not_started")
+    provider_synced_at = Column(DateTime)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -1587,6 +1636,7 @@ class SubscriptionChangeRequest(Base):
     requested_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     previewed_at = Column(DateTime)
     submitted_at = Column(DateTime)
+    provider_payment_received_at = Column(DateTime)
     provider_payment_confirmed_at = Column(DateTime)
     confirmed_at = Column(DateTime)
     effective_at = Column(DateTime)

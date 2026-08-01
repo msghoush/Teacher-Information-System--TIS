@@ -46,8 +46,59 @@
     </div>
     {% if quote and quote.errors %}<div class="error" role="alert">{{ quote.errors[0] }}</div>{% endif %}
 </section>
+<section class="wizard-section" aria-labelledby="checkout-billing-contact-title">
+    <div class="wizard-section-header">
+        <strong id="checkout-billing-contact-title">Billing Contact</strong>
+        <p>Paddle receipts, invoices, and billing notifications will be sent using these billing details.</p>
+    </div>
+    <div class="form-grid">
+        <div>
+            <label for="billing_email">Billing email</label>
+            <input id="billing_email" name="billing_email" type="email" form="checkout-launch-form" value="{{ billing_contact.billing_email }}" maxlength="180" required>
+        </div>
+        <div>
+            <label for="billing_organization_name">Legal or billing organization name</label>
+            <input id="billing_organization_name" name="billing_organization_name" form="checkout-launch-form" value="{{ billing_contact.billing_organization_name }}" maxlength="180" required>
+        </div>
+        <div>
+            <label for="billing_contact_name">Billing contact name <span class="optional-label">Optional</span></label>
+            <input id="billing_contact_name" name="billing_contact_name" form="checkout-launch-form" value="{{ billing_contact.billing_contact_name }}" maxlength="180">
+        </div>
+        <div>
+            <label for="company_number">Company or registration number <span class="optional-label">Optional</span></label>
+            <input id="company_number" name="company_number" form="checkout-launch-form" value="{{ billing_contact.company_number }}" maxlength="180">
+        </div>
+        <div>
+            <label for="tax_identifier">Tax or VAT identifier <span class="optional-label">Optional</span></label>
+            <input id="tax_identifier" name="tax_identifier" form="checkout-launch-form" value="{{ billing_contact.tax_identifier }}" maxlength="180">
+        </div>
+        <div>
+            <label for="billing_country_code">Billing country code</label>
+            <input id="billing_country_code" name="country_code" form="checkout-launch-form" value="{{ billing_contact.country_code }}" maxlength="2" required>
+        </div>
+        <div>
+            <label for="billing_region_name">Region <span class="optional-label">Optional</span></label>
+            <input id="billing_region_name" name="region_name" form="checkout-launch-form" value="{{ billing_contact.region_name }}" maxlength="160">
+        </div>
+        <div>
+            <label for="billing_city_name">City <span class="optional-label">Optional</span></label>
+            <input id="billing_city_name" name="city_name" form="checkout-launch-form" value="{{ billing_contact.city_name }}" maxlength="160">
+        </div>
+        <div>
+            <label for="billing_district_name">District <span class="optional-label">Optional</span></label>
+            <input id="billing_district_name" name="district_name" form="checkout-launch-form" value="{{ billing_contact.district_name }}" maxlength="160">
+        </div>
+        <div>
+            <label for="billing_neighborhood_name">Neighborhood <span class="optional-label">Optional</span></label>
+            <input id="billing_neighborhood_name" name="neighborhood_name" form="checkout-launch-form" value="{{ billing_contact.neighborhood_name }}" maxlength="160">
+        </div>
+    </div>
+</section>
 <form id="checkout-start-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/start"></form>
-<form id="checkout-launch-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch"></form>
+<form id="checkout-launch-form" method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/checkout/launch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="country_name" value="{{ billing_contact.country_name }}">
+</form>
 {% else %}
 <section class="wizard-section">
     <div class="wizard-section-header">

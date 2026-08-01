@@ -15,6 +15,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from saas import (
+    billing_identity_service,
     billing_service,
     branch_pricing_quote_service,
     models,
@@ -210,10 +211,12 @@ def _remote_customer_context_matches(remote_customer: dict, organization, accoun
     )
 
 
-def _select_usable_remote_customer(remote_customers: list[dict], organization, account) -> dict | None:
+def _select_usable_remote_customer(
+    remote_customers: list[dict], organization, account, *, expected_email: str | None = None
+) -> dict | None:
     matches = []
     exact_email_candidates = []
-    email = _account_email(account)
+    email = auth.normalize_email(expected_email) or _account_email(account)
     for remote_customer in remote_customers or []:
         if not isinstance(remote_customer, dict):
             continue
@@ -247,12 +250,15 @@ def _select_usable_remote_customer(remote_customers: list[dict], organization, a
     return None
 
 
-def _find_local_payment_customer_by_account(db: Session, account):
-    email = _account_email(account)
+def _find_local_payment_customer_by_account(
+    db: Session, organization, account, billing_email: str
+):
+    email = auth.normalize_email(billing_email)
     if not email:
         return None
     return db.query(models.PaymentCustomer).filter(
         models.PaymentCustomer.saas_account_id == account.id,
+        models.PaymentCustomer.pending_organization_id == organization.id,
         models.PaymentCustomer.provider == PROVIDER,
         func.lower(models.PaymentCustomer.email) == email,
     ).order_by(models.PaymentCustomer.updated_at.desc(), models.PaymentCustomer.id.desc()).first()
@@ -262,14 +268,21 @@ def _persist_payment_customer_link(db: Session, *, organization, account, remote
     existing = get_payment_customer(db, organization)
     if existing:
         return existing
+    profile = billing_identity_service.require_confirmed_billing_profile(
+        db, organization
+    )
     row = models.PaymentCustomer(
         pending_organization_id=organization.id,
         saas_account_id=account.id,
         provider=PROVIDER,
         provider_customer_id=_clean_text(remote_customer.get("id")),
-        email=_clean_text(remote_customer.get("email") or getattr(account, "email", "")).lower() or None,
-        name=_clean_text(remote_customer.get("name") or "").strip() or None,
-        country_code=_clean_text(getattr(organization, "country_code", "")).upper() or None,
+        email=profile.billing_email_normalized,
+        name=_clean_text(
+            remote_customer.get("name")
+            or profile.billing_contact_name
+            or profile.billing_organization_name
+        ) or None,
+        country_code=profile.country_code,
         status=_clean_text(remote_customer.get("status") or "active") or "active",
     )
     db.add(row)
@@ -631,16 +644,25 @@ def _recover_sandbox_payment_customer(db: Session, *, organization, account, rem
 
 
 def _lookup_remote_payment_customer_by_email(db: Session, organization, account):
-    remote_customers = paddle_client.list_customers_by_email(_account_email(account))
+    profile = billing_identity_service.require_confirmed_billing_profile(
+        db, organization
+    )
+    expected_email = profile.billing_email_normalized
+    remote_customers = paddle_client.list_customers_by_email(expected_email)
     try:
-        return _select_usable_remote_customer(remote_customers, organization, account)
+        return _select_usable_remote_customer(
+            remote_customers,
+            organization,
+            account,
+            expected_email=expected_email,
+        )
     except PaymentCustomerResolutionError as exc:
         exact_active_candidates = [
             customer
             for customer in remote_customers or []
             if isinstance(customer, dict)
             and _clean_text(customer.get("status")).lower() in {"", "active"}
-            and _clean_text(customer.get("email")).lower() == _account_email(account)
+            and _clean_text(customer.get("email")).lower() == expected_email
             and _clean_text(customer.get("id"))
         ]
         if exc.reason_code != "exact_email_context_mismatch" or len(exact_active_candidates) != 1:
@@ -724,10 +746,15 @@ def _ensure_checkout_launchable(db: Session, organization):
 
 
 def _find_or_create_payment_customer(db: Session, organization, account):
+    profile = billing_identity_service.require_confirmed_billing_profile(
+        db, organization
+    )
     existing = get_payment_customer(db, organization)
     if existing:
         return existing
-    existing_for_account = _find_local_payment_customer_by_account(db, account)
+    existing_for_account = _find_local_payment_customer_by_account(
+        db, organization, account, profile.billing_email_normalized
+    )
     if existing_for_account:
         return existing_for_account
     remote_existing = _lookup_remote_payment_customer_by_email(db, organization, account)
@@ -738,12 +765,13 @@ def _find_or_create_payment_customer(db: Session, organization, account):
             account=account,
             remote_customer=remote_existing,
         )
-    full_name = " ".join(
-        part for part in [str(getattr(account, "first_name", "") or "").strip(), str(getattr(account, "last_name", "") or "").strip()] if part
-    ).strip() or str(getattr(organization, "organization_name", "") or "").strip()
+    full_name = (
+        _clean_text(profile.billing_contact_name)
+        or _clean_text(profile.billing_organization_name)
+    )
     try:
         remote = paddle_client.create_customer(
-            email=str(getattr(account, "email", "") or "").strip(),
+            email=profile.billing_email,
             name=full_name,
             custom_data={
                 "pending_organization_uuid": str(getattr(organization, "organization_uuid", "") or ""),
@@ -921,6 +949,10 @@ def validate_payment_launcher_transaction(db: Session, transaction_id: str) -> s
         and _clean_text(transaction.get("collection_mode")).lower() == "automatic"
         and _clean_text(transaction.get("customer_id"))
         == _clean_text(getattr(payment_customer, "provider_customer_id", ""))
+        and _clean_text(transaction.get("address_id"))
+        == _clean_text(getattr(payment_customer, "provider_address_id", ""))
+        and _clean_text(transaction.get("business_id"))
+        == _clean_text(getattr(payment_customer, "provider_business_id", ""))
         and _clean_text((transaction.get("custom_data") or {}).get("quote_fingerprint"))
         == _clean_text(quote.fingerprint)
     )
@@ -932,6 +964,9 @@ def validate_payment_launcher_transaction(db: Session, transaction_id: str) -> s
 
 def launch_checkout(db: Session, organization, account, request: Request):
     checkout_session, selection, contract, plan_price, quote = build_checkout_launch_context(db, organization)
+    billing_profile = billing_identity_service.require_confirmed_billing_profile(
+        db, organization
+    )
     existing_checkout_url = _clean_text(getattr(checkout_session, "checkout_url", ""))
     if _clean_text(getattr(checkout_session, "status", "")).lower() == CHECKOUT_SESSION_STARTED and existing_checkout_url:
         existing_attempt = None
@@ -939,7 +974,10 @@ def launch_checkout(db: Session, organization, account, request: Request):
             existing_attempt = db.query(models.PaymentAttempt).filter(
                 models.PaymentAttempt.id == checkout_session.last_payment_attempt_id
             ).first()
-        existing_attempt_matches = bool(existing_attempt) and (
+        existing_attempt_matches = (
+            bool(existing_attempt)
+            and billing_profile.provider_sync_status == "synced"
+            and (
             _clean_text(getattr(existing_attempt, "provider_price_id", "")) == quote.provider_price_id
             and int(getattr(existing_attempt, "quantity", 0) or 0) == quote.quantity
             and int(getattr(existing_attempt, "unit_amount_minor", 0) or 0) == quote.unit_amount_minor
@@ -947,6 +985,7 @@ def launch_checkout(db: Session, organization, account, request: Request):
             and _clean_text(getattr(existing_attempt, "billing_interval", "")).lower() == quote.billing_interval
             and _clean_text(getattr(existing_attempt, "currency_code", "")).upper() == quote.currency_code
             and _clean_text(getattr(existing_attempt, "quote_fingerprint", "")) == quote.fingerprint
+            )
         )
         if existing_attempt_matches:
             try:
@@ -985,6 +1024,11 @@ def launch_checkout(db: Session, organization, account, request: Request):
             build_checkout_launch_context(db, organization)
         )
     payment_customer = _find_or_create_payment_customer(db, organization, account)
+    address_id, business_id = (
+        billing_identity_service.ensure_provider_billing_identity(
+            db, organization, payment_customer
+        )
+    )
     attempt = models.PaymentAttempt(
         pending_organization_id=organization.id,
         checkout_session_id=checkout_session.id,
@@ -1010,7 +1054,7 @@ def launch_checkout(db: Session, organization, account, request: Request):
         customer_id=payment_customer.provider_customer_id,
         price_id=quote.provider_price_id,
         quantity=quote.quantity,
-        country_code=_clean_text(getattr(organization, "country_code", "")).upper(),
+        country_code=billing_profile.country_code,
         expected_subtotal=quote.total_amount_minor,
         quote_fingerprint=quote.fingerprint,
         custom_data={
@@ -1021,6 +1065,8 @@ def launch_checkout(db: Session, organization, account, request: Request):
             "quote_fingerprint": quote.fingerprint,
         },
         checkout_url=_payment_link_base_url(request),
+        address_id=address_id,
+        business_id=business_id,
     )
     _validate_created_transaction_quote(transaction, quote)
 

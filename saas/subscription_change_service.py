@@ -808,6 +808,9 @@ def reconcile_quantity_change_webhook(db: Session, payload: dict, event_type: st
             row.failure_message = "Subscription payment requires manual review."
             return {"status": "manual_review", "event_type": event_type}
     if event_type == "transaction.paid":
+        row.provider_payment_received_at = (
+            row.provider_payment_received_at or _utcnow()
+        )
         return {"status": "processed", "event_type": event_type}
     if event_type in {"transaction.payment_failed", "transaction.past_due"} and row.change_type == INCREASE:
         row.status = "failed"
@@ -821,6 +824,7 @@ def reconcile_quantity_change_webhook(db: Session, payload: dict, event_type: st
             row.failure_code = "provider_payment_state_mismatch"
             row.failure_message = "Subscription payment requires manual review."
             return {"status": "manual_review", "event_type": event_type}
+        row.provider_payment_received_at = row.provider_payment_received_at or _utcnow()
         row.provider_payment_confirmed_at = row.provider_payment_confirmed_at or _utcnow()
         if row.provider_observed_quantity == row.requested_quantity:
             subscription.quantity = row.requested_quantity
