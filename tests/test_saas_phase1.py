@@ -712,6 +712,9 @@ class SaaSPhase1Tests(unittest.TestCase):
         self.assertIn("grid-template-columns: minmax(0, 1.35fr) minmax(260px, .65fr);", dashboard_response.text)
         self.assertIn("padding: 14px 18px;", dashboard_response.text)
         self.assertIn('class="setup-console is-compact-start"', dashboard_response.text)
+        self.assertIn('aria-label="TIS Account guided setup"', dashboard_response.text)
+        self.assertNotIn('aria-label="Organization Account sections"', dashboard_response.text)
+        self.assertNotIn('href="/login">Enter TIS Platform</a>', dashboard_response.text)
         self.assertEqual(dashboard_response.text.count('data-primary-cta="true"'), 1)
         self.assertIn(
             '<form method="post" action="/saas/onboarding/start">',

@@ -1,16 +1,9 @@
-knowledge_impact: yes
-summary: Add explicit organization billing identity, Paddle Business mappings, and distinct provider payment-received presentation without changing webhook completion authority.
+knowledge_impact: no
+summary: Remove duplicate activated Organization Account navigation and reduce the overview to permission-aware summary cards without changing account routing or commercial authority.
 affected_areas:
-  - billing-identity
-  - paddle-customer-business
-  - initial-checkout
-  - subscription-portal
-  - subscription-change-lifecycle
+  - organization-account-navigation
+  - onboarding-ui
+  - customer-account-presentation
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-no_impact_reason:
-major_change_override: no
+no_impact_reason: This PR is presentation-only. It removes redundant activated-account navigation, suppresses onboarding progress when authoritative organization-account access exists, and summarizes active branches by count. It changes no routes, permissions, commercial-access rules, onboarding lifecycle, billing behavior, tenant isolation, database schema, or architecture.
+major_change_override: yes

@@ -9,19 +9,14 @@
     .account-overview-head p { margin:0; color:var(--muted); }
     .account-status { display:inline-flex; align-items:center; min-height:28px; padding:4px 10px; border:1px solid #cbd5e1; border-radius:999px; background:#f8fafc; color:#334155; font-size:13px; font-weight:700; }
     .account-status.is-active { border-color:#a7d7c5; background:#edf8f3; color:#176448; }
-    .account-overview-actions { display:flex; flex-wrap:wrap; gap:10px; margin-bottom:24px; }
     .account-section-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:16px; }
     .account-section { min-width:0; padding:20px; border:1px solid #dbe3ec; border-radius:8px; background:#fff; }
     .account-section h2 { margin:0 0 8px; font-size:18px; }
     .account-section p { margin:0; color:var(--muted); line-height:1.55; overflow-wrap:anywhere; }
-    .account-section .btn { margin-top:16px; }
-    .account-branches { display:grid; gap:8px; margin:14px 0 0; padding:0; list-style:none; }
-    .account-branches li { padding:9px 11px; border:1px solid #e2e8f0; border-radius:6px; background:#f8fafc; }
     .account-restriction { margin:0 0 20px; padding:14px 16px; border-left:4px solid #d99a2b; background:#fff8e8; color:#5f4518; }
     @media (max-width:720px) {
         .account-overview-head { flex-direction:column; gap:12px; }
         .account-section-grid { grid-template-columns:1fr; }
-        .account-overview-actions .btn { width:100%; text-align:center; }
     }
 </style>
 <section class="account-overview-head" aria-labelledby="organization-account-title">
@@ -41,14 +36,6 @@
 </div>
 {% endif %}
 
-<nav class="account-overview-actions" aria-label="Organization Account sections">
-    {% if access.can_view_organization %}<a class="btn secondary" href="#organization-profile">Organization Profile</a>{% endif %}
-    {% if access.can_view_branches %}<a class="btn secondary" href="#organization-branches">Branches</a>{% endif %}
-    {% if access.can_manage_billing %}<a class="btn secondary" href="/saas/subscription">Billing &amp; Subscription</a>{% endif %}
-    <a class="btn secondary" href="/saas/account/security">Account &amp; Security</a>
-    {% if access.commercial_access.allowed_access %}<a class="btn" href="/login">Enter TIS Platform</a>{% endif %}
-</nav>
-
 <div class="account-section-grid">
     {% if access.can_view_organization %}
     <section class="account-section" id="organization-profile">
@@ -62,11 +49,6 @@
     <section class="account-section" id="organization-branches">
         <h2>Branches</h2>
         <p>{{ organization_account.branch_count }} active branch{% if organization_account.branch_count != 1 %}es{% endif %}.</p>
-        {% if organization_account.branches %}
-        <ul class="account-branches">
-            {% for branch in organization_account.branches %}<li>{{ branch.name }}</li>{% endfor %}
-        </ul>
-        {% endif %}
     </section>
     {% endif %}
 
@@ -74,14 +56,12 @@
     <section class="account-section">
         <h2>Billing &amp; Subscription</h2>
         <p>{% if access.commercial_access.current_plan_name %}Current plan: {{ access.commercial_access.current_plan_name }}.{% else %}Review subscription status and billing recovery options.{% endif %}</p>
-        <a class="btn secondary" href="/saas/subscription">Open Subscription Management</a>
     </section>
     {% endif %}
 
     <section class="account-section">
         <h2>Account &amp; Security</h2>
         <p>Review sign-in methods, password security, and active sessions for your TIS Account.</p>
-        <a class="btn secondary" href="/saas/account/security">Open Account Security</a>
     </section>
 </div>
 {% elif workspace_options and workspace_options|length > 1 %}

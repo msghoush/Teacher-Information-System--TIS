@@ -285,6 +285,23 @@ def _render(request: Request, template_name: str, context: dict, status_code: in
     return templates.TemplateResponse(request, template_name, merged, status_code=status_code)
 
 
+def _organization_account_shell_context(request: Request, db: Session, account) -> dict | None:
+    organization_uuid = str(
+        request.cookies.get(service.SAAS_ORGANIZATION_COOKIE) or ""
+    ).strip()
+    _accesses, selected = customer_journey_service.select_organization_account_access(
+        db,
+        account,
+        organization_uuid=organization_uuid,
+    )
+    if selected is None:
+        _accesses, selected = customer_journey_service.select_organization_account_access(
+            db,
+            account,
+        )
+    return {"access": selected} if selected is not None else None
+
+
 def _paddle_client_environment() -> str:
     cleaned = str(os.environ.get("PADDLE_ENVIRONMENT") or "").strip().lower()
     return cleaned if cleaned in {"sandbox", "production"} else "production"
@@ -1357,18 +1374,14 @@ def account_dashboard(
             )
         )
     if selected_workspace is not None:
-        branches = (
+        branch_count = (
             db.query(operational_models.Branch)
             .filter(
                 operational_models.Branch.school_group_id
                 == selected_workspace.school_group.id,
                 operational_models.Branch.status == True,
             )
-            .order_by(
-                operational_models.Branch.name.asc(),
-                operational_models.Branch.id.asc(),
-            )
-            .all()
+            .count()
         )
         organization = selected_workspace.organization
         db.commit()
@@ -1383,8 +1396,7 @@ def account_dashboard(
                 "workspace_options": workspace_options,
                 "organization_account": {
                     "access": selected_workspace,
-                    "branches": branches,
-                    "branch_count": len(branches),
+                    "branch_count": branch_count,
                 },
             },
         )
@@ -1484,12 +1496,14 @@ def account_profile(request: Request, db: Session = Depends(get_db)):
     account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
+    organization_account = _organization_account_shell_context(request, db, account)
     db.commit()
     return _render(
         request,
         "saas/profile.html",
         {
             "account": account,
+            "organization_account": organization_account,
             "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
             "notice": request.query_params.get("notice", ""),
         },
@@ -1523,11 +1537,17 @@ def account_security(request: Request, db: Session = Depends(get_db)):
     identities = db.query(models.SaaSAuthIdentity).filter(
         models.SaaSAuthIdentity.saas_account_id == account.id
     ).order_by(models.SaaSAuthIdentity.provider.asc()).all()
+    organization_account = _organization_account_shell_context(request, db, account)
     db.commit()
     return _render(
         request,
         "saas/security.html",
-        {"account": account, "identities": identities, "notice": request.query_params.get("notice", "")},
+        {
+            "account": account,
+            "organization_account": organization_account,
+            "identities": identities,
+            "notice": request.query_params.get("notice", ""),
+        },
     )
 
 
@@ -1638,6 +1658,9 @@ def subscription_portal(
             "saas/demo_subscription.html",
             {
                 "account": account,
+                "organization_account": (
+                    {"access": selected_access} if selected_access is not None else None
+                ),
                 "journey": demo_journey,
                 "support_email": str(
                     os.environ.get("TIS_SUPPORT_EMAIL")
@@ -1673,6 +1696,9 @@ def subscription_portal(
         "saas/subscription.html",
         {
             "account": account,
+            "organization_account": (
+                {"access": selected_access} if selected_access is not None else None
+            ),
             "subscription_portal": portal,
             "billing_contact": billing_contact,
             "billing_organization_uuid": (
@@ -2336,12 +2362,14 @@ def account_sessions(request: Request, db: Session = Depends(get_db)):
     sessions = db.query(models.SaaSSession).filter(
         models.SaaSSession.saas_account_id == account.id
     ).order_by(models.SaaSSession.last_seen_at.desc()).all()
+    organization_account = _organization_account_shell_context(request, db, account)
     db.commit()
     return _render(
         request,
         "saas/sessions.html",
         {
             "account": account,
+            "organization_account": organization_account,
             "sessions": sessions,
             "current_session_id": session_row.id,
             "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),

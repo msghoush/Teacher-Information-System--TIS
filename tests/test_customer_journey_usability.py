@@ -91,6 +91,30 @@ class TestCustomerJourneyUsability:
         assert response.status_code == 302
         return response.headers["location"]
 
+    def _billing_launch_data(self, fixture, *, billing_email: str, client=None):
+        client = client or self.workflow.client
+        db = self.workflow._db()
+        try:
+            organization = db.query(saas.models.PendingOrganization).filter_by(
+                organization_uuid=fixture["organization_uuid"]
+            ).one()
+            return {
+                "csrf_token": client.cookies.get(service.SAAS_CSRF_COOKIE),
+                "billing_email": billing_email,
+                "billing_organization_name": (
+                    organization.legal_name or organization.organization_name
+                ),
+                "billing_contact_name": "Demo Account Owner",
+                "country_code": organization.country_code,
+                "country_name": organization.country_name,
+                "region_name": organization.region_name,
+                "city_name": organization.city_name,
+                "district_name": organization.district_name,
+                "neighborhood_name": organization.neighborhood_name,
+            }
+        finally:
+            db.close()
+
     def test_expiry_email_subscribe_now_targets_subscription(self):
         fixture = self._active_demo()
         db = self.workflow._db()
@@ -219,6 +243,21 @@ class TestCustomerJourneyUsability:
                 "saas.paddle_client.update_customer", return_value=updated
             ),
             patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={
+                    "id": "add_expired_demo_owner",
+                    "customer_id": "ctm_expired_demo_owner",
+                },
+            ),
+            patch("saas.paddle_client.list_customer_businesses", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer_business",
+                return_value={
+                    "id": "biz_expired_demo_owner",
+                    "customer_id": "ctm_expired_demo_owner",
+                },
+            ),
+            patch(
                 "saas.paddle_client.create_transaction",
                 return_value={
                     "id": "txn_expired_demo_owner",
@@ -231,6 +270,10 @@ class TestCustomerJourneyUsability:
         ):
             launched = self.workflow.client.post(
                 checkout_path + "/launch",
+                data=self._billing_launch_data(
+                    fixture,
+                    billing_email=account.email,
+                ),
                 follow_redirects=False,
             )
         assert launched.status_code == 302
@@ -332,6 +375,21 @@ class TestCustomerJourneyUsability:
                 "saas.paddle_client.update_customer", return_value=updated
             ),
             patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={
+                    "id": "add_reregistered_demo",
+                    "customer_id": "ctm_reregistered_demo",
+                },
+            ),
+            patch("saas.paddle_client.list_customer_businesses", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer_business",
+                return_value={
+                    "id": "biz_reregistered_demo",
+                    "customer_id": "ctm_reregistered_demo",
+                },
+            ),
+            patch(
                 "saas.paddle_client.create_transaction",
                 return_value={
                     "id": "txn_reregistered_demo",
@@ -343,7 +401,13 @@ class TestCustomerJourneyUsability:
             ),
         ):
             launched = client.post(
-                checkout_path + "/launch", follow_redirects=False
+                checkout_path + "/launch",
+                data=self._billing_launch_data(
+                    fixture,
+                    billing_email=original_email,
+                    client=client,
+                ),
+                follow_redirects=False,
             )
         assert launched.headers["location"] == (
             "https://pay.paddle.test/reregistered"
@@ -399,7 +463,12 @@ class TestCustomerJourneyUsability:
             patch("saas.paddle_client.create_transaction") as transaction,
         ):
             failed = self.workflow.client.post(
-                checkout_path + "/launch", follow_redirects=False
+                checkout_path + "/launch",
+                data=self._billing_launch_data(
+                    fixture,
+                    billing_email=email,
+                ),
+                follow_redirects=False,
             )
         assert failed.status_code == 302
         assert "exact+matches" not in failed.headers["location"]
@@ -454,6 +523,35 @@ class TestCustomerJourneyUsability:
         assert "Account &amp; Security" in overview.text
         assert '>Enter TIS Platform</a>' in overview.text
         assert 'href="/login"' in overview.text
+        assert 'aria-label="Onboarding progress"' not in overview.text
+        assert 'aria-label="TIS Account guided setup"' not in overview.text
+        assert 'aria-label="Organization Account sections"' not in overview.text
+        assert 'class="account-overview-actions"' not in overview.text
+        assert "2 active branches." in overview.text
+        assert "Main Campus" not in overview.text
+        assert "North Campus" not in overview.text
+        assert overview.text.count('href="/saas/account"') == 1
+        assert overview.text.count('href="/saas/subscription"') == 1
+        assert overview.text.count('href="/saas/account/security"') == 1
+        assert overview.text.count('href="/login"') == 1
+        assert overview.text.count('action="/saas/auth/logout"') == 1
+
+        billing = self.workflow.client.get("/saas/subscription")
+        assert billing.status_code == 200
+        assert '>Organization Account</a>' in billing.text
+        assert '>Billing</a>' in billing.text
+        assert '>Security</a>' in billing.text
+        assert '>Enter TIS Platform</a>' in billing.text
+        assert 'aria-label="Onboarding progress"' not in billing.text
+
+        security = self.workflow.client.get("/saas/account/security")
+        assert security.status_code == 200
+        assert '<span class="page-eyebrow">Organization Account</span>' in security.text
+        assert '>Organization Account</a>' in security.text
+        assert '>Billing</a>' in security.text
+        assert '>Security</a>' in security.text
+        assert '>Enter TIS Platform</a>' in security.text
+        assert 'aria-label="Onboarding progress"' not in security.text
 
         self._expire(fixture)
         db = self.workflow._db()
