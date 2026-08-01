@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-07-31
+last_updated: 2026-08-01
 source_of_truth: true
 ---
 
@@ -383,21 +383,24 @@ Guardrails:
 ## Active Subscription Management Flow
 
 1. Authorized billing administrator opens `/saas/subscription`.
-2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, paid/active branch capacity, and allowed actions.
-3. Quantity or plan changes are previewed through Paddle; TIS displays provider-returned totals and never recalculates proration.
-4. Immediate increases/upgrades use provider payment-failure prevention and remain locally pending until authoritative confirmation. The current confirmed plan and workspace access remain authoritative while the plan change is pending, failed, incomplete, expired, canceled, or abandoned. Thus an active Professional subscription remains accessible while an Enterprise AI upgrade is `payment_pending`.
-5. Reductions/downgrades are scheduled for the next billing boundary and retain current local access until verified effective evidence.
-6. Scheduled plan or quantity changes may be canceled or replaced before their effective boundary when provider state agrees.
-7. Cancellation is scheduled at period end; reversal removes the provider-scheduled cancellation after reauthorization and validation.
-8. The centralized lifecycle resolver exposes only actions valid for current provider/local state.
-9. Billing history is read from Paddle transactions. Invoice download reauthorizes the user and requests a fresh provider URL.
-10. Operational login, protected requests, and returning-customer routing use the same contract-linked commercial access projection. The specialized plan-change webhook synchronizes provider subscription status, but the target plan becomes authoritative only after the existing required provider signals are both confirmed.
-11. If production provider state is confirmed but local commercial status is stale, an operator replays the attributable stored, signature-verified Paddle webhook through the existing reconciliation path. Operators do not edit subscription or lifecycle status fields manually. Replay may synchronize the current `PaymentSubscription.status`, but it cannot bypass the separate provider payment signal required to activate a target plan.
+2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, allowed actions, and one operational capacity snapshot covering active branches, non-teacher system users, and teachers.
+3. Review Capacity accepts proposed totals for all three dimensions. TIS selects the minimum eligible self-service plan; branch growth may create a combined plan-and-quantity upgrade, while system-user and teacher growth affects eligibility without changing Paddle quantity.
+4. Quantity or plan changes are previewed through Paddle; TIS displays provider-returned totals and never recalculates proration.
+5. Immediate increases/upgrades use provider payment-failure prevention and remain locally pending until authoritative confirmation. The current confirmed plan and workspace access remain authoritative while the plan change is pending, failed, incomplete, expired, canceled, or abandoned. Thus an active Professional subscription remains accessible while an Enterprise AI upgrade is `payment_pending`.
+6. Reductions/downgrades are scheduled for the next billing boundary and retain current local access until verified effective evidence. Live branch, system-user, and teacher counts are revalidated at that boundary; a mismatch enters manual review without applying the lower local entitlement.
+7. Scheduled plan or quantity changes may be canceled or replaced before their effective boundary when provider state agrees.
+8. Cancellation is scheduled at period end; reversal removes the provider-scheduled cancellation after reauthorization and validation.
+9. The centralized lifecycle resolver exposes only actions valid for current provider/local state.
+10. Billing history is read from Paddle transactions. Invoice download reauthorizes the user and requests a fresh provider URL.
+11. Operational login, protected requests, and returning-customer routing use the same contract-linked commercial access projection. The specialized plan-change webhook synchronizes provider subscription status, but the target plan becomes authoritative only after the existing required provider signals are both confirmed.
+12. If production provider state is confirmed but local commercial status is stale, an operator replays the attributable stored, signature-verified Paddle webhook through the existing reconciliation path. Operators do not edit subscription or lifecycle status fields manually. Replay may synchronize the current `PaymentSubscription.status`, but it cannot bypass the separate provider payment signal required to activate a target plan.
 
 Guardrails:
 
 - provider and local ownership must match,
 - active branch usage cannot exceed a requested reduced capacity,
+- target-plan eligibility is evaluated across branches, system users, and teachers before submission and again when a scheduled downgrade becomes effective,
+- Paddle quantity contains branches only; system-user and teacher counts never become provider quantity units,
 - webhook processing is idempotent,
 - ambiguous outcomes enter manual review,
 - return pages and local requests are not payment confirmation.

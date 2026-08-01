@@ -11,6 +11,9 @@ import models as operational_models
 from saas import currency_service, models
 
 
+SELF_SERVICE_PLAN_SEQUENCE = ("starter", "professional", "enterprise_ai")
+
+
 @dataclass(frozen=True)
 class BillableBranch:
     branch_uuid: str
@@ -48,6 +51,26 @@ class PlanCapacityEligibility:
     @property
     def active_staff_count(self) -> int:
         return self.active_system_user_count
+
+
+@dataclass(frozen=True)
+class OrganizationCapacitySnapshot:
+    active_branch_count: int
+    active_system_user_count: int
+    active_teacher_count: int
+    minimum_eligible_plan_code: str | None
+    minimum_eligible_plan_name: str | None
+    required_plan_or_custom_state: str
+    current_plan_eligibility: PlanCapacityEligibility
+    upgrade_trigger_dimensions: tuple[str, ...]
+
+    @property
+    def custom_required(self) -> bool:
+        return self.required_plan_or_custom_state == "custom"
+
+    @property
+    def current_plan_eligible(self) -> bool:
+        return self.current_plan_eligibility.eligible
 
 
 @dataclass(frozen=True)
@@ -228,6 +251,119 @@ def count_active_teachers(db: Session, school_group_id: int) -> int:
         operational_models.AcademicYear.school_group_id == int(school_group_id),
         operational_models.AcademicYear.is_active.is_(True),
     ).count()
+
+
+def operational_capacity_counts(
+    db: Session, school_group_id: int
+) -> tuple[int, int, int]:
+    branch_count = db.query(operational_models.Branch).filter(
+        operational_models.Branch.school_group_id == int(school_group_id),
+        operational_models.Branch.status.is_(True),
+    ).count()
+    return (
+        branch_count,
+        count_active_system_users(db, school_group_id),
+        count_active_teachers(db, school_group_id),
+    )
+
+
+def resolve_minimum_eligible_plan(
+    db: Session,
+    *,
+    active_branch_count: int,
+    active_system_user_count: int,
+    active_teacher_count: int,
+):
+    rows = db.query(models.SubscriptionPlan).filter(
+        models.SubscriptionPlan.plan_code.in_(SELF_SERVICE_PLAN_SEQUENCE),
+        models.SubscriptionPlan.is_active.is_(True),
+        models.SubscriptionPlan.is_public.is_(True),
+    ).all()
+    by_code = {str(row.plan_code or "").strip().lower(): row for row in rows}
+    if any(code not in by_code for code in SELF_SERVICE_PLAN_SEQUENCE):
+        raise ValueError("Subscription capacity is temporarily unavailable.")
+    for code in SELF_SERVICE_PLAN_SEQUENCE:
+        plan = by_code[code]
+        if evaluate_plan_capacity(
+            plan,
+            active_branch_count=active_branch_count,
+            active_system_user_count=active_system_user_count,
+            active_teacher_count=active_teacher_count,
+        ).eligible:
+            return plan
+    return None
+
+
+def build_organization_capacity_snapshot(
+    db: Session,
+    *,
+    school_group_id: int,
+    current_plan,
+    proposed_branch_count: int | None = None,
+    proposed_system_user_count: int | None = None,
+    proposed_teacher_count: int | None = None,
+) -> OrganizationCapacitySnapshot:
+    current_branches, current_system_users, current_teachers = (
+        operational_capacity_counts(db, school_group_id)
+    )
+    branches = (
+        current_branches
+        if proposed_branch_count is None
+        else max(int(proposed_branch_count), 0)
+    )
+    system_users = (
+        current_system_users
+        if proposed_system_user_count is None
+        else max(int(proposed_system_user_count), 0)
+    )
+    teachers = (
+        current_teachers
+        if proposed_teacher_count is None
+        else max(int(proposed_teacher_count), 0)
+    )
+    if branches < current_branches:
+        raise ValueError("Proposed branch capacity cannot be lower than active branch usage.")
+    if system_users < current_system_users:
+        raise ValueError("Proposed system-user capacity cannot be lower than current usage.")
+    if teachers < current_teachers:
+        raise ValueError("Proposed teacher capacity cannot be lower than current usage.")
+
+    minimum_plan = resolve_minimum_eligible_plan(
+        db,
+        active_branch_count=branches,
+        active_system_user_count=system_users,
+        active_teacher_count=teachers,
+    )
+    current_eligibility = evaluate_plan_capacity(
+        current_plan,
+        active_branch_count=branches,
+        active_system_user_count=system_users,
+        active_teacher_count=teachers,
+        minimum_eligible_plan=(
+            str(minimum_plan.plan_code or "") if minimum_plan is not None else None
+        ),
+    )
+    triggers = []
+    if not current_eligibility.branch_eligible:
+        triggers.append("branches")
+    if not current_eligibility.system_user_eligible:
+        triggers.append("system_users")
+    if not current_eligibility.teacher_eligible:
+        triggers.append("teachers")
+    return OrganizationCapacitySnapshot(
+        active_branch_count=branches,
+        active_system_user_count=system_users,
+        active_teacher_count=teachers,
+        minimum_eligible_plan_code=(
+            str(minimum_plan.plan_code or "") if minimum_plan is not None else None
+        ),
+        minimum_eligible_plan_name=(
+            str(minimum_plan.plan_name or "") if minimum_plan is not None else None
+        ),
+        required_plan_or_custom_state=("eligible" if minimum_plan is not None else "custom"),
+        current_plan_eligibility=current_eligibility,
+        upgrade_trigger_dimensions=tuple(triggers),
+    )
 
 
 def require_active_subscription_capacity_slot(

@@ -1,11 +1,39 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-07-31
+last_updated: 2026-08-01
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-01 - Unified Active Subscription Capacity Management
+
+Subscription Management previously presented branch quantity as an isolated
+commercial action. One authoritative organization-capacity resolver now counts
+active branches, active non-teacher system users, and active teachers. The
+portal exposes one Review Capacity flow and displays usage, plan limits, and
+remaining capacity for all three dimensions. The highest required dimension
+selects the minimum eligible plan: Starter supports 1 branch/5 system users/25
+teachers, Professional supports 5/20/100, Enterprise AI supports 25/100/500,
+and Custom is required when any Enterprise AI limit is exceeded. Customers may
+still select a higher eligible plan for optional feature entitlements. Branch,
+system-user, teacher, or mixed growth can trigger an upgrade. Required branch
+growth can combine target plan and branch quantity in one provider preview.
+Paddle quantity remains active-branch count only; system-user and teacher
+capacity affect plan eligibility but never become billed quantity units.
+
+Plan-change previews retain their three-dimension capacity evidence. All three
+dimensions are validated before a downgrade is submitted, and downgrades remain
+scheduled for the next billing boundary. The same three dimensions are
+revalidated when provider evidence reaches the effective date. Capacity growth
+that no longer fits enters manual review, does not activate the lower plan, and
+preserves the current safe entitlement state. Existing provider-authoritative
+proration remains unchanged. Higher entitlements require both provider
+subscription and payment confirmation. Cancellation remains scheduled at
+paid-period end, preserves access and tenant data through the confirmed date,
+and remains reversible when supported by Paddle. No schema or migration change
+was required.
 
 ## 2026-08-01 - Organization Account Sign-In Routing
 

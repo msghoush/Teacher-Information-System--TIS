@@ -3,7 +3,14 @@ from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
-from saas import entitlement_service, subscription_change_service, subscription_lifecycle_service, subscription_plan_change_service
+from saas import (
+    branch_pricing_quote_service,
+    entitlement_service,
+    models,
+    subscription_change_service,
+    subscription_lifecycle_service,
+    subscription_plan_change_service,
+)
 
 
 CATEGORY_LABELS = {
@@ -32,6 +39,18 @@ class SubscriptionPortalView:
     remaining_paid_capacity: int | None
     is_at_capacity: bool
     is_over_capacity: bool
+    capacity_available: bool
+    active_system_user_count: int
+    active_teacher_count: int
+    plan_branch_limit: int | None
+    plan_system_user_limit: int | None
+    plan_teacher_limit: int | None
+    remaining_plan_branches: int | None
+    remaining_system_users: int | None
+    remaining_teachers: int | None
+    minimum_eligible_plan_name: str
+    current_plan_capacity_eligible: bool
+    custom_capacity_required: bool
     next_billing_date_label: str
     current_period_end_label: str
     current_recurring_total_label: str
@@ -92,10 +111,33 @@ def _feature_groups(db: Session, resolution) -> tuple[dict, ...]:
     )
 
 
-def _plan_comparison(db: Session, current_plan_code: str) -> tuple[dict, ...]:
+def _remaining(limit: int | None, used: int) -> int | None:
+    return max(int(limit) - int(used), 0) if limit is not None else None
+
+
+def _plan_comparison(
+    db: Session, current_plan_code: str, capacity_snapshot
+) -> tuple[dict, ...]:
     profiles = entitlement_service.list_plan_entitlement_profiles(db)
-    return tuple(
-        {
+    plan_rows = {
+        row.id: row for row in db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id.in_([profile.plan_id for profile in profiles])
+        ).all()
+    }
+    plans = []
+    for profile in profiles:
+        plan = plan_rows.get(profile.plan_id)
+        capacity = (
+            branch_pricing_quote_service.evaluate_plan_capacity(
+                plan,
+                active_branch_count=capacity_snapshot.active_branch_count,
+                active_system_user_count=capacity_snapshot.active_system_user_count,
+                active_teacher_count=capacity_snapshot.active_teacher_count,
+            )
+            if plan is not None and capacity_snapshot is not None
+            else None
+        )
+        plans.append({
             "plan_code": profile.plan_code,
             "plan_name": profile.plan_name,
             "is_current": profile.plan_code == current_plan_code,
@@ -108,9 +150,27 @@ def _plan_comparison(db: Session, current_plan_code: str) -> tuple[dict, ...]:
                 for value in profile.entitlements.values()
                 if value.granted and value.key != "quota.active_branches"
             ),
-        }
-        for profile in profiles
-    )
+            "max_branches": getattr(plan, "max_branches", None),
+            "max_system_users": getattr(plan, "max_system_users", None),
+            "max_teachers": getattr(plan, "max_teachers", None),
+            "capacity_eligible": bool(capacity and capacity.eligible),
+            "capacity_reason": capacity.reason if capacity else "Capacity is unavailable.",
+            "contact_only": False,
+        })
+    plans.append({
+        "plan_code": "custom",
+        "plan_name": "Custom",
+        "is_current": False,
+        "direction": "custom",
+        "included_features": (),
+        "max_branches": None,
+        "max_system_users": None,
+        "max_teachers": None,
+        "capacity_eligible": bool(capacity_snapshot and capacity_snapshot.custom_required),
+        "capacity_reason": "Contact the TIS team for capacity beyond Enterprise AI.",
+        "contact_only": True,
+    })
+    return tuple(plans)
 
 
 def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
@@ -118,6 +178,24 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
     lifecycle = subscription_lifecycle_service.resolve_subscription_lifecycle(
         db, account, resolution=resolution
     )
+    capacity_snapshot = None
+    current_plan = None
+    if resolution.resolved and resolution.school_group_id and resolution.plan_id:
+        current_plan = db.query(models.SubscriptionPlan).filter(
+            models.SubscriptionPlan.id == resolution.plan_id,
+            models.SubscriptionPlan.is_active.is_(True),
+        ).one_or_none()
+        if current_plan is not None:
+            try:
+                capacity_snapshot = (
+                    branch_pricing_quote_service.build_organization_capacity_snapshot(
+                        db,
+                        school_group_id=resolution.school_group_id,
+                        current_plan=current_plan,
+                    )
+                )
+            except ValueError:
+                capacity_snapshot = None
     interval = str(lifecycle.billing_interval or resolution.billing_interval or "").strip().lower()
     interval_label = {"monthly": "Monthly", "annual": "Annual"}.get(interval, "Not Available")
     cadence_label = {"monthly": "month", "annual": "year"}.get(interval, "billing period")
@@ -212,6 +290,55 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
         remaining_paid_capacity=resolution.remaining_paid_capacity,
         is_at_capacity=resolution.is_at_capacity,
         is_over_capacity=resolution.is_over_capacity,
+        capacity_available=capacity_snapshot is not None,
+        active_system_user_count=(
+            capacity_snapshot.active_system_user_count if capacity_snapshot else 0
+        ),
+        active_teacher_count=(
+            capacity_snapshot.active_teacher_count if capacity_snapshot else 0
+        ),
+        plan_branch_limit=(
+            capacity_snapshot.current_plan_eligibility.max_branches
+            if capacity_snapshot else None
+        ),
+        plan_system_user_limit=(
+            capacity_snapshot.current_plan_eligibility.max_system_users
+            if capacity_snapshot else None
+        ),
+        plan_teacher_limit=(
+            capacity_snapshot.current_plan_eligibility.max_teachers
+            if capacity_snapshot else None
+        ),
+        remaining_plan_branches=(
+            _remaining(
+                capacity_snapshot.current_plan_eligibility.max_branches,
+                capacity_snapshot.active_branch_count,
+            ) if capacity_snapshot else None
+        ),
+        remaining_system_users=(
+            _remaining(
+                capacity_snapshot.current_plan_eligibility.max_system_users,
+                capacity_snapshot.active_system_user_count,
+            ) if capacity_snapshot else None
+        ),
+        remaining_teachers=(
+            _remaining(
+                capacity_snapshot.current_plan_eligibility.max_teachers,
+                capacity_snapshot.active_teacher_count,
+            ) if capacity_snapshot else None
+        ),
+        minimum_eligible_plan_name=(
+            capacity_snapshot.minimum_eligible_plan_name
+            if capacity_snapshot and capacity_snapshot.minimum_eligible_plan_name
+            else "Custom" if capacity_snapshot and capacity_snapshot.custom_required
+            else "Not Available"
+        ),
+        current_plan_capacity_eligible=bool(
+            capacity_snapshot and capacity_snapshot.current_plan_eligible
+        ),
+        custom_capacity_required=bool(
+            capacity_snapshot and capacity_snapshot.custom_required
+        ),
         next_billing_date_label=next_billing_date_label,
         current_period_end_label=current_period_end_label,
         current_recurring_total_label=_money_label(resolution.recurring_amount_minor, resolution.currency_code),
@@ -231,5 +358,5 @@ def build_subscription_portal(db: Session, account) -> SubscriptionPortalView:
             lifecycle.timezone_name,
         ),
         feature_groups=_feature_groups(db, resolution),
-        plan_comparison=_plan_comparison(db, resolution.plan_code),
+        plan_comparison=_plan_comparison(db, resolution.plan_code, capacity_snapshot),
     )

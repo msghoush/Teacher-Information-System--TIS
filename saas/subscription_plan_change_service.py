@@ -30,7 +30,32 @@ def _profiles(db):
     return {row.plan_code: row for row in changes.entitlement_service.list_plan_entitlement_profiles(db)}
 
 
-def _impact(db: Session, context, target_plan):
+def _capacity_payload(snapshot):
+    eligibility = snapshot.current_plan_eligibility
+    return {
+        "schema": 1,
+        "active_branches": snapshot.active_branch_count,
+        "active_system_users": snapshot.active_system_user_count,
+        "active_teachers": snapshot.active_teacher_count,
+        "minimum_eligible_plan_code": snapshot.minimum_eligible_plan_code,
+        "required_plan_or_custom_state": snapshot.required_plan_or_custom_state,
+        "target_limits": {
+            "branches": eligibility.max_branches,
+            "system_users": eligibility.max_system_users,
+            "teachers": eligibility.max_teachers,
+        },
+    }
+
+
+def _impact(
+    db: Session,
+    context,
+    target_plan,
+    *,
+    proposed_branch_count: int | None = None,
+    proposed_system_user_count: int | None = None,
+    proposed_teacher_count: int | None = None,
+):
     profiles = _profiles(db)
     current = profiles.get(context.resolution.plan_code)
     target = profiles.get(target_plan.plan_code)
@@ -50,18 +75,38 @@ def _impact(db: Session, context, target_plan):
         usage = detector(db, context)
         if usage is not None and usage > target_value.value:
             conflicts.append({"key": key, "name": target_value.display_name, "usage": usage, "limit": target_value.value})
-    active_branches = int(context.resolution.active_branch_count or 0)
-    active_system_users = branch_pricing_quote_service.count_active_system_users(
-        db, context.resolution.school_group_id
-    )
-    active_teachers = branch_pricing_quote_service.count_active_teachers(
-        db, context.resolution.school_group_id
-    )
-    capacity = branch_pricing_quote_service.evaluate_plan_capacity(
-        target_plan,
-        active_branch_count=active_branches,
-        active_system_user_count=active_system_users,
-        active_teacher_count=active_teachers,
+    try:
+        snapshot = branch_pricing_quote_service.build_organization_capacity_snapshot(
+            db,
+            school_group_id=context.resolution.school_group_id,
+            current_plan=target_plan,
+            proposed_branch_count=proposed_branch_count,
+            proposed_system_user_count=proposed_system_user_count,
+            proposed_teacher_count=proposed_teacher_count,
+        )
+    except ValueError as exc:
+        raise changes.SubscriptionChangeError(
+            str(exc), code="invalid_capacity_proposal", status_code=409
+        ) from exc
+    active_branches = snapshot.active_branch_count
+    active_system_users = snapshot.active_system_user_count
+    active_teachers = snapshot.active_teacher_count
+    capacity = snapshot.current_plan_eligibility
+    current_plan = db.query(models.SubscriptionPlan).filter(
+        models.SubscriptionPlan.id == context.subscription.plan_id,
+        models.SubscriptionPlan.is_active.is_(True),
+    ).one_or_none()
+    current_plan_snapshot = (
+        branch_pricing_quote_service.build_organization_capacity_snapshot(
+            db,
+            school_group_id=context.resolution.school_group_id,
+            current_plan=current_plan,
+            proposed_branch_count=active_branches,
+            proposed_system_user_count=active_system_users,
+            proposed_teacher_count=active_teachers,
+        )
+        if current_plan is not None
+        else None
     )
     if not capacity.branch_eligible:
         conflicts.append({
@@ -84,7 +129,18 @@ def _impact(db: Session, context, target_plan):
             "usage": active_teachers,
             "limit": capacity.max_teachers,
         })
-    return {"feature_losses": losses, "blocking_conflicts": conflicts, "historical_data_preserved": True}
+    return {
+        "feature_losses": losses,
+        "blocking_conflicts": conflicts,
+        "historical_data_preserved": True,
+        "capacity_snapshot": {
+            **_capacity_payload(snapshot),
+            "upgrade_trigger_dimensions": list(
+                current_plan_snapshot.upgrade_trigger_dimensions
+                if current_plan_snapshot is not None else ()
+            ),
+        },
+    }
 
 
 def _target(db: Session, context, plan_code: str):
@@ -170,30 +226,84 @@ def _financials(preview, provider, direction, currency):
     return charge_minor, credit_minor, immediate, current, recurring
 
 
-def _key(context, target_plan_id):
-    material = f"plan:{context.subscription.id}:{context.subscription.plan_id}:{target_plan_id}:{context.subscription.quantity}:{changes._utcnow().timestamp()}"
+def _key(context, target_plan_id, requested_quantity):
+    material = f"plan:{context.subscription.id}:{context.subscription.plan_id}:{target_plan_id}:{context.subscription.quantity}:{requested_quantity}:{changes._utcnow().timestamp()}"
     return hashlib.sha256(material.encode()).hexdigest()
 
 
-def preview_plan_change(db: Session, account, target_plan_code: str):
+def _stored_capacity_snapshot(row) -> dict:
+    try:
+        impact = json.loads(row.entitlement_impact_json or "")
+    except (TypeError, ValueError):
+        return {}
+    snapshot = impact.get("capacity_snapshot") if isinstance(impact, dict) else None
+    return snapshot if isinstance(snapshot, dict) else {}
+
+
+def _impact_for_row(db: Session, context, row, plan):
+    stored = _stored_capacity_snapshot(row)
+    if row.change_type != UPGRADE or not stored:
+        return _impact(db, context, plan)
+    return _impact(
+        db,
+        context,
+        plan,
+        proposed_branch_count=stored.get("active_branches"),
+        proposed_system_user_count=stored.get("active_system_users"),
+        proposed_teacher_count=stored.get("active_teachers"),
+    )
+
+
+def preview_plan_change(
+    db: Session,
+    account,
+    target_plan_code: str,
+    *,
+    proposed_branch_count: int | None = None,
+    proposed_system_user_count: int | None = None,
+    proposed_teacher_count: int | None = None,
+):
     context = changes.resolve_change_context(db, account, lock=True)
     pending = changes.get_pending_change(db, context.subscription.id)
     if pending:
         raise changes.SubscriptionChangeError("Another subscription change is already in progress.", code="change_already_pending", status_code=409)
     plan, price, direction = _target(db, context, target_plan_code)
+    impact = _impact(
+        db,
+        context,
+        plan,
+        proposed_branch_count=proposed_branch_count,
+        proposed_system_user_count=proposed_system_user_count,
+        proposed_teacher_count=proposed_teacher_count,
+    )
+    if direction == UPGRADE and impact["blocking_conflicts"]:
+        raise changes.SubscriptionChangeError(
+            "The selected plan does not support the proposed organization capacity.",
+            code="plan_capacity_conflict",
+            status_code=409,
+        )
+    current_quantity = int(context.subscription.quantity)
+    requested_quantity = current_quantity
+    if direction == UPGRADE and proposed_branch_count is not None:
+        requested_quantity = max(current_quantity, int(proposed_branch_count))
     preview_rows = changes._expire_stale_previews(db, context)
-    reusable = next((row for row in preview_rows if changes._preview_is_fresh(row) and row.change_type in PLAN_CHANGE_TYPES and row.target_plan_id == plan.id), None)
+    reusable = next((
+        row for row in preview_rows
+        if changes._preview_is_fresh(row)
+        and row.change_type in PLAN_CHANGE_TYPES
+        and row.target_plan_id == plan.id
+        and row.requested_quantity == requested_quantity
+        and _stored_capacity_snapshot(row) == impact["capacity_snapshot"]
+    ), None)
     if reusable:
         return reusable
-    impact = _impact(db, context, plan)
-    quantity = int(context.subscription.quantity)
     try:
         provider = paddle_client.get_subscription(subscription_id=context.subscription.provider_subscription_id, include="recurring_transaction_details")
         if _clean(provider.get("id")) != context.subscription.provider_subscription_id or _clean(provider.get("status")).lower() != "active":
             raise changes.SubscriptionChangeError("The Paddle subscription is unavailable for changes.", code="provider_subscription_unavailable", status_code=409)
-        current_items = _items(provider, context.subscription.provider_price_id, quantity)
+        current_items = _items(provider, context.subscription.provider_price_id, current_quantity)
         changes._validate_provider_terms(provider, context.subscription.provider_price_id, context.subscription.billing_interval, context.subscription.currency_code)
-        target_items = _replace_price(current_items, context.subscription.provider_price_id, price.provider_price_id, quantity)
+        target_items = _replace_price(current_items, context.subscription.provider_price_id, price.provider_price_id, requested_quantity)
         mode = "prorated_immediately" if direction == UPGRADE else "prorated_next_billing_period"
         preview = paddle_client.preview_subscription_update(subscription_id=context.subscription.provider_subscription_id, items=target_items, proration_billing_mode=mode)
     except changes.SubscriptionChangeError:
@@ -202,7 +312,7 @@ def preview_plan_change(db: Session, account, target_plan_code: str):
         raise changes._safe_provider_failure(exc) from exc
     if _clean(preview.get("status")).lower() != "active" or _clean(preview.get("currency_code")).upper() != _clean(context.subscription.currency_code).upper():
         raise changes._preview_diagnostic("preview_subscription_mismatch", missing_fields=[], sections=changes._available_sections(preview))
-    observed = _items(preview, price.provider_price_id, quantity)
+    observed = _items(preview, price.provider_price_id, requested_quantity)
     changes._validate_provider_terms(preview, price.provider_price_id, context.subscription.billing_interval, context.subscription.currency_code)
     if changes._items_signature(observed) != changes._items_signature(target_items):
         raise changes._preview_diagnostic("preview_items_mismatch", missing_fields=[], sections=changes._available_sections(preview))
@@ -216,7 +326,8 @@ def preview_plan_change(db: Session, account, target_plan_code: str):
         school_group_id=context.resolution.school_group_id, subscription_contract_id=context.contract.id,
         payment_subscription_id=context.subscription.id, provider_subscription_id=context.subscription.provider_subscription_id,
         requested_by_user_id=context.actor.id, requested_by_saas_account_id=context.account.id,
-        change_type=direction, current_quantity=quantity, requested_quantity=quantity, quantity_delta=0,
+        change_type=direction, current_quantity=current_quantity, requested_quantity=requested_quantity,
+        quantity_delta=requested_quantity - current_quantity,
         current_plan_price_id=context.plan_price.id, provider_price_id=context.subscription.provider_price_id,
         target_plan_id=plan.id, target_plan_price_id=price.id, target_provider_price_id=price.provider_price_id,
         entitlement_impact_json=json.dumps(impact, separators=(",", ":"), sort_keys=True),
@@ -225,7 +336,7 @@ def preview_plan_change(db: Session, account, target_plan_code: str):
         previewed_charge_minor=charge, previewed_credit_minor=credit, previewed_net_minor=immediate,
         current_renewal_total_minor=current_total, next_renewal_total_minor=next_total,
         retained_items_json=json.dumps(target_items, separators=(",", ":"), sort_keys=True),
-        idempotency_key=_key(context, plan.id), requested_at=changes._utcnow(), previewed_at=changes._utcnow(), effective_at=effective_at,
+        idempotency_key=_key(context, plan.id, requested_quantity), requested_at=changes._utcnow(), previewed_at=changes._utcnow(), effective_at=effective_at,
     )
     for previous in preview_rows:
         if changes._preview_is_fresh(previous):
@@ -264,7 +375,16 @@ def _validate_row(db, context, row):
         models.SubscriptionPlanPrice.currency_code == context.subscription.currency_code,
         models.SubscriptionPlanPrice.is_active == True,
     ).one_or_none()
-    valid = plan and price and row.subscription_contract_id == context.contract.id and row.current_plan_price_id == context.plan_price.id and row.provider_price_id == context.subscription.provider_price_id and row.current_quantity == int(context.subscription.quantity) and row.requested_quantity == row.current_quantity
+    valid = (
+        plan
+        and price
+        and row.subscription_contract_id == context.contract.id
+        and row.current_plan_price_id == context.plan_price.id
+        and row.provider_price_id == context.subscription.provider_price_id
+        and row.current_quantity == int(context.subscription.quantity)
+        and int(row.requested_quantity or 0) >= 1
+        and (row.change_type == UPGRADE or row.requested_quantity == row.current_quantity)
+    )
     if not valid:
         raise changes.SubscriptionChangeError("The plan preview is no longer valid. Generate a new preview to continue.", code="stale_preview", status_code=409)
     return plan, price
@@ -277,7 +397,7 @@ def get_confirmation_preview(db, account, request_uuid):
             row.status = "expired"
         raise changes.SubscriptionChangeError("The plan preview is no longer valid. Generate a new preview to continue.", code="stale_preview", status_code=409)
     plan, _ = _validate_row(db, context, row)
-    impact = _impact(db, context, plan)
+    impact = _impact_for_row(db, context, row, plan)
     return row, plan, impact
 
 
@@ -290,7 +410,7 @@ def submit_plan_change(db, account, request_uuid):
             row.status = "expired"
         raise changes.SubscriptionChangeError("The plan preview is no longer valid. Generate a new preview to continue.", code="stale_preview", status_code=409)
     plan, _ = _validate_row(db, context, row)
-    impact = _impact(db, context, plan)
+    impact = _impact_for_row(db, context, row, plan)
     if impact["blocking_conflicts"]:
         raise changes.SubscriptionChangeError("Resolve the listed plan compatibility issues before downgrading.", code="downgrade_conflict", status_code=409)
     items = changes._stored_items(row)
@@ -302,7 +422,7 @@ def submit_plan_change(db, account, request_uuid):
         if _clean(provider.get("id")) != row.provider_subscription_id or _clean(provider.get("status")).lower() != "active":
             raise changes.SubscriptionChangeError("The Paddle subscription changed after this preview.", code="stale_provider_subscription", status_code=409)
         changes._validate_provider_terms(provider, row.provider_price_id, row.billing_interval, row.currency_code)
-        expected = _replace_price(current, row.provider_price_id, row.target_provider_price_id, row.current_quantity)
+        expected = _replace_price(current, row.provider_price_id, row.target_provider_price_id, row.requested_quantity)
         if changes._items_signature(expected) != changes._items_signature(items):
             raise changes.SubscriptionChangeError("The Paddle subscription changed after this preview.", code="stale_provider_items", status_code=409)
         row.submitted_at = changes._utcnow()
@@ -450,7 +570,20 @@ def replace_scheduled_plan_change(db: Session, account, request_uuid: str, targe
 
 def customer_summary(row, plan, impact, current_plan_name):
     summary = changes.customer_summary(row)
-    summary.update({"current_plan_name": current_plan_name, "target_plan_name": plan.plan_name, "is_upgrade": row.change_type == UPGRADE, "feature_losses": impact["feature_losses"], "blocking_conflicts": impact["blocking_conflicts"]})
+    capacity = impact.get("capacity_snapshot") or {}
+    summary.update({
+        "current_plan_name": current_plan_name,
+        "target_plan_name": plan.plan_name,
+        "is_upgrade": row.change_type == UPGRADE,
+        "feature_losses": impact["feature_losses"],
+        "blocking_conflicts": impact["blocking_conflicts"],
+        "capacity_branches": capacity.get("active_branches"),
+        "capacity_system_users": capacity.get("active_system_users"),
+        "capacity_teachers": capacity.get("active_teachers"),
+        "upgrade_trigger_dimensions": tuple(
+            capacity.get("upgrade_trigger_dimensions") or ()
+        ),
+    })
     return summary
 
 
@@ -460,11 +593,44 @@ def _apply_confirmed(db, row, subscription):
     if contract is None or price is None or subscription.subscription_contract_id != contract.id:
         row.status = "manual_review"; row.failure_code = "local_plan_relationship_mismatch"
         return False
+    target_plan = db.query(models.SubscriptionPlan).filter(
+        models.SubscriptionPlan.id == row.target_plan_id,
+        models.SubscriptionPlan.is_active.is_(True),
+    ).one_or_none()
+    if target_plan is None:
+        row.status = "manual_review"; row.failure_code = "target_plan_unavailable"
+        return False
+    try:
+        capacity = branch_pricing_quote_service.build_organization_capacity_snapshot(
+            db,
+            school_group_id=row.school_group_id,
+            current_plan=target_plan,
+        )
+    except ValueError:
+        row.status = "manual_review"; row.failure_code = "capacity_revalidation_unavailable"
+        return False
+    if not capacity.current_plan_eligible:
+        row.status = "manual_review"
+        row.failure_code = (
+            "downgrade_capacity_revalidation_failed"
+            if row.change_type == DOWNGRADE
+            else "upgrade_capacity_revalidation_failed"
+        )
+        audit.write_audit_event({
+            "event_type": "subscription_plan_change_capacity_reconciliation_required",
+            "school_group_id": row.school_group_id,
+            "subscription_change_request_uuid": row.request_uuid,
+            "target_plan_id": row.target_plan_id,
+            "capacity_dimensions": list(capacity.upgrade_trigger_dimensions),
+        })
+        return False
     subscription.plan_id = row.target_plan_id
     subscription.provider_price_id = row.target_provider_price_id
+    subscription.quantity = row.requested_quantity
     subscription.unit_amount_minor = price.amount_minor
     subscription.amount_minor = row.next_renewal_total_minor
     contract.plan_id = row.target_plan_id
+    contract.billable_branch_count = row.requested_quantity
     contract.base_amount_minor = price.amount_minor
     contract.display_amount_minor = price.amount_minor
     contract.plan_version = price.plan_version
@@ -500,13 +666,14 @@ def reconcile_plan_change_webhook(db: Session, payload: dict, event_type: str):
         if event_type == "transaction.completed" and row.change_type == UPGRADE and _clean(data.get("status")).lower() == "completed":
             row.provider_payment_confirmed_at = row.provider_payment_confirmed_at or changes._utcnow()
             if row.provider_observed_price_id == row.target_provider_price_id:
-                _apply_confirmed(db, row, subscription)
+                if not _apply_confirmed(db, row, subscription):
+                    return {"status": "manual_review", "event_type": event_type}
             return {"status": "processed", "event_type": event_type}
         return None
     if not event_type.startswith("subscription."):
         return None
     try:
-        observed = _items(data, row.target_provider_price_id, row.current_quantity)
+        observed = _items(data, row.target_provider_price_id, row.requested_quantity)
         changes._validate_provider_terms(data, row.target_provider_price_id, row.billing_interval, row.currency_code)
         if changes._items_signature(observed) != changes._items_signature(changes._stored_items(row)):
             raise changes.SubscriptionChangeError("Provider items mismatch.")
@@ -526,16 +693,18 @@ def reconcile_plan_change_webhook(db: Session, payload: dict, event_type: str):
     period_start = _parse_datetime(period.get("starts_at"))
     period_end = _parse_datetime(period.get("ends_at"))
     next_billed = _parse_datetime(data.get("next_billed_at"))
-    if row.change_type == UPGRADE:
-        if row.provider_payment_confirmed_at:
-            _apply_confirmed(db, row, subscription)
-        else:
-            row.status = "payment_pending"
-    elif row.effective_at and period_start and period_start >= row.effective_at:
-        _apply_confirmed(db, row, subscription)
-    else:
-        row.status = "scheduled"
     subscription.current_period_start = period_start or subscription.current_period_start
     subscription.current_period_end = period_end or subscription.current_period_end
     subscription.next_billed_at = next_billed or subscription.next_billed_at
+    if row.change_type == UPGRADE:
+        if row.provider_payment_confirmed_at:
+            if not _apply_confirmed(db, row, subscription):
+                return {"status": "manual_review", "event_type": event_type}
+        else:
+            row.status = "payment_pending"
+    elif row.effective_at and period_start and period_start >= row.effective_at:
+        if not _apply_confirmed(db, row, subscription):
+            return {"status": "manual_review", "event_type": event_type}
+    else:
+        row.status = "scheduled"
     return {"status": "processed", "event_type": event_type}

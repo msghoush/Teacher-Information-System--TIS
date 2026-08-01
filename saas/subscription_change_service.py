@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 import auth
 import audit
 import models as operational_models
-from saas import entitlement_service, models, paddle_client
+from saas import branch_pricing_quote_service, entitlement_service, models, paddle_client
 
 
 INCREASE = "branch_quantity_increase"
@@ -401,6 +401,51 @@ def _idempotency_key(db: Session, context: ChangeContext, requested_quantity: in
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def _validate_requested_capacity(
+    db: Session,
+    *,
+    school_group_id: int,
+    plan_id: int,
+    requested_quantity: int,
+):
+    plan = db.query(models.SubscriptionPlan).filter(
+        models.SubscriptionPlan.id == plan_id,
+        models.SubscriptionPlan.is_active.is_(True),
+    ).one_or_none()
+    if plan is None:
+        raise SubscriptionChangeError(
+            "Subscription capacity is temporarily unavailable.",
+            code="capacity_plan_unavailable",
+            status_code=409,
+        )
+    try:
+        snapshot = branch_pricing_quote_service.build_organization_capacity_snapshot(
+            db,
+            school_group_id=school_group_id,
+            current_plan=plan,
+            proposed_branch_count=requested_quantity,
+        )
+    except ValueError as exc:
+        raise SubscriptionChangeError(
+            str(exc), code="invalid_capacity_proposal", status_code=409
+        ) from exc
+    if snapshot.current_plan_eligible:
+        return snapshot
+    if snapshot.custom_required:
+        message = (
+            "This capacity requires a Custom subscription. Please contact the TIS team."
+        )
+    else:
+        target = snapshot.minimum_eligible_plan_name or "a higher plan"
+        message = (
+            f"This capacity requires {target}. Review the complete organization capacity "
+            "before continuing."
+        )
+    raise SubscriptionChangeError(
+        message, code="plan_upgrade_required", status_code=409
+    )
+
+
 def preview_quantity_change(db: Session, account, requested_quantity: int):
     context = resolve_change_context(db, account, lock=True)
     try:
@@ -427,6 +472,12 @@ def preview_quantity_change(db: Session, account, requested_quantity: int):
     change_type = INCREASE if requested > current else REDUCTION
     if change_type == REDUCTION and requested < context.resolution.active_branch_count:
         raise SubscriptionChangeError("Deactivate branches before reducing paid capacity below current usage.", code="below_active_branch_count", status_code=409)
+    _validate_requested_capacity(
+        db,
+        school_group_id=context.resolution.school_group_id,
+        plan_id=context.subscription.plan_id,
+        requested_quantity=requested,
+    )
     try:
         provider = paddle_client.get_subscription(
             subscription_id=context.subscription.provider_subscription_id,
@@ -606,6 +657,12 @@ def submit_quantity_change(db: Session, account, request_uuid: str):
             status_code=409,
         )
     _validate_preview_context(context, row)
+    _validate_requested_capacity(
+        db,
+        school_group_id=context.resolution.school_group_id,
+        plan_id=context.subscription.plan_id,
+        requested_quantity=row.requested_quantity,
+    )
     items = _stored_items(row)
     mode = "prorated_immediately" if row.change_type == INCREASE else "prorated_next_billing_period"
     update_attempted = False
@@ -820,11 +877,29 @@ def reconcile_quantity_change_webhook(db: Session, payload: dict, event_type: st
     else:
         effective = row.effective_at
         if effective and period_start and period_start >= effective:
-            subscription.quantity = row.requested_quantity
-            subscription.amount_minor = row.next_renewal_total_minor
-            row.status = "confirmed"
-            row.confirmed_at = _utcnow()
-            audit.write_audit_event({"event_type": "branch_quantity_reduction_effective", "school_group_id": row.school_group_id, "subscription_change_request_uuid": row.request_uuid, "current_quantity": row.current_quantity, "requested_quantity": row.requested_quantity})
+            try:
+                _validate_requested_capacity(
+                    db,
+                    school_group_id=row.school_group_id,
+                    plan_id=subscription.plan_id,
+                    requested_quantity=row.requested_quantity,
+                )
+            except SubscriptionChangeError:
+                row.status = "manual_review"
+                row.failure_code = "quantity_reduction_capacity_revalidation_failed"
+                row.failure_message = "The scheduled capacity reduction requires review."
+                audit.write_audit_event({
+                    "event_type": "branch_quantity_change_manual_review",
+                    "school_group_id": row.school_group_id,
+                    "subscription_change_request_uuid": row.request_uuid,
+                    "failure_code": row.failure_code,
+                })
+            else:
+                subscription.quantity = row.requested_quantity
+                subscription.amount_minor = row.next_renewal_total_minor
+                row.status = "confirmed"
+                row.confirmed_at = _utcnow()
+                audit.write_audit_event({"event_type": "branch_quantity_reduction_effective", "school_group_id": row.school_group_id, "subscription_change_request_uuid": row.request_uuid, "current_quantity": row.current_quantity, "requested_quantity": row.requested_quantity})
         else:
             row.status = "scheduled"
     subscription.current_period_start = period_start or subscription.current_period_start

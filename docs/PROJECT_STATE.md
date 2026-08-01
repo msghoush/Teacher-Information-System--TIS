@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-07-31
+last_updated: 2026-08-01
 source_of_truth: true
 ---
 
@@ -118,6 +118,15 @@ authoritative. Capacity changes invalidate quote/checkout lineage and clear
 only an undersized plan. Paid system-user creation/reactivation, teacher
 creation/year-copy preflight, and downgrades fail before mutation when the
 result would exceed capacity.
+
+The active customer portal now presents unified Organization Capacity instead
+of a branch-only action. Review Capacity compares proposed branches, system
+users, and teachers with the current plan and opens either the existing branch
+quantity preview or a required plan-upgrade preview. A branch-triggered upgrade
+may update plan price and branch quantity together; user and teacher totals
+never change Paddle quantity. Scheduled plan downgrades and quantity reductions
+revalidate live capacity at the provider-confirmed effective boundary and enter
+manual review rather than applying an unsafe local reduction.
 
 ## Customer Journey And Expired-Access Correction
 

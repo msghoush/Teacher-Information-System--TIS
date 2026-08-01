@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-08-01
 source_of_truth: true
 ---
 
@@ -409,6 +409,7 @@ M5: Platform access, permissions, and owner controls
 - Added scheduled cancellation and reversal while preserving paid access through the confirmed effective period.
 - Added provider-sourced billing history and protected, freshly resolved invoice downloads.
 - Added webhook idempotency, strict provider/local relationship validation, manual-review fail-closed paths, diagnostics, and guarded reconciliation tooling.
+- Unified active subscription capacity review across branches, non-teacher system users, and teachers. Required upgrades use the highest capacity dimension, Paddle quantity remains branch-only, and scheduled downgrades/reductions revalidate capacity at their effective boundary.
 
 ## Paddle And Payment Architecture Summary
 
@@ -426,6 +427,7 @@ Key modules:
 - `saas/subscription_portal_service.py`: customer portal composition.
 - `saas/subscription_change_service.py`: quantity change previews, submissions, schedules, and webhook reconciliation.
 - `saas/subscription_plan_change_service.py`: plan upgrade/downgrade lifecycle.
+- `saas/branch_pricing_quote_service.py`: shared onboarding and operational three-dimension capacity counts, plan eligibility, and minimum-plan resolution.
 - `saas/subscription_cancellation_service.py`: cancellation and reversal lifecycle.
 - `saas/subscription_lifecycle_service.py`: lifecycle resolver and allowed-action policy.
 - `saas/billing_history_service.py`: Paddle transaction history and invoice access.

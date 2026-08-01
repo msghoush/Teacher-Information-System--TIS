@@ -21,7 +21,7 @@ import main
 import models
 import saas.models
 from dependencies import get_db
-from saas import commercial_access_service, customer_journey_service, entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_cancellation_service, subscription_change_service, subscription_lifecycle_service, subscription_plan_change_service, subscription_portal_service
+from saas import branch_pricing_quote_service, commercial_access_service, customer_journey_service, entitlement_service, paddle_client, payment_lifecycle_reconciliation_service, payment_service, service, subscription_cancellation_service, subscription_change_service, subscription_lifecycle_service, subscription_plan_change_service, subscription_portal_service
 from saas.router import router as saas_router
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
@@ -387,6 +387,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             row.status = "scheduled"
             row.submitted_at = datetime.utcnow()
             row.provider_scheduled_at = datetime.utcnow()
+            row.effective_at = datetime(2099, 8, 1)
             db.commit()
             return row.request_uuid, target_plan_id, target_price_id, target_provider_price
         finally:
@@ -1276,7 +1277,9 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         db = self.Session()
         try:
             row = db.query(saas.models.SubscriptionChangeRequest).filter_by(id=row_id).one()
-            row.status = "scheduled"; db.commit()
+            row.status = "scheduled"
+            row.effective_at = datetime(2099, 8, 1)
+            db.commit()
             with (
                 patch.object(paddle_client, "get_subscription", return_value=self._provider_subscription(fixture, 3)),
                 patch.object(paddle_client, "preview_subscription_update", return_value={}) as preview,
@@ -1360,7 +1363,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.client.cookies.set(service.SAAS_CSRF_COOKIE, first["csrf_token"])
         response = self.client.get("/saas/subscription/branches", follow_redirects=False)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Paid Branches", response.text)
+        self.assertIn("Review organization capacity", response.text)
         self.assertNotIn(second["provider_subscription_id"], response.text)
         limited = self._fixture(quantity=3, active_branches=1, role=auth.ROLE_LIMITED)
         self.client.cookies.set(service.SAAS_SESSION_COOKIE, limited["session_token"])
@@ -1436,6 +1439,231 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 finally:
                     db.close()
 
+    def test_unified_capacity_selects_highest_required_plan_and_custom(self):
+        fixture = self._fixture(quantity=1, active_branches=1, plan_code="starter")
+        db = self.Session()
+        try:
+            current_plan = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="starter"
+            ).one()
+            cases = (
+                ((2, 1, 0), "professional", ("branches",)),
+                ((1, 6, 0), "professional", ("system_users",)),
+                ((1, 1, 26), "professional", ("teachers",)),
+                ((4, 21, 80), "enterprise_ai", ("branches", "system_users", "teachers")),
+            )
+            for counts, expected_plan, expected_triggers in cases:
+                with self.subTest(counts=counts):
+                    snapshot = branch_pricing_quote_service.build_organization_capacity_snapshot(
+                        db,
+                        school_group_id=fixture["group_id"],
+                        current_plan=current_plan,
+                        proposed_branch_count=counts[0],
+                        proposed_system_user_count=counts[1],
+                        proposed_teacher_count=counts[2],
+                    )
+                    self.assertEqual(snapshot.minimum_eligible_plan_code, expected_plan)
+                    self.assertEqual(snapshot.upgrade_trigger_dimensions, expected_triggers)
+            custom = branch_pricing_quote_service.build_organization_capacity_snapshot(
+                db,
+                school_group_id=fixture["group_id"],
+                current_plan=current_plan,
+                proposed_branch_count=26,
+                proposed_system_user_count=1,
+                proposed_teacher_count=0,
+            )
+            self.assertTrue(custom.custom_required)
+            self.assertIsNone(custom.minimum_eligible_plan_code)
+        finally:
+            db.close()
+
+    def test_direct_branch_quantity_change_cannot_bypass_plan_capacity(self):
+        fixture = self._fixture(quantity=1, active_branches=1, plan_code="starter")
+        db = self.Session()
+        try:
+            with patch.object(paddle_client, "get_subscription") as provider:
+                with self.assertRaises(subscription_change_service.SubscriptionChangeError) as blocked:
+                    subscription_change_service.preview_quantity_change(
+                        db, self._account(db, fixture), 2
+                    )
+            self.assertEqual(blocked.exception.code, "plan_upgrade_required")
+            provider.assert_not_called()
+        finally:
+            db.close()
+
+    def test_capacity_review_combines_required_plan_upgrade_with_branch_quantity(self):
+        fixture = self._fixture(quantity=1, active_branches=1, plan_code="starter")
+        db = self.Session()
+        try:
+            target_plan = db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code="professional"
+            ).one()
+            target_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                plan_id=target_plan.id,
+                billing_interval="monthly",
+                currency_code="USD",
+                is_active=True,
+            ).one()
+            target_price.provider_price_id = "pri_01capacityprofessional000000"
+            db.commit()
+            target_fixture = dict(
+                fixture,
+                provider_price_id=target_price.provider_price_id,
+                unit_amount=target_price.amount_minor,
+            )
+        finally:
+            db.close()
+        preview = self._preview_payload(target_fixture, 2, current=0)
+        preview["items"] = self._provider_subscription(target_fixture, 2)["items"]
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        with (
+            patch.object(
+                paddle_client,
+                "get_subscription",
+                return_value=self._provider_subscription(fixture, 1),
+            ),
+            patch.object(
+                paddle_client, "preview_subscription_update", return_value=preview
+            ) as provider_preview,
+            patch("saas.subscription_change_service.audit.write_audit_event"),
+        ):
+            response = self.client.post(
+                "/saas/subscription/branches/preview",
+                data={
+                    "requested_quantity": "2",
+                    "proposed_system_users": "6",
+                    "proposed_teachers": "10",
+                    "csrf_token": fixture["csrf_token"],
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/saas/subscription/plans/", response.headers["location"])
+        provider_items = provider_preview.call_args.kwargs["items"]
+        target_item = next(
+            item for item in provider_items
+            if item["price_id"] == target_fixture["provider_price_id"]
+        )
+        self.assertEqual(target_item["quantity"], 2)
+        self.assertNotIn(6, [item["quantity"] for item in provider_items])
+        self.assertNotIn(10, [item["quantity"] for item in provider_items])
+        db = self.Session()
+        try:
+            row = db.query(saas.models.SubscriptionChangeRequest).one()
+            self.assertEqual((row.current_quantity, row.requested_quantity), (1, 2))
+            capacity = json.loads(row.entitlement_impact_json)["capacity_snapshot"]
+            self.assertEqual(
+                (capacity["active_branches"], capacity["active_system_users"], capacity["active_teachers"]),
+                (2, 6, 10),
+            )
+        finally:
+            db.close()
+
+    def test_subscription_portal_shows_unified_capacity_and_final_actions(self):
+        fixture = self._fixture(
+            quantity=4,
+            active_branches=3,
+            active_staff=4,
+            active_teachers=8,
+            plan_code="professional",
+        )
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        response = self.client.get("/saas/subscription")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Organization Capacity", response.text)
+        self.assertIn("Active Branches", response.text)
+        self.assertIn("System Users", response.text)
+        self.assertIn("Teachers", response.text)
+        self.assertIn("3 / 5", response.text)
+        self.assertIn("4 / 20", response.text)
+        self.assertIn("8 / 100", response.text)
+        self.assertIn("Review Capacity", response.text)
+        self.assertIn("Change Plan", response.text)
+        self.assertIn("Cancel at Period End", response.text)
+        self.assertIn("Custom", response.text)
+        self.assertNotIn("Add Branch Capacity", response.text)
+
+    def test_scheduled_downgrade_revalidates_capacity_at_effective_date(self):
+        for dimension in ("branches", "system_users", "teachers"):
+            with self.subTest(dimension=dimension):
+                fixture = self._fixture(
+                    quantity=1, active_branches=1, plan_code="enterprise_ai"
+                )
+                row_id, _target_id, _price_id, target_provider_price, _ = (
+                    self._plan_preview(fixture, "starter")
+                )
+                db = self.Session()
+                try:
+                    row = db.get(saas.models.SubscriptionChangeRequest, row_id)
+                    row.status = "scheduled"
+                    row.submitted_at = datetime.utcnow()
+                    row.effective_at = datetime(2099, 8, 1)
+                    if dimension == "branches":
+                        db.add(models.Branch(
+                            school_group_id=fixture["group_id"],
+                            name="Late Growth Campus",
+                            status=True,
+                        ))
+                    elif dimension == "system_users":
+                        for index in range(5):
+                            token = uuid.uuid4().hex[:10]
+                            db.add(models.User(
+                                user_id=token,
+                                username=f"late.capacity.{token}",
+                                email=f"late-{token}@example.com",
+                                email_normalized=f"late-{token}@example.com",
+                                password="unused",
+                                role=auth.ROLE_USER,
+                                user_type=auth.USER_TYPE_TENANT,
+                                school_group_id=fixture["group_id"],
+                                access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+                                is_active=True,
+                            ))
+                    else:
+                        branch = db.query(models.Branch).filter_by(
+                            school_group_id=fixture["group_id"]
+                        ).first()
+                        year = db.query(models.AcademicYear).filter_by(
+                            school_group_id=fixture["group_id"], is_active=True
+                        ).one()
+                        for _index in range(26):
+                            db.add(models.Teacher(
+                                teacher_id=uuid.uuid4().hex[:10],
+                                first_name="Late",
+                                last_name="Teacher",
+                                branch_id=branch.id,
+                                academic_year_id=year.id,
+                            ))
+                    db.commit()
+                    target_price = db.query(saas.models.SubscriptionPlanPrice).filter_by(
+                        provider_price_id=target_provider_price
+                    ).one()
+                    target_fixture = dict(
+                        fixture,
+                        provider_price_id=target_provider_price,
+                        unit_amount=target_price.amount_minor,
+                    )
+                    provider = self._provider_subscription(
+                        target_fixture, 1, period_start="2099-08-01T00:00:00Z"
+                    )
+                    with patch("saas.subscription_plan_change_service.audit.write_audit_event"):
+                        result = subscription_plan_change_service.reconcile_plan_change_webhook(
+                            db, {"data": provider}, "subscription.updated"
+                        )
+                        db.commit()
+                    subscription = db.get(
+                        saas.models.PaymentSubscription, fixture["subscription_id"]
+                    )
+                    self.assertEqual(result["status"], "manual_review")
+                    self.assertEqual(row.status, "manual_review")
+                    self.assertEqual(
+                        row.failure_code, "downgrade_capacity_revalidation_failed"
+                    )
+                    self.assertEqual(subscription.plan_id, fixture["plan_id"])
+                finally:
+                    db.close()
+
     def test_plan_upgrade_waits_for_both_webhook_evidence_and_refreshes_entitlements(self):
         fixture = self._fixture(quantity=4, active_branches=2, plan_code="starter")
         row_id, target_plan_id, _price_id, target_provider_price, _ = self._plan_preview(fixture, "enterprise_ai")
@@ -1492,7 +1720,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         finally:
             db.close()
 
-        downgrade = self._fixture(quantity=4, active_branches=2, plan_code="enterprise_ai")
+        downgrade = self._fixture(quantity=4, active_branches=1, plan_code="enterprise_ai")
         downgrade_id, downgrade_target, _p, downgrade_provider_price, _ = self._plan_preview(downgrade, "starter")
         db = self.Session()
         try:
@@ -1595,7 +1823,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         self.assertIn("Scheduled plan: Starter", portal_response.text)
         self.assertNotIn("Replace Scheduled Change", portal_response.text)
         self.assertIn("Cancel Scheduled Change", portal_response.text)
-        self.assertIn("Scheduled</strong><span>Effective August 01, 2026", portal_response.text)
+        self.assertIn("Scheduled</strong><span>Effective August 01, 2099", portal_response.text)
         self.assertIn("Replace With Professional", portal_response.text)
         self.assertNotIn("Change Unavailable", portal_response.text)
         self.assertIn(f"/saas/subscription/plans/{request_uuid}/replace", portal_response.text)
@@ -1872,7 +2100,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 customer_journey_service.login_destination(
                     db, self._account(db, fixture)
                 ),
-                "/login",
+                "/saas/account",
             )
             user = db.get(models.User, fixture["user_id"])
             self.assertIsNone(

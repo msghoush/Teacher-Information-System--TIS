@@ -512,9 +512,9 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         for label in (
             "Preview Upgrade",
             "Preview Downgrade",
-            "Add Branch Capacity",
-            "Reduce Branch Capacity",
-            "Cancel Subscription",
+            "Review Capacity",
+            "Change Plan",
+            "Cancel at Period End",
         ):
             self.assertIn(label, response.text)
         self.assertIn("Billing History", response.text)
@@ -580,9 +580,11 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         )
         response = self._open(fixture)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Add Branch Capacity", response.text)
+        self.assertIn("Review Capacity", response.text)
+        self.assertNotIn("Add Branch Capacity", response.text)
         self.assertNotIn("Reduce Branch Capacity", response.text)
-        self.assertIn("Upgrade Plan", response.text)
+        self.assertIn("Change Plan", response.text)
+        self.assertNotIn("Upgrade Plan", response.text)
         self.assertNotIn("Downgrade Plan", response.text)
         self.assertIn('action="/saas/subscription/plans/preview"', response.text)
         self.assertIn('href="/saas/subscription/branches"', response.text)
@@ -596,7 +598,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         )
         active = self._open(fixture)
         self.assertEqual(active.status_code, 200)
-        self.assertIn("Cancel Subscription", active.text)
+        self.assertIn("Cancel at Period End", active.text)
         self.assertIn("Your subscription renews on", active.text)
         self.assertNotIn("tenant_active", active.text)
         self.assertNotIn("payment_processing", active.text)
@@ -676,7 +678,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
 
         response = self._open(fixture)
         self.assertEqual(response.status_code, 200)
-        self.assertNotIn("Cancel Subscription", response.text)
+        self.assertNotIn("Cancel at Period End", response.text)
         self.assertNotIn("Subscription Actions", response.text)
         self.assertNotIn('href="/saas/subscription/branches"', response.text)
         self.assertNotIn('action="/saas/subscription/plans/preview"', response.text)
