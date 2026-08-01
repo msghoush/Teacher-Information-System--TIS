@@ -104,6 +104,17 @@ closed with customer-safe guidance and server-side diagnostics. Existing
 financial documents are never silently rewritten; updated details primarily
 apply to future billing documents.
 
+Billing Contact is read-only until an authorized user explicitly selects Edit.
+Valid local changes remain saved if Paddle synchronization fails. A dedicated,
+tenant-scoped retry reuses the stored profile and existing customer, address,
+and business mappings; an already synchronized retry is a provider-call-free
+no-op. Provider failures are logged by safe step (`customer`, `address`,
+`business`, or active-subscription identity) with provider status and error code,
+while the customer sees no provider identifiers or diagnostics. Once a saved
+profile is pending or failed, new plan and quantity mutations fail closed until
+synchronization succeeds; cancellation and legacy subscriptions that have no
+saved billing profile retain their existing behavior.
+
 Paddle transaction states remain distinct. `paid` records that money was
 received and is displayed as `Payment received - processing`; it does not
 complete subscription reconciliation. `completed` remains the authoritative

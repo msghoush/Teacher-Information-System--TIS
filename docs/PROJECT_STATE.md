@@ -25,6 +25,16 @@ Ambiguous mappings fail closed. Login-email changes never mutate billing email,
 billing-email changes never mutate authentication, and historical invoices are
 not silently revised.
 
+Billing Contact now renders saved values read-only until an authorized Edit.
+Saving commits valid local details even when Paddle cannot be updated. The
+customer can retry synchronization directly without changing the profile; the
+retry reuses existing customer/address/business mappings and becomes a no-op
+after success. Safe server logs identify the failed provider step, error code,
+and status without rendering diagnostics to customers. A saved profile in
+pending or failed synchronization state blocks new plan and quantity changes
+until synchronization succeeds. Cancellation and legacy active subscriptions
+without a saved profile are not newly blocked.
+
 Provider `paid` is now presented as payment received while processing and is
 recorded separately from final confirmation. Provider `completed` remains the
 required reconciliation signal and renders as Paid. No webhook completion rule

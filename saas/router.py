@@ -1682,10 +1682,16 @@ def subscription_portal(
         return response
     portal = subscription_portal_service.build_subscription_portal(db, account)
     billing_contact = None
+    billing_profile = None
+    billing_country_options = ()
     if selected_access is not None and selected_access.organization is not None:
+        billing_profile = billing_identity_service.get_billing_profile(
+            db, selected_access.organization
+        )
         billing_contact = billing_identity_service.billing_identity_form(
             db, selected_access.organization, account
         )
+        billing_country_options = tuple(location_service.list_countries())
     billing_history = None
     try:
         billing_history = billing_history_service.build_billing_history(db, account, portal)
@@ -1701,6 +1707,20 @@ def subscription_portal(
             ),
             "subscription_portal": portal,
             "billing_contact": billing_contact,
+            "billing_contact_editing": (
+                str(request.query_params.get("billing_edit") or "").strip() == "1"
+            ),
+            "billing_sync_result": str(
+                request.query_params.get("billing_sync") or ""
+            ).strip(),
+            "billing_country_options": billing_country_options,
+            "billing_identity_ready": bool(
+                billing_contact
+                and (
+                    billing_profile is None
+                    or billing_contact.sync_status == "synced"
+                )
+            ),
             "billing_organization_uuid": (
                 selected_access.organization_uuid if selected_access else ""
             ),
@@ -1725,6 +1745,53 @@ def subscription_portal(
             ),
         )
     return response
+
+
+def _resolve_billing_contact_update_context(
+    db: Session,
+    account,
+    organization_uuid: str,
+):
+    _accesses, selected_access = (
+        customer_journey_service.select_organization_account_access(
+            db,
+            account,
+            organization_uuid=str(organization_uuid or "").strip(),
+        )
+    )
+    if (
+        selected_access is None
+        or not selected_access.can_manage_billing
+        or selected_access.organization is None
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail="Billing access is not available.",
+        )
+    setattr(account, "_selected_school_group_id", int(selected_access.school_group.id))
+    context = billing_history_service.resolve_billing_context(db, account)
+    if int(context.school_group_id) != int(selected_access.school_group.id):
+        raise billing_identity_service.BillingIdentityError(
+            "Billing identity does not match this organization."
+        )
+    if context.customer is None:
+        raise billing_identity_service.BillingIdentityError(
+            "The billing provider customer mapping is unavailable."
+        )
+    return selected_access, context
+
+
+def _billing_country_name(country_code: str, submitted_name: str = "") -> str:
+    normalized = str(country_code or "").strip().upper()
+    match = next(
+        (
+            row
+            for row in location_service.list_countries()
+            if str(row.get("code") or "").strip().upper() == normalized
+        ),
+        None,
+    )
+    return str((match or {}).get("name") or submitted_name or "").strip()
 
 
 @router.post("/subscription/billing-contact")
@@ -1756,35 +1823,17 @@ def update_subscription_billing_contact(
     if redirect:
         return redirect
     _require_saas_csrf(session_row, csrf_token)
-    _accesses, selected_access = (
-        customer_journey_service.select_organization_account_access(
+    try:
+        selected_access, context = _resolve_billing_contact_update_context(
             db,
             account,
-            organization_uuid=str(organization_uuid or "").strip(),
+            organization_uuid,
         )
-    )
-    if (
-        selected_access is None
-        or not selected_access.can_manage_billing
-        or selected_access.organization is None
-    ):
-        raise HTTPException(status_code=403, detail="Billing access is not available.")
-    organization = selected_access.organization
-    setattr(account, "_selected_school_group_id", int(selected_access.school_group.id))
-    destination = (
-        "/saas/subscription?organization_uuid="
-        + quote_plus(selected_access.organization_uuid)
-    )
-    try:
-        context = billing_history_service.resolve_billing_context(db, account)
-        if int(context.school_group_id) != int(selected_access.school_group.id):
-            raise billing_identity_service.BillingIdentityError(
-                "Billing identity does not match this organization."
-            )
-        if context.customer is None:
-            raise billing_identity_service.BillingIdentityError(
-                "The billing provider customer mapping is unavailable."
-            )
+        organization = selected_access.organization
+        destination = (
+            "/saas/subscription?organization_uuid="
+            + quote_plus(selected_access.organization_uuid)
+        )
         billing_identity_service.save_billing_profile(
             db,
             organization,
@@ -1794,7 +1843,7 @@ def update_subscription_billing_contact(
             company_number=company_number,
             tax_identifier=tax_identifier,
             country_code=country_code,
-            country_name=country_name,
+            country_name=_billing_country_name(country_code, country_name),
             region_name=region_name,
             city_name=city_name,
             district_name=district_name,
@@ -1810,7 +1859,104 @@ def update_subscription_billing_contact(
         db.commit()
     except billing_identity_service.BillingIdentitySyncError as exc:
         db.commit()
-        return _redirect_error(destination, str(exc))
+        logger.warning(
+            "billing_contact_save_sync_deferred organization_uuid=%s "
+            "provider_step=%s reason=%s status_code=%s",
+            str(organization_uuid or ""),
+            exc.provider_step,
+            exc.reason_code,
+            str(exc.provider_status_code or "unavailable"),
+        )
+        return RedirectResponse(
+            destination + "&billing_sync=save_failed",
+            status_code=302,
+        )
+    except (
+        billing_identity_service.BillingIdentityError,
+        billing_history_service.BillingHistoryAccessError,
+    ) as exc:
+        db.rollback()
+        fallback_destination = (
+            "/saas/subscription?organization_uuid="
+            + quote_plus(str(organization_uuid or "").strip())
+        )
+        return _redirect_error(
+            locals().get("destination", fallback_destination) + "&billing_edit=1",
+            str(exc),
+        )
+    return RedirectResponse(
+        destination
+        + "&notice="
+        + quote_plus("Billing contact updated and synchronized with Paddle."),
+        status_code=302,
+    )
+
+
+@router.post("/subscription/billing-contact/retry")
+def retry_subscription_billing_contact_sync(
+    request: Request,
+    organization_uuid: str = Form(...),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(
+        request,
+        db,
+        next_path=(
+            "/saas/subscription?organization_uuid="
+            + quote_plus(str(organization_uuid or "").strip())
+        ),
+    )
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    destination = (
+        "/saas/subscription?organization_uuid="
+        + quote_plus(str(organization_uuid or "").strip())
+    )
+    try:
+        selected_access, context = _resolve_billing_contact_update_context(
+            db,
+            account,
+            organization_uuid,
+        )
+        organization = selected_access.organization
+        profile = billing_identity_service.require_confirmed_billing_profile(
+            db,
+            organization,
+        )
+        if str(profile.provider_sync_status or "").strip().lower() == "synced":
+            db.commit()
+            return RedirectResponse(
+                destination
+                + "&notice="
+                + quote_plus("Billing details are already synchronized with Paddle."),
+                status_code=302,
+            )
+        profile.provider_sync_status = "pending"
+        profile.provider_synced_at = None
+        billing_identity_service.sync_active_subscription_billing_identity(
+            db,
+            account=account,
+            organization=organization,
+            subscription=context.subscription,
+            payment_customer=context.customer,
+        )
+        db.commit()
+    except billing_identity_service.BillingIdentitySyncError as exc:
+        db.commit()
+        logger.warning(
+            "billing_contact_retry_failed organization_uuid=%s provider_step=%s "
+            "reason=%s status_code=%s",
+            str(organization_uuid or ""),
+            exc.provider_step,
+            exc.reason_code,
+            str(exc.provider_status_code or "unavailable"),
+        )
+        return RedirectResponse(
+            destination + "&billing_sync=retry_failed",
+            status_code=302,
+        )
     except (
         billing_identity_service.BillingIdentityError,
         billing_history_service.BillingHistoryAccessError,
@@ -1818,7 +1964,9 @@ def update_subscription_billing_contact(
         db.rollback()
         return _redirect_error(destination, str(exc))
     return RedirectResponse(
-        destination + "&notice=" + quote_plus("Billing contact updated for future billing."),
+        destination
+        + "&notice="
+        + quote_plus("Billing details synchronized with Paddle."),
         status_code=302,
     )
 

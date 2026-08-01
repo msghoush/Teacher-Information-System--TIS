@@ -935,6 +935,7 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 follow_redirects=False,
             )
         self.assertEqual(response.status_code, 302)
+        self.assertNotIn("billing_edit=1", response.headers["location"])
         update_customer.assert_called_once_with(
             customer_id=identity["provider_customer_id"],
             email="accounts@academy.edu",
@@ -964,6 +965,340 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
             self.assertEqual(customer.provider_address_id, address_id)
         finally:
             db.close()
+
+    def test_billing_contact_is_read_only_until_explicit_edit(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=4, active_branches=2
+        )
+        identity = self._attach_billing_identity(fixture)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+
+        read_only = self.client.get(
+            "/saas/subscription?organization_uuid=" + identity["organization_uuid"]
+        )
+        self.assertEqual(read_only.status_code, 200)
+        self.assertIn("billing-contact-details", read_only.text)
+        self.assertIn("Legal or billing organization or school name", read_only.text)
+        self.assertIn("Academy Legal Name", read_only.text)
+        self.assertIn("Edit Billing Contact", read_only.text)
+        self.assertNotIn('id="portal_billing_email"', read_only.text)
+        self.assertNotIn(">Save Changes<", read_only.text)
+
+        editing = self.client.get(
+            "/saas/subscription?organization_uuid="
+            + identity["organization_uuid"]
+            + "&billing_edit=1"
+        )
+        self.assertEqual(editing.status_code, 200)
+        self.assertIn('id="portal_billing_email"', editing.text)
+        self.assertIn('id="portal_country_code"', editing.text)
+        self.assertIn(">Save Changes<", editing.text)
+        self.assertIn(">Cancel<", editing.text)
+        self.assertIn("Legal or billing organization or school name", editing.text)
+
+        cancelled = self.client.get(
+            "/saas/subscription?organization_uuid=" + identity["organization_uuid"]
+        )
+        self.assertNotIn('id="portal_billing_email"', cancelled.text)
+        db = self.Session()
+        try:
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            self.assertEqual(profile.billing_organization_name, "Academy Legal Name")
+        finally:
+            db.close()
+
+    def test_billing_contact_validation_stays_in_edit_mode(self):
+        fixture = self._create_subscription(
+            plan_code="starter", quantity=1, active_branches=1
+        )
+        identity = self._attach_billing_identity(fixture)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        response = self.client.post(
+            "/saas/subscription/billing-contact",
+            data={
+                "csrf_token": fixture["csrf_token"],
+                "organization_uuid": identity["organization_uuid"],
+                "billing_email": "billing@academy.edu",
+                "billing_organization_name": "",
+                "country_code": "LB",
+            },
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("billing_edit=1", response.headers["location"])
+        self.assertIn(
+            "Enter+the+legal+or+billing+organization+or+school+name.",
+            response.headers["location"],
+        )
+
+    def test_failed_save_persists_locally_and_reports_exact_provider_step(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=4, active_branches=2
+        )
+        identity = self._attach_billing_identity(fixture)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        db = self.Session()
+        try:
+            customer = db.get(saas.models.PaymentCustomer, identity["customer_id"])
+            subscription = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            customer.provider_address_id = f"add_{uuid.uuid4().hex}"
+            customer.provider_business_id = f"biz_{uuid.uuid4().hex}"
+            provider_address_id = customer.provider_address_id
+            provider_business_id = customer.provider_business_id
+            provider_customer_id = customer.provider_customer_id
+            provider_subscription_id = subscription.provider_subscription_id
+            db.commit()
+        finally:
+            db.close()
+        provider_error = paddle_client.PaddleAPIError(
+            "The subscription cannot be updated in its current state.",
+            status_code=409,
+            body={
+                "error": {
+                    "code": "subscription_update_not_allowed",
+                    "detail": "The subscription cannot be updated in its current state.",
+                }
+            },
+        )
+        with (
+            patch.object(
+                paddle_client,
+                "update_customer_address",
+                return_value={"id": provider_address_id, "customer_id": provider_customer_id},
+            ),
+            patch.object(
+                paddle_client,
+                "update_customer_business",
+                return_value={"id": provider_business_id, "customer_id": provider_customer_id},
+            ),
+            patch.object(
+                paddle_client,
+                "update_subscription_billing_identity",
+                side_effect=provider_error,
+            ),
+            patch("saas.billing_identity_service.audit.write_audit_event"),
+            self.assertLogs("saas.billing_identity_service", level="ERROR") as logs,
+        ):
+            response = self.client.post(
+                "/saas/subscription/billing-contact",
+                data={
+                    "csrf_token": fixture["csrf_token"],
+                    "organization_uuid": identity["organization_uuid"],
+                    "billing_email": "billing@academy.edu",
+                    "billing_organization_name": "Academy Updated Legal Name",
+                    "billing_contact_name": "Academy Billing",
+                    "company_number": "REG-100",
+                    "tax_identifier": "VAT-200",
+                    "country_code": "LB",
+                    "region_name": "Beirut",
+                    "city_name": "Beirut",
+                    "district_name": "Central District",
+                    "neighborhood_name": "Education Quarter",
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("billing_sync=save_failed", response.headers["location"])
+        self.assertTrue(
+            any(
+                "provider_step=subscription_identity_update" in row
+                and "status_code=409" in row
+                for row in logs.output
+            )
+        )
+        db = self.Session()
+        try:
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            customer = db.get(saas.models.PaymentCustomer, identity["customer_id"])
+            self.assertEqual(
+                profile.billing_organization_name, "Academy Updated Legal Name"
+            )
+            self.assertEqual(profile.provider_sync_status, "failed")
+            self.assertEqual(customer.provider_address_id, provider_address_id)
+            self.assertEqual(customer.provider_business_id, provider_business_id)
+        finally:
+            db.close()
+        page = self.client.get(response.headers["location"])
+        self.assertIn("Billing details saved", page.text)
+        self.assertIn(
+            "Your details were saved in TIS, but Paddle has not been updated yet. "
+            "Retry synchronization before making another subscription change.",
+            page.text,
+        )
+        self.assertIn("Retry Paddle Synchronization", page.text)
+        self.assertNotIn(provider_subscription_id, page.text)
+        self.assertNotIn("subscription_update_not_allowed", page.text)
+        retry_failed = self.client.get(
+            response.headers["location"].replace("save_failed", "retry_failed")
+        )
+        self.assertIn(
+            "We could not update Paddle. Your TIS billing details are safe, but future "
+            "billing documents may continue using the previous provider details until "
+            "synchronization succeeds.",
+            retry_failed.text,
+        )
+
+    def test_retry_uses_saved_profile_reuses_mappings_and_is_idempotent(self):
+        fixture = self._create_subscription(
+            plan_code="professional", quantity=4, active_branches=2
+        )
+        identity = self._attach_billing_identity(fixture)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, fixture["csrf_token"])
+        db = self.Session()
+        try:
+            customer = db.get(saas.models.PaymentCustomer, identity["customer_id"])
+            subscription = db.get(
+                saas.models.PaymentSubscription, fixture["subscription_id"]
+            )
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            customer.provider_address_id = f"add_{uuid.uuid4().hex}"
+            customer.provider_business_id = f"biz_{uuid.uuid4().hex}"
+            profile.provider_sync_status = "failed"
+            address_id = customer.provider_address_id
+            business_id = customer.provider_business_id
+            customer_id = customer.provider_customer_id
+            subscription_id = subscription.provider_subscription_id
+            db.commit()
+        finally:
+            db.close()
+        with (
+            patch.object(
+                paddle_client,
+                "update_customer_address",
+                return_value={"id": address_id, "customer_id": customer_id},
+            ) as update_address,
+            patch.object(
+                paddle_client,
+                "update_customer_business",
+                return_value={"id": business_id, "customer_id": customer_id},
+            ) as update_business,
+            patch.object(
+                paddle_client,
+                "update_subscription_billing_identity",
+                return_value={
+                    "id": subscription_id,
+                    "customer_id": customer_id,
+                    "address_id": address_id,
+                    "business_id": business_id,
+                },
+            ) as update_subscription,
+            patch.object(paddle_client, "find_or_create_customer_address") as create_address,
+            patch.object(paddle_client, "create_customer_business") as create_business,
+            patch("saas.billing_identity_service.audit.write_audit_event"),
+        ):
+            response = self.client.post(
+                "/saas/subscription/billing-contact/retry",
+                data={
+                    "csrf_token": fixture["csrf_token"],
+                    "organization_uuid": identity["organization_uuid"],
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(response.status_code, 302)
+        update_address.assert_called_once()
+        update_business.assert_called_once()
+        update_subscription.assert_called_once()
+        create_address.assert_not_called()
+        create_business.assert_not_called()
+        db = self.Session()
+        try:
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, identity["profile_id"]
+            )
+            self.assertEqual(profile.provider_sync_status, "synced")
+            self.assertIsNotNone(profile.provider_synced_at)
+        finally:
+            db.close()
+        synchronized_page = self.client.get(response.headers["location"])
+        self.assertIn(
+            "Billing details synchronized with Paddle.", synchronized_page.text
+        )
+
+        provider_functions = (
+            "update_customer",
+            "update_customer_address",
+            "find_or_create_customer_address",
+            "list_customer_businesses",
+            "update_customer_business",
+            "create_customer_business",
+            "update_subscription_billing_identity",
+        )
+        provider_mocks = [patch.object(paddle_client, name) for name in provider_functions]
+        started = [item.start() for item in provider_mocks]
+        try:
+            repeated = self.client.post(
+                "/saas/subscription/billing-contact/retry",
+                data={
+                    "csrf_token": fixture["csrf_token"],
+                    "organization_uuid": identity["organization_uuid"],
+                },
+                follow_redirects=False,
+            )
+        finally:
+            for item in reversed(provider_mocks):
+                item.stop()
+        self.assertEqual(repeated.status_code, 302)
+        self.assertIn("already+synchronized", repeated.headers["location"])
+        for provider_mock in started:
+            provider_mock.assert_not_called()
+
+    def test_unsynchronized_billing_identity_blocks_mutations_and_retry_is_tenant_scoped(self):
+        first = self._create_subscription(
+            plan_code="professional", quantity=2, active_branches=1
+        )
+        second = self._create_subscription(
+            plan_code="enterprise_ai", quantity=2, active_branches=1
+        )
+        first_identity = self._attach_billing_identity(first)
+        second_identity = self._attach_billing_identity(second)
+        db = self.Session()
+        try:
+            profile = db.get(
+                saas.models.OrganizationBillingProfile, first_identity["profile_id"]
+            )
+            profile.provider_sync_status = "pending"
+            account = db.get(saas.models.SaaSAccount, first["account_id"])
+            with self.assertRaises(
+                subscription_change_service.SubscriptionChangeError
+            ) as blocked:
+                subscription_change_service.resolve_change_context(db, account)
+            self.assertEqual(
+                blocked.exception.code, "billing_identity_not_synchronized"
+            )
+            db.commit()
+        finally:
+            db.close()
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, first["session_token"])
+        self.client.cookies.set(service.SAAS_CSRF_COOKIE, first["csrf_token"])
+        page = self.client.get(
+            "/saas/subscription?organization_uuid="
+            + first_identity["organization_uuid"]
+        )
+        self.assertIn("Updating billing details with Paddle", page.text)
+        self.assertNotIn("Review Capacity", page.text)
+        self.assertNotIn("Preview Upgrade", page.text)
+        with patch.object(paddle_client, "update_customer") as provider_call:
+            denied = self.client.post(
+                "/saas/subscription/billing-contact/retry",
+                data={
+                    "csrf_token": first["csrf_token"],
+                    "organization_uuid": second_identity["organization_uuid"],
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(denied.status_code, 403)
+        provider_call.assert_not_called()
 
     def test_initial_paddle_customer_uses_confirmed_billing_email_not_login_email(self):
         account_data = self._create_account(email="login-owner@academy.edu")
@@ -1289,6 +1624,17 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
                 follow_redirects=False,
             )
         self.assertEqual(denied.status_code, 302)
+        provider_call.assert_not_called()
+        with patch.object(paddle_client, "update_customer") as provider_call:
+            retry_denied = self.client.post(
+                "/saas/subscription/billing-contact/retry",
+                data={
+                    "csrf_token": first["csrf_token"],
+                    "organization_uuid": first_identity["organization_uuid"],
+                },
+                follow_redirects=False,
+            )
+        self.assertEqual(retry_denied.status_code, 302)
         provider_call.assert_not_called()
         db = self.Session()
         try:

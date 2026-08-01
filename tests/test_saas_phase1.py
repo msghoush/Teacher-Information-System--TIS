@@ -3767,7 +3767,6 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
         self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
-
         with (
             patch.dict(
                 os.environ,
@@ -3972,6 +3971,13 @@ class SaaSPhase1Tests(unittest.TestCase):
             follow_redirects=False,
         )
         self.client.post(f"/saas/onboarding/{org_uuid}/checkout/start", follow_redirects=False)
+        billing_identity = {
+            "csrf_token": self.client.cookies.get(service.SAAS_CSRF_COOKIE),
+            "billing_email": "retry-customer@academy.edu",
+            "billing_organization_name": "Retry Academy",
+            "billing_contact_name": "Retry Customer",
+            "country_code": "SA",
+        }
 
         with (
             patch("saas.paddle_client.list_customers_by_email", return_value=[]),
@@ -3979,9 +3985,22 @@ class SaaSPhase1Tests(unittest.TestCase):
                 "saas.paddle_client.create_customer",
                 return_value={"id": "ctm_retry_123", "email": "retry-customer@academy.edu", "name": "Retry Customer", "status": "active"},
             ) as create_customer,
+            patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={"id": "add_retry_123", "customer_id": "ctm_retry_123"},
+            ),
+            patch("saas.paddle_client.list_customer_businesses", return_value=[]),
+            patch(
+                "saas.paddle_client.create_customer_business",
+                return_value={"id": "biz_retry_123", "customer_id": "ctm_retry_123"},
+            ),
             patch("saas.paddle_client.create_transaction", side_effect=paddle_client.PaddleAPIError("Transaction failed")) as create_transaction,
         ):
-            first_response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+            first_response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                data=billing_identity,
+                follow_redirects=False,
+            )
 
         self.assertEqual(first_response.status_code, 302)
         create_customer.assert_called_once()
@@ -4006,6 +4025,25 @@ class SaaSPhase1Tests(unittest.TestCase):
             patch("saas.paddle_client.list_customers_by_email") as list_customers,
             patch("saas.paddle_client.create_customer") as create_customer,
             patch(
+                "saas.paddle_client.find_or_create_customer_address",
+                return_value={"id": "add_retry_123", "customer_id": "ctm_retry_123"},
+            ),
+            patch(
+                "saas.paddle_client.list_customer_businesses",
+                return_value=[{
+                    "id": "biz_retry_123",
+                    "customer_id": "ctm_retry_123",
+                    "status": "active",
+                    "name": "Retry Academy",
+                    "contacts": [{"email": "retry-customer@academy.edu"}],
+                    "custom_data": {"pending_organization_uuid": org_uuid},
+                }],
+            ),
+            patch(
+                "saas.paddle_client.update_customer_business",
+                return_value={"id": "biz_retry_123", "customer_id": "ctm_retry_123"},
+            ),
+            patch(
                 "saas.paddle_client.create_transaction",
                 return_value={
                     "id": "txn_retry_123",
@@ -4014,7 +4052,11 @@ class SaaSPhase1Tests(unittest.TestCase):
                 },
             ) as create_transaction,
         ):
-            second_response = self.client.post(f"/saas/onboarding/{org_uuid}/checkout/launch", follow_redirects=False)
+            second_response = self.client.post(
+                f"/saas/onboarding/{org_uuid}/checkout/launch",
+                data=billing_identity,
+                follow_redirects=False,
+            )
 
         self.assertEqual(second_response.status_code, 302)
         list_customers.assert_not_called()

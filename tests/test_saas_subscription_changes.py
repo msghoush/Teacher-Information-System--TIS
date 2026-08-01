@@ -2097,9 +2097,13 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
             )
             self.assertEqual(portal.plan_code, "professional")
             self.assertEqual(portal.status_label, "Active")
+            self.assertEqual(portal.pending_change["status"], "payment_pending")
+            self.assertTrue(portal.pending_change["is_plan_change"])
             self.assertEqual(
-                portal.pending_change["message"],
-                "Your Enterprise AI upgrade is awaiting payment confirmation.",
+                portal.pending_change["target_plan_code"], "enterprise_ai"
+            )
+            self.assertIn(
+                "pending", portal.pending_change["status_label"].lower()
             )
             self.assertEqual(
                 customer_journey_service.login_destination(
