@@ -377,15 +377,17 @@ def require_active_branch_capacity(
     *,
     desired_active_count: int | None = None,
 ) -> EntitlementResolution | None:
-    resolution = resolve_branch_capacity(db, school_group_id)
-    if resolution is None:
-        return None
-    if not resolution.resolved or resolution.paid_branch_quantity is None:
-        raise BranchCapacityError("Paid branch capacity is unavailable. Contact TIS support.")
-    desired = int(desired_active_count) if desired_active_count is not None else resolution.active_branch_count + 1
-    if desired > resolution.paid_branch_quantity:
-        raise BranchCapacityError("No paid branch capacity is available. Add branch capacity before activating another branch.")
-    return resolution
+    from saas import commercial_authority_service
+
+    try:
+        return commercial_authority_service.require_capacity_change(
+            db,
+            school_group_id,
+            proposed_branches=desired_active_count,
+            branch_delta=0 if desired_active_count is not None else 1,
+        )
+    except commercial_authority_service.CapacityAuthorityError as exc:
+        raise BranchCapacityError(str(exc)) from exc
 
 
 def list_entitlement_catalog(db: Session) -> tuple[EntitlementCatalogItem, ...]:

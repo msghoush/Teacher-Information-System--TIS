@@ -15,7 +15,7 @@ import models
 import permission_registry
 from dependencies import get_db
 from auth import get_current_user, get_password_hash
-from saas import branch_pricing_quote_service
+from saas import commercial_authority_service
 from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/users", tags=["Users"])
@@ -490,12 +490,13 @@ def create_user(
     )
     if not errors and selected_school_group_id:
         try:
-            branch_pricing_quote_service.require_active_subscription_capacity_slot(
+            commercial_authority_service.require_capacity_change(
                 db,
-                school_group_id=selected_school_group_id,
-                additional_system_users=0 if position == "Teacher" else 1,
+                selected_school_group_id,
+                staff_user_delta=1,
             )
-        except ValueError as exc:
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
             errors.append(str(exc))
 
     duplicate_user_id = db.query(models.User).filter(
@@ -692,19 +693,36 @@ def update_user(
         if branch_id in allowed_branch_ids
         else None
     )
-    if (
-        not errors
-        and parsed_is_active is True
-        and not bool(user_row.is_active)
-        and selected_school_group_id
-    ):
+    old_group_id = int(getattr(user_row, "school_group_id", 0) or 0)
+    old_consumes_capacity = bool(
+        user_row.is_active
+        and auth.normalize_user_type(getattr(user_row, "user_type", ""))
+        == auth.USER_TYPE_TENANT
+        and old_group_id
+    )
+    new_consumes_capacity = bool(parsed_is_active is True and selected_school_group_id)
+    capacity_increases_target = bool(
+        new_consumes_capacity
+        and (not old_consumes_capacity or old_group_id != int(selected_school_group_id))
+    )
+    if not errors and capacity_increases_target:
         try:
-            branch_pricing_quote_service.require_active_subscription_capacity_slot(
+            commercial_authority_service.lock_school_groups(
                 db,
-                school_group_id=selected_school_group_id,
-                additional_system_users=0 if position == "Teacher" else 1,
+                {
+                    group_id
+                    for group_id in (old_group_id, selected_school_group_id)
+                    if group_id
+                },
             )
-        except ValueError as exc:
+            commercial_authority_service.require_capacity_change(
+                db,
+                selected_school_group_id,
+                lock=False,
+                staff_user_delta=1,
+            )
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
             errors.append(str(exc))
 
     if password and len(password) < 8:
@@ -849,15 +867,13 @@ def update_user_status(
         )
     if parsed_is_active and not bool(user_row.is_active):
         try:
-            branch_pricing_quote_service.require_active_subscription_capacity_slot(
+            commercial_authority_service.require_capacity_change(
                 db,
-                school_group_id=int(user_row.school_group_id),
-                additional_system_users=(
-                    0 if str(user_row.position or "").strip().lower() == "teacher"
-                    else 1
-                ),
+                int(user_row.school_group_id),
+                staff_user_delta=1,
             )
-        except ValueError as exc:
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
             return _render_users_page(
                 request=request,
                 db=db,

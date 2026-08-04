@@ -1,11 +1,34 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-08-01
+last_updated: 2026-08-04
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-04 - Unified Commercial Access And Capacity Authority
+
+Operational branch, staff-user, and teacher growth now uses one commercial
+authority facade that composes the existing workspace, entitlement, tenant
+link, contract, confirmed subscription, commercial-access, demo-lifecycle, and
+plan-capacity authorities. Missing or contradictory authority fails closed;
+Customer Demo and Internal Sandbox remain explicitly unmetered in M1.
+
+Paid branch limits use confirmed provider-reconciled quantity capped by the
+plan branch ceiling. Staff usage counts every distinct active tenant
+operational user, including operational owners and teacher-position users;
+platform and account-only identities are excluded. Teacher usage deduplicates
+normalized known teacher IDs while counting every blank legacy row separately.
+The same person may consume both one staff and one teacher slot.
+
+Capacity-increasing branch, user, teacher, academic-year, and provisioning
+paths lock the SchoolGroup, recount, evaluate, mutate, and commit in one
+transaction. Existing over-capacity tenants retain data and access but cannot
+increase an exceeded dimension. Paid and demo provisioning validate final
+authority before activation completes. No schema, migration, Paddle, pricing,
+webhook, onboarding-transition, permission, or feature-packaging change was
+made.
 
 ## 2026-08-02 - Billing Contact Editing And Paddle Retry
 
@@ -72,7 +95,7 @@ schema, or migration behavior changed.
 
 Subscription Management previously presented branch quantity as an isolated
 commercial action. One authoritative organization-capacity resolver now counts
-active branches, active non-teacher system users, and active teachers. The
+active branches, active tenant operational staff users, and active teachers. The
 portal exposes one Review Capacity flow and displays usage, plan limits, and
 remaining capacity for all three dimensions. The highest required dimension
 selects the minimum eligible plan: Starter supports 1 branch/5 system users/25

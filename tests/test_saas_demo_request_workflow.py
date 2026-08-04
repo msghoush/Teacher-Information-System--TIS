@@ -26,6 +26,7 @@ import saas.models
 import ui_shell
 from dependencies import get_db
 from saas import (
+    commercial_authority_service,
     commercial_state_service,
     demo_conversion_service,
     demo_lifecycle_service,
@@ -1374,6 +1375,23 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                 observed_at=started + timedelta(days=6),
             )
             self.assertEqual(reminder_resolution.lifecycle_state, "reminder_due")
+        finally:
+            db.close()
+
+    def test_active_demo_resolves_as_explicitly_unmetered_commercial_authority(self):
+        fixture = self._activate_demo(
+            email="authority.demo@academy.edu",
+            owner_user_id="9188",
+        )
+        db = self._db()
+        try:
+            authority = commercial_authority_service.resolve_commercial_authority(
+                db, fixture["school_group_id"]
+            )
+            self.assertTrue(authority.resolved)
+            self.assertTrue(authority.access_allowed)
+            self.assertEqual(authority.source, "demo")
+            self.assertTrue(authority.limits.unmetered)
         finally:
             db.close()
 

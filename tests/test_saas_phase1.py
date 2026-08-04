@@ -5301,6 +5301,14 @@ class SaaSPhase1Tests(unittest.TestCase):
         with patch("saas.paddle_client.create_transaction") as create_transaction:
             response = self.client.post(
                 f"/saas/onboarding/{org_uuid}/checkout/launch",
+                data={
+                    "billing_email": "plan-capacity@academy.edu",
+                    "billing_organization_name": "Plan Capacity Academy",
+                    "country_code": "US",
+                    "csrf_token": self.client.cookies.get(
+                        service.SAAS_CSRF_COOKIE
+                    ),
+                },
                 follow_redirects=False,
             )
         self.assertEqual(response.status_code, 302)

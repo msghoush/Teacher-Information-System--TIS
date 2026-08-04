@@ -1,11 +1,38 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-08-01
+last_updated: 2026-08-04
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Unified Commercial Access And Capacity Authority
+
+M1 establishes `saas/commercial_authority_service.py` as the only operational
+capacity facade. It composes workspace classification and lifecycle,
+WorkspaceEntitlement, TenantProvisioningLink, SubscriptionContract,
+PaymentSubscription, commercial state/access, demo lifecycle, and the existing
+plan-capacity and feature-entitlement services. It does not persist a second
+commercial status or entitlement model. Missing, invalid, ambiguous, or
+unsupported authority fails closed.
+
+For active paid workspaces, allowed branches are confirmed subscription
+quantity capped by the plan ceiling; staff and teacher limits come from the
+confirmed plan. Staff usage includes every distinct active tenant operational
+User in the SchoolGroup, including an operational organization owner and users
+whose position is Teacher. Platform users and account-only SaaS identities do
+not count. Active teacher people are deduplicated by normalized
+`Teacher.teacher_id`; blank legacy identities each count separately. A person
+represented by both records consumes one staff slot and one teacher slot.
+
+Branch, user, teacher, academic-year, and provisioning growth now acquires a
+tenant row lock, recounts authoritative usage, evaluates the proposed final
+state, and mutates in the same transaction. Existing over-capacity tenants keep
+their data and access but cannot further increase an exceeded dimension. Demo
+and Internal Sandbox authority is explicitly unmetered in M1. No schema,
+migration, pricing, Paddle, webhook, onboarding-transition, permission, or
+feature-packaging change is included.
 
 ## Explicit Organization Billing Identity
 
@@ -158,14 +185,15 @@ entitlement changed.
 
 Implemented required system-user and teacher estimates on each onboarding
 branch, organization-wide live totals, and one three-dimension capacity
-decision covering branches, non-teacher system users, and teachers. The lowest
+decision covering branches, tenant operational staff users, and teachers. The lowest
 eligible self-service plan is recommended while higher eligible plans remain
 selectable. Starter limits are 1/5/25, Professional 5/20/100, and Enterprise AI
 25/100/500; exceeding any Enterprise limit routes to contact-only Custom.
 
 Before payment, estimates are compared with actual same-workspace counts and
-the greater value is authoritative. After activation, actual active counts are
-authoritative. Capacity changes invalidate quote/checkout lineage and clear
+the greater value is authoritative. After activation, every distinct active
+tenant operational User counts as staff regardless of position, and active
+teacher people count separately. Capacity changes invalidate quote/checkout lineage and clear
 only an undersized plan. Paid system-user creation/reactivation, teacher
 creation/year-copy preflight, and downgrades fail before mutation when the
 result would exceed capacity.

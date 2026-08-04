@@ -68,7 +68,11 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 plan_id=plan.id, billing_interval="monthly", currency_code="USD", is_active=True
             ).one()
             price.provider_price_id = price.provider_price_id or f"pri_01test{plan_code.replace('_', '')}monthly000"
-            group = models.SchoolGroup(name=f"Billing School {unique}")
+            group = models.SchoolGroup(
+                name=f"Billing School {unique}",
+                workspace_classification=WorkspaceClassification.CUSTOMER_PAID.value,
+                workspace_lifecycle_status=WorkspaceLifecycleStatus.ACTIVE.value,
+            )
             db.add(group); db.flush()
             branches = []
             for index in range(active_branches):
@@ -136,6 +140,13 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                 next_billed_at=datetime(2026, 8, 1),
             )
             db.add(subscription); db.flush()
+            db.add(saas.models.WorkspaceEntitlement(
+                school_group_id=group.id,
+                entitlement_type="paid",
+                status="active",
+                source="subscription",
+                payment_subscription_id=subscription.id,
+            ))
             db.add(saas.models.TenantProvisioningLink(
                 pending_organization_id=organization.id, subscription_contract_id=contract.id,
                 school_group_id=group.id, owner_operational_user_id=user.id,
@@ -467,7 +478,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
                     db=db,
                 )
             self.assertEqual(response.status_code, 302)
-            self.assertIn("No+paid+branch+capacity", response.headers["location"])
+            self.assertIn("allows+4+active+branches", response.headers["location"])
             self.assertEqual(
                 db.query(models.Branch).filter_by(school_group_id=fixture["group_id"]).count(),
                 before,

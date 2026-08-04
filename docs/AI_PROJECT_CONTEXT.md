@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-01
+last_updated: 2026-08-04
 recommended_first_read: true
 ---
 
@@ -179,7 +179,7 @@ contact-only path.
 ## Three-Dimension Subscription Capacity
 
 Self-service subscription eligibility is organization-wide across three
-independent persisted limits: branches, non-teacher system users, and teacher
+independent persisted limits: branches, tenant operational staff users, and teacher
 records. Branch Setup stores required non-negative system-user and teacher
 estimates on each active onboarding branch; legacy organization totals are
 assigned to the primary branch only when no branch estimates exist, after
@@ -187,9 +187,12 @@ which organization totals are derived summaries.
 
 Before confirmed payment, capacity authority is the active onboarding branch
 count plus the greater of each branch-estimate total and the same workspace's
-actual active count. After activation, actual active tenant system users and
-active teacher records are authoritative. Teacher login accounts do not consume
-system-user capacity, but their teacher records consume teacher capacity.
+actual active count. After activation, actual active tenant operational users
+and active teacher records are authoritative. Every distinct active tenant
+User counts as staff regardless of role, title, position, or internal-test
+attribution. An operational teacher-user with an active Teacher record
+consumes one staff slot and one teacher slot. Platform users and account-only
+SaaS identities do not consume tenant staff capacity.
 Starter is 1/5/25, Professional 5/20/100, and Enterprise AI 25/100/500.
 Exceeding any Enterprise AI limit requires the contact-only Custom path and
 cannot create Paddle checkout.
@@ -210,6 +213,21 @@ is preserved. Quantity reductions receive the same effective-date capacity
 check. Cancellation remains provider-scheduled at paid-period end, preserves
 tenant data and access through that date, and may be reversed while provider
 lifecycle rules allow it.
+
+M1 enforces post-activation growth through
+`saas/commercial_authority_service.py`. The facade composes, rather than
+duplicates, workspace classification/lifecycle, WorkspaceEntitlement,
+TenantProvisioningLink, SubscriptionContract, PaymentSubscription, commercial
+state/access, demo lifecycle, and plan capacity. Paid branch capacity is the
+confirmed subscription quantity capped by the plan branch ceiling. Known
+teacher IDs are normalized and deduplicated; each blank legacy teacher row
+counts independently. Customer Demo and Internal Sandbox remain explicitly
+unmetered in M1, while missing or contradictory authority fails closed.
+
+Capacity-increasing branch, user, teacher, academic-year, and provisioning
+paths lock the owning SchoolGroup, recount, evaluate the proposed final state,
+mutate, and commit in one transaction. Existing over-capacity workspaces keep
+their data and access but cannot further increase an exceeded dimension.
 
 ## Returning Customer Journey And Commercial Expiry
 
@@ -329,6 +347,7 @@ Key files and folders:
 - `routers/`: modular operational routes.
 - `saas/`: SaaS account, onboarding, payment, billing, and provisioning services/routes.
 - `saas/entitlement_service.py`: provider-confirmed commercial entitlement and paid branch-capacity resolution.
+- `saas/commercial_authority_service.py`: unified operational commercial access, capacity counters, structured decisions, and tenant row locking.
 - `saas/subscription_portal_service.py`: customer subscription portal view model.
 - `saas/subscription_change_service.py`, `saas/subscription_plan_change_service.py`, and `saas/subscription_cancellation_service.py`: provider-authoritative quantity, plan, and cancellation workflows.
 - `saas/subscription_lifecycle_service.py`: centralized lifecycle state and allowed-action policy.
