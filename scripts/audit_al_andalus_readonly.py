@@ -16,9 +16,9 @@ import sys
 
 
 TARGET_EMAIL = "mno@as.edu.sa"
-TARGET_NAME = "Al-Andalus Schools"
+TARGET_NAME = "Al-Andalus"
 TARGET_DOMAINS = {"as.edu.sa", "www.as.edu.sa"}
-TARGET_NAME_KEYS = {"alandalusschools", "andalusschools"}
+TARGET_NAME_KEYS = {"alandalus", "alandalusschools", "andalusschools"}
 
 
 def _empty_report() -> dict:
