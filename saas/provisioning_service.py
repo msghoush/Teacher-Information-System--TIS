@@ -17,7 +17,17 @@ import models as operational_models
 import permission_registry
 import public_url
 import role_permission_service
-from saas import models, service, workspace_classification_service
+from commercial_entitlements import (
+    WorkspaceEntitlementSource,
+    WorkspaceEntitlementStatus,
+    WorkspaceEntitlementType,
+)
+from saas import (
+    commercial_authority_service,
+    models,
+    service,
+    workspace_classification_service,
+)
 from workspace_classification import WorkspaceLifecycleStatus
 
 READY_FOR_PROVISIONING = "ready_for_provisioning"
@@ -677,6 +687,11 @@ def _provision_organization(db: Session, job):
         ).first()
         if not school_group:
             raise ValueError("Provisioning link exists but school group is missing.")
+        _ensure_paid_workspace_entitlement(
+            db,
+            contract=contract,
+            school_group=school_group,
+        )
         return organization, contract, existing_link, school_group, None, None
 
     workspace = create_workspace_records(db, organization)
@@ -689,6 +704,11 @@ def _provision_organization(db: Session, job):
         primary_branch=workspace.primary_branch,
         academic_year=workspace.academic_year,
     )
+    _ensure_paid_workspace_entitlement(
+        db,
+        contract=contract,
+        school_group=workspace.school_group,
+    )
     return (
         organization,
         contract,
@@ -697,6 +717,43 @@ def _provision_organization(db: Session, job):
         workspace.owner_user,
         workspace.account,
     )
+
+
+def _ensure_paid_workspace_entitlement(db: Session, *, contract, school_group):
+    subscriptions = db.query(models.PaymentSubscription).filter(
+        models.PaymentSubscription.subscription_contract_id == contract.id,
+        models.PaymentSubscription.pending_organization_id
+        == contract.pending_organization_id,
+        models.PaymentSubscription.status.in_(("active", "trialing")),
+    ).all()
+    if len(subscriptions) != 1:
+        raise ValueError("Provisioning requires one confirmed active subscription.")
+    subscription = subscriptions[0]
+    rows = db.query(models.WorkspaceEntitlement).filter(
+        models.WorkspaceEntitlement.school_group_id == school_group.id
+    ).all()
+    if rows:
+        if len(rows) != 1:
+            raise ValueError("Provisioning found ambiguous workspace entitlement history.")
+        row = rows[0]
+        if (
+            row.entitlement_type != WorkspaceEntitlementType.PAID.value
+            or int(row.payment_subscription_id or 0) != int(subscription.id)
+        ):
+            raise ValueError("Provisioning found an incompatible workspace entitlement.")
+        return row
+    row = models.WorkspaceEntitlement(
+        school_group_id=school_group.id,
+        entitlement_type=WorkspaceEntitlementType.PAID.value,
+        status=WorkspaceEntitlementStatus.ACTIVE.value,
+        source=WorkspaceEntitlementSource.SUBSCRIPTION.value,
+        payment_subscription_id=subscription.id,
+        effective_from=getattr(subscription, "current_period_start", None) or _utcnow(),
+        effective_to=getattr(subscription, "current_period_end", None),
+    )
+    db.add(row)
+    db.flush()
+    return row
 
 
 def process_job(db: Session, job):
@@ -746,14 +803,28 @@ def process_job(db: Session, job):
     try:
         with db.begin_nested():
             organization, contract, tenant_link, school_group, _owner_user, account = _provision_organization(db, job)
-        _mark_success(
-            db,
-            job=job,
-            organization=organization,
-            contract=contract,
-            tenant_link=tenant_link,
-            school_group=school_group,
-        )
+            _mark_success(
+                db,
+                job=job,
+                organization=organization,
+                contract=contract,
+                tenant_link=tenant_link,
+                school_group=school_group,
+            )
+            db.flush()
+            authority = commercial_authority_service.resolve_commercial_authority(
+                db, school_group.id
+            )
+            if (
+                not authority.resolved
+                or not authority.access_allowed
+                or authority.source
+                != commercial_authority_service.PAID_SUBSCRIPTION
+                or authority.violations
+            ):
+                raise ValueError(
+                    "Provisioned workspace commercial capacity could not be validated."
+                )
         if account:
             try:
                 _send_activation_email(account, organization)

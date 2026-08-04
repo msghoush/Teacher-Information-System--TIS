@@ -71,8 +71,10 @@ pending or promoted organization-logo files on the filesystem.
    teacher estimates; TIS sums them across the organization.
 2. Before payment, system-user and teacher authority is independently the
    greater of the estimate total and actual same-workspace active data. After
-   activation, actual active data is authoritative. Teacher login accounts are
-   excluded from system users while their teacher records still count.
+   activation, actual active data is authoritative. Every active tenant
+   operational User counts as staff regardless of position, so an operational
+   teacher-user with a Teacher record consumes one staff slot and one teacher
+   slot.
 3. A self-service plan is eligible only when all three counts fit: Starter is
    1 branch/5 system users/25 teachers, Professional 5/20/100, and Enterprise AI
    25/100/500.
@@ -85,11 +87,34 @@ pending or promoted organization-logo files on the filesystem.
 6. A pre-payment branch estimate change retains an eligible higher
    plan, but clears an undersized selection and supersedes its checkout and
    attempt so stale payment cannot activate the workspace.
-7. On a paid workspace, non-teacher system-user creation/reactivation and
-   teacher creation/year-copy preflight require remaining capacity. Blocked
+7. On a paid workspace, every tenant operational-user creation/reactivation and
+   teacher creation/year-copy preflight requires remaining capacity. Blocked
    operations create no partial user or teacher data.
 8. A downgrade is blocked separately by current branches, system users, or
    teachers. Existing data is preserved.
+
+## M1 Operational Commercial-Capacity Enforcement
+
+1. The route first validates the existing permission and tenant scope.
+2. TIS locks the owning SchoolGroup with `SELECT ... FOR UPDATE`; internal
+   multi-tenant operations acquire locks in ascending SchoolGroup ID order.
+3. The commercial authority facade composes classification/lifecycle,
+   workspace entitlement, tenant link, contract, confirmed subscription,
+   commercial access, demo lifecycle, and plan capacity.
+4. The service recounts active branches, distinct active tenant operational
+   users, and active teacher people. Known teacher IDs are normalized and
+   deduplicated; blank legacy identities each count independently.
+5. Paid limits use confirmed branch quantity capped by plan maximum plus the
+   plan staff and teacher limits. Pending subscription changes do not increase
+   capacity. Demo and Internal Sandbox are unmetered only when their existing
+   authority resolves coherently.
+6. TIS evaluates deltas or proposed absolute totals across one or several
+   dimensions and returns a structured safe decision.
+7. Allowed branch, user, teacher, year-switch, or provisioning mutation occurs
+   before the same transaction commits. A denial rolls back and exposes no
+   provider or internal identifiers.
+8. Existing over-capacity data remains accessible and may be reduced; only a
+   further increase in an already exceeded dimension is blocked.
 
 The separate Next.js landing page presents the same four-plan structure and
 organization-wide limits. The hero Subscribe Now action scrolls to pricing.
@@ -383,7 +408,7 @@ Guardrails:
 ## Active Subscription Management Flow
 
 1. Authorized billing administrator opens `/saas/subscription`.
-2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, allowed actions, and one operational capacity snapshot covering active branches, non-teacher system users, and teachers. Paid branch quantity is displayed separately from the current plan's maximum branch ceiling; unused ceiling is not prepaid branch capacity.
+2. TIS resolves one confirmed active subscription, entitlements, lifecycle state, allowed actions, and one operational capacity snapshot covering active branches, tenant operational staff users, and teachers. Paid branch quantity is displayed separately from the current plan's maximum branch ceiling; unused ceiling is not prepaid branch capacity.
 3. Review Capacity accepts proposed totals for all three dimensions. It shows confirmed paid branches, required active branches, additional billed branches, the plan ceiling, and the resulting minimum eligible plan. Branch growth may create a combined plan-and-quantity upgrade, while system-user and teacher growth affects eligibility without changing Paddle quantity.
 4. Quantity or plan changes are previewed through Paddle; TIS displays provider-returned totals and never recalculates proration.
 5. Immediate increases/upgrades use provider payment-failure prevention and remain locally pending until authoritative confirmation. The current confirmed plan and workspace access remain authoritative while the plan change is pending, failed, incomplete, expired, canceled, or abandoned. Thus an active Professional subscription remains accessible while an Enterprise AI upgrade is `payment_pending`.

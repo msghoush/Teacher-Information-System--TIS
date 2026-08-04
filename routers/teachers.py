@@ -14,7 +14,7 @@ import authorization
 import models
 from dependencies import get_db
 from auth import get_current_user
-from saas import branch_pricing_quote_service
+from saas import commercial_authority_service
 from homeroom_defaults import (
     get_homeroom_bundle_subject_labels,
     is_default_homeroom_subject,
@@ -1844,13 +1844,31 @@ def copy_teachers_from_year(
     }
     if new_teacher_ids:
         school_group_id = auth.get_branch_school_group_id(db, branch_id)
-        try:
-            branch_pricing_quote_service.require_active_subscription_capacity_slot(
-                db,
-                school_group_id=school_group_id,
-                additional_teachers=len(new_teacher_ids),
+        active_identities, _legacy_rows = (
+            commercial_authority_service.active_teacher_identities(
+                db, school_group_id
             )
-        except ValueError as exc:
+        )
+        proposed_identities = {
+            commercial_authority_service.normalized_teacher_identity(value)
+            for value in new_teacher_ids
+            if commercial_authority_service.normalized_teacher_identity(value)
+        }
+        branch_row = db.get(models.Branch, branch_id)
+        additional_teacher_count = (
+            len(proposed_identities - active_identities)
+            if bool(getattr(branch_row, "status", False))
+            and bool(getattr(target_year, "is_active", False))
+            else 0
+        )
+        try:
+            commercial_authority_service.require_capacity_change(
+                db,
+                school_group_id,
+                teacher_delta=additional_teacher_count,
+            )
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
             return _render_teachers_page(
                 request=request,
                 db=db,
@@ -2318,13 +2336,32 @@ def create_teacher(
         errors.append("Teacher ID already exists in the current branch and academic year.")
     if not errors:
         school_group_id = auth.get_branch_school_group_id(db, branch_id)
-        try:
-            branch_pricing_quote_service.require_active_subscription_capacity_slot(
-                db,
-                school_group_id=school_group_id,
-                additional_teachers=1,
+        active_identities, _legacy_rows = (
+            commercial_authority_service.active_teacher_identities(
+                db, school_group_id
             )
-        except ValueError as exc:
+        )
+        normalized_identity = (
+            commercial_authority_service.normalized_teacher_identity(teacher_id)
+        )
+        branch_row = db.get(models.Branch, branch_id)
+        academic_year = db.get(models.AcademicYear, academic_year_id)
+        consumes_capacity = bool(
+            getattr(branch_row, "status", False)
+            and getattr(academic_year, "is_active", False)
+        )
+        try:
+            commercial_authority_service.require_capacity_change(
+                db,
+                school_group_id,
+                teacher_delta=(
+                    0
+                    if not consumes_capacity or normalized_identity in active_identities
+                    else 1
+                ),
+            )
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
             errors.append(str(exc))
 
     if errors:

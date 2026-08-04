@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-08-01
+last_updated: 2026-08-04
 source_of_truth: true
 ---
 
@@ -220,6 +220,26 @@ M8B-2 implements that commercial resolver as a read-only foundation. Workspace e
 
 Paid workspace resolution delegates plan capabilities and paid branch quantity to the existing M7 entitlement resolver and requires a matching persisted `PaymentSubscription`. Demo and internal entitlements use explicit workspace values tied to the shared `EntitlementDefinition` catalog. Branches inherit their workspace entitlement unless an optional coherent `BranchEntitlement` says active or inactive. All calculations are read-only and fail closed on ambiguity or tenant mismatch.
 
+M1 adds one operational facade over these existing authorities. Paid capacity
+uses confirmed `PaymentSubscription.quantity` capped by the plan branch ceiling,
+plus plan staff and teacher limits. Staff is every distinct active tenant
+operational User in the SchoolGroup, including an operational owner and
+teacher-position user; platform and account-only identities are excluded.
+Teacher people deduplicate by normalized `Teacher.teacher_id`, while each blank
+legacy identity counts separately. A person represented in both models consumes
+one staff slot and one teacher slot. Demo and Internal Sandbox are explicitly
+unmetered in M1 only when their existing lifecycle/access authority resolves.
+
+Every operational capacity increase locks the SchoolGroup, resolves authority,
+recounts, evaluates the final proposed totals, writes, and commits in one
+transaction. Branch create/reactivation/bulk status, operational user
+create/reactivation, teacher create/year-copy, academic-year switching, and
+paid/demo provisioning final validation use this boundary. Existing
+over-capacity records and access are preserved, but an exceeded dimension
+cannot grow further. M1 adds no commercial-state persistence, schema,
+migration, Paddle, pricing, webhook, onboarding-transition, permission, or
+feature-packaging change.
+
 M8B-3 introduces a separate SaaS demo-request aggregate after onboarding review. The public landing website enters signup with either a Request a Demo or Subscribe Now intent; the valid intent persists through account and School Workspace Setup and is emphasized, but never locked, at the commercial-choice page. A self-service pricing card may also supply an allowlisted preferred-plan code. That preference is not a plan selection and cannot create checkout or bypass the existing branch, system-user, and teacher capacity checks; invalid or ineligible preferences are discarded before the customer selects a plan. Subscribe Now preserves the existing plan-selection and Paddle path. Request Demo captures immutable commercial/classification/entitlement context and starts in Pending Review without creating an operational workspace.
 
 Customer Demo eligibility is keyed by a normalized organization domain. TIS prefers the pending organization's authoritative domain, uses a work email domain only when no organization identity exists, and requires an official website/domain for public email providers. A unique domain-eligibility reservation prevents concurrent or historical duplicate Customer Demo opportunities. The reservation remains after request review, activation, expiry, cancellation, rejection, or Demo-to-Paid conversion; Internal Sandbox history is excluded. The only exception is the separately guarded Platform Owner test workspace/account clean-room reset, which atomically deletes the selected test organization's linked demo-commercial records and reservation so internal M8 testing can begin again; it never changes customer reset or demo rules.
@@ -413,7 +433,7 @@ M5: Platform access, permissions, and owner controls
 - Billing Contact is read-only by default and uses an explicit edit interaction. Local profile changes survive provider failure; a permission- and tenant-scoped retry reuses persisted Paddle mappings, is idempotent after success, and records safe step-level provider diagnostics. A saved pending or failed billing identity blocks new plan and quantity mutations until synchronized, without blocking cancellation or changing legacy active subscriptions that have no saved profile.
 - Paddle `paid` and `completed` remain separate lifecycle evidence: paid is customer-visible payment receipt while provider processing continues; completed remains required for final reconciliation.
 - Added webhook idempotency, strict provider/local relationship validation, manual-review fail-closed paths, diagnostics, and guarded reconciliation tooling.
-- Unified active subscription capacity review across branches, non-teacher system users, and teachers. Required upgrades use the highest capacity dimension, Paddle quantity remains branch-only, and scheduled downgrades/reductions revalidate capacity at their effective boundary.
+- Unified active subscription capacity review and operational enforcement across branches, tenant operational staff users, and teachers. Required upgrades use the highest capacity dimension, Paddle quantity remains branch-only, and scheduled downgrades/reductions revalidate capacity at their effective boundary.
 - Subscription presentation separates paid branch quantity from the plan's maximum branch ceiling; unused ceiling is never described as prepaid capacity. Customer plan comparison remains limited to approved plan identity, capacity, eligibility, and action information until the commercial feature matrix is approved.
 - Linked operational organization owners and billing-authorized account managers can enter the existing Organization Account subscription page from System Configuration. Tenant/account linkage is revalidated and only an allowlisted internal billing continuation survives SaaS authentication. The public landing customer entry is labelled Organization Sign In and targets centralized SaaS login.
 
@@ -429,7 +449,8 @@ Key modules:
 - `saas/billing_service.py`: billing status and related account billing behavior.
 - `saas/currency_service.py`: currency-related helpers.
 - `saas/router.py`: SaaS and SaaS admin routes.
-- `saas/entitlement_service.py`: commercial access and paid branch-capacity authority.
+- `saas/entitlement_service.py`: provider-confirmed paid subscription entitlement authority.
+- `saas/commercial_authority_service.py`: unified operational commercial-access and three-dimension capacity authority.
 - `saas/subscription_portal_service.py`: customer portal composition.
 - `saas/subscription_change_service.py`: quantity change previews, submissions, schedules, and webhook reconciliation.
 - `saas/subscription_plan_change_service.py`: plan upgrade/downgrade lifecycle.

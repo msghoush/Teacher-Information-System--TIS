@@ -1,10 +1,34 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-07-21
+last_updated: 2026-08-04
 ---
 
 # Subscription History
+
+## 2026-08-04 - Unified Operational Commercial Capacity Authority
+
+One facade now resolves commercial access, capacity source, confirmed plan and
+quantity, current branch/staff/teacher usage, remaining capacity, violations,
+minimum eligible plan or Custom, and safe recovery. It composes the existing
+M7/M8 authorities and fails closed on missing, ambiguous, or contradictory
+relationships. Demo and Internal Sandbox are explicitly unmetered in M1.
+
+Staff capacity now correctly counts every distinct active tenant operational
+User in the workspace regardless of role, title, position, or internal-test
+attribution. An operational owner counts. A teacher-position User counts as
+staff, and an associated active Teacher record separately counts as a teacher.
+Platform users, inactive users, other tenants, and account-only SaaS identities
+do not count. Known teacher IDs deduplicate across branches and academic data;
+blank legacy identities never merge.
+
+Capacity-increasing writes lock the SchoolGroup and perform permission/scope
+validation, authority resolution, recount, proposed-final-state evaluation,
+mutation, and commit as one transaction. This covers branch creation and
+reactivation, bulk branch status changes, user growth/reactivation, teacher
+creation/year-copy, academic-year activation, and paid/demo provisioning final
+validation. Existing over-capacity tenants preserve records and access but may
+not further increase an exceeded dimension.
 
 ## 2026-07-29 - Per-Branch System-User And Teacher Capacity
 
@@ -16,9 +40,12 @@ primary branch when no branch estimates exist.
 
 Before payment, system-user and teacher authority separately uses the greater
 of estimated and actual same-workspace counts; paid operations use actual
-counts. Teacher-position login accounts do not consume system-user capacity,
-while active teacher records count even without logins. Inactive, platform,
-internal-test, student, inactive-branch, and inactive-year data is excluded.
+counts. This milestone originally excluded teacher-position and internal-test
+login records from system-user usage. M1 supersedes that operational rule:
+every active tenant operational User now consumes staff capacity, while active
+Teacher records separately consume teacher capacity. Inactive, platform,
+account-only, other-tenant, inactive-branch, and inactive-year data remains
+excluded as applicable.
 
 The lowest eligible plan is recommended. The shared decision protects
 selection through payment reconciliation and includes both people counts in

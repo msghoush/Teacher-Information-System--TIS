@@ -45,6 +45,7 @@ import role_permission_service
 import saas.models  # Register SaaS metadata before create_all.
 from saas import (
     branch_entitlement_service,
+    commercial_authority_service,
     commercial_state_service,
     demo_request_service,
     entitlement_service,
@@ -12745,6 +12746,15 @@ def create_school_group(
     db.add(school_group)
     db.flush()
     try:
+        commercial_authority_service.require_capacity_change(
+            db,
+            school_group.id,
+            branch_delta=1,
+        )
+    except commercial_authority_service.CapacityAuthorityError as exc:
+        db.rollback()
+        return _redirect_with_error(return_to, str(exc))
+    try:
         branding_storage.ensure_organization_logo_dir(school_group.id)
     except OSError:
         db.rollback()
@@ -13760,8 +13770,13 @@ def create_branch(
         school_group = _ensure_default_school_group(db)
 
     try:
-        entitlement_service.require_active_branch_capacity(db, school_group.id)
-    except entitlement_service.BranchCapacityError as exc:
+        commercial_authority_service.require_capacity_change(
+            db,
+            school_group.id,
+            branch_delta=1,
+        )
+    except commercial_authority_service.CapacityAuthorityError as exc:
+        db.rollback()
         return _redirect_with_error(safe_return_to, str(exc))
 
     db.add(
@@ -14067,7 +14082,22 @@ def bulk_update_branches(
         for planned in update_plan
         if planned["status_changed"]
     }
-    if status_changed_group_ids:
+    if status_changed_group_ids and not errors:
+        try:
+            commercial_authority_service.lock_school_groups(
+                db, status_changed_group_ids
+            )
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
+            errors.append(
+                _bulk_item_error(
+                    item_id=None,
+                    label="Branches",
+                    field="status",
+                    message=str(exc),
+                )
+            )
+            status_changed_group_ids = set()
         final_statuses = {
             branch.id: bool(branch.status)
             for branch in db.query(models.Branch).filter(
@@ -14076,7 +14106,7 @@ def bulk_update_branches(
         }
         for planned in update_plan:
             final_statuses[int(planned["id"])] = bool(planned["status"])
-        for group_id in status_changed_group_ids:
+        for group_id in sorted(group_id for group_id in status_changed_group_ids if group_id):
             group_branch_ids = {
                 branch.id
                 for branch in db.query(models.Branch.id).filter(
@@ -14101,28 +14131,38 @@ def bulk_update_branches(
             desired_active_count = sum(
                 1 for branch_id in group_branch_ids if final_statuses.get(branch_id, False)
             )
-            current_active_count = db.query(models.Branch).filter(
-                models.Branch.school_group_id == group_id,
-                models.Branch.status == True,
-            ).count()
-            if desired_active_count > current_active_count:
-                try:
-                    entitlement_service.require_active_branch_capacity(
-                        db,
-                        group_id,
-                        desired_active_count=desired_active_count,
-                    )
-                except entitlement_service.BranchCapacityError as exc:
-                    errors.append(
-                        _bulk_item_error(
-                            item_id=None,
-                            label="Branches",
-                            field="status",
-                            message=str(exc),
+            proposed_active_ids = {
+                int(branch_id)
+                for branch_id in group_branch_ids
+                if final_statuses.get(branch_id, False)
+            }
+            try:
+                commercial_authority_service.require_capacity_change(
+                    db,
+                    group_id,
+                    lock=False,
+                    proposed_branches=desired_active_count,
+                    proposed_teachers=(
+                        commercial_authority_service.count_active_teachers(
+                            db,
+                            group_id,
+                            active_branch_ids=proposed_active_ids,
                         )
+                    ),
+                )
+            except commercial_authority_service.CapacityAuthorityError as exc:
+                errors.append(
+                    _bulk_item_error(
+                        item_id=None,
+                        label="Branches",
+                        field="status",
+                        message=str(exc),
                     )
+                )
 
     if errors:
+        if status_changed_group_ids:
+            db.rollback()
         return _bulk_json_error(errors)
 
     for planned in update_plan:
@@ -14270,17 +14310,27 @@ def update_branch(
         )
 
     if not branch_row.status and next_status:
-        desired_active_count = db.query(models.Branch).filter(
-            models.Branch.school_group_id == branch_row.school_group_id,
-            models.Branch.status == True,
-        ).count() + 1
+        active_branch_ids = {
+            int(row_id)
+            for (row_id,) in db.query(models.Branch.id).filter(
+                models.Branch.school_group_id == branch_row.school_group_id,
+                models.Branch.status == True,
+            ).all()
+        }
+        active_branch_ids.add(int(branch_row.id))
         try:
-            entitlement_service.require_active_branch_capacity(
+            commercial_authority_service.require_capacity_change(
                 db,
                 branch_row.school_group_id,
-                desired_active_count=desired_active_count,
+                proposed_branches=len(active_branch_ids),
+                proposed_teachers=commercial_authority_service.count_active_teachers(
+                    db,
+                    branch_row.school_group_id,
+                    active_branch_ids=active_branch_ids,
+                ),
             )
-        except entitlement_service.BranchCapacityError as exc:
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
             return _redirect_with_error(safe_return_to, str(exc))
 
     branch_row.name = cleaned_name
@@ -14653,6 +14703,19 @@ def set_current_year(
         )
 
     target_group_id = getattr(target_year, "school_group_id", None)
+    try:
+        commercial_authority_service.require_capacity_change(
+            db,
+            target_group_id,
+            proposed_teachers=commercial_authority_service.count_active_teachers(
+                db,
+                target_group_id,
+                active_academic_year_ids={int(target_year.id)},
+            ),
+        )
+    except commercial_authority_service.CapacityAuthorityError as exc:
+        db.rollback()
+        return _redirect_with_error(return_to, str(exc))
     deactivate_query = db.query(models.AcademicYear)
     if target_group_id:
         deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == target_group_id)
@@ -14699,6 +14762,19 @@ def open_new_academic_year(
     existing_year = existing_query.first()
     if existing_year:
         target_year = existing_year
+        try:
+            commercial_authority_service.require_capacity_change(
+                db,
+                selected_group_id,
+                proposed_teachers=commercial_authority_service.count_active_teachers(
+                    db,
+                    selected_group_id,
+                    active_academic_year_ids={int(target_year.id)},
+                ),
+            )
+        except commercial_authority_service.CapacityAuthorityError as exc:
+            db.rollback()
+            return _redirect_with_error(return_to, str(exc))
         deactivate_query = db.query(models.AcademicYear)
         if selected_group_id:
             deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == selected_group_id)

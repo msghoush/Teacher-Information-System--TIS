@@ -3,11 +3,8 @@ import json
 import unicodedata
 from dataclasses import dataclass
 
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-import auth
-import models as operational_models
 from saas import currency_service, models
 
 
@@ -227,43 +224,33 @@ def require_plan_capacity(
 
 
 def count_active_system_users(db: Session, school_group_id: int) -> int:
-    return db.query(operational_models.User).filter(
-        operational_models.User.school_group_id == int(school_group_id),
-        operational_models.User.user_type == auth.USER_TYPE_TENANT,
-        operational_models.User.is_active.is_(True),
-        operational_models.User.is_internal_test_identity.is_(False),
-        func.lower(func.coalesce(operational_models.User.position, ""))
-        != "teacher",
-    ).count()
+    from saas import commercial_authority_service
+
+    return commercial_authority_service.count_active_staff_users(
+        db, school_group_id
+    )
 
 
 def count_active_teachers(db: Session, school_group_id: int) -> int:
-    return db.query(operational_models.Teacher).join(
-        operational_models.Branch,
-        operational_models.Branch.id == operational_models.Teacher.branch_id,
-    ).join(
-        operational_models.AcademicYear,
-        operational_models.AcademicYear.id
-        == operational_models.Teacher.academic_year_id,
-    ).filter(
-        operational_models.Branch.school_group_id == int(school_group_id),
-        operational_models.Branch.status.is_(True),
-        operational_models.AcademicYear.school_group_id == int(school_group_id),
-        operational_models.AcademicYear.is_active.is_(True),
-    ).count()
+    from saas import commercial_authority_service
+
+    return commercial_authority_service.count_active_teachers(
+        db, school_group_id
+    )
 
 
 def operational_capacity_counts(
     db: Session, school_group_id: int
 ) -> tuple[int, int, int]:
-    branch_count = db.query(operational_models.Branch).filter(
-        operational_models.Branch.school_group_id == int(school_group_id),
-        operational_models.Branch.status.is_(True),
-    ).count()
+    from saas import commercial_authority_service
+
+    usage = commercial_authority_service.count_capacity_usage(
+        db, school_group_id
+    )
     return (
-        branch_count,
-        count_active_system_users(db, school_group_id),
-        count_active_teachers(db, school_group_id),
+        usage.branches,
+        usage.staff_users,
+        usage.teachers,
     )
 
 
@@ -373,50 +360,18 @@ def require_active_subscription_capacity_slot(
     additional_system_users: int = 0,
     additional_teachers: int = 0,
 ) -> PlanCapacityEligibility | None:
-    subscriptions = db.query(models.PaymentSubscription).join(
-        models.SubscriptionContract,
-        models.SubscriptionContract.id
-        == models.PaymentSubscription.subscription_contract_id,
-    ).filter(
-        models.SubscriptionContract.school_group_id == int(school_group_id),
-        models.PaymentSubscription.status.in_(("active", "trialing")),
-    ).all()
-    if not subscriptions:
-        return None
-    if len(subscriptions) != 1:
-        raise ValueError(
-            "Subscription capacity is temporarily unavailable. Please contact the TIS team."
+    from saas import commercial_authority_service
+
+    try:
+        result = commercial_authority_service.require_capacity_change(
+            db,
+            school_group_id,
+            staff_user_delta=max(int(additional_system_users or 0), 0),
+            teacher_delta=max(int(additional_teachers or 0), 0),
         )
-    plan = db.get(models.SubscriptionPlan, subscriptions[0].plan_id)
-    if plan is None:
-        raise ValueError(
-            "Subscription capacity is temporarily unavailable. Please contact the TIS team."
-        )
-    branch_count = db.query(operational_models.Branch).filter(
-        operational_models.Branch.school_group_id == int(school_group_id),
-        operational_models.Branch.status.is_(True),
-    ).count()
-    desired_system_users = count_active_system_users(
-        db, school_group_id
-    ) + max(int(additional_system_users or 0), 0)
-    desired_teachers = count_active_teachers(
-        db, school_group_id
-    ) + max(int(additional_teachers or 0), 0)
-    decision = evaluate_plan_capacity(
-        plan,
-        active_branch_count=branch_count,
-        active_system_user_count=desired_system_users,
-        active_teacher_count=desired_teachers,
-    )
-    if additional_system_users and not decision.system_user_eligible:
-        raise ValueError(
-            f"{decision.reason} Upgrade your subscription before adding another system user."
-        )
-    if additional_teachers and not decision.teacher_eligible:
-        raise ValueError(
-            f"{decision.reason} Upgrade your subscription before adding another teacher."
-        )
-    return decision
+    except commercial_authority_service.CapacityAuthorityError as exc:
+        raise ValueError(str(exc)) from exc
+    return result
 
 
 def branch_estimate_totals(db: Session, organization) -> tuple[int, int]:

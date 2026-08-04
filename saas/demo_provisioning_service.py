@@ -21,6 +21,7 @@ from demo_workflow import (
     DemoReviewDecision,
 )
 from saas import (
+    commercial_authority_service,
     commercial_state_service,
     demo_lifecycle_service,
     demo_request_service,
@@ -424,6 +425,19 @@ def provision_demo_workspace(db: Session, demo_request, actor):
                 workspace=workspace,
                 entitlement=entitlement,
             )
+            db.flush()
+            authority = commercial_authority_service.resolve_commercial_authority(
+                db, workspace.school_group.id
+            )
+            if (
+                not authority.resolved
+                or not authority.access_allowed
+                or authority.source != commercial_authority_service.DEMO
+            ):
+                raise DemoProvisioningError(
+                    "The activated demo workspace capacity authority is inconsistent.",
+                    reason_code="demo_capacity_authority_invalid",
+                )
             service.log_pending_event(
                 db,
                 organization=organization,

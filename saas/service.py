@@ -18,7 +18,7 @@ import branding_storage
 import email_service
 import email_templates
 import public_url
-from saas import draft_lifecycle_service, models
+from saas import commercial_authority_service, draft_lifecycle_service, models
 from saas.branch_pricing_quote_service import (
     authoritative_capacity_counts,
     evaluate_plan_capacity,
@@ -1600,6 +1600,22 @@ def _reconcile_unpaid_demo_operational_branches(db: Session, organization) -> No
         raise ValueError(
             "Save branch renames separately before adding or removing branches."
         )
+    proposed_existing_branch_ids = {
+        int(branch.id) for branch in matched.values() if getattr(branch, "id", None)
+    }
+    try:
+        commercial_authority_service.require_capacity_change(
+            db,
+            tenant_link.school_group_id,
+            proposed_branches=len(pending_rows),
+            proposed_teachers=commercial_authority_service.count_active_teachers(
+                db,
+                tenant_link.school_group_id,
+                active_branch_ids=proposed_existing_branch_ids,
+            ),
+        )
+    except commercial_authority_service.CapacityAuthorityError as exc:
+        raise ValueError(str(exc)) from exc
     for pending in unmatched_pending:
         branch = operational_models.Branch(
             school_group_id=tenant_link.school_group_id,

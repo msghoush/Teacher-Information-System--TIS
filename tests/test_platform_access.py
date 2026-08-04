@@ -197,6 +197,8 @@ class PlatformAccessTests(unittest.TestCase):
         max_system_users: int,
         max_teachers: int = 500,
     ):
+        self.group_a.workspace_classification = "customer_paid"
+        self.group_a.workspace_lifecycle_status = "active"
         account = saas_models.SaaSAccount(
             account_uuid=str(uuid.uuid4()),
             email=f"{plan_code}@capacity.example",
@@ -206,18 +208,29 @@ class PlatformAccessTests(unittest.TestCase):
             last_name="Owner",
             status="active",
         )
-        plan = saas_models.SubscriptionPlan(
-            plan_code=plan_code,
-            plan_name=plan_code.replace("_", " ").title(),
-            max_branches=25,
-            max_staff_users=max_system_users,
-            max_system_users=max_system_users,
-            max_teachers=max_teachers,
-            is_active=True,
-            is_public=True,
-        )
-        self.db.add_all([account, plan])
+        catalog = {
+            "starter": ("Starter", 1, 5, 25),
+            "professional": ("Professional", 5, 20, 100),
+            "enterprise_ai": ("Enterprise AI", 25, 100, 500),
+        }
+        plans = []
+        for code, (name, max_branches, staff_limit, teacher_limit) in catalog.items():
+            if code == plan_code:
+                staff_limit = max_system_users
+                teacher_limit = max_teachers
+            plans.append(saas_models.SubscriptionPlan(
+                plan_code=code,
+                plan_name=name,
+                max_branches=max_branches,
+                max_staff_users=staff_limit,
+                max_system_users=staff_limit,
+                max_teachers=teacher_limit,
+                is_active=True,
+                is_public=True,
+            ))
+        self.db.add_all([account, *plans])
         self.db.flush()
+        plan = next(row for row in plans if row.plan_code == plan_code)
         organization = saas_models.PendingOrganization(
             organization_uuid=str(uuid.uuid4()),
             owner_saas_account_id=account.id,
@@ -239,10 +252,11 @@ class PlatformAccessTests(unittest.TestCase):
             display_amount_minor=100,
             billable_branch_count=2,
             payment_status="paid",
+            paid_at=datetime(2026, 8, 1),
         )
         self.db.add(contract)
         self.db.flush()
-        self.db.add(saas_models.PaymentSubscription(
+        subscription = saas_models.PaymentSubscription(
             pending_organization_id=organization.id,
             subscription_contract_id=contract.id,
             provider="paddle",
@@ -251,7 +265,29 @@ class PlatformAccessTests(unittest.TestCase):
             billing_interval="monthly",
             quantity=2,
             status="active",
-        ))
+        )
+        self.db.add(subscription)
+        self.db.flush()
+        self.db.add_all([
+            saas_models.TenantProvisioningLink(
+                pending_organization_id=organization.id,
+                subscription_contract_id=contract.id,
+                school_group_id=self.group_a.id,
+                owner_operational_user_id=self.branch_user.id,
+                primary_branch_id=self.branch_a1.id,
+                primary_academic_year_id=self.year_a.id,
+                tenant_status="tenant_active",
+                activated_at=datetime(2026, 8, 1),
+            ),
+            saas_models.WorkspaceEntitlement(
+                school_group_id=self.group_a.id,
+                entitlement_type="paid",
+                status="active",
+                source="subscription",
+                payment_subscription_id=subscription.id,
+                effective_from=datetime(2026, 8, 1),
+            ),
+        ])
         self.db.commit()
 
     def _request(self, path, user, branch=None, year=None, method="GET", organization=None):
@@ -890,7 +926,7 @@ class PlatformAccessTests(unittest.TestCase):
             db=self.db,
         )
         self.assertIn(
-            "Upgrade your subscription before adding another system user",
+            "Your current access allows 5 active staff users.",
             response.body.decode(),
         )
         self.assertIsNone(
@@ -933,7 +969,7 @@ class PlatformAccessTests(unittest.TestCase):
             db=self.db,
         )
         self.assertIn(
-            "Upgrade your subscription before adding another system user",
+            "Your current access allows 5 active staff users.",
             reactivation.body.decode(),
         )
         self.db.refresh(removable)
@@ -951,7 +987,7 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertEqual(before, 1)
         with self.assertRaisesRegex(
             ValueError,
-            "Upgrade your subscription before adding another teacher",
+            "Your current access allows 1 active teacher",
         ):
             branch_pricing_quote_service.require_active_subscription_capacity_slot(
                 self.db,
@@ -965,7 +1001,116 @@ class PlatformAccessTests(unittest.TestCase):
             before,
         )
 
-    def test_active_system_user_count_is_tenant_scoped_and_excludes_inactive_platform_and_teacher_users(self):
+    def test_paid_branch_capacity_blocks_direct_creation(self):
+        self._activate_paid_plan_for_group("starter", 5)
+        before = self.db.query(models.Branch).filter_by(
+            school_group_id=self.group_a.id
+        ).count()
+        with patch(
+            "main._resolve_submitted_location",
+            return_value=SimpleNamespace(
+                country_code="SA",
+                country_name="Saudi Arabia",
+                region_name="Riyadh",
+                city_name="Riyadh",
+            ),
+        ):
+            response = main.create_branch(
+                request=self._request(
+                    "/system-configuration/branches",
+                    self.platform_owner,
+                    self.branch_a1,
+                    self.year_a,
+                    method="POST",
+                ),
+                name="Blocked Branch",
+                school_group_id=self.group_a.id,
+                db=self.db,
+            )
+        self.assertIn("allows+1+active+branch", response.headers["location"])
+        self.assertEqual(
+            self.db.query(models.Branch).filter_by(
+                school_group_id=self.group_a.id
+            ).count(),
+            before,
+        )
+
+    def test_paid_branch_capacity_blocks_bulk_reactivation_atomically(self):
+        self._activate_paid_plan_for_group("starter", 5)
+        inactive = models.Branch(
+            name="Inactive Capacity Branch",
+            school_group_id=self.group_a.id,
+            status=False,
+        )
+        self.db.add(inactive)
+        self.db.commit()
+        response = main.bulk_update_branches(
+            request=self._request(
+                "/system-configuration/branches/bulk-update",
+                self.platform_owner,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+            ),
+            payload={
+                "items": [{
+                    "id": inactive.id,
+                    "status": "active",
+                    "_changed_fields": ["status"],
+                }]
+            },
+            db=self.db,
+        )
+        payload = json.loads(response.body)
+        self.assertFalse(payload["ok"])
+        self.assertIn("allows 1 active branch", payload["errors"][0]["message"])
+        self.db.refresh(inactive)
+        self.assertFalse(inactive.status)
+
+    def test_academic_year_switch_is_blocked_when_it_would_increase_teachers(self):
+        self._activate_paid_plan_for_group("starter", 5, max_teachers=1)
+        target_year = models.AcademicYear(
+            school_group_id=self.group_a.id,
+            year_name="2027-2028",
+            is_active=False,
+        )
+        self.db.add(target_year)
+        self.db.flush()
+        self.db.add_all([
+            models.Teacher(
+                teacher_id="6101",
+                first_name="Target",
+                last_name="One",
+                branch_id=self.branch_a1.id,
+                academic_year_id=target_year.id,
+            ),
+            models.Teacher(
+                teacher_id="6102",
+                first_name="Target",
+                last_name="Two",
+                branch_id=self.branch_a2.id,
+                academic_year_id=target_year.id,
+            ),
+        ])
+        self.db.commit()
+        response = main.set_current_year(
+            request=self._request(
+                "/admin/current-year",
+                self.platform_owner,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+            ),
+            academic_year_id=target_year.id,
+            db=self.db,
+        )
+        self.assertIn("allows+1+active+teacher", response.headers["location"])
+        self.db.refresh(self.year_a)
+        self.db.refresh(target_year)
+        self.assertTrue(self.year_a.is_active)
+        self.assertFalse(target_year.is_active)
+
+    def test_active_staff_user_count_is_tenant_scoped_and_includes_every_active_tenant_user(self):
         self.assertEqual(
             branch_pricing_quote_service.count_active_system_users(
                 self.db, self.group_a.id
@@ -1012,7 +1157,7 @@ class PlatformAccessTests(unittest.TestCase):
             branch_pricing_quote_service.count_active_system_users(
                 self.db, self.group_a.id
             ),
-            1,
+            3,
         )
         self.assertEqual(
             branch_pricing_quote_service.count_active_teachers(

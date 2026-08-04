@@ -34,6 +34,7 @@ ADR_MODULES = {
     "0015": "ai-entitlements",
     "0016": "deployment-migrations",
     "0017": "demo-operations",
+    "0018": "subscriptions",
 }
 ENGINEERING_MODULES = {
     "README": "engineering-handbook",

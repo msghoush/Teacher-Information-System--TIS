@@ -334,7 +334,49 @@ def resolve_workspace_access(
             pending=pending, target_plan=target_plan, action=action,
             message_key=message,
         )
-    return CommercialAccessState(False)
+    if (
+        group.workspace_classification
+        == WorkspaceClassification.INTERNAL_SANDBOX.value
+    ):
+        lifecycle = _clean(group.workspace_lifecycle_status).lower()
+        if lifecycle == WorkspaceLifecycleStatus.ACTIVE.value:
+            return CommercialAccessState(
+                blocked=False,
+                kind="internal_sandbox",
+                reason_code="internal_sandbox_active",
+                commercial_state=ACTIVE,
+                workspace_lifecycle=lifecycle,
+                recommended_action="enter_workspace",
+                customer_message_key="internal_sandbox_active",
+            )
+        state = (
+            SUSPENDED
+            if lifecycle == WorkspaceLifecycleStatus.SUSPENDED.value
+            else ARCHIVED
+            if lifecycle == WorkspaceLifecycleStatus.ARCHIVED.value
+            else PAYMENT_PROCESSING
+            if lifecycle == WorkspaceLifecycleStatus.PROVISIONING.value
+            else INCONSISTENT
+        )
+        return CommercialAccessState(
+            blocked=True,
+            kind="internal_sandbox",
+            reason_code="internal_sandbox_not_active",
+            commercial_state=state,
+            workspace_lifecycle=lifecycle,
+            recommended_action="contact_support",
+            customer_message_key="internal_sandbox_not_active",
+        )
+    _log_inconsistent(group.id, "unsupported_workspace_classification")
+    return CommercialAccessState(
+        blocked=True,
+        kind="",
+        reason_code="unsupported_workspace_classification",
+        commercial_state=INCONSISTENT,
+        workspace_lifecycle=_clean(group.workspace_lifecycle_status).lower(),
+        recommended_action="contact_support",
+        customer_message_key="subscription_status_review",
+    )
 
 
 def resolve_customer_access(db: Session, account) -> CommercialAccessState:

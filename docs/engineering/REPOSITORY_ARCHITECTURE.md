@@ -1,7 +1,7 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-07-31
+last_updated: 2026-08-04
 source_of_truth: true
 ---
 
@@ -9,30 +9,41 @@ source_of_truth: true
 
 ## Three-Dimension Subscription Capacity Authority
 
-`saas/branch_pricing_quote_service.py` owns one structured plan-capacity
-decision across active billable branches, active non-teacher system users, and
-active teacher records. `PendingOrganizationBranch` owns onboarding
+`saas/branch_pricing_quote_service.py` owns pre-payment plan eligibility and
+quote capacity across active billable branches, system-user estimates, and
+teacher estimates. `PendingOrganizationBranch` owns onboarding
 `estimated_system_users` and `estimated_teachers`; organization-level legacy
 values are migration inputs and derived compatibility summaries, not an
 independent source of truth.
 
 Before payment, each people count is the greater of the sum across active
 onboarding branches and actual active data in the uniquely linked SchoolGroup.
-After activation, actual counts are authoritative. System users are active,
-non-test tenant `User` rows excluding the Teacher position. Teachers are
-`Teacher` records in active branches and active academic years, whether or not
-they have login accounts. Platform/internal identities, inactive users,
-students, inactive branches, and inactive academic years do not count.
+After activation, `saas/commercial_authority_service.py` is the single facade.
+Staff usage is every distinct active tenant operational `User`, including
+operational owners, teacher-position users, and internal-test-attributed tenant
+users. Platform users, inactive users, account-only SaaS identities, and other
+tenants do not count. Teachers are deduplicated by normalized
+`Teacher.teacher_id` across active branches and active academic years; every
+blank legacy teacher identity counts separately.
 
 The decision is consumed by selection, quote construction, checkout
 preparation/launch, Paddle creation, payment reconciliation, and plan changes.
 Both people counts are part of quote fingerprint authority. Branch estimate
 changes clear an undersized selected plan, invalidate its quote, mark ready or
 started checkout sessions stale, and supersede incomplete payment attempts.
-Paid system-user creation/reactivation and teacher creation/year-copy preflight
-check the active subscription before mutation; downgrade impact reports branch,
-system-user, and teacher conflicts independently. No capacity failure silently
-deletes or deactivates operational data.
+Operational branch, staff-user, teacher, and academic-year growth locks the
+SchoolGroup, composes the existing commercial authorities, recounts, evaluates
+the proposed final state, and mutates in the same transaction. Paid and demo
+provisioning perform the same final invariant. Downgrade impact still reports
+branch, system-user, and teacher conflicts independently. No capacity failure
+silently deletes or deactivates operational data.
+
+Paid limits are provider-confirmed subscription quantity capped by the plan
+branch ceiling plus the plan's staff and teacher limits. Customer Demo and
+Internal Sandbox are explicitly unmetered in M1 when their existing authority
+is coherent. Missing or contradictory authority fails closed. Existing
+over-capacity tenants preserve data and access but cannot further increase an
+exceeded dimension.
 
 The current `Teacher` model has no inactive/reactivation lifecycle, and the
 repository has no teacher import endpoint. Capacity enforcement therefore

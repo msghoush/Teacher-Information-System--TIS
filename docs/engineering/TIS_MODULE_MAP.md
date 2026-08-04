@@ -1,11 +1,32 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-08-04
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## M1 Commercial Access And Capacity Components
+
+- `saas/commercial_authority_service.py`: single commercial-access composition,
+  authoritative branch/staff/teacher counters, structured decisions, and
+  SchoolGroup row locking.
+- `saas/commercial_access_service.py`, `saas/commercial_state_service.py`,
+  `saas/workspace_entitlement_service.py`, and `saas/entitlement_service.py`:
+  existing authorities composed by the facade; they are not duplicated.
+- `main.py`, `routers/users.py`, and `routers/teachers.py`: permission- and
+  tenant-scoped operational mutation entry points that enforce the shared
+  decision before writing.
+- `saas/provisioning_service.py` and `saas/demo_provisioning_service.py`: paid
+  and demo final-authority invariants inside their existing atomic provisioning
+  transactions.
+
+Guardrails: every capacity-increasing mutation locks then recounts in the same
+transaction; platform identity never counts as tenant staff; account-only SaaS
+identity never counts; demo/internal authority is unmetered only while its
+existing lifecycle/access resolver is coherent; contradictory authority fails
+closed.
 
 ## M8B9 Demo Operations Components
 
