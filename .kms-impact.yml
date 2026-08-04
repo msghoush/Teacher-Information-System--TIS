@@ -1,8 +1,8 @@
 knowledge_impact: no
-summary: Add a temporary read-only Render Shell diagnostic for auditing the legacy Al-Andalus tenant alignment without changing runtime behavior or data.
+summary: Add a temporary read-only production diagnostic for auditing the existing Al-Andalus tenant alignment.
 affected_areas:
-  - temporary-production-diagnostics
+  - production-diagnostics
   - legacy-tenant-audit
 kms_files_updated:
-no_impact_reason: This task adds an isolated, manually invoked, read-only diagnostic and a static safety test. It is not imported by runtime code and changes no architecture, schema, data, permissions, billing, provisioning, integrations, or customer workflow.
-major_change_override: no
+no_impact_reason: This PR adds a standalone temporary diagnostic script and its static safety test. The script is not imported by runtime application code, runs only when invoked manually in Render Shell, explicitly starts a read-only PostgreSQL transaction, rolls back before exit, performs no migrations, makes no Paddle calls, and changes no application behavior, schema, customer workflow, permissions, or tenant data.
+major_change_override: yes
