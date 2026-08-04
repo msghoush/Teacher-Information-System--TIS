@@ -17,7 +17,8 @@ def test_al_andalus_production_diagnostic_is_static_and_read_only():
     assert "TEMPORARY READ-ONLY PRODUCTION DIAGNOSTIC" in source
     assert "This script must not be imported by runtime application code." in source
     assert 'TARGET_EMAIL = "mno@as.edu.sa"' in source
-    assert 'TARGET_NAME = "Al-Andalus Schools"' in source
+    assert 'TARGET_NAME = "Al-Andalus"' in source
+    assert '"alandalus"' in source
     assert 'os.getenv("DATABASE_URL"' in source
     assert 'text("SET TRANSACTION READ ONLY")' in source
     assert 'connection.dialect.name != "postgresql"' in source
