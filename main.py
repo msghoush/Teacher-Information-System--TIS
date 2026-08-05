@@ -9805,6 +9805,12 @@ def platform_console(
             "developer_default_permission_keys": permission_registry.PLATFORM_DEVELOPER_DEFAULT_PERMISSION_KEYS,
             "can_manage_ownership": auth.is_platform_owner(current_user),
             "can_transfer_ownership": auth.is_primary_platform_owner(current_user),
+            "can_view_promo_codes": auth.is_platform_user(current_user) and auth.has_permission(
+                db, current_user, "promo_codes.view"
+            ),
+            "can_manage_promo_codes": auth.is_platform_user(current_user) and auth.has_permission(
+                db, current_user, "promo_codes.manage"
+            ),
             "saas_admin_summary": saas_admin_summary,
             "owner_account": current_user,
             **build_shell_context(

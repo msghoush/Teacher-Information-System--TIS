@@ -1,11 +1,31 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## M2 Promo Code Components
+
+- `saas/promo_code_service.py`: secure generation and HMAC lookup authority,
+  shared plan-capacity validation, controlled scope validation, lifecycle row
+  locking, definition duplication/replacement, and redacted durable audit.
+- `saas/models.py`: `PromoCode`, `PromoCodeBranchRestriction`, and
+  `PromoCodeAuditEvent`; no redemption or grant model exists in M2.
+- `saas/router.py` and `templates/saas/admin_promo_code*.html`: Platform
+  Console list/filter, generated-code one-time response, detail, edit, and
+  lifecycle actions under `/saas-admin/promo-codes`.
+- `permission_registry.py`: separate `promo_codes.view` and
+  `promo_codes.manage` platform permissions. Owner identity is additionally
+  required for activation and revocation.
+- `db_migrations.py`: additive migration
+  `20260805_001_promo_code_foundation` with no data backfill.
+
+M2 does not integrate PromoCode with M1 commercial authority,
+WorkspaceEntitlement, TenantProvisioningLink, Paddle, onboarding,
+provisioning, or operational capacity enforcement.
 
 ## M1 Commercial Access And Capacity Components
 

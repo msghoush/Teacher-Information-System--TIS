@@ -1,11 +1,29 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-05 - Promo Code Foundation And Platform Console Management
+
+Added secure definition-only Starter, Professional, and Enterprise AI promos
+with exact capacity bounded by the existing plan catalog, controlled targeting,
+validity and expiry policy, versioned lifecycle, duplicate/replacement support,
+optional branch restrictions, and durable redacted audit. Raw codes use at
+least 100 bits of secure randomness, are shown once in a no-store response, and
+are represented in storage only by dedicated-secret HMAC lookup authority and
+safe masked fragments.
+
+Platform Console now exposes permission-controlled promo list, filter, create,
+detail, edit, activate, pause, revoke, duplicate, and replacement-definition
+workflows. Platform Developers may manage non-terminal definitions but only a
+Platform Owner may activate or revoke. Additive migration
+`20260805_001_promo_code_foundation` creates three tables without backfill.
+No customer redemption, commercial entitlement, M1 authority, Paddle,
+onboarding, provisioning, payment, or tenant behavior changed.
 
 ## 2026-08-04 - Unified Commercial Access And Capacity Authority
 

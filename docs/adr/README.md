@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
 documentation_version: 3.1
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 ---
 
 # Architecture Decision Records
@@ -42,3 +42,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0016-pre-deploy-database-migration-boundary.md`
 - `0017-platform-owner-demo-operations-and-access-profiles.md`
 - `0018-unified-commercial-access-and-capacity-authority.md`
+- `0019-secure-promo-code-definition-and-governance.md`

@@ -1,0 +1,49 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .promo-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:18px; }
+    .promo-actions { display:flex; gap:9px; flex-wrap:wrap; }
+    .promo-filters { display:grid; grid-template-columns:repeat(4,minmax(150px,1fr)); gap:10px; align-items:end; margin-bottom:18px; }
+    .promo-filters input,.promo-filters select { margin:0; }
+    .promo-table-wrap { width:100%; overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    .promo-table { min-width:1180px; }
+    .promo-code { white-space:nowrap; font-family:ui-monospace,Consolas,monospace; font-weight:800; }
+    .promo-status { display:inline-flex; border:1px solid #d5e0eb; border-radius:999px; background:#f4f7fa; padding:4px 8px; color:#42566d; font-size:11px; font-weight:900; text-transform:capitalize; }
+    .promo-status.active { border-color:#b7dfca; background:#eaf8f1; color:#166144; }
+    .promo-status.paused,.promo-status.expired { border-color:#efd28e; background:#fff8e2; color:#7b570b; }
+    .promo-status.revoked { border-color:#eebcc3; background:#fff1f3; color:#9b2838; }
+    .promo-capacity { white-space:nowrap; font-size:12px; }
+    .promo-empty { border:1px dashed #b9cbe0; border-radius:8px; background:#f8fbff; padding:28px; text-align:center; }
+    @media(max-width:860px){ .promo-head{align-items:flex-start;flex-direction:column}.promo-filters{grid-template-columns:1fr 1fr} }
+    @media(max-width:560px){ .promo-filters{grid-template-columns:1fr} }
+</style>
+<div class="promo-head">
+    <div><span class="page-eyebrow">Platform Console</span><h1>Promo Codes</h1><p class="page-subtitle">Create and govern secure, definition-only commercial promo offers.</p></div>
+    <div class="promo-actions"><a class="btn secondary" href="/platform">Platform Console</a>{% if promo_permissions.can_manage %}<a class="btn" href="/saas-admin/promo-codes/create">Generate Promo Code</a>{% endif %}</div>
+</div>
+{% if notice %}<div class="notice">{{ notice }}</div>{% endif %}
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form class="promo-filters" method="get" action="/saas-admin/promo-codes">
+    <div><label for="lifecycle">Lifecycle</label><select id="lifecycle" name="lifecycle"><option value="">All</option>{% for value in ['draft','active','paused','revoked'] %}<option value="{{ value }}" {% if filters.lifecycle == value %}selected{% endif %}>{{ value|title }}</option>{% endfor %}</select></div>
+    <div><label for="expired">Derived expiry</label><select id="expired" name="expired"><option value="">All</option><option value="yes" {% if filters.expired == 'yes' %}selected{% endif %}>Expired</option><option value="no" {% if filters.expired == 'no' %}selected{% endif %}>Not expired</option></select></div>
+    <div><label for="tier">Promo tier</label><select id="tier" name="tier"><option value="">All</option>{% for plan in plans %}<option value="{{ plan.plan_code }}" {% if filters.tier == plan.plan_code %}selected{% endif %}>{{ plan.plan_name }}</option>{% endfor %}</select></div>
+    <div><label for="scope">Scope</label><select id="scope" name="scope"><option value="">All</option>{% for value in ['global','organization','pending_organization','account_email','email_domain'] %}<option value="{{ value }}" {% if filters.scope == value %}selected{% endif %}>{{ value|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+    <div><label for="organization_id">Organization</label><select id="organization_id" name="organization_id"><option value="">All</option>{% for row in organizations %}<option value="{{ row.id }}" {% if filters.organization_id == row.id %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+    <div><label for="creator_id">Creator</label><select id="creator_id" name="creator_id"><option value="">All</option>{% for row in creators %}<option value="{{ row.id }}" {% if filters.creator_id == row.id %}selected{% endif %}>{{ row.first_name }} {{ row.last_name }}</option>{% endfor %}</select></div>
+    <div><label for="created_from">Created from (UTC)</label><input id="created_from" name="created_from" type="date" value="{{ filters.created_from }}"></div>
+    <div><label for="valid_on">Valid on (UTC)</label><input id="valid_on" name="valid_on" type="date" value="{{ filters.valid_on }}"></div>
+    <button class="btn secondary" type="submit">Apply Filters</button>
+</form>
+{% if cards %}
+<div class="promo-table-wrap"><table class="table promo-table"><thead><tr><th>Masked code</th><th>Title</th><th>Tier</th><th>Exact capacity</th><th>Scope</th><th>Validity</th><th>Redemptions</th><th>Status</th><th>Creator</th><th>Created</th><th>Action</th></tr></thead><tbody>
+{% for card in cards %}<tr>
+    <td class="promo-code">{{ card.masked_code }}</td><td>{{ card.promo.title }}</td><td>{{ card.plan.plan_name if card.plan else 'Unavailable' }} Promo</td>
+    <td class="promo-capacity">{{ card.promo.max_branches }} branches<br>{{ card.promo.max_system_users }} system users<br>{{ card.promo.max_teachers }} teachers</td>
+    <td>{{ card.promo.scope_type|replace('_',' ')|title }}</td><td>{{ card.promo.valid_from.strftime('%Y-%m-%d') }} to {{ card.promo.redemption_deadline.strftime('%Y-%m-%d') }}</td>
+    <td>0 / {{ card.promo.max_total_redemptions }}<br><span class="muted">Future redemption</span></td><td><span class="promo-status {{ card.effective_status }}">{{ card.effective_status|replace('_',' ') }}</span></td>
+    <td>{{ (card.creator.first_name ~ ' ' ~ card.creator.last_name)|trim if card.creator else 'Historical actor' }}</td><td>{{ card.promo.created_at.strftime('%Y-%m-%d') }}</td>
+    <td><a class="btn secondary" href="/saas-admin/promo-codes/{{ card.promo.promo_uuid }}">View Details</a></td>
+</tr>{% endfor %}
+</tbody></table></div>
+{% else %}<section class="promo-empty"><h2>No promo definitions found</h2><p class="muted">Adjust the filters or generate a new secure draft.</p></section>{% endif %}
+{% endblock %}

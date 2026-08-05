@@ -1,0 +1,23 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .promo-created { max-width:760px; margin:0 auto; border:1px solid #bad7f3; border-radius:8px; background:#fff; padding:24px; box-shadow:var(--shadow); }
+    .promo-secret { display:flex; align-items:center; justify-content:space-between; gap:12px; border:1px solid #a8c7e8; border-radius:8px; background:#f5faff; padding:16px; margin:18px 0; }
+    .promo-secret code { background:transparent; padding:0; font-size:20px; font-weight:900; overflow-wrap:anywhere; }
+    .promo-created-actions { display:flex; flex-wrap:wrap; gap:9px; }
+    @media(max-width:620px){.promo-secret{align-items:stretch;flex-direction:column}}
+</style>
+<section class="promo-created">
+    <span class="page-eyebrow">One-time secure display</span><h1>Promo Code Generated</h1>
+    <p>This raw code cannot be recovered after you leave this page. Store it only in an approved secure channel.</p>
+    <div class="promo-secret"><code id="promo-raw-code">{{ raw_code }}</code><button class="btn secondary" type="button" id="copy-promo-code" aria-label="Copy generated promo code">Copy Code</button></div>
+    <p class="muted">Future Platform Console pages show only {{ masked_code }}. Lost codes must be revoked and replaced.</p>
+    <div class="promo-created-actions"><a class="btn" href="/saas-admin/promo-codes/{{ promo.promo_uuid }}">Continue to Definition</a><a class="btn secondary" href="/saas-admin/promo-codes">Promo Codes</a></div>
+</section>
+<script>
+document.getElementById('copy-promo-code').addEventListener('click', async function () {
+    await navigator.clipboard.writeText(document.getElementById('promo-raw-code').textContent.trim());
+    this.textContent = 'Copied';
+});
+</script>
+{% endblock %}

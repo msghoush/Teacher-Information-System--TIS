@@ -1,11 +1,27 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Promo Code Foundation And Platform Management
+
+M2 is implemented as an additive promo-definition layer. `promo_codes` stores
+only HMAC lookup authority and masked display fragments, exact capacity,
+controlled scope, validity, lifecycle, replacement, and governance metadata.
+`promo_code_branch_restrictions` preserves eligible existing-branch snapshots;
+`promo_code_audit_events` records allowlisted durable action history. Migration
+`20260805_001_promo_code_foundation` performs no backfill.
+
+Platform Owners and permission-authorized Developers can use the Promo Codes
+console. Developers may view, create/edit unused drafts, duplicate, pause, and
+create replacement definitions; activation and terminal revocation remain
+owner-only. Customer redemption, PromoGrant, organization activation, M1
+commercial authority, Paddle, onboarding, and tenant operations remain
+unchanged and deferred.
 
 ## Unified Commercial Access And Capacity Authority
 

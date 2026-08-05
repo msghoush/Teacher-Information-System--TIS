@@ -1,10 +1,26 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 ---
 
 # Subscription History
+
+## 2026-08-05 - Secure Promo Definition Foundation
+
+M2 adds Platform-managed Starter, Professional, and Enterprise AI promo
+definitions with exact positive capacity bounded by the established catalog.
+Controlled scopes, one expiry policy, validity, redemption-policy metadata,
+branch snapshots, Draft/Active/Paused/Revoked lifecycle, duplication,
+replacement linking, row locking, and durable redacted audit are available.
+
+Raw codes are TIS-generated, use at least 100 bits of secure randomness, appear
+once under `Cache-Control: no-store`, and are never persisted or audited. The
+database stores dedicated-secret HMAC-SHA256 lookup authority plus a safe mask.
+Only Platform Owners activate or revoke; authorized Developers may manage
+non-terminal definitions. Promo redemption, tenant grants, M1 authority,
+Paddle, payment, onboarding, provisioning, and current subscription behavior
+remain unchanged.
 
 ## 2026-08-04 - Unified Operational Commercial Capacity Authority
 
