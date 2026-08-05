@@ -93,6 +93,12 @@ def resolve_branch_entitlement(
         except commercial_validation_service.CommercialValidationError:
             return _manual_review(group_id, normalized_branch_id, "invalid_branch_entitlement_mode")
     else:
+        if workspace.entitlement_type == "promo":
+            return _manual_review(
+                group_id,
+                normalized_branch_id,
+                "missing_promo_branch_entitlement",
+            )
         mode = BranchEntitlementMode.INHERIT.value
 
     inherits = mode == BranchEntitlementMode.INHERIT.value

@@ -5,6 +5,7 @@ class WorkspaceClassification(str, Enum):
     INTERNAL_SANDBOX = "internal_sandbox"
     CUSTOMER_DEMO = "customer_demo"
     CUSTOMER_PAID = "customer_paid"
+    CUSTOMER = "customer"
 
 
 class WorkspaceLifecycleStatus(str, Enum):
@@ -18,6 +19,7 @@ class WorkspaceIntent(str, Enum):
     INTERNAL_SANDBOX = "internal_sandbox"
     CUSTOMER_DEMO = "customer_demo"
     CUSTOMER_PAID = "customer_paid"
+    CUSTOMER = "customer"
 
 
 class AccountPurpose(str, Enum):

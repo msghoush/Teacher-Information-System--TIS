@@ -5101,6 +5101,178 @@ def _promo_code_foundation(engine, connection):
         creator(connection, connection, table_name, index_name, columns)
 
 
+def _sqlite_check_contains(connection, table_name: str, token: str) -> bool:
+    return any(
+        token in str(item.get("sqltext") or "")
+        for item in inspect(connection).get_check_constraints(table_name)
+    )
+
+
+def _sqlite_rebuild_from_current_metadata(connection, table_name: str) -> None:
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+    import saas.models  # noqa: F401 - register SaaS metadata
+
+    table = Base.metadata.tables[table_name]
+    legacy_name = f"{table_name}_m3_legacy"
+    if _table_exists(connection, legacy_name):
+        raise RuntimeError(f"Interrupted M3 SQLite rebuild found {legacy_name}.")
+    existing_columns = [row["name"] for row in inspect(connection).get_columns(table_name)]
+    current_columns = {column.name for column in table.columns}
+    copied_columns = [name for name in existing_columns if name in current_columns]
+    for index in inspect(connection).get_indexes(table_name):
+        name = index.get("name")
+        if name and not str(name).startswith("sqlite_autoindex"):
+            _execute(connection, f'DROP INDEX IF EXISTS "{name}"')
+    _execute(connection, "PRAGMA defer_foreign_keys = ON")
+    _execute(connection, "PRAGMA legacy_alter_table = ON")
+    _execute(connection, f'ALTER TABLE "{table_name}" RENAME TO "{legacy_name}"')
+    table.create(bind=connection, checkfirst=False)
+    quoted = ", ".join(f'"{name}"' for name in copied_columns)
+    _execute(
+        connection,
+        f'INSERT INTO "{table_name}" ({quoted}) SELECT {quoted} FROM "{legacy_name}"',
+    )
+    _execute(connection, f'DROP TABLE "{legacy_name}"')
+    _execute(connection, "PRAGMA legacy_alter_table = OFF")
+
+
+def _replace_postgres_check(connection, table_name: str, constraint_name: str, expression: str) -> None:
+    if _check_constraint_exists(connection, table_name, constraint_name):
+        _execute(connection, f"ALTER TABLE {table_name} DROP CONSTRAINT {constraint_name}")
+    _execute(
+        connection,
+        f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} CHECK ({expression}) NOT VALID",
+    )
+    _execute(connection, f"ALTER TABLE {table_name} VALIDATE CONSTRAINT {constraint_name}")
+
+
+def _promo_redemption_and_grants(engine, connection):
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+    import saas.models  # noqa: F401 - register SaaS metadata
+
+    for table_name in (
+        "promo_activation_sessions",
+        "promo_activation_branch_selections",
+        "promo_redemptions",
+        "promo_grants",
+        "promo_grant_branch_assignments",
+        "promo_redemption_events",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+    if engine.dialect.name == "postgresql":
+        _add_column_if_missing(
+            connection, connection, "workspace_entitlements", "promo_grant_id",
+            "promo_grant_id INTEGER",
+        )
+        _add_column_if_missing(
+            connection, connection, "tenant_provisioning_links", "promo_grant_id",
+            "promo_grant_id INTEGER",
+        )
+        _execute(
+            connection,
+            "ALTER TABLE tenant_provisioning_links ALTER COLUMN pending_organization_id DROP NOT NULL",
+        )
+        _ensure_postgres_fk(
+            engine, connection, table_name="workspace_entitlements",
+            constraint_name="fk_workspace_entitlements_promo_grant",
+            column_name="promo_grant_id", target_table="promo_grants",
+        )
+        _ensure_postgres_fk(
+            engine, connection, table_name="tenant_provisioning_links",
+            constraint_name="fk_tenant_provisioning_links_promo_grant",
+            column_name="promo_grant_id", target_table="promo_grants",
+        )
+        _replace_postgres_check(
+            connection, "school_groups", "ck_school_groups_workspace_classification",
+            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid','customer')",
+        )
+        _replace_postgres_check(
+            connection, "pending_organizations", "ck_pending_organizations_workspace_intent",
+            "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid','customer')",
+        )
+        _replace_postgres_check(
+            connection, "workspace_entitlements", "ck_workspace_entitlements_type",
+            "entitlement_type IN ('internal_sandbox','demo','paid','promo')",
+        )
+        _replace_postgres_check(
+            connection, "workspace_entitlements", "ck_workspace_entitlements_source",
+            "source IN ('system','migration','subscription','platform','promo')",
+        )
+        _replace_postgres_check(
+            connection, "workspace_entitlements", "ck_workspace_entitlements_commercial_reference",
+            "(entitlement_type = 'paid' AND payment_subscription_id IS NOT NULL AND promo_grant_id IS NULL) OR "
+            "(entitlement_type = 'promo' AND promo_grant_id IS NOT NULL AND payment_subscription_id IS NULL) OR "
+            "(entitlement_type IN ('internal_sandbox','demo') AND payment_subscription_id IS NULL AND promo_grant_id IS NULL)",
+        )
+        _replace_postgres_check(
+            connection, "tenant_provisioning_links", "ck_tenant_provisioning_links_commercial_source",
+            "(subscription_contract_id IS NOT NULL AND demo_request_id IS NULL AND promo_grant_id IS NULL) OR "
+            "(subscription_contract_id IS NULL AND demo_request_id IS NOT NULL AND promo_grant_id IS NULL) OR "
+            "(subscription_contract_id IS NULL AND demo_request_id IS NULL AND promo_grant_id IS NOT NULL)",
+        )
+    else:
+        rebuilds = []
+        if not _sqlite_check_contains(connection, "school_groups", "'customer'"):
+            rebuilds.append("school_groups")
+        if not _sqlite_check_contains(connection, "pending_organizations", "'customer'"):
+            rebuilds.append("pending_organizations")
+        if (
+            not _column_exists(connection, "workspace_entitlements", "promo_grant_id")
+            or not _sqlite_check_contains(connection, "workspace_entitlements", "'promo'")
+        ):
+            rebuilds.append("workspace_entitlements")
+        tenant_columns = {
+            row["name"]: row for row in inspect(connection).get_columns("tenant_provisioning_links")
+        }
+        if (
+            "promo_grant_id" not in tenant_columns
+            or not bool(tenant_columns.get("pending_organization_id", {}).get("nullable"))
+        ):
+            rebuilds.append("tenant_provisioning_links")
+        for table_name in rebuilds:
+            _sqlite_rebuild_from_current_metadata(connection, table_name)
+        for table_name, constraint_name, column_name, expression in (
+            (
+                "school_groups",
+                "ck_school_groups_workspace_classification",
+                "workspace_classification",
+                "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid','customer')",
+            ),
+            (
+                "pending_organizations",
+                "ck_pending_organizations_workspace_intent",
+                "workspace_intent",
+                "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid','customer')",
+            ),
+        ):
+            for operation in ("INSERT", "UPDATE"):
+                trigger_name = f"trg_{constraint_name}_{operation.lower()}"
+                _execute(connection, f"DROP TRIGGER IF EXISTS {trigger_name}")
+                _execute(
+                    connection,
+                    f"""
+                    CREATE TRIGGER {trigger_name}
+                    BEFORE {operation} ON {table_name}
+                    WHEN NOT ({expression.replace(column_name, f'NEW.{column_name}')})
+                    BEGIN
+                        SELECT RAISE(ABORT, '{constraint_name}');
+                    END
+                    """,
+                )
+
+    _create_unique_index_if_missing(
+        connection, connection, "workspace_entitlements",
+        "uq_workspace_entitlements_promo_grant", "promo_grant_id",
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "tenant_provisioning_links",
+        "uq_tenant_provisioning_links_promo_grant", "promo_grant_id",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5296,6 +5468,11 @@ MIGRATIONS = (
         migration_id="20260805_001_promo_code_foundation",
         description="Add secure promo definitions, scope restrictions, lifecycle, and audit records",
         apply=_promo_code_foundation,
+    ),
+    Migration(
+        migration_id="20260805_002_promo_redemption_and_grants",
+        description="Add promo redemption, immutable grants, activation workflow, and commercial source links",
+        apply=_promo_redemption_and_grants,
     ),
 )
 

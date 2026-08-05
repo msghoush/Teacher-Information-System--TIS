@@ -46,6 +46,7 @@ class WorkspaceEntitlementResolution:
     entitlement_status: str = ""
     source: str = ""
     payment_subscription_id: int | None = None
+    promo_grant_id: int | None = None
     effective_from: object | None = None
     effective_to: object | None = None
     entitlements: dict[str, EffectiveEntitlementValue] = field(default_factory=dict)
@@ -63,6 +64,7 @@ _TYPE_BY_CLASSIFICATION = {
     WorkspaceClassification.INTERNAL_SANDBOX.value: WorkspaceEntitlementType.INTERNAL_SANDBOX.value,
     WorkspaceClassification.CUSTOMER_DEMO.value: WorkspaceEntitlementType.DEMO.value,
     WorkspaceClassification.CUSTOMER_PAID.value: WorkspaceEntitlementType.PAID.value,
+    WorkspaceClassification.CUSTOMER.value: WorkspaceEntitlementType.PROMO.value,
 }
 
 _STATUS_BY_LIFECYCLE = {
@@ -203,6 +205,18 @@ def resolve_workspace_entitlement(db: Session, school_group_id: int) -> Workspac
         return _manual_review(group_id, "invalid_entitlement_effective_window")
     if entitlement_type != WorkspaceEntitlementType.PAID.value and row.payment_subscription_id:
         return _manual_review(group_id, "unexpected_subscription_link")
+    if entitlement_type == WorkspaceEntitlementType.PROMO.value:
+        if not row.promo_grant_id:
+            return _manual_review(group_id, "missing_promo_grant_link")
+        from saas import promo_grant_service
+
+        grant = promo_grant_service.resolve_promo_grant(db, group_id)
+        if not grant.resolved or grant.grant_id != row.promo_grant_id:
+            return _manual_review(group_id, grant.reason_code)
+        if not grant.active:
+            entitlement_status = WorkspaceEntitlementStatus.ENDED.value
+    elif row.promo_grant_id:
+        return _manual_review(group_id, "unexpected_promo_grant_link")
 
     explicit_values, reason = _load_explicit_values(db, row)
     if reason:
@@ -230,6 +244,7 @@ def resolve_workspace_entitlement(db: Session, school_group_id: int) -> Workspac
         entitlement_status=entitlement_status,
         source=source,
         payment_subscription_id=row.payment_subscription_id,
+        promo_grant_id=row.promo_grant_id,
         effective_from=row.effective_from,
         effective_to=row.effective_to,
         entitlements=effective_values,
@@ -243,6 +258,7 @@ def workspace_entitlement_label(resolution: WorkspaceEntitlementResolution) -> s
         "internal_sandbox": "Internal Sandbox Entitlement",
         "demo": "Demo Entitlement",
         "paid": "Paid Subscription Entitlement",
+        "promo": "Promo Entitlement",
     }
     status_labels = {
         "pending": "Pending",

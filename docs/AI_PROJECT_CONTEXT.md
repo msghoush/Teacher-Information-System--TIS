@@ -7,6 +7,28 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## M3 Promo Redemption And Commercial Grants
+
+M3 turns an approved promo definition into commercial authority only after an
+authenticated, verified organization owner completes a resume-safe activation.
+The workflow supports either a completed `PendingOrganization` or a separately
+aligned existing `SchoolGroup` with a valid tenant-owner account link; it never
+fabricates pending, payment, subscription, contract, or demo records.
+
+Successful activation creates one immutable `PromoRedemption`, one immutable
+capacity/plan/scope snapshot in `PromoGrant`, one promo
+`WorkspaceEntitlement`, explicit branch entitlements and assignments, and a
+promo-sourced `TenantProvisioningLink`. The link requires exactly one source:
+paid contract, approved demo request, or promo grant. M1 resolves promo access
+from that chain. Pending sessions grant nothing, expired or ambiguous grants
+fail closed, and no Paddle API or billing record participates.
+
+When eligible branches exceed promo capacity, the owner selects exactly the
+covered branches; unselected branch data remains intact but commercially
+inactive. Staff and teacher records are never selected or deactivated. Their
+authoritative organization-wide counts must already fit the immutable grant or
+activation is blocked for reconciliation.
+
 ## M2 Promo Code Foundation
 
 M2 adds secure, definition-only Starter, Professional, and Enterprise AI promo
@@ -23,8 +45,9 @@ safe display prefix/suffix. Missing promo security configuration fails only
 promo generation/future lookup, with no insecure fallback. Platform Developers
 need `promo_codes.view` or `promo_codes.manage`; only Platform Owners activate
 or terminally revoke. Row locks and allowlisted durable audit protect lifecycle
-transitions. M2 creates no redemption, PromoGrant, entitlement, tenant access,
-Paddle object, or M1 commercial-authority source.
+transitions. The M2 definition remains non-authoritative until M3 completes a
+valid redemption; definition creation itself creates no entitlement, tenant
+access, Paddle object, or M1 commercial-authority source.
 
 ## Subscription Capacity Presentation And Billing Entry
 

@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Project State
 
+## Promo Redemption And Organization Activation
+
+M3 is implemented. Verified organization owners can apply an approved promo
+from the post-onboarding commercial choice or an eligible existing Organization
+Account. Activation is resumable and idempotent, uses HMAC lookup without
+persisting the raw code, and commits the redemption, immutable grant,
+entitlement, branch assignments, tenant source, lifecycle, and durable audit as
+one transaction.
+
+Promo-backed workspaces use classification `customer`, lifecycle `active`, and
+M1 source `promo_grant`. Access is limited to selected active branch
+entitlements and expires from the persisted grant window. Existing aligned
+organizations need no `PendingOrganization`; onboarding organizations continue
+through the shared workspace builder. Staff/teacher excess blocks without
+mutation. Internal sandboxes, incompatible sources, ambiguous links, and
+expired grants fail closed. No Paddle or billing object is created.
+
 ## Promo Code Foundation And Platform Management
 
 M2 is implemented as an additive promo-definition layer. `promo_codes` stores
@@ -19,9 +36,9 @@ controlled scope, validity, lifecycle, replacement, and governance metadata.
 Platform Owners and permission-authorized Developers can use the Promo Codes
 console. Developers may view, create/edit unused drafts, duplicate, pause, and
 create replacement definitions; activation and terminal revocation remain
-owner-only. Customer redemption, PromoGrant, organization activation, M1
-commercial authority, Paddle, onboarding, and tenant operations remain
-unchanged and deferred.
+owner-only. M3 now consumes approved definitions through a separate
+customer-redemption service; definition management itself remains isolated from
+activation, M1 authority, Paddle, onboarding, and tenant operations.
 
 ## Unified Commercial Access And Capacity Authority
 

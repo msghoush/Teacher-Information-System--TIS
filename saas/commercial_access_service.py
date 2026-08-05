@@ -223,6 +223,49 @@ def resolve_workspace_access(
                 else "demo_access_unavailable"
             ),
         )
+    if group.workspace_classification == WorkspaceClassification.CUSTOMER.value:
+        from saas import promo_grant_service, workspace_entitlement_service
+
+        lifecycle = _clean(group.workspace_lifecycle_status).lower()
+        grant = promo_grant_service.resolve_promo_grant(db, group.id)
+        entitlement = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)
+        if (
+            lifecycle == WorkspaceLifecycleStatus.ACTIVE.value
+            and grant.active
+            and entitlement.active
+            and entitlement.promo_grant_id == grant.grant_id
+        ):
+            return CommercialAccessState(
+                blocked=False,
+                kind="promo",
+                reason_code="promo_grant_active",
+                commercial_state=ACTIVE,
+                current_plan_code=grant.plan_code,
+                current_plan_name=grant.plan_name,
+                current_period_end=grant.effective_to,
+                workspace_lifecycle=lifecycle,
+                recommended_action="enter_workspace",
+                customer_message_key="promo_access_active",
+            )
+        state = (
+            EXPIRED if grant.resolved and grant.status == "expired"
+            else SUSPENDED if lifecycle == WorkspaceLifecycleStatus.SUSPENDED.value
+            else ARCHIVED if lifecycle == WorkspaceLifecycleStatus.ARCHIVED.value
+            else PAYMENT_PROCESSING if lifecycle == WorkspaceLifecycleStatus.PROVISIONING.value
+            else INCONSISTENT
+        )
+        return CommercialAccessState(
+            blocked=True,
+            kind="promo",
+            reason_code=grant.reason_code if grant.resolved else grant.reason_code,
+            commercial_state=state,
+            current_plan_code=grant.plan_code,
+            current_plan_name=grant.plan_name,
+            current_period_end=grant.effective_to,
+            workspace_lifecycle=lifecycle,
+            recommended_action="contact_support",
+            customer_message_key=("promo_access_expired" if state == EXPIRED else "promo_access_unavailable"),
+        )
     if (
         group.workspace_classification == WorkspaceClassification.CUSTOMER_PAID.value
     ):
@@ -383,6 +426,18 @@ def resolve_customer_access(db: Session, account) -> CommercialAccessState:
     resolution = entitlement_service.resolve_customer_entitlements(db, account)
     if resolution.school_group_id:
         return resolve_workspace_access(db, resolution.school_group_id)
+    group_ids = {
+        int(group_id)
+        for (group_id,) in db.query(saas_models.SaaSAccountUserLink.school_group_id).filter(
+            saas_models.SaaSAccountUserLink.saas_account_id == getattr(account, "id", None)
+        ).all()
+        if group_id
+    }
+    selected_group_id = int(getattr(account, "_selected_school_group_id", 0) or 0)
+    if selected_group_id in group_ids:
+        return resolve_workspace_access(db, selected_group_id)
+    if len(group_ids) == 1:
+        return resolve_workspace_access(db, next(iter(group_ids)))
     return CommercialAccessState(
         blocked=True,
         kind="subscription",

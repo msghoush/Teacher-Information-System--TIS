@@ -7,6 +7,30 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Customer Promo Activation
+
+1. A verified organization owner chooses Use Promo Code after setup review or
+   from an eligible existing Organization Account.
+2. TIS HMAC-normalizes the submitted code, validates approval, lifecycle,
+   dates, replacement, target scope, owner relationship, redemption policy,
+   source compatibility, and setup readiness, then creates a short-lived
+   resumable activation session. The raw code is never stored.
+3. TIS shows authoritative branch, system-user, and teacher usage. If eligible
+   branches exceed the grant, the owner selects exactly the grant count. If
+   fewer exist, all are selected and the remainder stays available for future
+   branch creation.
+4. Excess staff or teachers blocks activation and identifies each exceeded
+   dimension. TIS does not disable, select, delete, or change those records.
+5. Final activation locks session, promo, and workspace, then repeats every
+   validation and recount. It rejects internal sandboxes and every conflicting
+   commercial source.
+6. One transaction creates immutable redemption/grant snapshots, explicit
+   branch assignments and entitlement states, a promo workspace entitlement,
+   the promo-sourced tenant link, customer/active lifecycle, and redacted audit.
+7. A pending session grants nothing. Active access resolves through M1 and only
+   selected branches are queryable. Expiry or inconsistent evidence fails
+   closed. No Paddle call or payment object is involved.
+
 ## Platform Promo Definition
 
 1. A Platform Owner or permission-authorized Developer opens Promo Codes.
@@ -24,8 +48,8 @@ source_of_truth: true
 6. Only a Platform Owner may approve/activate or terminally revoke with a
    reason. Lifecycle transitions lock the row through validation, mutation,
    audit insertion, and commit.
-7. No step redeems the definition, provisions a tenant, changes entitlement,
-   or calls Paddle. Those flows remain deferred.
+7. No Platform definition step grants access or calls Paddle. Customer M3
+   activation is a separate owner-authorized transaction.
 
 ## Organization Profile Save
 

@@ -2,7 +2,7 @@
 {% block content %}
 <style>
     .commercial-choice-head { max-width: 760px; margin-bottom: 22px; }
-    .commercial-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+    .commercial-choice-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
     .commercial-option { display: flex; min-height: 310px; flex-direction: column; border: 1px solid var(--line); border-radius: 18px; background: #fff; padding: 22px; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
     .commercial-option.preferred { border-color: #57a9c5; box-shadow: 0 18px 38px rgba(33, 120, 157, .12); }
     .commercial-option:hover { transform: translateY(-2px); border-color: #aac5e2; box-shadow: 0 16px 34px rgba(16, 35, 63, .08); }
@@ -64,6 +64,18 @@
         <form method="post" action="/saas/onboarding/{{ organization.organization_uuid }}/commercial-choice/subscribe">
             <button class="btn" type="submit">Subscribe Now</button>
         </form>
+    </article>
+
+    <article class="commercial-option">
+        <span class="metric-badge">Approved Offer</span>
+        <h2>Use Promo Code</h2>
+        <p>Apply an approved TIS promo to this completed school setup.</p>
+        <ul>
+            <li>Review the exact plan and capacity before activation.</li>
+            <li>Select covered branches when the organization has more than the offer allows.</li>
+            <li>No Paddle checkout or payment subscription is created.</li>
+        </ul>
+        <a class="btn secondary" href="/saas/promo?organization_uuid={{ organization.organization_uuid }}">Use Promo Code</a>
     </article>
 </section>
 

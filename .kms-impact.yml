@@ -1,9 +1,12 @@
 knowledge_impact: yes
-summary: Implement M2 secure promo code definitions, lifecycle governance, and Platform Console management without customer redemption.
+summary: Implement M3 customer promo redemption, immutable commercial grants, transactional organization activation, and M1 promo authority.
 affected_areas:
-  - promo-code-foundation
-  - platform-console
-  - subscription-governance
+  - promo-redemption
+  - commercial-authority
+  - organization-activation
+  - workspace-entitlements
+  - tenant-provisioning
+  - branch-access
   - database-migrations
   - security
 kms_files_updated:
@@ -18,6 +21,6 @@ kms_files_updated:
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/history/subscriptions/README.md
   - docs/adr/README.md
-  - docs/adr/0019-secure-promo-code-definition-and-governance.md
+  - docs/adr/0020-promo-redemption-and-commercial-grants.md
 no_impact_reason:
 major_change_override: no

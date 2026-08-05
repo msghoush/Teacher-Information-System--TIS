@@ -837,6 +837,28 @@ def get_accessible_branch_query(db: Session, user):
     query = db.query(models.Branch).filter(models.Branch.status == True)
 
     user_school_group_id = get_user_school_group_id(db, user)
+    if user_school_group_id:
+        group = db.get(models.SchoolGroup, int(user_school_group_id))
+        if group and str(getattr(group, "workspace_classification", "") or "") == "customer":
+            from saas import commercial_access_service, models as saas_models
+
+            access = commercial_access_service.resolve_workspace_access(
+                db, int(user_school_group_id)
+            )
+            if not access.allowed_access:
+                return query.filter(models.Branch.id == -1)
+            entitled_ids = db.query(saas_models.BranchEntitlement.branch_id).join(
+                saas_models.WorkspaceEntitlement,
+                saas_models.WorkspaceEntitlement.id
+                == saas_models.BranchEntitlement.workspace_entitlement_id,
+            ).filter(
+                saas_models.BranchEntitlement.school_group_id
+                == int(user_school_group_id),
+                saas_models.BranchEntitlement.entitlement_mode == "active",
+                saas_models.WorkspaceEntitlement.entitlement_type == "promo",
+                saas_models.WorkspaceEntitlement.status == "active",
+            )
+            query = query.filter(models.Branch.id.in_(entitled_ids))
     if access_scope == ACCESS_SCOPE_ORGANIZATION:
         if not user_school_group_id:
             return query.filter(models.Branch.id == -1)

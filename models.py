@@ -26,7 +26,7 @@ class SchoolGroup(Base):
     __tablename__ = "school_groups"
     __table_args__ = (
         CheckConstraint(
-            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid')",
+            "workspace_classification IN ('internal_sandbox','customer_demo','customer_paid','customer')",
             name="ck_school_groups_workspace_classification",
         ),
         CheckConstraint(

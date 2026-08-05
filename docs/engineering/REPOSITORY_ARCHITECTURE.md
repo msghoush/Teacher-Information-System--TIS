@@ -7,6 +7,27 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Promo Redemption Layer
+
+`saas/promo_redemption_service.py` is the write boundary between secure M2
+definitions and operational commercial authority. It accepts either an owned
+completed `PendingOrganization` or an existing aligned `SchoolGroup` with a
+tenant-owner account link. The latter path deliberately creates no synthetic
+onboarding, contract, subscription, payment, or demo row.
+
+Final activation locks session, definition, and workspace in stable order and
+commits immutable `PromoRedemption`/`PromoGrant`, branch assignments and
+entitlements, promo `WorkspaceEntitlement`, promo `TenantProvisioningLink`,
+lifecycle updates, and audit together. `saas/promo_grant_service.py` resolves
+effective grants and expiration; M1 composes that result. `auth.py` restricts
+customer-classified operational branch queries to explicit active promo branch
+entitlements. Pending or inconsistent evidence fails closed.
+
+Existing-branch selection does not alter `Branch.status`. Staff and teachers
+are organization-wide validation inputs and are never selected, disabled, or
+deleted. Normal future branch creation may consume only an unused grant branch
+slot. Paddle remains outside this layer.
+
 ## Promo Definition Layer
 
 Promo administration is an isolated SaaS/Platform layer. The router requires a
@@ -16,11 +37,11 @@ only definition/history persistence. Templates receive raw code only in the
 immediate create/duplicate/replace response and all later views use a masked
 representation.
 
-The future commercial adapter contract is documented as a grant identity,
+The M3 commercial adapter contract is implemented as a grant identity,
 tenant and organization identity, `source=promo`, status, plan, effective
 window, three capacity limits, selected branch IDs, immutable snapshot,
-resolution status, and reason code. M2 deliberately provides no adapter
-implementation and does not alter current source resolution.
+resolution status, and reason code. M2 definition operations still provide no
+access; only a completed M3 grant is authoritative.
 
 ## Three-Dimension Subscription Capacity Authority
 

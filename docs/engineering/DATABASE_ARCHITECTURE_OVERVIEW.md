@@ -7,6 +7,31 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Promo Redemption And Grant Persistence
+
+Migration `20260805_002_promo_redemption_and_grants` creates:
+
+- `promo_activation_sessions` and `promo_activation_branch_selections` for
+  short-lived, resumable, non-authoritative customer review state;
+- `promo_redemptions` for completed immutable redemption evidence;
+- `promo_grants` for immutable plan, capacity, scope, and effective-window
+  authority;
+- `promo_grant_branch_assignments` for selected covered operational branches;
+- `promo_redemption_events` for redacted, idempotent durable outcomes.
+
+Raw promo material is absent from every table. Snapshot hashes bind the
+definition, scope, tier, limits, and effective dates used at activation. Unique
+and partial indexes protect session/idempotency identity, one redemption per
+session, one grant per redemption, one active grant per workspace, branch
+assignment uniqueness, and durable operation/event deduplication.
+
+`workspace_entitlements.promo_grant_id` links only promo entitlements.
+`tenant_provisioning_links.pending_organization_id` is nullable for an existing
+aligned tenant and `promo_grant_id` identifies promo ownership. A check requires
+exactly one of subscription contract, demo request, or promo grant. The
+migration preserves existing rows, rebuilds equivalent SQLite constraints where
+required, installs PostgreSQL foreign keys/checks/indexes, and is idempotent.
+
 ## Promo Code Foundation Persistence
 
 `promo_codes` owns UUID identity, HMAC-SHA256 lookup hash and key ID, safe

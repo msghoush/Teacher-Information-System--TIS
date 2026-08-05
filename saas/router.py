@@ -20,7 +20,8 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
 logger = logging.getLogger(__name__)
@@ -1396,6 +1397,15 @@ def account_dashboard(
             .count()
         )
         organization = selected_workspace.organization
+        promo_activation_available = bool(
+            selected_workspace.is_owner
+            and selected_workspace.school_group.workspace_classification
+            == WorkspaceClassification.CUSTOMER.value
+            and selected_workspace.school_group.workspace_lifecycle_status
+            == WorkspaceLifecycleStatus.PROVISIONING.value
+            and selected_workspace.commercial_access.reason_code
+            == "missing_promo_grant"
+        )
         db.commit()
         response = _render(
             request,
@@ -1409,6 +1419,7 @@ def account_dashboard(
                 "organization_account": {
                     "access": selected_workspace,
                     "branch_count": branch_count,
+                    "promo_activation_available": promo_activation_available,
                 },
             },
         )
@@ -3409,6 +3420,248 @@ def subscribe_now_step(
             status_code=302,
         )
     return RedirectResponse(f"/saas/onboarding/{organization_uuid}/plan", status_code=302)
+
+
+def _promo_activation_context(db: Session, account, organization_uuid: str):
+    requested = str(organization_uuid or "").strip()
+    organization = service.get_owned_pending_organization(db, account, requested) if requested else None
+    if organization is not None and not service.initial_checkout_is_closed(db, organization):
+        return organization, None, None
+    _accesses, selected = customer_journey_service.select_organization_account_access(
+        db, account, organization_uuid=requested
+    )
+    if selected is None and not requested:
+        _accesses, selected = customer_journey_service.select_organization_account_access(db, account)
+    if selected is None or not selected.is_owner:
+        raise promo_redemption_service.PromoActivationError(
+            "promo_owner_relationship_required",
+            "Only the organization owner can activate a promo.",
+        )
+    return None, selected.school_group, selected.operational_user
+
+
+def _promo_customer_error_redirect(organization_uuid: str, message: str):
+    target = "/saas/promo?error=" + quote_plus(str(message or promo_redemption_service.GENERIC_INVALID_MESSAGE))
+    if organization_uuid:
+        target += "&organization_uuid=" + quote_plus(str(organization_uuid))
+    return RedirectResponse(target, status_code=302)
+
+
+@router.get("/promo", response_class=HTMLResponse)
+def promo_activation_entry(
+    request: Request,
+    organization_uuid: str = Query(""),
+    error: str = Query(""),
+    notice: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db, next_path="/saas/promo")
+    if redirect:
+        return redirect
+    try:
+        organization, group, _user = _promo_activation_context(db, account, organization_uuid)
+    except promo_redemption_service.PromoActivationError as exc:
+        db.rollback()
+        return RedirectResponse("/saas/account?notice=" + quote_plus(str(exc)), status_code=302)
+    open_query = db.query(models.PromoActivationSession).filter(
+        models.PromoActivationSession.saas_account_id == account.id,
+        models.PromoActivationSession.status == "open",
+    )
+    if organization is not None:
+        open_query = open_query.filter(models.PromoActivationSession.pending_organization_id == organization.id)
+    else:
+        open_query = open_query.filter(models.PromoActivationSession.school_group_id == group.id)
+    existing = open_query.one_or_none()
+    if existing:
+        db.commit()
+        return RedirectResponse(f"/saas/promo/{existing.activation_uuid}", status_code=302)
+    db.commit()
+    return _render(request, "saas/promo_activation.html", {
+        "account": account,
+        "organization": organization,
+        "school_group": group,
+        "organization_uuid": organization_uuid or str(getattr(group, "workspace_uuid", "") or ""),
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "review": None,
+        "error": error,
+        "notice": notice,
+    })
+
+
+@router.post("/promo/start")
+def promo_activation_start(
+    request: Request,
+    promo_code: str = Form(""),
+    organization_uuid: str = Form(""),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db, next_path="/saas/promo")
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    if service.is_rate_limited(
+        db, event_type="promo_lookup_failed", request=request,
+        account_id=account.id, max_attempts=10, window_minutes=15,
+    ):
+        db.rollback()
+        return _promo_customer_error_redirect(
+            organization_uuid,
+            "Too many promo attempts were made. Please wait before trying again.",
+        )
+    try:
+        organization, group, operational_user = _promo_activation_context(db, account, organization_uuid)
+        review = promo_redemption_service.start_activation(
+            db,
+            account=account,
+            raw_code=promo_code,
+            pending_organization=organization,
+            school_group=group,
+            operational_user=operational_user,
+            idempotency_key=str(request.headers.get("x-request-id") or uuid.uuid4()),
+            request_correlation_id=str(request.headers.get("x-request-id") or ""),
+        )
+        service.log_auth_event(
+            db, event_type="promo_lookup_succeeded", account_id=account.id,
+            request=request, details={"activation_session_id": review.session.id},
+        )
+        db.commit()
+    except promo_redemption_service.PromoActivationError as exc:
+        db.rollback()
+        service.log_auth_event(
+            db, event_type="promo_lookup_failed", event_status="blocked",
+            account_id=account.id, request=request,
+            details={"reason_code": exc.reason_code},
+        )
+        db.commit()
+        logger.info("Promo activation lookup blocked account_id=%s reason=%s", account.id, exc.reason_code)
+        return _promo_customer_error_redirect(organization_uuid, str(exc))
+    return RedirectResponse(f"/saas/promo/{review.session.activation_uuid}", status_code=302)
+
+
+@router.get("/promo/{activation_uuid}", response_class=HTMLResponse)
+def promo_activation_review_page(
+    activation_uuid: str,
+    request: Request,
+    error: str = Query(""),
+    notice: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        review = promo_redemption_service.get_activation_review(db, activation_uuid, account)
+        db.commit()
+    except promo_redemption_service.PromoActivationError as exc:
+        db.rollback()
+        return RedirectResponse("/saas/account?notice=" + quote_plus(str(exc)), status_code=302)
+    if review.session.status == "activated":
+        return RedirectResponse("/saas/account?notice=" + quote_plus("Promo access is active."), status_code=302)
+    return _render(request, "saas/promo_activation.html", {
+        "account": account,
+        "organization": review.organization,
+        "school_group": review.school_group,
+        "organization_uuid": "",
+        "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+        "review": review,
+        "error": error,
+        "notice": notice,
+    })
+
+
+@router.post("/promo/{activation_uuid}/branches")
+def promo_activation_select_branches(
+    activation_uuid: str,
+    request: Request,
+    branch_ids: list[int] = Form(default=[]),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        promo_redemption_service.select_branches(
+            db, activation_uuid=activation_uuid, account=account, branch_ids=branch_ids
+        )
+        db.commit()
+    except promo_redemption_service.PromoActivationError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas/promo/{activation_uuid}?error={quote_plus(str(exc))}", status_code=302
+        )
+    return RedirectResponse(
+        f"/saas/promo/{activation_uuid}?notice={quote_plus('Branch selection saved.')}", status_code=302
+    )
+
+
+@router.post("/promo/{activation_uuid}/activate")
+def promo_activation_complete(
+    activation_uuid: str,
+    request: Request,
+    idempotency_key: str = Form(""),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    try:
+        result = promo_redemption_service.activate_promo(
+            db, activation_uuid=activation_uuid, account=account,
+            idempotency_key=idempotency_key or f"promo-activate:{activation_uuid}",
+        )
+        db.commit()
+    except promo_redemption_service.PromoActivationError as exc:
+        db.rollback()
+        promo_redemption_service.record_failed_activation(
+            db,
+            activation_uuid=activation_uuid,
+            account=account,
+            failure_code=exc.reason_code,
+            operation_key=f"promo-activate-failed:{activation_uuid}:{exc.reason_code}",
+        )
+        db.commit()
+        logger.warning(
+            "Promo activation failed account_id=%s activation_uuid=%s reason=%s",
+            account.id, activation_uuid, exc.reason_code,
+        )
+        return RedirectResponse(
+            f"/saas/promo/{activation_uuid}?error={quote_plus(str(exc))}", status_code=302
+        )
+    except Exception:
+        db.rollback()
+        try:
+            promo_redemption_service.record_failed_activation(
+                db,
+                activation_uuid=activation_uuid,
+                account=account,
+                failure_code="unexpected_activation_error",
+                operation_key=f"promo-activate-failed:{activation_uuid}:unexpected",
+            )
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.warning("Promo failure audit could not be persisted", exc_info=True)
+        logger.exception(
+            "Unexpected promo activation failure account_id=%s activation_uuid=%s",
+            account.id,
+            activation_uuid,
+        )
+        return RedirectResponse(
+            f"/saas/promo/{activation_uuid}?error="
+            + quote_plus("Promo activation could not be completed right now. Please try again."),
+            status_code=302,
+        )
+    return RedirectResponse(
+        "/saas/account?notice=" + quote_plus(
+            f"{result.school_group.name} promo access is now active."
+        ),
+        status_code=302,
+    )
 
 
 @router.get("/demo-requests/{request_uuid}", response_class=HTMLResponse)

@@ -6,6 +6,7 @@ class CommercialState(str, Enum):
     INTERNAL_SANDBOX_ACTIVE = "internal_sandbox_active"
     CUSTOMER_DEMO_ACTIVE = "customer_demo_active"
     CUSTOMER_PAID_ACTIVE = "customer_paid_active"
+    CUSTOMER_ACTIVE = "customer_active"
     INACTIVE = "inactive"
     SUSPENDED = "suspended"
     ARCHIVED = "archived"
@@ -16,6 +17,7 @@ class WorkspaceEntitlementType(str, Enum):
     INTERNAL_SANDBOX = "internal_sandbox"
     DEMO = "demo"
     PAID = "paid"
+    PROMO = "promo"
 
 
 class WorkspaceEntitlementStatus(str, Enum):
@@ -31,6 +33,7 @@ class WorkspaceEntitlementSource(str, Enum):
     MIGRATION = "migration"
     SUBSCRIPTION = "subscription"
     PLATFORM = "platform"
+    PROMO = "promo"
 
 
 class BranchEntitlementMode(str, Enum):

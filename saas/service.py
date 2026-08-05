@@ -338,6 +338,7 @@ def recent_auth_event_count(
     event_type: str,
     request: Request | None = None,
     event_status: str | None = None,
+    account_id: int | None = None,
     window_minutes: int = 15,
 ) -> int:
     window_start = _utcnow() - timedelta(minutes=max(1, int(window_minutes)))
@@ -347,6 +348,8 @@ def recent_auth_event_count(
     )
     if event_status:
         query = query.filter(models.SaaSAuthEvent.event_status == str(event_status or "").strip())
+    if account_id:
+        query = query.filter(models.SaaSAuthEvent.saas_account_id == int(account_id))
     request_ip = str(getattr(getattr(request, "client", None), "host", "") or "").strip()
     if request_ip:
         query = query.filter(models.SaaSAuthEvent.ip_address == request_ip[:80])
@@ -359,6 +362,7 @@ def is_rate_limited(
     event_type: str,
     request: Request | None = None,
     event_status: str | None = None,
+    account_id: int | None = None,
     max_attempts: int,
     window_minutes: int,
 ) -> bool:
@@ -367,6 +371,7 @@ def is_rate_limited(
         event_type=event_type,
         request=request,
         event_status=event_status,
+        account_id=account_id,
         window_minutes=window_minutes,
     ) >= max(1, int(max_attempts))
 
@@ -1878,6 +1883,23 @@ def resolve_owner_organization_lifecycle(
     )
     subscription_active = subscription_status in {"active", "trialing"}
 
+    promo_grant_id = int(getattr(tenant_link, "promo_grant_id", 0) or 0)
+    if promo_grant_id and tenant_active and school_group:
+        from saas import promo_grant_service
+
+        promo = promo_grant_service.resolve_promo_grant(db, school_group.id)
+        if promo.active and promo.grant_id == promo_grant_id:
+            return OwnerOrganizationLifecycle(
+                key="active_promo",
+                label="Active Tenant",
+                tone="success",
+                is_pending=False,
+                onboarding_label="Complete",
+                billing_label=f"{promo.plan_name} promo access",
+                payment_label="Not required",
+                provisioning_label="Complete",
+            )
+
     demo_request_id = int(getattr(tenant_link, "demo_request_id", 0) or 0)
     if demo_request_id:
         demo_request = db.query(models.SaaSDemoRequest).filter(
@@ -2215,6 +2237,15 @@ def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = N
         and school_group
         and str(getattr(tenant_link, "tenant_status", "") or "").strip().lower() == "tenant_active"
     )
+    promo_confirmed = False
+    if tenant_provisioned and getattr(tenant_link, "promo_grant_id", None):
+        from saas import promo_grant_service
+
+        promo_resolution = promo_grant_service.resolve_promo_grant(db, school_group.id)
+        promo_confirmed = bool(
+            promo_resolution.active
+            and promo_resolution.grant_id == tenant_link.promo_grant_id
+        )
     commercial_link_resolved = bool(
         subscription
         and contract
@@ -2233,11 +2264,15 @@ def resolve_confirmed_setup_state(db: Session, account, summary: dict | None = N
         payment_confirmed=payment_confirmed,
         provisioning_started=provisioning_started,
         tenant_provisioned=tenant_provisioned,
-        active_tenant=bool(payment_confirmed and tenant_provisioned),
+        active_tenant=bool(tenant_provisioned and (payment_confirmed or promo_confirmed)),
         school_group_id=int(school_group.id) if school_group else None,
         workspace_name=str(getattr(school_group, "name", "") or "").strip() if school_group else "",
         subscription_id=int(subscription.id) if subscription else None,
-        subscription_manual_review=bool(tenant_provisioned and payment_confirmed and not commercial_link_resolved),
+        subscription_manual_review=bool(
+            tenant_provisioned
+            and (payment_confirmed or promo_confirmed)
+            and not (commercial_link_resolved or promo_confirmed)
+        ),
     )
 
 
@@ -2255,7 +2290,13 @@ def initial_checkout_is_closed(db: Session, organization) -> bool:
         and active_tenant_link.subscription_contract_id
         and not active_tenant_link.demo_request_id
     )
-    return bool(has_active_subscription or has_paid_active_tenant)
+    has_promo_active_tenant = bool(
+        active_tenant_link
+        and active_tenant_link.promo_grant_id
+        and not active_tenant_link.subscription_contract_id
+        and not active_tenant_link.demo_request_id
+    )
+    return bool(has_active_subscription or has_paid_active_tenant or has_promo_active_tenant)
 
 
 def ensure_initial_checkout_available(db: Session, organization) -> None:

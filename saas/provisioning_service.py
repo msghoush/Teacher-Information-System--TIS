@@ -421,10 +421,20 @@ def _ensure_tenant_provisioning_link(
     academic_year,
     contract=None,
     demo_request=None,
+    promo_grant=None,
 ):
-    if (contract is None) == (demo_request is None):
+    sources = tuple(
+        source for source in (contract, demo_request, promo_grant) if source is not None
+    )
+    if len(sources) != 1:
         raise ValueError("Tenant provisioning requires exactly one commercial source.")
-    link = get_tenant_provisioning_link(db, organization)
+    link = (
+        get_tenant_provisioning_link(db, organization)
+        if organization is not None
+        else db.query(models.TenantProvisioningLink).filter(
+            models.TenantProvisioningLink.school_group_id == school_group.id
+        ).one_or_none()
+    )
     if link:
         if contract is not None and int(getattr(link, "subscription_contract_id", 0) or 0) != int(
             getattr(contract, "id", 0) or 0
@@ -434,11 +444,16 @@ def _ensure_tenant_provisioning_link(
             getattr(demo_request, "id", 0) or 0
         ):
             raise ValueError("Tenant provisioning link belongs to another commercial source.")
+        if promo_grant is not None and int(getattr(link, "promo_grant_id", 0) or 0) != int(
+            getattr(promo_grant, "id", 0) or 0
+        ):
+            raise ValueError("Tenant provisioning link belongs to another commercial source.")
         return link
     link = models.TenantProvisioningLink(
-        pending_organization_id=organization.id,
+        pending_organization_id=getattr(organization, "id", None),
         subscription_contract_id=getattr(contract, "id", None),
         demo_request_id=getattr(demo_request, "id", None),
+        promo_grant_id=getattr(promo_grant, "id", None),
         school_group_id=school_group.id,
         owner_operational_user_id=owner_user.id,
         primary_branch_id=getattr(primary_branch, "id", None),
@@ -461,6 +476,7 @@ def ensure_tenant_provisioning_link(
     academic_year,
     contract=None,
     demo_request=None,
+    promo_grant=None,
 ):
     return _ensure_tenant_provisioning_link(
         db,
@@ -471,6 +487,7 @@ def ensure_tenant_provisioning_link(
         academic_year=academic_year,
         contract=contract,
         demo_request=demo_request,
+        promo_grant=promo_grant,
     )
 
 
