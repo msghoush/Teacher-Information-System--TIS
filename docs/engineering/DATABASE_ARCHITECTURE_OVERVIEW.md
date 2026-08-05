@@ -1,11 +1,30 @@
 ---
 title: TIS Database Architecture Overview
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## Promo Code Foundation Persistence
+
+`promo_codes` owns UUID identity, HMAC-SHA256 lookup hash and key ID, safe
+display fragments, controlled lifecycle, exact plan-bounded capacity, target
+anchors and deletion-safe snapshot, redemption-policy definition, one expiry
+policy, replacement predecessor, and actor/approval timestamps. Unique indexes
+protect UUID, lookup hash, and one replacement per predecessor. CHECK
+constraints enforce lifecycle, benefit, scope, positive capacities, version,
+redemption limits, date ordering, expiry XOR, and required primary targets.
+
+`promo_code_branch_restrictions` preserves the selected existing branch ID and
+name even if the live branch reference is later removed. It grants no access.
+`promo_code_audit_events` stores actor, allowlisted before/after JSON, result,
+reason, operation/correlation identity, and failure code without raw code,
+lookup hash, HMAC key ID, or secret. Organization and actor references use
+`ON DELETE SET NULL` while snapshots preserve history. Migration
+`20260805_001_promo_code_foundation` is additive, idempotent, transaction-safe,
+SQLite/PostgreSQL compatible, and has no data backfill.
 
 ## M8B9 Demo Operations Persistence
 

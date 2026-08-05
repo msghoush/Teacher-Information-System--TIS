@@ -1,11 +1,30 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## M2 Promo Code Foundation
+
+M2 adds secure, definition-only Starter, Professional, and Enterprise AI promo
+administration under `/saas-admin/promo-codes`. Exact positive branch,
+system-user, and teacher capacities must pass the existing SubscriptionPlan
+ceilings and shared plan-capacity validator. Scope supports global,
+organization, pending organization, account email, and email domain targets,
+with coherent reinforcing restrictions and optional existing-branch snapshots.
+
+Raw codes use at least 100 bits of secure randomness and are shown exactly once
+in a `Cache-Control: no-store` response. TIS stores only an HMAC-SHA256 lookup
+hash produced with the dedicated `TIS_PROMO_CODE_HMAC_SECRET`, a key ID, and
+safe display prefix/suffix. Missing promo security configuration fails only
+promo generation/future lookup, with no insecure fallback. Platform Developers
+need `promo_codes.view` or `promo_codes.manage`; only Platform Owners activate
+or terminally revoke. Row locks and allowlisted durable audit protect lifecycle
+transitions. M2 creates no redemption, PromoGrant, entitlement, tenant access,
+Paddle object, or M1 commercial-authority source.
 
 ## Subscription Capacity Presentation And Billing Entry
 

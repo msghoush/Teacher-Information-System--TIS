@@ -4942,6 +4942,165 @@ def _organization_billing_identity(engine, connection):
     )
 
 
+def _promo_code_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+    boolean_type = "BOOLEAN" if engine.dialect.name == "postgresql" else "BOOLEAN"
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS promo_codes (
+            id {id_sql},
+            promo_uuid VARCHAR(36) NOT NULL,
+            code_lookup_hash VARCHAR(64) NOT NULL,
+            code_hash_key_id VARCHAR(40) NOT NULL,
+            code_display_prefix VARCHAR(16) NOT NULL,
+            code_display_suffix VARCHAR(12) NOT NULL,
+            title VARCHAR(160) NOT NULL,
+            internal_purpose TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'draft',
+            definition_version INTEGER NOT NULL DEFAULT 1,
+            activated_at {datetime_type},
+            paused_at {datetime_type},
+            revoked_at {datetime_type},
+            revocation_reason TEXT,
+            benefit_type VARCHAR(32) NOT NULL DEFAULT 'full_access',
+            subscription_plan_id INTEGER NOT NULL,
+            max_branches INTEGER NOT NULL,
+            max_system_users INTEGER NOT NULL,
+            max_teachers INTEGER NOT NULL,
+            scope_type VARCHAR(32) NOT NULL DEFAULT 'global',
+            school_group_id INTEGER,
+            pending_organization_id INTEGER,
+            intended_account_email_normalized VARCHAR(180),
+            permitted_email_domain_normalized VARCHAR(180),
+            scope_target_snapshot VARCHAR(255),
+            transferable {boolean_type} NOT NULL DEFAULT FALSE,
+            one_redemption_per_organization {boolean_type} NOT NULL DEFAULT TRUE,
+            max_total_redemptions INTEGER NOT NULL DEFAULT 1,
+            valid_from {datetime_type} NOT NULL,
+            redemption_deadline {datetime_type} NOT NULL,
+            fixed_access_expires_at {datetime_type},
+            access_duration_days INTEGER,
+            grace_period_days INTEGER NOT NULL DEFAULT 0,
+            supersedes_promo_code_id INTEGER,
+            created_by_user_id INTEGER,
+            updated_by_user_id INTEGER,
+            approved_by_user_id INTEGER,
+            approved_at {datetime_type},
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_promo_codes_status CHECK (status IN ('draft','active','paused','revoked')),
+            CONSTRAINT ck_promo_codes_benefit_type CHECK (benefit_type = 'full_access'),
+            CONSTRAINT ck_promo_codes_scope_type CHECK (
+                scope_type IN ('global','organization','pending_organization','account_email','email_domain')
+            ),
+            CONSTRAINT ck_promo_codes_positive_capacity CHECK (
+                max_branches > 0 AND max_system_users > 0 AND max_teachers > 0
+            ),
+            CONSTRAINT ck_promo_codes_definition_version CHECK (definition_version > 0),
+            CONSTRAINT ck_promo_codes_redemption_policy CHECK (
+                max_total_redemptions > 0 AND grace_period_days >= 0
+            ),
+            CONSTRAINT ck_promo_codes_expiry_policy CHECK (
+                (fixed_access_expires_at IS NOT NULL AND access_duration_days IS NULL)
+                OR (fixed_access_expires_at IS NULL AND access_duration_days > 0)
+            ),
+            CONSTRAINT ck_promo_codes_validity_order CHECK (valid_from < redemption_deadline),
+            CONSTRAINT ck_promo_codes_fixed_expiry_order CHECK (
+                fixed_access_expires_at IS NULL OR fixed_access_expires_at > redemption_deadline
+            ),
+            CONSTRAINT ck_promo_codes_global_scope CHECK (
+                scope_type <> 'global' OR (
+                    school_group_id IS NULL AND pending_organization_id IS NULL
+                    AND intended_account_email_normalized IS NULL
+                    AND permitted_email_domain_normalized IS NULL
+                )
+            ),
+            CONSTRAINT ck_promo_codes_primary_scope_target CHECK (
+                (scope_type <> 'organization' OR school_group_id IS NOT NULL OR scope_target_snapshot IS NOT NULL)
+                AND (scope_type <> 'pending_organization' OR pending_organization_id IS NOT NULL OR scope_target_snapshot IS NOT NULL)
+                AND (scope_type <> 'account_email' OR intended_account_email_normalized IS NOT NULL)
+                AND (scope_type <> 'email_domain' OR permitted_email_domain_normalized IS NOT NULL)
+            ),
+            FOREIGN KEY (subscription_plan_id) REFERENCES subscription_plans(id),
+            FOREIGN KEY (school_group_id) REFERENCES school_groups(id) ON DELETE SET NULL,
+            FOREIGN KEY (pending_organization_id) REFERENCES pending_organizations(id) ON DELETE SET NULL,
+            FOREIGN KEY (supersedes_promo_code_id) REFERENCES promo_codes(id) ON DELETE SET NULL,
+            FOREIGN KEY (created_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (updated_by_user_id) REFERENCES users(id) ON DELETE SET NULL,
+            FOREIGN KEY (approved_by_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS promo_code_branch_restrictions (
+            id {id_sql},
+            promo_code_id INTEGER NOT NULL,
+            branch_id INTEGER,
+            branch_id_snapshot INTEGER NOT NULL,
+            branch_name_snapshot VARCHAR(160) NOT NULL,
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE CASCADE,
+            FOREIGN KEY (branch_id) REFERENCES branches(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS promo_code_audit_events (
+            id {id_sql},
+            promo_code_id INTEGER,
+            promo_uuid_snapshot VARCHAR(36) NOT NULL,
+            actor_user_id INTEGER,
+            action VARCHAR(30) NOT NULL,
+            result VARCHAR(20) NOT NULL,
+            reason TEXT,
+            previous_values_json TEXT NOT NULL DEFAULT '{{}}',
+            new_values_json TEXT NOT NULL DEFAULT '{{}}',
+            operation_key VARCHAR(120) NOT NULL,
+            request_correlation_id VARCHAR(120),
+            failure_code VARCHAR(80),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT ck_promo_code_audit_events_result CHECK (
+                result IN ('success','failed','blocked','deduplicated')
+            ),
+            CONSTRAINT ck_promo_code_audit_events_action CHECK (
+                action IN ('create','edit','activate','pause','revoke','duplicate','replace')
+            ),
+            FOREIGN KEY (promo_code_id) REFERENCES promo_codes(id) ON DELETE SET NULL,
+            FOREIGN KEY (actor_user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """,
+    )
+    indexes = (
+        ("promo_codes", "uq_promo_codes_uuid", "promo_uuid", True),
+        ("promo_codes", "uq_promo_codes_lookup_hash", "code_lookup_hash", True),
+        ("promo_codes", "uq_promo_codes_supersedes", "supersedes_promo_code_id", True),
+        ("promo_codes", "ix_promo_codes_status", "status", False),
+        ("promo_codes", "ix_promo_codes_plan", "subscription_plan_id", False),
+        ("promo_codes", "ix_promo_codes_scope", "scope_type", False),
+        ("promo_codes", "ix_promo_codes_school_group", "school_group_id", False),
+        ("promo_codes", "ix_promo_codes_pending_org", "pending_organization_id", False),
+        ("promo_codes", "ix_promo_codes_creator", "created_by_user_id", False),
+        ("promo_codes", "ix_promo_codes_created", "created_at", False),
+        ("promo_codes", "ix_promo_codes_validity", "valid_from, redemption_deadline", False),
+        ("promo_code_branch_restrictions", "uq_promo_code_branch_restrictions_promo_branch", "promo_code_id, branch_id_snapshot", True),
+        ("promo_code_branch_restrictions", "ix_promo_code_branch_restrictions_promo", "promo_code_id", False),
+        ("promo_code_branch_restrictions", "ix_promo_code_branch_restrictions_branch", "branch_id", False),
+        ("promo_code_audit_events", "uq_promo_code_audit_events_operation", "promo_uuid_snapshot, action, operation_key", True),
+        ("promo_code_audit_events", "ix_promo_code_audit_events_promo", "promo_code_id", False),
+        ("promo_code_audit_events", "ix_promo_code_audit_events_actor", "actor_user_id", False),
+        ("promo_code_audit_events", "ix_promo_code_audit_events_created", "created_at", False),
+    )
+    for table_name, index_name, columns, unique in indexes:
+        creator = _create_unique_index_if_missing if unique else _create_index_if_missing
+        creator(connection, connection, table_name, index_name, columns)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5132,6 +5291,11 @@ MIGRATIONS = (
         migration_id="20260801_001_organization_billing_identity",
         description="Add explicit organization billing profiles and Paddle address/business mappings",
         apply=_organization_billing_identity,
+    ),
+    Migration(
+        migration_id="20260805_001_promo_code_foundation",
+        description="Add secure promo definitions, scope restrictions, lifecycle, and audit records",
+        apply=_promo_code_foundation,
     ),
 )
 

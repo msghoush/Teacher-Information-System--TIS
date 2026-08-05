@@ -1,0 +1,49 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .promo-form-head { display:flex; justify-content:space-between; align-items:flex-end; gap:16px; margin-bottom:18px; }
+    .promo-form { display:grid; gap:16px; }
+    .promo-section { border:1px solid var(--line); border-radius:8px; background:#fff; padding:18px; }
+    .promo-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .promo-span { grid-column:1/-1; }
+    .promo-checks { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; max-height:240px; overflow:auto; padding:4px; }
+    .promo-check { display:flex; align-items:flex-start; gap:8px; border:1px solid var(--line); border-radius:7px; padding:9px; }
+    .promo-check input { width:auto; margin-top:3px; }
+    .promo-help { color:var(--muted); font-size:12px; }
+    @media(max-width:800px){.promo-form-head{align-items:flex-start;flex-direction:column}.promo-grid,.promo-checks{grid-template-columns:1fr}}
+</style>
+{% set editing = promo is not none %}
+<div class="promo-form-head"><div><span class="page-eyebrow">Platform Console</span><h1>{{ 'Edit Promo Definition' if editing else 'Generate Promo Code' }}</h1><p class="page-subtitle">Define exact capacity, scope, validity, and redemption policy. This does not grant tenant access.</p></div><a class="btn secondary" href="{{ '/saas-admin/promo-codes/' ~ promo.promo_uuid if editing else '/saas-admin/promo-codes' }}">Back</a></div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<form class="promo-form" method="post" action="{{ '/saas-admin/promo-codes/' ~ promo.promo_uuid ~ '/edit' if editing else '/saas-admin/promo-codes/create' }}">
+    <input type="hidden" name="operation_key" value="{{ request.headers.get('x-request-id') or promo.promo_uuid if editing else 'new-promo' }}">
+    <section class="promo-section"><h2>Definition</h2><div class="promo-grid">
+        <div class="promo-span"><label for="title">Internal title</label><input id="title" name="title" maxlength="160" required value="{{ form_values.get('title', promo.title if editing else '') }}"></div>
+        <div class="promo-span"><label for="internal_purpose">Internal purpose</label><textarea id="internal_purpose" name="internal_purpose" rows="3">{{ form_values.get('internal_purpose', promo.internal_purpose if editing else '') or '' }}</textarea></div>
+        <div><label for="subscription_plan_id">Promo tier</label><select id="subscription_plan_id" name="subscription_plan_id" required><option value="">Select</option>{% for plan in plans %}{% set selected_plan = form_values.get('subscription_plan_id', promo.subscription_plan_id if editing else '')|string %}<option value="{{ plan.id }}" {% if selected_plan == plan.id|string %}selected{% endif %}>{{ plan.plan_name }} Promo (up to {{ plan.max_branches }}/{{ plan.max_system_users }}/{{ plan.max_teachers }})</option>{% endfor %}</select></div>
+        <div><label for="max_branches">Exact branches</label><input id="max_branches" name="max_branches" type="number" min="1" required value="{{ form_values.get('max_branches', promo.max_branches if editing else 1) }}"></div>
+        <div><label for="max_system_users">Exact system users</label><input id="max_system_users" name="max_system_users" type="number" min="1" required value="{{ form_values.get('max_system_users', promo.max_system_users if editing else 1) }}"></div>
+        <div><label for="max_teachers">Exact teachers</label><input id="max_teachers" name="max_teachers" type="number" min="1" required value="{{ form_values.get('max_teachers', promo.max_teachers if editing else 1) }}"></div>
+    </div></section>
+    <section class="promo-section"><h2>Scope</h2><p class="promo-help">Choose one primary scope. Email or domain may reinforce a targeted organization.</p><div class="promo-grid">
+        {% set selected_scope = form_values.get('scope_type', promo.scope_type if editing else 'global') %}
+        <div><label for="scope_type">Primary scope</label><select id="scope_type" name="scope_type" required>{% for value in ['global','organization','pending_organization','account_email','email_domain'] %}<option value="{{ value }}" {% if selected_scope == value %}selected{% endif %}>{{ value|replace('_',' ')|title }}</option>{% endfor %}</select></div>
+        <div><label for="school_group_id">Operational organization</label><select id="school_group_id" name="school_group_id"><option value="">None</option>{% for row in school_groups %}{% set selected_group = form_values.get('school_group_id', promo.school_group_id if editing else '')|string %}<option value="{{ row.id }}" {% if selected_group == row.id|string %}selected{% endif %}>{{ row.name }}</option>{% endfor %}</select></div>
+        <div><label for="pending_organization_id">Pending organization</label><select id="pending_organization_id" name="pending_organization_id"><option value="">None</option>{% for row in pending_organizations %}{% set selected_pending = form_values.get('pending_organization_id', promo.pending_organization_id if editing else '')|string %}<option value="{{ row.id }}" {% if selected_pending == row.id|string %}selected{% endif %}>{{ row.organization_name or row.organization_uuid }}</option>{% endfor %}</select></div>
+        <div><label for="intended_account_email">Intended account email</label><input id="intended_account_email" name="intended_account_email" type="email" value="{{ form_values.get('intended_account_email', promo.intended_account_email_normalized if editing else '') or '' }}"></div>
+        <div><label for="permitted_email_domain">Permitted email domain</label><input id="permitted_email_domain" name="permitted_email_domain" placeholder="school.edu" value="{{ form_values.get('permitted_email_domain', promo.permitted_email_domain_normalized if editing else '') or '' }}"></div>
+        <div class="promo-span"><h3>Eligible existing branches (optional, definition only)</h3><div class="promo-checks">{% for branch in branches %}<label class="promo-check"><input type="checkbox" name="branch_ids" value="{{ branch.id }}" {% if branch.id in selected_branch_ids %}checked{% endif %}><span>{{ branch.name }}<br><small class="muted">Organization ID {{ branch.school_group_id }}</small></span></label>{% else %}<span class="muted">No operational branches are available.</span>{% endfor %}</div></div>
+    </div></section>
+    <section class="promo-section"><h2>Validity and redemption policy</h2><div class="promo-grid">
+        <div><label for="valid_from">Valid from (UTC)</label><input id="valid_from" name="valid_from" type="datetime-local" required value="{{ form_values.get('valid_from', promo.valid_from.strftime('%Y-%m-%dT%H:%M') if editing else '') }}"></div>
+        <div><label for="redemption_deadline">Redemption deadline (UTC)</label><input id="redemption_deadline" name="redemption_deadline" type="datetime-local" required value="{{ form_values.get('redemption_deadline', promo.redemption_deadline.strftime('%Y-%m-%dT%H:%M') if editing else '') }}"></div>
+        <div><label for="grace_period_days">Grace period days</label><input id="grace_period_days" name="grace_period_days" type="number" min="0" required value="{{ form_values.get('grace_period_days', promo.grace_period_days if editing else 0) }}"></div>
+        <div><label for="fixed_access_expires_at">Fixed access expiry (UTC)</label><input id="fixed_access_expires_at" name="fixed_access_expires_at" type="datetime-local" value="{{ form_values.get('fixed_access_expires_at', promo.fixed_access_expires_at.strftime('%Y-%m-%dT%H:%M') if editing and promo.fixed_access_expires_at else '') }}"></div>
+        <div><label for="access_duration_days">Or access duration days</label><input id="access_duration_days" name="access_duration_days" type="number" min="1" value="{{ form_values.get('access_duration_days', promo.access_duration_days if editing and promo.access_duration_days else '') }}"></div>
+        <div><label for="max_total_redemptions">Maximum total redemptions</label><input id="max_total_redemptions" name="max_total_redemptions" type="number" min="1" required value="{{ form_values.get('max_total_redemptions', promo.max_total_redemptions if editing else 1) }}"></div>
+        <label class="promo-check"><input type="checkbox" name="one_redemption_per_organization" value="1" {% if form_values.get('one_redemption_per_organization', promo.one_redemption_per_organization if editing else true) %}checked{% endif %}><span>One redemption per organization</span></label>
+        <label class="promo-check"><input type="checkbox" name="transferable" value="1" {% if form_values.get('transferable', promo.transferable if editing else false) %}checked{% endif %}><span>Transferable definition</span></label>
+    </div></section>
+    <button class="btn" type="submit">{{ 'Save Draft Definition' if editing else 'Generate Promo Code' }}</button>
+</form>
+{% endblock %}

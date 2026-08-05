@@ -1705,6 +1705,7 @@
                 <a class="btn secondary" href="/platform">Platform Console</a>
                 <a class="btn secondary" href="/saas-admin/demo-requests">Demo Requests</a>
                 <a class="btn secondary" href="/saas-admin/demo-eligibility-maintenance">Eligibility Maintenance</a>
+                {% if promo_permissions is defined and promo_permissions.can_view %}<a class="btn secondary" href="/saas-admin/promo-codes">Promo Codes</a>{% endif %}
                 <a class="btn" href="/saas-admin/pending-organizations">Pending Organizations</a>
             </nav>
             {% else %}

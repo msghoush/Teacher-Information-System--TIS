@@ -1,11 +1,31 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-08-01
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Platform Promo Definition
+
+1. A Platform Owner or permission-authorized Developer opens Promo Codes.
+2. Create validates one active Starter, Professional, or Enterprise AI tier,
+   exact positive capacity through the shared plan-capacity service, coherent
+   scope anchors, dates, expiry XOR, and redemption policy.
+3. TIS generates at least 100 bits of secure random code material, normalizes
+   with NFKC/uppercase/separator removal, and derives an HMAC-SHA256 lookup hash
+   with `TIS_PROMO_CODE_HMAC_SECRET`. Missing configuration fails closed.
+4. The draft and allowlisted audit commit. The raw code appears once in a
+   no-store/no-referrer response; subsequent pages show only its mask.
+5. A Developer may edit Draft, pause Active, duplicate, or create a linked
+   replacement definition when authorized. Active material edits first require
+   pause, clear approval, increment version, and return to Draft.
+6. Only a Platform Owner may approve/activate or terminally revoke with a
+   reason. Lifecycle transitions lock the row through validation, mutation,
+   audit insertion, and commit.
+7. No step redeems the definition, provisions a tenant, changes entitlement,
+   or calls Paddle. Those flows remain deferred.
 
 ## Organization Profile Save
 

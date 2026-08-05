@@ -110,6 +110,7 @@
             <a class="button secondary" href="/saas-admin/demo-requests">Review Demo Requests</a>
             <a class="button secondary" href="/saas-admin/provisioning">Provisioning Queue</a>
             <a class="button secondary" href="/saas-admin/demo-eligibility-maintenance">Eligibility Maintenance</a>
+            <a class="button secondary" href="/saas-admin/promo-codes">Promo Codes</a>
         </div>
     </article>
     <article class="owner-card">
@@ -142,6 +143,7 @@
 <div class="platform-toolbar">
     <input class="platform-search" id="organizationSearch" type="search" placeholder="Search organizations or branches" aria-label="Search organizations or branches">
     <span class="muted">{{ school_groups|length }} organizations</span>
+    {% if can_view_promo_codes and not can_manage_ownership %}<a class="button secondary" href="/saas-admin/promo-codes">Promo Codes</a>{% endif %}
 </div>
 
 <section class="organization-list" id="organizationList" aria-label="Organizations">

@@ -1041,6 +1041,192 @@ class SubscriptionPlan(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class PromoCode(Base):
+    __tablename__ = "promo_codes"
+    __table_args__ = (
+        Index("uq_promo_codes_uuid", "promo_uuid", unique=True),
+        Index("uq_promo_codes_lookup_hash", "code_lookup_hash", unique=True),
+        Index("uq_promo_codes_supersedes", "supersedes_promo_code_id", unique=True),
+        Index("ix_promo_codes_status", "status"),
+        Index("ix_promo_codes_plan", "subscription_plan_id"),
+        Index("ix_promo_codes_scope", "scope_type"),
+        Index("ix_promo_codes_school_group", "school_group_id"),
+        Index("ix_promo_codes_pending_org", "pending_organization_id"),
+        Index("ix_promo_codes_creator", "created_by_user_id"),
+        Index("ix_promo_codes_created", "created_at"),
+        Index("ix_promo_codes_validity", "valid_from", "redemption_deadline"),
+        CheckConstraint(
+            "status IN ('draft','active','paused','revoked')",
+            name="ck_promo_codes_status",
+        ),
+        CheckConstraint(
+            "benefit_type = 'full_access'",
+            name="ck_promo_codes_benefit_type",
+        ),
+        CheckConstraint(
+            "scope_type IN ('global','organization','pending_organization','account_email','email_domain')",
+            name="ck_promo_codes_scope_type",
+        ),
+        CheckConstraint(
+            "max_branches > 0 AND max_system_users > 0 AND max_teachers > 0",
+            name="ck_promo_codes_positive_capacity",
+        ),
+        CheckConstraint(
+            "definition_version > 0",
+            name="ck_promo_codes_definition_version",
+        ),
+        CheckConstraint(
+            "max_total_redemptions > 0 AND grace_period_days >= 0",
+            name="ck_promo_codes_redemption_policy",
+        ),
+        CheckConstraint(
+            "(fixed_access_expires_at IS NOT NULL AND access_duration_days IS NULL) OR "
+            "(fixed_access_expires_at IS NULL AND access_duration_days > 0)",
+            name="ck_promo_codes_expiry_policy",
+        ),
+        CheckConstraint(
+            "valid_from < redemption_deadline",
+            name="ck_promo_codes_validity_order",
+        ),
+        CheckConstraint(
+            "fixed_access_expires_at IS NULL OR fixed_access_expires_at > redemption_deadline",
+            name="ck_promo_codes_fixed_expiry_order",
+        ),
+        CheckConstraint(
+            "scope_type <> 'global' OR (school_group_id IS NULL AND pending_organization_id IS NULL "
+            "AND intended_account_email_normalized IS NULL AND permitted_email_domain_normalized IS NULL)",
+            name="ck_promo_codes_global_scope",
+        ),
+        CheckConstraint(
+            "(scope_type <> 'organization' OR school_group_id IS NOT NULL OR scope_target_snapshot IS NOT NULL) AND "
+            "(scope_type <> 'pending_organization' OR pending_organization_id IS NOT NULL OR scope_target_snapshot IS NOT NULL) AND "
+            "(scope_type <> 'account_email' OR intended_account_email_normalized IS NOT NULL) AND "
+            "(scope_type <> 'email_domain' OR permitted_email_domain_normalized IS NOT NULL)",
+            name="ck_promo_codes_primary_scope_target",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    promo_uuid = Column(
+        String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4())
+    )
+    code_lookup_hash = Column(String(64), nullable=False, unique=True)
+    code_hash_key_id = Column(String(40), nullable=False)
+    code_display_prefix = Column(String(16), nullable=False)
+    code_display_suffix = Column(String(12), nullable=False)
+    title = Column(String(160), nullable=False)
+    internal_purpose = Column(Text)
+    status = Column(String(20), nullable=False, default="draft")
+    definition_version = Column(Integer, nullable=False, default=1)
+    activated_at = Column(DateTime(timezone=True))
+    paused_at = Column(DateTime(timezone=True))
+    revoked_at = Column(DateTime(timezone=True))
+    revocation_reason = Column(Text)
+    benefit_type = Column(String(32), nullable=False, default="full_access")
+    subscription_plan_id = Column(
+        Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True
+    )
+    max_branches = Column(Integer, nullable=False)
+    max_system_users = Column(Integer, nullable=False)
+    max_teachers = Column(Integer, nullable=False)
+    scope_type = Column(String(32), nullable=False, default="global")
+    school_group_id = Column(
+        Integer, ForeignKey("school_groups.id", ondelete="SET NULL"), index=True
+    )
+    pending_organization_id = Column(
+        Integer, ForeignKey("pending_organizations.id", ondelete="SET NULL"), index=True
+    )
+    intended_account_email_normalized = Column(String(180), index=True)
+    permitted_email_domain_normalized = Column(String(180), index=True)
+    scope_target_snapshot = Column(String(255))
+    transferable = Column(Boolean, nullable=False, default=False)
+    one_redemption_per_organization = Column(Boolean, nullable=False, default=True)
+    max_total_redemptions = Column(Integer, nullable=False, default=1)
+    valid_from = Column(DateTime(timezone=True), nullable=False)
+    redemption_deadline = Column(DateTime(timezone=True), nullable=False)
+    fixed_access_expires_at = Column(DateTime(timezone=True))
+    access_duration_days = Column(Integer)
+    grace_period_days = Column(Integer, nullable=False, default=0)
+    supersedes_promo_code_id = Column(
+        Integer, ForeignKey("promo_codes.id", ondelete="SET NULL"), unique=True, index=True
+    )
+    created_by_user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
+    updated_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    approved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"))
+    approved_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow
+    )
+
+
+class PromoCodeBranchRestriction(Base):
+    __tablename__ = "promo_code_branch_restrictions"
+    __table_args__ = (
+        Index(
+            "uq_promo_code_branch_restrictions_promo_branch",
+            "promo_code_id",
+            "branch_id_snapshot",
+            unique=True,
+        ),
+        Index("ix_promo_code_branch_restrictions_promo", "promo_code_id"),
+        Index("ix_promo_code_branch_restrictions_branch", "branch_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    promo_code_id = Column(
+        Integer, ForeignKey("promo_codes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    branch_id = Column(
+        Integer, ForeignKey("branches.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    branch_id_snapshot = Column(Integer, nullable=False)
+    branch_name_snapshot = Column(String(160), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
+class PromoCodeAuditEvent(Base):
+    __tablename__ = "promo_code_audit_events"
+    __table_args__ = (
+        Index(
+            "uq_promo_code_audit_events_operation",
+            "promo_uuid_snapshot",
+            "action",
+            "operation_key",
+            unique=True,
+        ),
+        Index("ix_promo_code_audit_events_promo", "promo_code_id"),
+        Index("ix_promo_code_audit_events_actor", "actor_user_id"),
+        Index("ix_promo_code_audit_events_created", "created_at"),
+        CheckConstraint(
+            "result IN ('success','failed','blocked','deduplicated')",
+            name="ck_promo_code_audit_events_result",
+        ),
+        CheckConstraint(
+            "action IN ('create','edit','activate','pause','revoke','duplicate','replace')",
+            name="ck_promo_code_audit_events_action",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    promo_code_id = Column(
+        Integer, ForeignKey("promo_codes.id", ondelete="SET NULL"), index=True
+    )
+    promo_uuid_snapshot = Column(String(36), nullable=False)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    action = Column(String(30), nullable=False)
+    result = Column(String(20), nullable=False)
+    reason = Column(Text)
+    previous_values_json = Column(Text, nullable=False, default="{}")
+    new_values_json = Column(Text, nullable=False, default="{}")
+    operation_key = Column(String(120), nullable=False)
+    request_correlation_id = Column(String(120))
+    failure_code = Column(String(80))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+
 class EntitlementDefinition(Base):
     __tablename__ = "entitlement_definitions"
     __table_args__ = (

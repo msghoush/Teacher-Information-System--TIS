@@ -15,11 +15,12 @@ from urllib.parse import parse_qs, quote_plus, urlsplit
 import auth
 import audit
 import models as operational_models
+import permission_registry
 from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 
 
 logger = logging.getLogger(__name__)
@@ -277,6 +278,17 @@ def _require_workspace_analyzer(request: Request, db: Session):
     current_user = auth.get_current_user(request, db)
     if not current_user or not (auth.is_platform_owner(current_user) or auth.is_platform_developer(current_user)):
         raise HTTPException(status_code=403, detail="Platform Owner or Developer access is required.")
+    return current_user
+
+
+def _require_promo_permission(request: Request, db: Session, permission_key: str):
+    current_user = auth.get_current_user(request, db)
+    if (
+        not current_user
+        or not auth.is_platform_user(current_user)
+        or not auth.has_permission(db, current_user, permission_key)
+    ):
+        raise HTTPException(status_code=403, detail="Platform promo access is required.")
     return current_user
 
 
@@ -5724,3 +5736,386 @@ def oauth_callback(
         csrf_token=csrf_token,
         request=request,
     )
+
+
+def _promo_datetime(value: str | None) -> datetime | None:
+    cleaned = str(value or "").strip()
+    if not cleaned:
+        return None
+    try:
+        parsed = datetime.fromisoformat(cleaned.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise promo_code_service.PromoCodeError(
+            "invalid_datetime", "Enter valid UTC dates and times."
+        ) from exc
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _promo_form_values(form) -> dict:
+    branch_ids = []
+    for value in form.getlist("branch_ids"):
+        try:
+            branch_ids.append(int(value))
+        except (TypeError, ValueError):
+            raise promo_code_service.PromoCodeError(
+                "invalid_branch_restriction", "Select valid eligible branches."
+            )
+    return {
+        "title": form.get("title"),
+        "internal_purpose": form.get("internal_purpose"),
+        "subscription_plan_id": form.get("subscription_plan_id"),
+        "max_branches": form.get("max_branches"),
+        "max_system_users": form.get("max_system_users"),
+        "max_teachers": form.get("max_teachers"),
+        "scope_type": form.get("scope_type"),
+        "school_group_id": form.get("school_group_id"),
+        "pending_organization_id": form.get("pending_organization_id"),
+        "intended_account_email_normalized": form.get("intended_account_email"),
+        "permitted_email_domain_normalized": form.get("permitted_email_domain"),
+        "branch_ids": tuple(branch_ids),
+        "transferable": form.get("transferable") == "1",
+        "one_redemption_per_organization": form.get("one_redemption_per_organization") == "1",
+        "max_total_redemptions": form.get("max_total_redemptions"),
+        "valid_from": _promo_datetime(form.get("valid_from")),
+        "redemption_deadline": _promo_datetime(form.get("redemption_deadline")),
+        "fixed_access_expires_at": _promo_datetime(form.get("fixed_access_expires_at")),
+        "access_duration_days": form.get("access_duration_days"),
+        "grace_period_days": form.get("grace_period_days"),
+    }
+
+
+def _promo_permissions(db: Session, current_user) -> dict:
+    return {
+        "can_view": auth.has_permission(db, current_user, "promo_codes.view"),
+        "can_manage": auth.has_permission(db, current_user, "promo_codes.manage"),
+        "is_owner": auth.is_platform_owner(current_user),
+    }
+
+
+def _promo_form_context(db: Session, current_user, *, promo=None, values=None, error=""):
+    selected_branch_ids = set()
+    if promo:
+        selected_branch_ids = {
+            row.branch_id
+            for row in promo_code_service.list_branch_restrictions(db, promo.id)
+            if row.branch_id
+        }
+    return {
+        "current_user": current_user,
+        "promo": promo,
+        "form_values": values or {},
+        "error": error,
+        "plans": promo_code_service.list_available_plans(db),
+        "school_groups": db.query(operational_models.SchoolGroup).order_by(
+            operational_models.SchoolGroup.name
+        ).all(),
+        "pending_organizations": db.query(models.PendingOrganization).order_by(
+            models.PendingOrganization.organization_name,
+            models.PendingOrganization.id,
+        ).all(),
+        "branches": db.query(operational_models.Branch).order_by(
+            operational_models.Branch.school_group_id,
+            operational_models.Branch.name,
+        ).all(),
+        "selected_branch_ids": selected_branch_ids,
+        "promo_permissions": _promo_permissions(db, current_user),
+    }
+
+
+def _record_promo_failure(
+    db: Session, *, current_user, action: str, exc: promo_code_service.PromoCodeError,
+    promo_uuid: str | None = None, operation_key: str | None = None,
+    request: Request | None = None,
+) -> None:
+    try:
+        promo_code_service.record_failed_action(
+            db,
+            actor=current_user,
+            action=action,
+            reason=str(exc),
+            failure_code=exc.reason_code,
+            promo_uuid=promo_uuid,
+            operation_key=operation_key,
+            request_correlation_id=(request.headers.get("x-request-id") if request else None),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        logger.warning("promo_failure_audit_persist_failed action=%s", action, exc_info=True)
+
+
+@admin_router.get("/promo-codes", response_class=HTMLResponse)
+def promo_code_list(
+    request: Request,
+    lifecycle: str = Query(""),
+    tier: str = Query(""),
+    scope: str = Query(""),
+    organization_id: int | None = Query(None),
+    creator_id: int | None = Query(None),
+    created_from: str = Query(""),
+    valid_on: str = Query(""),
+    expired: str = Query(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_promo_permission(request, db, "promo_codes.view")
+    query = db.query(models.PromoCode)
+    if lifecycle in promo_code_service.PROMO_STATUSES:
+        query = query.filter(models.PromoCode.status == lifecycle)
+    if tier in promo_code_service.PROMO_PLAN_CODES:
+        query = query.join(models.SubscriptionPlan).filter(models.SubscriptionPlan.plan_code == tier)
+    if scope in promo_code_service.PROMO_SCOPE_TYPES:
+        query = query.filter(models.PromoCode.scope_type == scope)
+    if organization_id:
+        query = query.filter(models.PromoCode.school_group_id == organization_id)
+    if creator_id:
+        query = query.filter(models.PromoCode.created_by_user_id == creator_id)
+    if created_from:
+        parsed = _promo_datetime(created_from)
+        if parsed:
+            query = query.filter(models.PromoCode.created_at >= parsed)
+    if valid_on:
+        parsed = _promo_datetime(valid_on)
+        if parsed:
+            query = query.filter(
+                models.PromoCode.valid_from <= parsed,
+                models.PromoCode.redemption_deadline >= parsed,
+            )
+    promos = query.order_by(models.PromoCode.created_at.desc(), models.PromoCode.id.desc()).all()
+    if expired in {"yes", "no"}:
+        should_be_expired = expired == "yes"
+        promos = [
+            row for row in promos
+            if (promo_code_service.effective_status(row) == "expired") == should_be_expired
+        ]
+    plan_by_id = {row.id: row for row in promo_code_service.list_available_plans(db)}
+    creator_ids = {row.created_by_user_id for row in promos if row.created_by_user_id}
+    creators = (
+        db.query(operational_models.User).filter(operational_models.User.id.in_(creator_ids)).all()
+        if creator_ids else []
+    )
+    creator_by_id = {row.id: row for row in creators}
+    organizations = db.query(operational_models.SchoolGroup).order_by(
+        operational_models.SchoolGroup.name
+    ).all()
+    cards = [{
+        "promo": row,
+        "masked_code": promo_code_service.masked_code(row),
+        "effective_status": promo_code_service.effective_status(row),
+        "plan": plan_by_id.get(row.subscription_plan_id),
+        "creator": creator_by_id.get(row.created_by_user_id),
+    } for row in promos]
+    return _render(request, "saas/admin_promo_codes.html", {
+        "current_user": current_user,
+        "cards": cards,
+        "plans": plan_by_id.values(),
+        "organizations": organizations,
+        "creators": creators,
+        "filters": {
+            "lifecycle": lifecycle, "tier": tier, "scope": scope,
+            "organization_id": organization_id, "creator_id": creator_id,
+            "created_from": created_from, "valid_on": valid_on, "expired": expired,
+        },
+        "promo_permissions": _promo_permissions(db, current_user),
+        "notice": request.query_params.get("notice", ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@admin_router.get("/promo-codes/create", response_class=HTMLResponse)
+def promo_code_create_page(request: Request, db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    return _render(request, "saas/admin_promo_code_form.html", _promo_form_context(
+        db, current_user
+    ))
+
+
+@admin_router.post("/promo-codes/create", response_class=HTMLResponse)
+async def promo_code_create(request: Request, db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    form = await request.form()
+    try:
+        values = _promo_form_values(form)
+        created = promo_code_service.create_promo(
+            db,
+            actor=current_user,
+            values=values,
+            operation_key=str(form.get("operation_key") or uuid.uuid4()),
+            request_correlation_id=request.headers.get("x-request-id"),
+        )
+        db.commit()
+    except promo_code_service.PromoCodeError as exc:
+        db.rollback()
+        _record_promo_failure(
+            db, current_user=current_user, action="create", exc=exc,
+            operation_key=str(form.get("operation_key") or ""), request=request,
+        )
+        return _render(request, "saas/admin_promo_code_form.html", _promo_form_context(
+            db, current_user, values=dict(form), error=str(exc)
+        ), status_code=400)
+    response = _render(request, "saas/admin_promo_code_created.html", {
+        "current_user": current_user,
+        "promo": created.promo,
+        "raw_code": created.raw_code,
+        "masked_code": promo_code_service.masked_code(created.promo),
+        "promo_permissions": _promo_permissions(db, current_user),
+    })
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@admin_router.get("/promo-codes/{promo_uuid}", response_class=HTMLResponse)
+def promo_code_detail(promo_uuid: str, request: Request, db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.view")
+    promo = promo_code_service.get_promo(db, promo_uuid)
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo definition not found.")
+    plan = db.query(models.SubscriptionPlan).filter_by(id=promo.subscription_plan_id).one_or_none()
+    predecessor = (
+        db.query(models.PromoCode).filter_by(id=promo.supersedes_promo_code_id).one_or_none()
+        if promo.supersedes_promo_code_id else None
+    )
+    replacement = db.query(models.PromoCode).filter_by(supersedes_promo_code_id=promo.id).one_or_none()
+    return _render(request, "saas/admin_promo_code_detail.html", {
+        "current_user": current_user,
+        "promo": promo,
+        "plan": plan,
+        "masked_code": promo_code_service.masked_code(promo),
+        "effective_status": promo_code_service.effective_status(promo),
+        "branch_restrictions": promo_code_service.list_branch_restrictions(db, promo.id),
+        "audit_events": promo_code_service.list_audit_events(db, promo.id),
+        "predecessor": predecessor,
+        "replacement": replacement,
+        "promo_permissions": _promo_permissions(db, current_user),
+        "notice": request.query_params.get("notice", ""),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@admin_router.get("/promo-codes/{promo_uuid}/edit", response_class=HTMLResponse)
+def promo_code_edit_page(promo_uuid: str, request: Request, db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    promo = promo_code_service.get_promo(db, promo_uuid)
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo definition not found.")
+    return _render(request, "saas/admin_promo_code_form.html", _promo_form_context(
+        db, current_user, promo=promo
+    ))
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/edit", response_class=HTMLResponse)
+async def promo_code_edit(promo_uuid: str, request: Request, db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    form = await request.form()
+    try:
+        promo = promo_code_service.update_promo(
+            db,
+            promo_uuid=promo_uuid,
+            actor=current_user,
+            values=_promo_form_values(form),
+            operation_key=str(form.get("operation_key") or uuid.uuid4()),
+            request_correlation_id=request.headers.get("x-request-id"),
+        )
+        db.commit()
+    except promo_code_service.PromoCodeError as exc:
+        db.rollback()
+        _record_promo_failure(
+            db, current_user=current_user, action="edit", exc=exc,
+            promo_uuid=promo_uuid, operation_key=str(form.get("operation_key") or ""),
+            request=request,
+        )
+        promo = promo_code_service.get_promo(db, promo_uuid)
+        return _render(request, "saas/admin_promo_code_form.html", _promo_form_context(
+            db, current_user, promo=promo, values=dict(form), error=str(exc)
+        ), status_code=400)
+    return RedirectResponse(
+        f"/saas-admin/promo-codes/{promo.promo_uuid}?notice={quote_plus('Promo definition updated.')}",
+        status_code=302,
+    )
+
+
+def _promo_action_redirect(promo_uuid: str, *, notice: str = "", error: str = ""):
+    parameter = f"notice={quote_plus(notice)}" if notice else f"error={quote_plus(error)}"
+    return RedirectResponse(f"/saas-admin/promo-codes/{promo_uuid}?{parameter}", status_code=302)
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/activate")
+def promo_code_activate(promo_uuid: str, request: Request, operation_key: str = Form(""), db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    try:
+        promo_code_service.activate_promo(db, promo_uuid=promo_uuid, actor=current_user, operation_key=operation_key or None)
+        db.commit()
+    except promo_code_service.PromoCodeError as exc:
+        db.rollback()
+        _record_promo_failure(db, current_user=current_user, action="activate", exc=exc, promo_uuid=promo_uuid, operation_key=operation_key, request=request)
+        return _promo_action_redirect(promo_uuid, error=str(exc))
+    return _promo_action_redirect(promo_uuid, notice="Promo activated.")
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/pause")
+def promo_code_pause(promo_uuid: str, request: Request, operation_key: str = Form(""), db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    try:
+        promo_code_service.pause_promo(db, promo_uuid=promo_uuid, actor=current_user, operation_key=operation_key or None)
+        db.commit()
+    except promo_code_service.PromoCodeError as exc:
+        db.rollback()
+        _record_promo_failure(db, current_user=current_user, action="pause", exc=exc, promo_uuid=promo_uuid, operation_key=operation_key, request=request)
+        return _promo_action_redirect(promo_uuid, error=str(exc))
+    return _promo_action_redirect(promo_uuid, notice="Promo paused.")
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/revoke")
+def promo_code_revoke(promo_uuid: str, request: Request, reason: str = Form(""), operation_key: str = Form(""), db: Session = Depends(get_db)):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    try:
+        promo_code_service.revoke_promo(db, promo_uuid=promo_uuid, actor=current_user, reason=reason, operation_key=operation_key or None)
+        db.commit()
+    except promo_code_service.PromoCodeError as exc:
+        db.rollback()
+        _record_promo_failure(db, current_user=current_user, action="revoke", exc=exc, promo_uuid=promo_uuid, operation_key=operation_key, request=request)
+        return _promo_action_redirect(promo_uuid, error=str(exc))
+    return _promo_action_redirect(promo_uuid, notice="Promo revoked.")
+
+
+async def _promo_new_code_action(request: Request, db: Session, *, promo_uuid: str, action: str):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    form = await request.form()
+    try:
+        if action == "duplicate":
+            created = promo_code_service.duplicate_promo(db, promo_uuid=promo_uuid, actor=current_user, operation_key=str(form.get("operation_key") or uuid.uuid4()))
+        else:
+            created = promo_code_service.replace_promo(db, promo_uuid=promo_uuid, actor=current_user, operation_key=str(form.get("operation_key") or uuid.uuid4()))
+        db.commit()
+    except promo_code_service.PromoCodeError as exc:
+        db.rollback()
+        _record_promo_failure(
+            db, current_user=current_user, action=action, exc=exc,
+            promo_uuid=promo_uuid, operation_key=str(form.get("operation_key") or ""),
+            request=request,
+        )
+        return _promo_action_redirect(promo_uuid, error=str(exc))
+    response = _render(request, "saas/admin_promo_code_created.html", {
+        "current_user": current_user,
+        "promo": created.promo,
+        "raw_code": created.raw_code,
+        "masked_code": promo_code_service.masked_code(created.promo),
+        "promo_permissions": _promo_permissions(db, current_user),
+    })
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    return response
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/duplicate", response_class=HTMLResponse)
+async def promo_code_duplicate(promo_uuid: str, request: Request, db: Session = Depends(get_db)):
+    return await _promo_new_code_action(request, db, promo_uuid=promo_uuid, action="duplicate")
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/replace", response_class=HTMLResponse)
+async def promo_code_replace(promo_uuid: str, request: Request, db: Session = Depends(get_db)):
+    return await _promo_new_code_action(request, db, promo_uuid=promo_uuid, action="replace")

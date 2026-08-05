@@ -1,11 +1,26 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-08-04
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS Repository Architecture
+
+## Promo Definition Layer
+
+Promo administration is an isolated SaaS/Platform layer. The router requires a
+Platform identity plus granular promo permission; the service owns validation,
+secure generation, lifecycle locking, and safe audit; models and migration own
+only definition/history persistence. Templates receive raw code only in the
+immediate create/duplicate/replace response and all later views use a masked
+representation.
+
+The future commercial adapter contract is documented as a grant identity,
+tenant and organization identity, `source=promo`, status, plan, effective
+window, three capacity limits, selected branch IDs, immutable snapshot,
+resolution status, and reason code. M2 deliberately provides no adapter
+implementation and does not alter current source resolution.
 
 ## Three-Dimension Subscription Capacity Authority
 

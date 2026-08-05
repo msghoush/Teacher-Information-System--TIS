@@ -1,11 +1,20 @@
 ---
 title: TIS Product Roadmap
 documentation_version: 3.1
-last_updated: 2026-07-27
+last_updated: 2026-08-05
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## M2 Promo Code Foundation And Platform Management
+
+Completed secure promo definition persistence, exact plan-bounded capacity,
+scope and validity policy, lifecycle governance, branch-restriction snapshots,
+durable redacted audit, granular Platform permissions, and Platform Console
+administration. Customer redemption, PromoRedemption/PromoGrant, commercial
+authority adaptation, activation, communication, and billing treatment remain
+future M3 work.
 
 ## M8B9 Demo Operations, Notifications, And Testing
 

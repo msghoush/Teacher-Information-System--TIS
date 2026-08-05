@@ -212,6 +212,8 @@ PERMISSION_GROUPS = (
             ("demo_requests.view", "View demo requests"),
             ("demo_requests.export", "Export demo requests"),
             ("demo_requests.update_status", "Update demo request status"),
+            ("promo_codes.view", "View promo code definitions"),
+            ("promo_codes.manage", "Manage promo code definitions"),
         ),
     },
     {
@@ -253,6 +255,8 @@ DEVELOPER_ONLY_PERMISSION_KEYS = {
     "demo_requests.view",
     "demo_requests.export",
     "demo_requests.update_status",
+    "promo_codes.view",
+    "promo_codes.manage",
     "system_owner.full_access",
     "system_owner.switch_all_schools",
     "system_owner.manage_subscriptions",
