@@ -7,14 +7,24 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## M3 Promo Redemption And Organization Activation
+
+Completed secure customer lookup, resume-safe activation sessions, capacity
+review, exact branch selection, immutable redemption/grant authority, promo
+workspace entitlement, promo tenant-source ownership, existing-aligned and
+onboarding activation, M1 adapter/enforcement, expiry resolution, and redacted
+audit. Staff/teacher overage blocks without mutation; internal sandbox
+conversion, Paddle billing, promo renewal/conversion, and customer transfer
+remain outside M3.
+
 ## M2 Promo Code Foundation And Platform Management
 
 Completed secure promo definition persistence, exact plan-bounded capacity,
 scope and validity policy, lifecycle governance, branch-restriction snapshots,
 durable redacted audit, granular Platform permissions, and Platform Console
-administration. Customer redemption, PromoRedemption/PromoGrant, commercial
-authority adaptation, activation, communication, and billing treatment remain
-future M3 work.
+administration. M3 now consumes approved definitions through its separate
+customer redemption and grant lifecycle. Communication, billing treatment,
+promo renewal, and broader conversion remain future work.
 
 ## M8B9 Demo Operations, Notifications, And Testing
 

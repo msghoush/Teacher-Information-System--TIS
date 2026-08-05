@@ -22,6 +22,7 @@ from workspace_classification import WorkspaceClassification
 PAID_SUBSCRIPTION = "paid_subscription"
 DEMO = "demo"
 INTERNAL_SANDBOX = "internal_sandbox"
+PROMO_GRANT = "promo_grant"
 NO_COMMERCIAL_ACCESS = "no_commercial_access"
 
 ACTIVE = "active"
@@ -440,12 +441,30 @@ def resolve_commercial_authority(
         else:
             resolved = False
             reason_code = reason_code or "missing_paid_capacity"
+    elif classification == WorkspaceClassification.CUSTOMER.value:
+        from saas import promo_grant_service
+
+        promo = promo_grant_service.resolve_promo_grant(db, group.id)
+        resolved = bool(resolved and promo.resolved and promo.active)
+        reason_code = promo.reason_code if not promo.active else reason_code
+        source = PROMO_GRANT
+        plan_id = promo.plan_id
+        plan_code = promo.plan_code
+        plan_name = promo.plan_name
+        effective_from = promo.effective_from
+        effective_to = promo.effective_to
+        limits = CapacityLimits(
+            branches=promo.allowed_branches,
+            staff_users=promo.allowed_staff_users,
+            teachers=promo.allowed_teachers,
+        )
+        usage = count_capacity_usage(db, group.id, active_branch_ids=set(promo.active_branch_ids))
     else:
         resolved = False
         reason_code = "unsupported_workspace_classification"
 
     minimum_plan, minimum_error = _minimum_plan(db, usage)
-    if minimum_error and source == PAID_SUBSCRIPTION:
+    if minimum_error and source in {PAID_SUBSCRIPTION, PROMO_GRANT}:
         resolved = False
         reason_code = minimum_error
     minimum_code = _clean(getattr(minimum_plan, "plan_code", ""))
@@ -459,6 +478,8 @@ def resolve_commercial_authority(
     recovery_action = _clean(getattr(access, "recommended_action", ""))
     if source == PAID_SUBSCRIPTION and violations:
         recovery_action = "upgrade_subscription"
+    elif source == PROMO_GRANT and violations:
+        recovery_action = "contact_support"
     elif source == NO_COMMERCIAL_ACCESS:
         recovery_action = "contact_support"
     elif not access_allowed and not recovery_action:

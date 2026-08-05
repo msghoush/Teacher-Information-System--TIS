@@ -1,0 +1,95 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .promo-shell { max-width: 920px; margin: 0 auto; }
+    .promo-head { margin-bottom: 20px; }
+    .promo-panel { border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 22px; }
+    .promo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+    .promo-metric { border: 1px solid #dce5ee; border-radius: 8px; background: #f8fafc; padding: 14px; }
+    .promo-metric span, .promo-metric strong { display: block; }
+    .promo-metric span { color: var(--muted); font-size: 12px; font-weight: 800; }
+    .promo-metric strong { margin-top: 4px; color: #172c46; font-size: 18px; }
+    .promo-code-field { max-width: 520px; }
+    .promo-code-field input { font-family: ui-monospace, Consolas, monospace; letter-spacing: 0; text-transform: uppercase; }
+    .promo-branch-list { display: grid; gap: 9px; margin: 16px 0; }
+    .promo-branch-choice { display: flex; align-items: center; gap: 10px; border: 1px solid #dce5ee; border-radius: 8px; padding: 12px; }
+    .promo-branch-choice input { width: auto; margin: 0; }
+    .promo-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .promo-warning-list { margin: 8px 0 0; }
+    @media (max-width: 680px) { .promo-grid { grid-template-columns: 1fr; } .promo-panel { padding: 17px; } .promo-actions .btn { width: 100%; } }
+</style>
+
+<main class="promo-shell">
+    {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+
+    <header class="promo-head">
+        <span class="page-eyebrow">Organization Account</span>
+        <h1>{% if review %}Review Promo Access{% else %}Use a Promo Code{% endif %}</h1>
+        <p class="page-subtitle">{% if review %}Confirm the organization capacity and branches covered by this offer.{% else %}Apply an approved TIS promo offer to this school workspace.{% endif %}</p>
+    </header>
+
+    {% if not review %}
+    <section class="promo-panel">
+        <h2>{{ organization.organization_name if organization else school_group.name }}</h2>
+        <p class="muted">Enter the code exactly as it was provided. Codes are checked securely and are never stored in their original form.</p>
+        <form method="post" action="/saas/promo/start">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="organization_uuid" value="{{ organization_uuid }}">
+            <div class="promo-code-field">
+                <label for="promo_code">Promo code</label>
+                <input id="promo_code" name="promo_code" autocomplete="off" autocapitalize="characters" spellcheck="false" required maxlength="80">
+            </div>
+            <div class="promo-actions"><button class="btn" type="submit">Review Promo</button><a class="btn secondary" href="/saas/account">Back to Organization Account</a></div>
+        </form>
+    </section>
+    {% else %}
+    <section class="promo-panel">
+        <span class="metric-badge">{{ review.plan.plan_name }} Promo</span>
+        <h2>{{ review.organization.organization_name if review.organization else review.school_group.name }}</h2>
+        <p class="muted">Access remains active until {{ review.promo.fixed_access_expires_at.strftime('%B %d, %Y') if review.promo.fixed_access_expires_at else review.promo.access_duration_days ~ ' days after activation' }}.</p>
+
+        <div class="promo-grid" aria-label="Promo capacity review">
+            <div class="promo-metric"><span>Branches</span><strong>{{ review.current_branches }} / {{ review.allowed_branches }}</strong></div>
+            <div class="promo-metric"><span>System users</span><strong>{{ review.current_staff_users }} / {{ review.allowed_staff_users }}</strong></div>
+            <div class="promo-metric"><span>Teachers</span><strong>{{ review.current_teachers }} / {{ review.allowed_teachers }}</strong></div>
+        </div>
+
+        {% if review.exceeded_dimensions %}
+        <div class="warning" role="alert">
+            <strong>Organization capacity must be reduced before activation.</strong>
+            <ul class="promo-warning-list">
+                {% for dimension in review.exceeded_dimensions %}<li>{{ dimension|replace('_', ' ')|title }} exceeds the allowed capacity.</li>{% endfor %}
+            </ul>
+            <p>No staff, teacher, role, or branch record has been changed.</p>
+        </div>
+        {% endif %}
+
+        {% if review.selection_required %}
+        <form method="post" action="/saas/promo/{{ review.session.activation_uuid }}/branches">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <h3>Select {{ review.allowed_branches }} covered branches</h3>
+            <p class="muted">Unselected branch data remains preserved. Branch operational status is not changed.</p>
+            <div class="promo-branch-list">
+                {% for branch in review.branches %}
+                <label class="promo-branch-choice"><input type="checkbox" name="branch_ids" value="{{ branch.id }}" {% if branch.id in review.selected_branch_ids %}checked{% endif %}><span>{{ branch.branch_name if review.branch_identity_kind == 'pending' else branch.name }}</span></label>
+                {% endfor %}
+            </div>
+            <div class="promo-actions"><button class="btn secondary" type="submit">Save Branch Selection</button></div>
+        </form>
+        {% endif %}
+
+        <div class="promo-actions">
+            {% if review.ready_to_activate %}
+            <form method="post" action="/saas/promo/{{ review.session.activation_uuid }}/activate">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <input type="hidden" name="idempotency_key" value="promo-activate:{{ review.session.activation_uuid }}">
+                <button class="btn" type="submit">Activate Promo Access</button>
+            </form>
+            {% endif %}
+            <a class="btn secondary" href="{% if review.organization %}/saas/onboarding/{{ review.organization.organization_uuid }}/commercial-choice{% else %}/saas/account{% endif %}">{% if review.exceeded_dimensions %}Return and Reduce Usage{% else %}Back{% endif %}</a>
+        </div>
+    </section>
+    {% endif %}
+</main>
+{% endblock %}

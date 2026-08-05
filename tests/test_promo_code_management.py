@@ -558,7 +558,9 @@ class PromoCodeManagementTests(unittest.TestCase):
     def test_sqlite_migration_creates_only_promo_tables_and_preserves_existing_rows(self):
         engine = create_engine("sqlite:///:memory:")
         promo_names = {
-            "promo_codes", "promo_code_branch_restrictions", "promo_code_audit_events"
+            "promo_codes",
+            "promo_code_branch_restrictions",
+            "promo_code_audit_events",
         }
         base_tables = [
             table for table in models.Base.metadata.tables.values()
@@ -586,7 +588,8 @@ class PromoCodeManagementTests(unittest.TestCase):
 
     def test_m1_authority_and_paddle_onboarding_boundaries_remain_unchanged(self):
         source = open("saas/commercial_authority_service.py", encoding="utf-8").read()
-        self.assertNotIn('source="promo"', source)
+        self.assertIn('PROMO_GRANT = "promo_grant"', source)
+        self.assertIn("resolve_promo_grant", source)
         self.assertIn("grant_uuid", promo_code_service.PROMO_GRANT_ADAPTER_FIELDS)
         self.assertNotIn("paddle", open("saas/promo_code_service.py", encoding="utf-8").read().casefold())
 
@@ -599,14 +602,16 @@ class PromoCodePostgreSQLTests(unittest.TestCase):
         with cls.engine.begin() as connection:
             connection.execute(text("DROP SCHEMA public CASCADE"))
             connection.execute(text("CREATE SCHEMA public"))
-        promo_names = {
-            "promo_codes", "promo_code_branch_restrictions", "promo_code_audit_events"
-        }
-        base_tables = [
-            table for table in models.Base.metadata.tables.values()
-            if table.name not in promo_names
-        ]
-        models.Base.metadata.create_all(cls.engine, tables=base_tables)
+        models.Base.metadata.create_all(cls.engine)
+        db_migrations.run_pending_migrations(cls.engine)
+        with cls.engine.begin() as connection:
+            connection.execute(text("DROP TABLE promo_code_audit_events CASCADE"))
+            connection.execute(text("DROP TABLE promo_code_branch_restrictions CASCADE"))
+            connection.execute(text("DROP TABLE promo_codes CASCADE"))
+            connection.execute(text(
+                "DELETE FROM schema_migrations WHERE migration_id = "
+                "'20260805_001_promo_code_foundation'"
+            ))
         db_migrations.run_pending_migrations(cls.engine)
         cls.Session = sessionmaker(bind=cls.engine, autocommit=False, autoflush=False)
         os.environ["TIS_PROMO_CODE_HMAC_SECRET"] = TEST_PROMO_SECRET

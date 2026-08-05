@@ -27,6 +27,7 @@ _ACTIVE_STATE_BY_CLASSIFICATION = {
     WorkspaceClassification.INTERNAL_SANDBOX.value: CommercialState.INTERNAL_SANDBOX_ACTIVE,
     WorkspaceClassification.CUSTOMER_DEMO.value: CommercialState.CUSTOMER_DEMO_ACTIVE,
     WorkspaceClassification.CUSTOMER_PAID.value: CommercialState.CUSTOMER_PAID_ACTIVE,
+    WorkspaceClassification.CUSTOMER.value: CommercialState.CUSTOMER_ACTIVE,
 }
 
 
@@ -35,6 +36,7 @@ _STATE_LABELS = {
     CommercialState.INTERNAL_SANDBOX_ACTIVE: "Internal Sandbox Active",
     CommercialState.CUSTOMER_DEMO_ACTIVE: "Customer Demo Active",
     CommercialState.CUSTOMER_PAID_ACTIVE: "Customer Paid Active",
+    CommercialState.CUSTOMER_ACTIVE: "Customer Promo Active",
     CommercialState.INACTIVE: "Inactive",
     CommercialState.SUSPENDED: "Suspended",
     CommercialState.ARCHIVED: "Archived",

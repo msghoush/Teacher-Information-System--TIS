@@ -122,6 +122,21 @@ ready, canceled, past-due, unrelated, and mismatched transactions, while retry
 clicks reuse the existing started checkout rather than creating another
 transaction.
 
+## 2026-08-05 - Promo Commercial Grants
+
+Approved promo definitions can now become non-Paddle commercial authority only
+through verified owner activation. The transaction creates immutable
+redemption/grant snapshots, promo workspace entitlement, explicit active or
+inactive branch entitlement, and a promo-sourced tenant link. It supports both
+completed onboarding and separately aligned existing tenants without creating
+fake payment, subscription, contract, demo, or pending-organization records.
+
+Promo capacity is not a Paddle quantity. Branch selection determines covered
+operational branches; organization-wide staff and teacher overage blocks
+activation without mutating people records. Pending sessions grant no access,
+expiry fails closed, and paid subscription history and provider behavior are
+unchanged.
+
 ## 2026-07-28 - Expired-Demo Checkout Identity Repair
 
 Paddle sandbox recovery now recognizes the existing active tenant owner as

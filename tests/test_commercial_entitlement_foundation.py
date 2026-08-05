@@ -231,19 +231,22 @@ class CommercialEntitlementFoundationTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_paid_workspace_without_confirmed_subscription_fails_closed(self):
+    def test_paid_workspace_without_confirmed_subscription_is_rejected_by_constraint(self):
         db = self.Session()
         try:
-            group, _ = self._workspace(
-                db, classification="customer_paid", entitlement_type="paid"
-            )
-            db.commit()
-            resolution = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)
-            self.assertFalse(resolution.resolved)
-            self.assertEqual(resolution.reason_code, "missing_paid_subscription_link")
+            with self.assertRaises(IntegrityError):
+                self._workspace(
+                    db,
+                    classification="customer_paid",
+                    entitlement_type="paid",
+                )
+                db.commit()
+            db.rollback()
             self.assertEqual(
-                commercial_state_service.resolve_commercial_state(db, group.id).commercial_state,
-                "manual_review",
+                db.query(saas.models.WorkspaceEntitlement).filter_by(
+                    entitlement_type="paid"
+                ).count(),
+                0,
             )
         finally:
             db.close()

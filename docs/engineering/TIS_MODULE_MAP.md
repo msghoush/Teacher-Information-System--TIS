@@ -7,13 +7,35 @@ source_of_truth: true
 
 # TIS Module Map
 
+## M3 Promo Redemption Components
+
+- `saas/promo_redemption_service.py`: secure lookup, owner/context validation,
+  resumable review and selection, locking, immutable snapshots, activation,
+  idempotency, and redacted durable events.
+- `saas/promo_grant_service.py`: read-time grant/expiry resolution and safe
+  assignment of a newly created branch from remaining promo capacity.
+- `saas/models.py` and `db_migrations.py`: six M3 tables plus promo entitlement
+  and tenant-source references under migration
+  `20260805_002_promo_redemption_and_grants`.
+- `saas/commercial_authority_service.py`, commercial access/state/workspace and
+  branch entitlement resolvers, and `auth.py`: M1 promo source composition and
+  fail-closed branch enforcement.
+- `saas/router.py`, `templates/saas/promo_activation.html`,
+  `templates/saas/commercial_choice.html`, and `templates/saas/account.html`:
+  owner-only onboarding and existing-organization activation journey.
+
+M3 never calls Paddle, creates payment evidence, converts internal sandboxes,
+or mutates staff/teacher activity. Exactly one paid/demo/promo tenant source is
+required.
+
 ## M2 Promo Code Components
 
 - `saas/promo_code_service.py`: secure generation and HMAC lookup authority,
   shared plan-capacity validation, controlled scope validation, lifecycle row
   locking, definition duplication/replacement, and redacted durable audit.
 - `saas/models.py`: `PromoCode`, `PromoCodeBranchRestriction`, and
-  `PromoCodeAuditEvent`; no redemption or grant model exists in M2.
+  `PromoCodeAuditEvent` remain the M2 definition records; M3 redemption/grant
+  records are separate.
 - `saas/router.py` and `templates/saas/admin_promo_code*.html`: Platform
   Console list/filter, generated-code one-time response, detail, edit, and
   lifecycle actions under `/saas-admin/promo-codes`.
@@ -23,9 +45,9 @@ source_of_truth: true
 - `db_migrations.py`: additive migration
   `20260805_001_promo_code_foundation` with no data backfill.
 
-M2 does not integrate PromoCode with M1 commercial authority,
-WorkspaceEntitlement, TenantProvisioningLink, Paddle, onboarding,
-provisioning, or operational capacity enforcement.
+M2 definition management does not itself integrate with M1 authority,
+WorkspaceEntitlement, TenantProvisioningLink, or Paddle. M3 performs that
+integration only after final customer activation.
 
 ## M1 Commercial Access And Capacity Components
 

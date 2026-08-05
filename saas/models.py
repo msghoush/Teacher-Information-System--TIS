@@ -1,10 +1,14 @@
-from datetime import datetime
+from datetime import UTC, datetime
 import uuid
 
 from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, text
 
 from database import Base
 from workspace_classification import AccountPurpose, WorkspaceIntent
+
+
+def _aware_utcnow():
+    return datetime.now(UTC)
 
 
 class SaaSAccount(Base):
@@ -199,7 +203,7 @@ class PendingOrganization(Base):
         Index("ix_pending_organizations_workspace_intent", "workspace_intent"),
         Index("ix_pending_organizations_commercial_intent", "commercial_intent"),
         CheckConstraint(
-            "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid')",
+            "workspace_intent IN ('internal_sandbox','customer_demo','customer_paid','customer')",
             name="ck_pending_organizations_workspace_intent",
         ),
     )
@@ -1227,6 +1231,276 @@ class PromoCodeAuditEvent(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
 
 
+class PromoActivationSession(Base):
+    __tablename__ = "promo_activation_sessions"
+    __table_args__ = (
+        Index("uq_promo_activation_sessions_uuid", "activation_uuid", unique=True),
+        Index("uq_promo_activation_sessions_idempotency", "idempotency_key", unique=True),
+        Index("ix_promo_activation_sessions_promo", "promo_code_id"),
+        Index("ix_promo_activation_sessions_pending_org", "pending_organization_id"),
+        Index("ix_promo_activation_sessions_group", "school_group_id"),
+        Index("ix_promo_activation_sessions_account", "saas_account_id"),
+        Index("ix_promo_activation_sessions_status", "status"),
+        Index("ix_promo_activation_sessions_stage", "stage"),
+        Index(
+            "uq_promo_activation_sessions_open_pending_org",
+            "pending_organization_id",
+            unique=True,
+            sqlite_where=text("status = 'open' AND pending_organization_id IS NOT NULL"),
+            postgresql_where=text("status = 'open' AND pending_organization_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_promo_activation_sessions_open_group",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text("status = 'open' AND school_group_id IS NOT NULL"),
+            postgresql_where=text("status = 'open' AND school_group_id IS NOT NULL"),
+        ),
+        CheckConstraint(
+            "context_type IN ('onboarding','existing_organization')",
+            name="ck_promo_activation_sessions_context",
+        ),
+        CheckConstraint(
+            "status IN ('open','activated','cancelled','failed')",
+            name="ck_promo_activation_sessions_status",
+        ),
+        CheckConstraint(
+            "stage IN ('promo_validated','branch_selection_required','staff_reconciliation_required',"
+            "'teacher_reconciliation_required','review_required','activation_processing','activated','failed','cancelled')",
+            name="ck_promo_activation_sessions_stage",
+        ),
+        CheckConstraint(
+            "pending_organization_id IS NOT NULL OR school_group_id IS NOT NULL",
+            name="ck_promo_activation_sessions_anchor",
+        ),
+        CheckConstraint(
+            "observed_branch_count >= 0 AND observed_staff_users >= 0 AND observed_teachers >= 0",
+            name="ck_promo_activation_sessions_nonnegative_usage",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    activation_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), nullable=False, index=True)
+    promo_definition_version = Column(Integer, nullable=False)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
+    saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    operational_user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    context_type = Column(String(32), nullable=False)
+    status = Column(String(20), nullable=False, default="open")
+    stage = Column(String(48), nullable=False, default="promo_validated")
+    idempotency_key = Column(String(120), nullable=False, unique=True)
+    request_correlation_id = Column(String(120))
+    masked_promo_reference = Column(String(48), nullable=False)
+    observed_branch_count = Column(Integer, nullable=False, default=0)
+    observed_staff_users = Column(Integer, nullable=False, default=0)
+    observed_teachers = Column(Integer, nullable=False, default=0)
+    last_failure_code = Column(String(80))
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    activated_at = Column(DateTime(timezone=True))
+    cancelled_at = Column(DateTime(timezone=True))
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow, onupdate=_aware_utcnow)
+
+
+class PromoActivationBranchSelection(Base):
+    __tablename__ = "promo_activation_branch_selections"
+    __table_args__ = (
+        Index(
+            "uq_promo_activation_branch_selection_pending",
+            "activation_session_id",
+            "pending_branch_id",
+            unique=True,
+        ),
+        Index(
+            "uq_promo_activation_branch_selection_operational",
+            "activation_session_id",
+            "branch_id",
+            unique=True,
+        ),
+        Index("ix_promo_activation_branch_selection_session", "activation_session_id"),
+        CheckConstraint(
+            "(pending_branch_id IS NOT NULL AND branch_id IS NULL) OR "
+            "(pending_branch_id IS NULL AND branch_id IS NOT NULL)",
+            name="ck_promo_activation_branch_selection_target",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    activation_session_id = Column(
+        Integer, ForeignKey("promo_activation_sessions.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    pending_branch_id = Column(Integer, ForeignKey("pending_organization_branches.id"), index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), index=True)
+    branch_identity_snapshot = Column(String(36), nullable=False)
+    branch_name_snapshot = Column(String(160), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow)
+
+
+class PromoRedemption(Base):
+    __tablename__ = "promo_redemptions"
+    __table_args__ = (
+        Index("uq_promo_redemptions_uuid", "redemption_uuid", unique=True),
+        Index("uq_promo_redemptions_idempotency", "idempotency_key", unique=True),
+        Index("uq_promo_redemptions_activation", "activation_session_id", unique=True),
+        Index("ix_promo_redemptions_promo", "promo_code_id"),
+        Index("ix_promo_redemptions_group", "school_group_id"),
+        Index("ix_promo_redemptions_pending_org", "pending_organization_id"),
+        Index("ix_promo_redemptions_account", "redeeming_saas_account_id"),
+        CheckConstraint("commercial_source = 'promo'", name="ck_promo_redemptions_source"),
+        CheckConstraint("status = 'completed'", name="ck_promo_redemptions_status"),
+        CheckConstraint(
+            "allowed_branches > 0 AND allowed_staff_users > 0 AND allowed_teachers > 0",
+            name="ck_promo_redemptions_positive_capacity",
+        ),
+        CheckConstraint("effective_to > effective_from", name="ck_promo_redemptions_effective_window"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    redemption_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    activation_session_id = Column(Integer, ForeignKey("promo_activation_sessions.id"), nullable=False, unique=True)
+    promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), nullable=False, index=True)
+    promo_definition_version = Column(Integer, nullable=False)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
+    redeeming_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    redeeming_operational_user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    redeemed_at = Column(DateTime(timezone=True), nullable=False)
+    commercial_source = Column(String(20), nullable=False, default="promo")
+    status = Column(String(20), nullable=False, default="completed")
+    idempotency_key = Column(String(120), nullable=False, unique=True)
+    request_correlation_id = Column(String(120))
+    masked_promo_reference = Column(String(48), nullable=False)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    plan_code_snapshot = Column(String(40), nullable=False)
+    plan_name_snapshot = Column(String(120), nullable=False)
+    allowed_branches = Column(Integer, nullable=False)
+    allowed_staff_users = Column(Integer, nullable=False)
+    allowed_teachers = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    effective_to = Column(DateTime(timezone=True), nullable=False)
+    grace_period_days = Column(Integer, nullable=False, default=0)
+    scope_type_snapshot = Column(String(32), nullable=False)
+    scope_snapshot_json = Column(Text, nullable=False, default="{}")
+    definition_snapshot_json = Column(Text, nullable=False, default="{}")
+    immutable_snapshot_hash = Column(String(64), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow)
+
+
+class PromoGrant(Base):
+    __tablename__ = "promo_grants"
+    __table_args__ = (
+        Index("uq_promo_grants_uuid", "grant_uuid", unique=True),
+        Index("uq_promo_grants_redemption", "promo_redemption_id", unique=True),
+        Index("ix_promo_grants_group", "school_group_id"),
+        Index("ix_promo_grants_plan", "plan_id"),
+        Index("ix_promo_grants_status", "status"),
+        Index("ix_promo_grants_effective_to", "effective_to"),
+        Index(
+            "uq_promo_grants_active_group",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text("status = 'active'"),
+            postgresql_where=text("status = 'active'"),
+        ),
+        CheckConstraint("source = 'promo'", name="ck_promo_grants_source"),
+        CheckConstraint(
+            "status IN ('active','expired','revoked','superseded','converted_to_paid')",
+            name="ck_promo_grants_status",
+        ),
+        CheckConstraint(
+            "allowed_branches > 0 AND allowed_staff_users > 0 AND allowed_teachers > 0",
+            name="ck_promo_grants_positive_capacity",
+        ),
+        CheckConstraint("effective_to > effective_from", name="ck_promo_grants_effective_window"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    grant_uuid = Column(String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4()))
+    promo_redemption_id = Column(Integer, ForeignKey("promo_redemptions.id"), nullable=False, unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
+    plan_code_snapshot = Column(String(40), nullable=False)
+    plan_name_snapshot = Column(String(120), nullable=False)
+    source = Column(String(20), nullable=False, default="promo")
+    allowed_branches = Column(Integer, nullable=False)
+    allowed_staff_users = Column(Integer, nullable=False)
+    allowed_teachers = Column(Integer, nullable=False)
+    effective_from = Column(DateTime(timezone=True), nullable=False)
+    effective_to = Column(DateTime(timezone=True), nullable=False)
+    grace_period_days = Column(Integer, nullable=False, default=0)
+    status = Column(String(24), nullable=False, default="active")
+    definition_snapshot_json = Column(Text, nullable=False, default="{}")
+    capacity_snapshot_json = Column(Text, nullable=False, default="{}")
+    scope_snapshot_json = Column(Text, nullable=False, default="{}")
+    immutable_snapshot_hash = Column(String(64), nullable=False)
+    activated_at = Column(DateTime(timezone=True), nullable=False)
+    expired_at = Column(DateTime(timezone=True))
+    revoked_at = Column(DateTime(timezone=True))
+    supersedes_grant_id = Column(Integer, ForeignKey("promo_grants.id"), index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow)
+
+
+class PromoGrantBranchAssignment(Base):
+    __tablename__ = "promo_grant_branch_assignments"
+    __table_args__ = (
+        Index(
+            "uq_promo_grant_branch_assignments_grant_branch",
+            "promo_grant_id",
+            "branch_id",
+            unique=True,
+        ),
+        Index("ix_promo_grant_branch_assignments_group", "school_group_id"),
+        Index("ix_promo_grant_branch_assignments_branch", "branch_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    promo_grant_id = Column(Integer, ForeignKey("promo_grants.id"), nullable=False, index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    branch_identity_snapshot = Column(String(36), nullable=False)
+    branch_name_snapshot = Column(String(160), nullable=False)
+    assigned_by_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False)
+    assignment_reason = Column(String(80), nullable=False, default="promo_activation")
+    assigned_at = Column(DateTime(timezone=True), nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow)
+
+
+class PromoRedemptionEvent(Base):
+    __tablename__ = "promo_redemption_events"
+    __table_args__ = (
+        Index("uq_promo_redemption_events_operation", "operation_key", "event_type", unique=True),
+        Index("ix_promo_redemption_events_promo", "promo_code_id"),
+        Index("ix_promo_redemption_events_session", "activation_session_id"),
+        Index("ix_promo_redemption_events_redemption", "promo_redemption_id"),
+        Index("ix_promo_redemption_events_grant", "promo_grant_id"),
+        Index("ix_promo_redemption_events_account", "actor_saas_account_id"),
+        Index("ix_promo_redemption_events_created", "created_at"),
+        CheckConstraint(
+            "result IN ('success','failed','blocked','deduplicated')",
+            name="ck_promo_redemption_events_result",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    promo_code_id = Column(Integer, ForeignKey("promo_codes.id"), index=True)
+    activation_session_id = Column(Integer, ForeignKey("promo_activation_sessions.id"), index=True)
+    promo_redemption_id = Column(Integer, ForeignKey("promo_redemptions.id"), index=True)
+    promo_grant_id = Column(Integer, ForeignKey("promo_grants.id"), index=True)
+    actor_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), index=True)
+    actor_operational_user_id = Column(Integer, ForeignKey("users.id"), index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
+    event_type = Column(String(48), nullable=False)
+    result = Column(String(20), nullable=False)
+    failure_code = Column(String(80))
+    operation_key = Column(String(120), nullable=False)
+    request_correlation_id = Column(String(120))
+    details_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_aware_utcnow)
+
+
 class EntitlementDefinition(Base):
     __tablename__ = "entitlement_definitions"
     __table_args__ = (
@@ -1277,6 +1551,7 @@ class WorkspaceEntitlement(Base):
         Index("ix_workspace_entitlements_type", "entitlement_type"),
         Index("ix_workspace_entitlements_status", "status"),
         Index("ix_workspace_entitlements_subscription", "payment_subscription_id"),
+        Index("ix_workspace_entitlements_promo_grant", "promo_grant_id"),
         Index(
             "uq_workspace_entitlements_active_group",
             "school_group_id",
@@ -1285,7 +1560,7 @@ class WorkspaceEntitlement(Base):
             postgresql_where=text("status = 'active'"),
         ),
         CheckConstraint(
-            "entitlement_type IN ('internal_sandbox','demo','paid')",
+            "entitlement_type IN ('internal_sandbox','demo','paid','promo')",
             name="ck_workspace_entitlements_type",
         ),
         CheckConstraint(
@@ -1293,8 +1568,14 @@ class WorkspaceEntitlement(Base):
             name="ck_workspace_entitlements_status",
         ),
         CheckConstraint(
-            "source IN ('system','migration','subscription','platform')",
+            "source IN ('system','migration','subscription','platform','promo')",
             name="ck_workspace_entitlements_source",
+        ),
+        CheckConstraint(
+            "(entitlement_type = 'paid' AND payment_subscription_id IS NOT NULL AND promo_grant_id IS NULL) OR "
+            "(entitlement_type = 'promo' AND promo_grant_id IS NOT NULL AND payment_subscription_id IS NULL) OR "
+            "(entitlement_type IN ('internal_sandbox','demo') AND payment_subscription_id IS NULL AND promo_grant_id IS NULL)",
+            name="ck_workspace_entitlements_commercial_reference",
         ),
         CheckConstraint(
             "effective_to IS NULL OR effective_from IS NULL OR effective_to > effective_from",
@@ -1309,6 +1590,7 @@ class WorkspaceEntitlement(Base):
     status = Column(String(20), nullable=False, default="pending")
     source = Column(String(20), nullable=False, default="system")
     payment_subscription_id = Column(Integer, ForeignKey("payment_subscriptions.id"), index=True)
+    promo_grant_id = Column(Integer, ForeignKey("promo_grants.id"), index=True)
     effective_from = Column(DateTime)
     effective_to = Column(DateTime)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -1916,17 +2198,19 @@ class TenantProvisioningLink(Base):
         Index("uq_tenant_provisioning_links_pending_org", "pending_organization_id", unique=True),
         Index("uq_tenant_provisioning_links_contract", "subscription_contract_id", unique=True),
         Index("uq_tenant_provisioning_links_demo_request", "demo_request_id", unique=True),
+        Index("uq_tenant_provisioning_links_promo_grant", "promo_grant_id", unique=True),
         Index("uq_tenant_provisioning_links_school_group", "school_group_id", unique=True),
         Index("ix_tenant_provisioning_links_status", "tenant_status"),
         CheckConstraint(
-            "(subscription_contract_id IS NOT NULL AND demo_request_id IS NULL) OR "
-            "(subscription_contract_id IS NULL AND demo_request_id IS NOT NULL)",
+            "(subscription_contract_id IS NOT NULL AND demo_request_id IS NULL AND promo_grant_id IS NULL) OR "
+            "(subscription_contract_id IS NULL AND demo_request_id IS NOT NULL AND promo_grant_id IS NULL) OR "
+            "(subscription_contract_id IS NULL AND demo_request_id IS NULL AND promo_grant_id IS NOT NULL)",
             name="ck_tenant_provisioning_links_commercial_source",
         ),
     )
 
     id = Column(Integer, primary_key=True)
-    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, unique=True, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=True, unique=True, index=True)
     subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), unique=True, index=True)
     demo_request_id = Column(
         Integer,
@@ -1934,6 +2218,7 @@ class TenantProvisioningLink(Base):
         unique=True,
         index=True,
     )
+    promo_grant_id = Column(Integer, ForeignKey("promo_grants.id"), unique=True, index=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, unique=True, index=True)
     owner_operational_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     primary_branch_id = Column(Integer, ForeignKey("branches.id"), index=True)

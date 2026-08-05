@@ -228,7 +228,19 @@ class SaaSPostActivationStateTests(unittest.TestCase):
                 f"/saas/onboarding/{fixture['organization_uuid']}/checkout/start",
                 f"/saas/onboarding/{fixture['organization_uuid']}/checkout/launch",
             ):
-                response = self.client.post(path, follow_redirects=False)
+                data = {}
+                if path.endswith("/launch"):
+                    data = {
+                        "billing_email": "billing@example.com",
+                        "billing_organization_name": "Confirmed Active Academy",
+                        "country_code": "LB",
+                        "csrf_token": fixture["csrf_token"],
+                    }
+                response = self.client.post(
+                    path,
+                    data=data,
+                    follow_redirects=False,
+                )
                 self.assertEqual(response.status_code, 302)
                 self.assertTrue(response.headers["location"].startswith("/saas/subscription?notice="))
         create_transaction.assert_not_called()

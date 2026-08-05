@@ -13785,8 +13785,7 @@ def create_branch(
         db.rollback()
         return _redirect_with_error(safe_return_to, str(exc))
 
-    db.add(
-        models.Branch(
+    branch_row = models.Branch(
             name=cleaned_name,
             location=resolved_location.region_name,
             country_code=resolved_location.country_code,
@@ -13798,7 +13797,15 @@ def create_branch(
             status=True,
             school_group_id=getattr(school_group, "id", None),
         )
-    )
+    db.add(branch_row)
+    db.flush()
+    try:
+        from saas import promo_grant_service
+
+        promo_grant_service.assign_new_branch_if_available(db, branch_row)
+    except ValueError as exc:
+        db.rollback()
+        return _redirect_with_error(safe_return_to, str(exc))
     db.commit()
 
     return _redirect_with_notice(

@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-05 - Promo Redemption, Immutable Grants, And Activation
+
+Added customer-side secure promo lookup, resumable capacity review, exact
+branch selection, and atomic activation for completed onboarding and separately
+aligned existing organizations. Migration
+`20260805_002_promo_redemption_and_grants` adds activation sessions and branch
+selections, immutable redemptions and grants, grant branch assignments, and
+redacted redemption events. It also adds promo references to workspace
+entitlements and tenant links while enforcing exactly one paid, demo, or promo
+source.
+
+M1 commercial authority, commercial access, branch queries, and future branch
+creation now resolve active promo grants and explicit branch entitlement.
+Organization-wide staff or teacher excess blocks activation without changing
+records; unselected branches remain operationally preserved but commercially
+inactive. Pending sessions provide no access, expiration fails closed, raw
+codes remain absent from storage and logs, internal sandboxes are not converted,
+and Paddle/payment behavior is unchanged.
+
 ## 2026-08-05 - Promo Code Foundation And Platform Console Management
 
 Added secure definition-only Starter, Professional, and Enterprise AI promos

@@ -28,6 +28,7 @@ _CLASSIFICATION_LABELS = {
     WorkspaceClassification.INTERNAL_SANDBOX: "Internal Sandbox",
     WorkspaceClassification.CUSTOMER_DEMO: "Customer Demo",
     WorkspaceClassification.CUSTOMER_PAID: "Customer Paid",
+    WorkspaceClassification.CUSTOMER: "Customer",
 }
 
 _LIFECYCLE_LABELS = {
@@ -100,6 +101,7 @@ def is_customer_workspace(value) -> bool:
     return validate_classification(value) in {
         WorkspaceClassification.CUSTOMER_DEMO,
         WorkspaceClassification.CUSTOMER_PAID,
+        WorkspaceClassification.CUSTOMER,
     }
 
 

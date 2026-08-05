@@ -13,6 +13,7 @@
     .account-section { min-width:0; padding:20px; border:1px solid #dbe3ec; border-radius:8px; background:#fff; }
     .account-section h2 { margin:0 0 8px; font-size:18px; }
     .account-section p { margin:0; color:var(--muted); line-height:1.55; overflow-wrap:anywhere; }
+    .account-section .account-section-action { display:inline-flex; margin-top:14px; }
     .account-restriction { margin:0 0 20px; padding:14px 16px; border-left:4px solid #d99a2b; background:#fff8e8; color:#5f4518; }
     @media (max-width:720px) {
         .account-overview-head { flex-direction:column; gap:12px; }
@@ -56,6 +57,9 @@
     <section class="account-section">
         <h2>Billing &amp; Subscription</h2>
         <p>{% if access.commercial_access.current_plan_name %}Current plan: {{ access.commercial_access.current_plan_name }}.{% else %}Review subscription status and billing recovery options.{% endif %}</p>
+        {% if organization_account.promo_activation_available %}
+        <a class="btn secondary account-section-action" href="/saas/promo?organization_uuid={{ access.organization_uuid | urlencode }}">Use Promo Code</a>
+        {% endif %}
     </section>
     {% endif %}
 
