@@ -1,26 +1,19 @@
 knowledge_impact: yes
-summary: Implement M3 customer promo redemption, immutable commercial grants, transactional organization activation, and M1 promo authority.
+summary: Implement M4A generic read-only evidence collection for future existing-workspace conversion design.
 affected_areas:
-  - promo-redemption
-  - commercial-authority
-  - organization-activation
-  - workspace-entitlements
-  - tenant-provisioning
-  - branch-access
-  - database-migrations
+  - production-diagnostics
+  - existing-workspace-conversion
+  - tenant-relationship-audit
+  - branch-dependency-audit
   - security
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
-  - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
-  - docs/engineering/PRODUCT_ROADMAP.md
-  - docs/history/subscriptions/README.md
   - docs/adr/README.md
-  - docs/adr/0020-promo-redemption-and-commercial-grants.md
+  - docs/adr/0021-existing-workspace-conversion-read-only-audit.md
 no_impact_reason:
 major_change_override: no

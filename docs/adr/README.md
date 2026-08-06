@@ -44,3 +44,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0018-unified-commercial-access-and-capacity-authority.md`
 - `0019-secure-promo-code-definition-and-governance.md`
 - `0020-promo-redemption-and-commercial-grants.md`
+- `0021-existing-workspace-conversion-read-only-audit.md`

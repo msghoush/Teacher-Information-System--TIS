@@ -7,6 +7,31 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## M4A Existing Workspace Conversion Audit
+
+M4A adds a generic read-only evidence boundary before any existing internal
+sandbox can be considered for customer conversion. The service resolves one
+explicit `SchoolGroup.id`, workspace UUID, exact name, and normalized intended
+owner email. It inventories workspace metadata, identities, account links,
+tenant/provisioning evidence, entitlements, paid/demo/promo records, and every
+reflected branch foreign-key descendant. Logical branch references without a
+database foreign key are reported separately for manual review.
+
+The production CLI requires PostgreSQL and starts a repeatable-read, read-only
+transaction. It outputs deterministic sanitized JSON or text, records the
+transaction settings, and provides a stable SHA-256 snapshot hash. Exit `0`
+means the audit is coherent, exit `2` requires manual review, exit `3` means
+the supplied workspace identity does not match, and exit `1` is an execution
+or configuration failure. Provider references remain presence flags. The CLI
+always rolls back and performs no conversion, branch change, owner
+alignment, entitlement or tenant-link mutation, Paddle call, or email. M4A
+never approves hard deletion or write conversion; incomplete traversal,
+identity mismatch, duplicate ownership, non-sandbox commercial authority, or
+missing schema evidence fails closed for manual review. Recommended archival
+IDs include only active branches with zero direct, transitive, logical, or
+soft-deleted dependencies and are withheld when unmodeled branch foreign keys
+exist.
+
 ## M3 Promo Redemption And Commercial Grants
 
 M3 turns an approved promo definition into commercial authority only after an
