@@ -1,11 +1,39 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Controlled Existing Workspace Conversion Boundary
+
+M4B is the only supported bridge from an audited internal sandbox to a customer
+workspace awaiting commercial activation. A durable operation binds the exact
+SchoolGroup identity, normalized intended owner, approved M4A evidence hash,
+canonical parameters, branch/dependency snapshot, sandbox entitlement snapshot,
+required setup fields, actors, lifecycle stage, and idempotency key. Conversion
+events are append-only and redacted. A partial unique database index permits at
+most one active `tenant_owner` account link per SchoolGroup; migration stops for
+manual review if legacy duplicates exist.
+
+The operation is also the ownership claim. It does not fabricate an account or
+password. The intended owner must use ordinary registration and verification,
+then explicitly claim the workspace. Alignment rejects duplicate, suspended,
+unverified, platform, or cross-tenant identities and reuses an existing same-
+tenant operational User when safe. An existing different owner requires a
+separate Platform Owner transfer approval.
+
+Only legal organization name, IANA timezone, and educational program are
+collected. Final execution locks and revalidates the operation and workspace,
+performs a fresh M4A audit, rejects branch or commercial drift, retires the one
+active internal-sandbox entitlement, and transitions to `customer / provisioning`
+without creating a replacement entitlement or TenantProvisioningLink. M1 calls
+that state `activation_required`; Organization Account remains available while
+operational access fails closed. M3 promo activation is available. Paddle
+activation for an already existing workspace is a deferred milestone and must
+not be inferred from normal new-onboarding checkout support.
 
 ## Existing Workspace Conversion Audit Boundary
 

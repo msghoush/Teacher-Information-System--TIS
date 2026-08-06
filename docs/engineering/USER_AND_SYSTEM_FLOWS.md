@@ -1,11 +1,43 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Existing Workspace Owner Alignment And Conversion
+
+1. A Platform Owner runs the M4B CLI in dry-run mode with the exact workspace
+   tuple, intended-owner email, current M4A hash, operation UUID, and idempotency
+   key. No row is changed.
+2. Write preparation requires PostgreSQL, Platform Owner approval/execution
+   identities, and `PREPARE <operation UUID>`. It locks the workspace, reruns
+   M4A, rejects stale or conflicting evidence, and records an ownership claim.
+   It does not create an account or send email.
+3. The intended owner registers normally, establishes a password or approved
+   external identity, and verifies the exact email. Login continuation opens
+   the existing-workspace setup review.
+4. The verified owner explicitly claims the workspace. TIS rejects unverified,
+   suspended, duplicate, cross-tenant, or platform identities, safely reuses or
+   creates the operational owner identity, and creates a `tenant_owner` account
+   link with no pending organization. A different current owner requires prior
+   transfer approval.
+5. The owner confirms existing organization identity and supplies only legal
+   name, official IANA timezone, and educational program. Branches and all
+   existing operational records remain unchanged.
+6. Final CLI execution requires `CONVERT <operation UUID>`. It locks the
+   operation and SchoolGroup, performs a fresh M4A audit, and requires unchanged
+   identity, branch/dependency evidence, one active internal entitlement, no
+   commercial source, complete setup, and unique verified ownership.
+7. One commit ends the internal entitlement and sets `customer / provisioning`.
+   It creates no replacement entitlement or tenant link. Any failure rolls back
+   all conversion changes and records only redacted failure evidence.
+8. M1 resolves `activation_required`. Organization Account remains accessible,
+   normal operations remain blocked, and M3 promo activation is offered. The
+   existing-workspace Paddle path remains hidden until its separate milestone;
+   new onboarding checkout is unaffected.
 
 ## Existing Workspace Conversion Audit
 

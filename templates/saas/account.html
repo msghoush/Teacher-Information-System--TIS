@@ -56,7 +56,11 @@
     {% if access.can_manage_billing %}
     <section class="account-section">
         <h2>Billing &amp; Subscription</h2>
+        {% if organization_account.existing_workspace_activation_required %}
+        <p>Promotional activation is available. Online subscription activation for an existing workspace is being prepared.</p>
+        {% else %}
         <p>{% if access.commercial_access.current_plan_name %}Current plan: {{ access.commercial_access.current_plan_name }}.{% else %}Review subscription status and billing recovery options.{% endif %}</p>
+        {% endif %}
         {% if organization_account.promo_activation_available %}
         <a class="btn secondary account-section-action" href="/saas/promo?organization_uuid={{ access.organization_uuid | urlencode }}">Use Promo Code</a>
         {% endif %}

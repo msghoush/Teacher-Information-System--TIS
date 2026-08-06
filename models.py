@@ -67,6 +67,7 @@ class TenantProfile(Base):
 
     id = Column(Integer, primary_key=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    legal_name = Column(String(180))
     website = Column(String(180))
     timezone = Column(String(80))
     educational_program = Column(String(20))

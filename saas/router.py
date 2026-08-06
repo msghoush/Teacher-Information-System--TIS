@@ -20,7 +20,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
@@ -68,6 +68,7 @@ CUSTOMER_STATUS_LABELS = {
     "provisioning_completed": "Workspace active",
     "provisioning_failed": "Workspace Activation needs attention",
     "tenant_active": "Workspace active",
+    "activation_required": "Activation required",
     "payment_failed": "Payment needs attention",
     "payment_cancelled": "Payment cancelled",
     "payment_refunded": "Payment refunded",
@@ -1360,6 +1361,12 @@ def account_dashboard(
     account, _session_row, redirect = _require_verified_account(request, db)
     if redirect:
         return redirect
+    conversion_claim = existing_workspace_conversion_service.claim_operation_for_account(
+        db, account
+    )
+    if conversion_claim is not None:
+        db.rollback()
+        return RedirectResponse("/saas/existing-workspace/setup", status_code=302)
     requested_organization_uuid = str(organization_uuid or "").strip()
     cookie_organization_uuid = str(
         request.cookies.get(service.SAAS_ORGANIZATION_COOKIE) or ""
@@ -1397,6 +1404,14 @@ def account_dashboard(
             .count()
         )
         organization = selected_workspace.organization
+        existing_workspace_activation_required = bool(
+            selected_workspace.school_group.workspace_classification
+            == WorkspaceClassification.CUSTOMER.value
+            and selected_workspace.school_group.workspace_lifecycle_status
+            == WorkspaceLifecycleStatus.PROVISIONING.value
+            and selected_workspace.commercial_access.reason_code
+            == "activation_required"
+        )
         promo_activation_available = bool(
             selected_workspace.is_owner
             and selected_workspace.school_group.workspace_classification
@@ -1404,7 +1419,7 @@ def account_dashboard(
             and selected_workspace.school_group.workspace_lifecycle_status
             == WorkspaceLifecycleStatus.PROVISIONING.value
             and selected_workspace.commercial_access.reason_code
-            == "missing_promo_grant"
+            in {"missing_promo_grant", "activation_required"}
         )
         db.commit()
         response = _render(
@@ -1420,6 +1435,8 @@ def account_dashboard(
                     "access": selected_workspace,
                     "branch_count": branch_count,
                     "promo_activation_available": promo_activation_available,
+                    "existing_workspace_activation_required": existing_workspace_activation_required,
+                    "suppress_commercial_billing": existing_workspace_activation_required,
                 },
             },
         )
@@ -1662,6 +1679,21 @@ def subscription_portal(
                     )
         if selected_access is None or not selected_access.can_manage_billing:
             raise HTTPException(status_code=403, detail="Billing access is not available.")
+        if (
+            selected_access.school_group.workspace_classification
+            == WorkspaceClassification.CUSTOMER.value
+            and selected_access.school_group.workspace_lifecycle_status
+            == WorkspaceLifecycleStatus.PROVISIONING.value
+            and selected_access.commercial_access.reason_code == "activation_required"
+        ):
+            return RedirectResponse(
+                "/saas/account?notice="
+                + quote_plus(
+                    "Promotional activation is available. Online subscription activation "
+                    "for an existing workspace is being prepared."
+                ),
+                status_code=302,
+            )
         setattr(account, "_selected_school_group_id", int(selected_access.school_group.id))
     demo_journey = customer_journey_service.resolve_demo_subscription_journey(
         db, account
@@ -1757,6 +1789,120 @@ def subscription_portal(
                 or "info@tisplatform.com"
             ).strip(),
         },
+    )
+
+
+def _existing_workspace_setup_shell(db: Session, account, school_group_id: int):
+    access = next(
+        (
+            item
+            for item in customer_journey_service.list_organization_account_accesses(
+                db, account
+            )
+            if int(item.school_group.id) == int(school_group_id)
+        ),
+        None,
+    )
+    if access is None:
+        return None
+    return {
+        "access": access,
+        "suppress_operational_entry": True,
+        "suppress_commercial_billing": True,
+    }
+
+
+@router.get("/existing-workspace/setup", response_class=HTMLResponse)
+def existing_workspace_setup_review(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    try:
+        setup = existing_workspace_conversion_service.setup_review_context(db, account)
+    except existing_workspace_conversion_service.ExistingWorkspaceConversionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=404, detail="Workspace setup claim not found.") from exc
+    organization_account = _existing_workspace_setup_shell(
+        db, account, setup["operation"].school_group_id
+    )
+    db.commit()
+    return _render(
+        request,
+        "saas/existing_workspace_setup.html",
+        {
+            "account": account,
+            "setup": setup,
+            "organization_account": organization_account,
+            "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+            "notice": request.query_params.get("notice", ""),
+            "error": request.query_params.get("error", ""),
+        },
+    )
+
+
+@router.post("/existing-workspace/claim")
+def claim_existing_workspace_owner(
+    request: Request,
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+    try:
+        existing_workspace_conversion_service.align_verified_owner(db, account)
+        db.commit()
+    except existing_workspace_conversion_service.ExistingWorkspaceConversionError as exc:
+        db.rollback()
+        return RedirectResponse(
+            "/saas/existing-workspace/setup?error=" + quote_plus(str(exc)),
+            status_code=302,
+        )
+    return RedirectResponse(
+        "/saas/existing-workspace/setup?notice="
+        + quote_plus("Your verified account is now linked for setup review."),
+        status_code=302,
+    )
+
+
+@router.post("/existing-workspace/setup")
+def save_existing_workspace_setup_review(
+    request: Request,
+    legal_name: str = Form(""),
+    timezone_name: str = Form(""),
+    educational_program: str = Form(""),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    if service.hash_value(csrf_token) != str(session_row.csrf_token_hash or ""):
+        raise HTTPException(status_code=403, detail="Invalid CSRF token.")
+    try:
+        existing_workspace_conversion_service.save_setup_review(
+            db,
+            account,
+            legal_name=legal_name,
+            timezone_name=timezone_name,
+            educational_program=educational_program,
+        )
+        db.commit()
+    except existing_workspace_conversion_service.ExistingWorkspaceConversionError as exc:
+        db.rollback()
+        return RedirectResponse(
+            "/saas/existing-workspace/setup?error=" + quote_plus(str(exc)),
+            status_code=302,
+        )
+    return RedirectResponse(
+        "/saas/existing-workspace/setup?notice="
+        + quote_plus("Workspace setup details are complete and ready for controlled conversion."),
+        status_code=302,
     )
     if requested_organization_uuid and selected_access is not None:
         response.set_cookie(

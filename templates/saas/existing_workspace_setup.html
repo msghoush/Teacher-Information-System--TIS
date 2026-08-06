@@ -1,0 +1,66 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .existing-setup { max-width:900px; margin:0 auto; }
+    .existing-setup-head { margin-bottom:20px; }
+    .existing-setup-card { padding:22px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+    .existing-setup-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0; }
+    .existing-setup-summary div { min-width:0; padding:12px; border:1px solid var(--line); border-radius:6px; background:#f8fafc; }
+    .existing-setup-summary span { display:block; margin-bottom:5px; color:var(--muted); font-size:12px; font-weight:700; }
+    .existing-setup-summary strong { overflow-wrap:anywhere; }
+    .existing-setup-form { display:grid; gap:14px; }
+    .existing-setup-form label { font-weight:700; }
+    .existing-setup-actions { display:flex; justify-content:flex-end; margin-top:6px; }
+    @media (max-width:720px) { .existing-setup-summary { grid-template-columns:1fr; } }
+</style>
+<section class="existing-setup" aria-labelledby="existing-setup-title">
+    <header class="existing-setup-head">
+        <span class="page-eyebrow">Existing Workspace</span>
+        <h1 id="existing-setup-title">Organization setup review</h1>
+        <p class="muted">Confirm the required organization details before commercial activation becomes available.</p>
+    </header>
+    {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="alert error" role="alert">{{ error }}</div>{% endif %}
+    <div class="existing-setup-card">
+        <div class="existing-setup-summary">
+            <div><span>Organization</span><strong>{{ setup.school_group.name }}</strong></div>
+            <div><span>Country</span><strong>{{ setup.school_group.country_name or setup.school_group.country_code or "Not available" }}</strong></div>
+            <div><span>Workspace status</span><strong>Activation setup</strong></div>
+        </div>
+        {% if not setup.owner_aligned %}
+        <h2>Confirm ownership</h2>
+        <p>Your email is verified. Confirm that this is the organization workspace you are authorized to manage.</p>
+        <form method="post" action="/saas/existing-workspace/claim">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn" type="submit">Confirm Organization Ownership</button>
+        </form>
+        {% elif setup.operation.status == "ready" %}
+        <h2>Setup review complete</h2>
+        <p>The required organization details are complete. A Platform Owner can now perform the controlled conversion. No branch or operational data has been changed.</p>
+        {% else %}
+        <form class="existing-setup-form" method="post" action="/saas/existing-workspace/setup">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <div>
+                <label for="legal_name">Legal organization name</label>
+                <input id="legal_name" name="legal_name" maxlength="180" required value="{{ setup.profile.legal_name if setup.profile else '' }}">
+            </div>
+            <div>
+                <label for="timezone_name">Official time zone</label>
+                <select id="timezone_name" name="timezone_name" required>
+                    <option value="">Select a time zone</option>
+                    {% for timezone in setup.timezone_options %}<option value="{{ timezone }}" {% if setup.profile and setup.profile.timezone == timezone %}selected{% endif %}>{{ timezone }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="educational_program">Educational program</label>
+                <select id="educational_program" name="educational_program" required>
+                    <option value="">Select a program</option>
+                    {% for program in setup.educational_programs %}<option value="{{ program }}" {% if setup.profile and setup.profile.educational_program == program %}selected{% endif %}>{{ "Both" if program == "BOTH" else program.title() }}</option>{% endfor %}
+                </select>
+            </div>
+            <div class="existing-setup-actions"><button class="btn" type="submit">Save Setup Details</button></div>
+        </form>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

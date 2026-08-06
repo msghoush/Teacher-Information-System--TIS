@@ -5273,6 +5273,88 @@ def _promo_redemption_and_grants(engine, connection):
     )
 
 
+def _existing_workspace_controlled_conversion(engine, connection):
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+    import saas.models  # noqa: F401 - register SaaS metadata
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        "tenant_profiles",
+        "legal_name",
+        "legal_name VARCHAR(180)",
+    )
+    for table_name in (
+        "existing_workspace_conversion_operations",
+        "existing_workspace_conversion_events",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+    duplicate_owner = connection.execute(text(
+        "SELECT school_group_id, COUNT(*) AS owner_count "
+        "FROM saas_account_user_links WHERE link_type = 'tenant_owner' "
+        "GROUP BY school_group_id HAVING COUNT(*) > 1 LIMIT 1"
+    )).first()
+    if duplicate_owner is not None:
+        raise RuntimeError(
+            "M4B migration blocked: duplicate tenant-owner links require review "
+            f"for SchoolGroup {int(duplicate_owner.school_group_id)}."
+        )
+    if engine.dialect.name == "postgresql":
+        _execute(
+            connection,
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "uq_saas_account_user_links_tenant_owner_group "
+            "ON saas_account_user_links (school_group_id) "
+            "WHERE link_type = 'tenant_owner'",
+        )
+        _execute(
+            connection,
+            """
+            CREATE OR REPLACE FUNCTION tis_reject_conversion_event_mutation()
+            RETURNS trigger AS $$
+            BEGIN
+                RAISE EXCEPTION 'existing workspace conversion events are append-only';
+            END;
+            $$ LANGUAGE plpgsql
+            """,
+        )
+        for action in ("UPDATE", "DELETE"):
+            trigger_name = f"trg_existing_workspace_conversion_events_no_{action.lower()}"
+            _execute(
+                connection,
+                f"DROP TRIGGER IF EXISTS {trigger_name} ON existing_workspace_conversion_events",
+            )
+            _execute(
+                connection,
+                f"CREATE TRIGGER {trigger_name} BEFORE {action} "
+                "ON existing_workspace_conversion_events FOR EACH ROW "
+                "EXECUTE FUNCTION tis_reject_conversion_event_mutation()",
+            )
+    else:
+        _execute(
+            connection,
+            "CREATE UNIQUE INDEX IF NOT EXISTS "
+            "uq_saas_account_user_links_tenant_owner_group "
+            "ON saas_account_user_links (school_group_id) "
+            "WHERE link_type = 'tenant_owner'",
+        )
+        for action in ("UPDATE", "DELETE"):
+            trigger_name = f"trg_existing_workspace_conversion_events_no_{action.lower()}"
+            _execute(connection, f"DROP TRIGGER IF EXISTS {trigger_name}")
+            _execute(
+                connection,
+                f"""
+                CREATE TRIGGER {trigger_name}
+                BEFORE {action} ON existing_workspace_conversion_events
+                BEGIN
+                    SELECT RAISE(ABORT, 'existing workspace conversion events are append-only');
+                END
+                """,
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5473,6 +5555,11 @@ MIGRATIONS = (
         migration_id="20260805_002_promo_redemption_and_grants",
         description="Add promo redemption, immutable grants, activation workflow, and commercial source links",
         apply=_promo_redemption_and_grants,
+    ),
+    Migration(
+        migration_id="20260806_001_existing_workspace_controlled_conversion",
+        description="Add controlled existing-workspace owner alignment and activation-required conversion ledger",
+        apply=_existing_workspace_controlled_conversion,
     ),
 )
 

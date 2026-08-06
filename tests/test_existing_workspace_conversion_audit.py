@@ -375,8 +375,13 @@ def test_owner_resolution_absent_unlinked_same_and_cross_tenant(audit_db):
     ]["blockers"]
 
 
-def test_different_existing_owner_and_operational_identity_collision_block(audit_db):
+def test_different_existing_owner_blocks_with_single_owner_invariant(audit_db):
     group, unrelated, _, _ = _seed_workspace(audit_db)
+    existing_owner_link = audit_db.query(saas.models.SaaSAccountUserLink).filter_by(
+        school_group_id=group.id,
+        link_type="tenant_owner",
+    ).one()
+    existing_owner_link.link_type = "former_tenant_owner"
     other_account = saas.models.SaaSAccount(
         account_uuid=str(uuid.uuid4()),
         email="other.owner@example.edu",
@@ -423,10 +428,7 @@ def test_different_existing_owner_and_operational_identity_collision_block(audit
     report = _audit(audit_db, group)
 
     assert "different_existing_tenant_owner" in report["conversion_readiness"]["blockers"]
-    assert "multiple_tenant_owner_links" in report["conversion_readiness"]["blockers"]
-    assert "owner_operational_identity_conflict" in report[
-        "conversion_readiness"
-    ]["blockers"]
+    assert "multiple_tenant_owner_links" not in report["conversion_readiness"]["blockers"]
 
 
 def test_teacher_identity_collision_is_reported(audit_db):

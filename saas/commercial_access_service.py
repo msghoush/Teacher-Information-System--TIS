@@ -230,6 +230,35 @@ def resolve_workspace_access(
         grant = promo_grant_service.resolve_promo_grant(db, group.id)
         entitlement = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)
         if (
+            lifecycle == WorkspaceLifecycleStatus.PROVISIONING.value
+            and grant.reason_code == "missing_promo_grant"
+            and not db.query(saas_models.WorkspaceEntitlement.id).filter(
+                saas_models.WorkspaceEntitlement.school_group_id == group.id,
+                saas_models.WorkspaceEntitlement.status == "active",
+            ).first()
+            and not db.query(saas_models.TenantProvisioningLink.id).filter(
+                saas_models.TenantProvisioningLink.school_group_id == group.id
+            ).first()
+            and not db.query(saas_models.SubscriptionContract.id).filter(
+                saas_models.SubscriptionContract.school_group_id == group.id
+            ).first()
+            and not db.query(saas_models.PromoGrant.id).filter(
+                saas_models.PromoGrant.school_group_id == group.id
+            ).first()
+            and not db.query(saas_models.SaaSDemoWorkspaceProvisioning.id).filter(
+                saas_models.SaaSDemoWorkspaceProvisioning.school_group_id == group.id
+            ).first()
+        ):
+            return CommercialAccessState(
+                blocked=True,
+                kind="promo",
+                reason_code="activation_required",
+                commercial_state=PAYMENT_PROCESSING,
+                workspace_lifecycle=lifecycle,
+                recommended_action="apply_promo",
+                customer_message_key="existing_workspace_activation_required",
+            )
+        if (
             lifecycle == WorkspaceLifecycleStatus.ACTIVE.value
             and grant.active
             and entitlement.active

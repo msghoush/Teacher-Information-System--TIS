@@ -390,6 +390,71 @@ def _create_owner_user(db: Session, account, organization, school_group, primary
     return user_row
 
 
+def ensure_existing_workspace_owner_user(
+    db: Session,
+    account,
+    school_group,
+    *,
+    activate: bool = False,
+):
+    """Reuse the normal operational-owner identity rules for an existing tenant."""
+
+    normalized_email = auth.normalize_email(getattr(account, "email", None))
+    if not normalized_email:
+        raise ValueError("The verified owner email is unavailable.")
+    existing_rows = db.query(operational_models.User).filter(
+        operational_models.User.email_normalized == normalized_email
+    ).all()
+    if len(existing_rows) > 1:
+        raise ValueError("Duplicate operational owner identities require review.")
+    if existing_rows:
+        existing = existing_rows[0]
+        if int(getattr(existing, "school_group_id", 0) or 0) != int(school_group.id):
+            raise ValueError("The owner email belongs to another operational tenant.")
+        if str(getattr(existing, "user_type", "") or "") != auth.USER_TYPE_TENANT:
+            raise ValueError("A platform identity cannot be aligned as a tenant owner.")
+        return existing
+
+    primary_branch = db.query(operational_models.Branch).filter(
+        operational_models.Branch.school_group_id == school_group.id,
+        operational_models.Branch.status.is_(True),
+    ).order_by(operational_models.Branch.id.asc()).first()
+    if primary_branch is None:
+        primary_branch = db.query(operational_models.Branch).filter(
+            operational_models.Branch.school_group_id == school_group.id
+        ).order_by(operational_models.Branch.id.asc()).first()
+    academic_year = db.query(operational_models.AcademicYear).filter(
+        operational_models.AcademicYear.school_group_id == school_group.id,
+        operational_models.AcademicYear.is_active.is_(True),
+    ).order_by(operational_models.AcademicYear.id.asc()).first()
+    user_id = _next_operational_user_id(db)
+    user_row = operational_models.User(
+        user_id=user_id,
+        username=user_id,
+        email=str(getattr(account, "email", "") or "").strip(),
+        email_normalized=normalized_email,
+        email_verified_at=getattr(account, "email_verified_at", None),
+        first_name=str(getattr(account, "first_name", "") or "").strip() or "Organization",
+        last_name=str(getattr(account, "last_name", "") or "").strip() or "Owner",
+        position="Principal",
+        password=getattr(account, "password_hash", None) if activate else None,
+        role=auth.ROLE_ADMINISTRATOR,
+        user_type=auth.USER_TYPE_TENANT,
+        platform_role=None,
+        access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+        school_group_id=school_group.id,
+        branch_id=None,
+        academic_year_id=getattr(academic_year, "id", None),
+        is_active=bool(activate),
+        is_internal_test_identity=True,
+        created_at=_utcnow(),
+        updated_at=_utcnow(),
+    )
+    db.add(user_row)
+    db.flush()
+    return user_row
+
+
 def _ensure_account_user_link(db: Session, account, owner_user, organization, school_group):
     link = db.query(models.SaaSAccountUserLink).filter(
         models.SaaSAccountUserLink.saas_account_id == account.id,

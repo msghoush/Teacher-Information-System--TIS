@@ -1,11 +1,30 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-06 - Controlled Existing Workspace Owner Alignment And Conversion
+
+Added a durable, idempotent conversion ledger and dry-run-first PostgreSQL CLI
+for an existing audited internal sandbox. The process prepares an ownership
+claim without creating an account, requires normal account verification,
+aligns or safely reuses one tenant owner, and collects only legal name, IANA
+timezone, and educational program. A database partial unique index now enforces
+one active tenant-owner account link per SchoolGroup after duplicate preflight;
+conversion events are append-only.
+
+Final conversion locks and re-audits the operation and workspace, validates
+unchanged branch/dependency and sandbox-authority snapshots, retires the active
+internal entitlement, and sets `customer / provisioning` atomically. It does
+not mutate branches or operational records and creates no pending organization,
+contract, subscription, demo request, promo grant, active entitlement, or
+tenant link. M1 resolves the result as `activation_required`; M3 promo remains
+the supported activation path while existing-workspace Paddle activation is
+deferred. No production data was modified during implementation or validation.
 
 ## 2026-08-05 - Existing Workspace Conversion Read-Only Audit
 

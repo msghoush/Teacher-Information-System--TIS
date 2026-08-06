@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 ---
 
 # Architecture Decision Records
@@ -45,3 +45,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0019-secure-promo-code-definition-and-governance.md`
 - `0020-promo-redemption-and-commercial-grants.md`
 - `0021-existing-workspace-conversion-read-only-audit.md`
+- `0022-controlled-existing-workspace-conversion.md`

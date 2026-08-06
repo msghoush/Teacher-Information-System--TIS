@@ -322,7 +322,7 @@ def _workspace_records(db: Session, metadata: MetaData, group_id: int) -> dict[s
     inventories: dict[str, Any] = {}
     table_fields = {
         "tenant_profiles": (
-            "id", "school_group_id", "website", "timezone",
+            "id", "school_group_id", "legal_name", "website", "timezone",
             "educational_program", "school_type", "estimated_staff_users",
             "created_at", "updated_at",
         ),
@@ -428,7 +428,7 @@ def _setup_field_resolution(
     pending = pending_rows[0] if len(pending_rows) == 1 else {}
     definitions = (
         ("display_name", True, ((group, "name", "school_groups"),)),
-        ("legal_name", True, ((pending, "legal_name", "pending_organizations"),)),
+        ("legal_name", True, ((tenant, "legal_name", "tenant_profiles"), (pending, "legal_name", "pending_organizations"))),
         ("country_code", True, ((group, "country_code", "school_groups"), (pending, "country_code", "pending_organizations"))),
         ("country_name", False, ((group, "country_name", "school_groups"), (pending, "country_name", "pending_organizations"))),
         ("region_name", False, ((group, "region_name", "school_groups"), (pending, "region_name", "pending_organizations"))),

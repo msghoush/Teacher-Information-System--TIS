@@ -12,6 +12,7 @@ from saas import (
     demo_lifecycle_service,
     demo_provisioning_service,
     demo_request_service,
+    existing_workspace_conversion_service,
     models,
     pricing_service,
     provisioning_service,
@@ -259,6 +260,11 @@ def resolve_demo_subscription_journey(
 
 
 def login_destination(db: Session, account) -> str:
+    conversion_claim = existing_workspace_conversion_service.claim_operation_for_account(
+        db, account
+    )
+    if conversion_claim is not None:
+        return "/saas/existing-workspace/setup"
     organization = service.get_pending_organization_for_account(db, account)
     if organization is None:
         accesses = list_organization_account_accesses(db, account)
