@@ -7,6 +7,29 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Existing Workspace Conversion Audit Layer
+
+`saas/existing_workspace_conversion_audit_service.py` is a query-only evidence
+collector. It accepts an exact SchoolGroup ID, workspace UUID, organization
+name, and owner email; reflects the connected schema; follows branch foreign
+keys recursively; identifies unconstrained branch-like columns; and returns
+allowlisted identity, lifecycle, ownership, provisioning, and commercial
+metadata. It does not own or commit a transaction and exposes provider
+references only as presence flags.
+
+`scripts/audit_existing_workspace_conversion.py` is the manual production
+entry point. It requires PostgreSQL and `DATABASE_URL`, establishes
+`REPEATABLE READ READ ONLY`, invokes the service, emits one sanitized JSON
+or text report, then rolls back and closes. The service canonicalizes ordered
+evidence into a stable SHA-256 snapshot, classifies soft-deleted rows without
+ignoring them, compares reflected branch foreign keys with ORM metadata, and
+emits archival candidates only when each referenced count is zero. The CLI
+reports transaction settings and uses exit `0` for coherent evidence, `1` for
+execution/configuration failure, `2` for manual review, and `3` for workspace
+identity mismatch. The script is not imported by application runtime. Audit
+readiness means only that later conversion design may proceed; hard deletion
+and write conversion remain explicitly unapproved.
+
 ## Promo Redemption Layer
 
 `saas/promo_redemption_service.py` is the write boundary between secure M2

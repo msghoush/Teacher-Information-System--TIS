@@ -7,6 +7,32 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Existing Workspace Conversion Audit
+
+1. An operator supplies the exact SchoolGroup ID, workspace UUID, expected
+   organization name, and intended owner email to the standalone M4A CLI.
+2. The CLI requires deployed PostgreSQL and begins a repeatable-read, read-only
+   transaction before the first application query.
+3. The service validates the exact workspace tuple, resolves normalized owner
+   identities and links, and inventories tenant, provisioning, entitlement,
+   paid, demo, and promo evidence.
+4. For every target branch, the service follows reflected direct and indirect
+   foreign-key descendants and separately reports branch-like columns without
+   a foreign key. Soft-deleted rows remain blocking. Foreign keys absent from
+   ORM metadata force manual review. It returns counts and paths, not private
+   row payloads.
+5. Identity mismatch, duplicate ownership, existing non-sandbox commercial
+   authority, unavailable schema evidence, or uncertain traversal produces
+   Manual Review Required. An active internal-sandbox entitlement is expected
+   and is not treated as customer authority.
+6. The CLI writes deterministic sanitized JSON or text with the observed
+   transaction mode and a stable SHA-256 evidence hash. Exit `0` is coherent,
+   `1` is execution/configuration failure, `2` is manual review, and `3` is
+   identity mismatch. Archival candidates include only active dependency-free
+   branches; hard deletion and write conversion remain unapproved.
+7. The CLI rolls back and closes. It never archives, deletes, aligns, converts,
+   calls Paddle, or sends email.
+
 ## Customer Promo Activation
 
 1. A verified organization owner chooses Use Promo Code after setup review or

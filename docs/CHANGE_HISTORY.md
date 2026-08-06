@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-05 - Existing Workspace Conversion Read-Only Audit
+
+Added a generic M4A audit service and parameterized PostgreSQL CLI for gathering
+sanitized evidence before a legacy internal-sandbox conversion is designed.
+The audit validates the exact workspace identity, resolves the intended owner,
+inventories tenant/provisioning and paid/demo/promo authority, reflects
+SchoolGroup-scoped tables, and traverses direct and indirect branch foreign-key
+dependencies. Unconstrained branch-like references and incomplete traversal
+fail closed for manual review.
+
+The CLI uses a repeatable-read, read-only transaction, prints one JSON object,
+or deterministic text, records its PostgreSQL transaction mode, emits a stable
+SHA-256 snapshot hash, and always rolls back. Coherent, execution-failure,
+manual-review, and identity-mismatch results use exit codes `0`, `1`, `2`, and
+`3`. Soft-deleted dependencies remain blocking, reflected foreign keys absent
+from ORM metadata force manual review, and archival recommendations contain
+only proven dependency-free active branches. This milestone performs no branch archival, owner
+alignment, workspace or entitlement change, tenant-link creation, write-mode
+conversion, Paddle call, email, schema change, migration, or production audit.
+
 ## 2026-08-05 - Promo Redemption, Immutable Grants, And Activation
 
 Added customer-side secure promo lookup, resumable capacity review, exact

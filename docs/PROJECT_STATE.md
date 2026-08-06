@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Project State
 
+## Existing Workspace Conversion Audit Foundation
+
+M4A is implemented as a read-only prerequisite to any legacy internal-sandbox
+conversion. `saas/existing_workspace_conversion_audit_service.py` resolves an
+explicit workspace/owner tuple, inventories ownership and commercial evidence,
+and traverses reflected branch dependencies without modifying the session.
+`scripts/audit_existing_workspace_conversion.py` requires PostgreSQL, starts a
+repeatable-read read-only transaction, emits deterministic sanitized JSON or
+text with a stable SHA-256 snapshot, and always rolls back. Exit codes separate
+coherent (`0`), execution failure (`1`), manual review (`2`), and workspace
+identity mismatch (`3`). Reflected model drift, soft-deleted dependencies,
+owner conflicts, and paid/demo/promo evidence fail closed. Archival candidate
+IDs are emitted only for active branches proven dependency-free.
+
+No Al-Andalus identifier exists in reusable service or CLI logic. No branch,
+account, owner, classification, lifecycle, entitlement, tenant link, approval,
+Paddle, email, or production data is changed. M4A grants neither hard-delete
+approval nor write-conversion authority; those remain later milestones.
+
 ## Promo Redemption And Organization Activation
 
 M3 is implemented. Verified organization owners can apply an approved promo

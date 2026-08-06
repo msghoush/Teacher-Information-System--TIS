@@ -7,6 +7,30 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Existing Workspace Conversion Audit Boundary
+
+Before a legacy internal sandbox may enter any controlled customer conversion,
+M4A requires an explicit read-only audit keyed by SchoolGroup ID, workspace
+UUID, exact organization name, and normalized intended-owner email. The audit
+reflects the deployed schema, traverses branch foreign-key descendants,
+identifies unconstrained branch references, and inventories ownership,
+provisioning, entitlement, subscription, demo, and promo evidence. It emits
+counts and allowlisted metadata only; provider identifiers are reduced to
+presence flags and secrets or private payloads are never included.
+
+`scripts/audit_existing_workspace_conversion.py` runs only on PostgreSQL in a
+repeatable-read, read-only transaction and always rolls back. Deterministic
+JSON and text formats expose the observed transaction mode, a stable SHA-256
+snapshot, conservative archival candidates, and explicit exit codes: `0`
+coherent, `1` execution/configuration failure, `2` manual review, and `3`
+workspace identity mismatch. Soft-deleted rows still count as dependencies;
+an unmodeled branch foreign key blocks archival recommendations. Its result is
+evidence for a later design decision, not conversion authority. It cannot
+archive a branch, align an owner, change workspace metadata, create a tenant or
+commercial source, call Paddle, send email, approve deletion, or perform the
+future conversion. Any identity conflict, commercial conflict, incomplete
+schema coverage, or uncertain relationship requires manual review.
+
 ## Promo Redemption And Activation Authority
 
 Promo access is an explicit third customer commercial source beside paid
