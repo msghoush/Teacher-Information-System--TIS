@@ -1,11 +1,38 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 source_of_truth: true
 ---
 
 # TIS Repository Architecture
+
+## Existing Workspace Controlled Conversion Layer
+
+`saas/existing_workspace_conversion_service.py` owns M4B preparation, verified
+owner alignment, setup validation, fresh-audit comparison, row locking,
+idempotency, and the final activation-required transition. It composes M4A,
+normal SaaS verification, provisioning owner identity conventions, M1, and M3;
+it does not duplicate those responsibilities. `ExistingWorkspaceConversionOperation`
+is the durable claim/state ledger and `ExistingWorkspaceConversionEvent` is an
+append-only redacted event stream.
+
+`scripts/convert_existing_workspace.py` is dry-run by default. PostgreSQL write
+mode requires Platform Owner actor IDs plus an exact `PREPARE <operation UUID>`
+or `CONVERT <operation UUID>` phrase. Preparation requires the current complete
+M4A hash. Final execution performs another M4A audit in the locked transaction
+and compares stable branch/dependency and sandbox-entitlement evidence to the
+operation baseline; intended owner and setup changes are the only expected
+differences. The CLI never creates passwords, sends email, calls Paddle, or
+redeems promo codes.
+
+Customer routes under `/saas/existing-workspace/` expose only verified claim
+and three-field setup review. `commercial_state_service`,
+`commercial_access_service`, and `commercial_authority_service` recognize the
+specific `customer / provisioning / no source` result as fail-closed
+`activation_required`. The ordinary subscription portal redirects this state
+back to Organization Account because existing-workspace Paddle activation is
+not yet implemented.
 
 ## Existing Workspace Conversion Audit Layer
 

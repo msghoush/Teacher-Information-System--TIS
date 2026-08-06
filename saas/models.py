@@ -2242,6 +2242,13 @@ class SaaSAccountUserLink(Base):
         Index("ix_saas_account_user_links_account", "saas_account_id"),
         Index("ix_saas_account_user_links_user", "operational_user_id"),
         Index("ix_saas_account_user_links_school_group", "school_group_id"),
+        Index(
+            "uq_saas_account_user_links_tenant_owner_group",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text("link_type = 'tenant_owner'"),
+            postgresql_where=text("link_type = 'tenant_owner'"),
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -2253,3 +2260,87 @@ class SaaSAccountUserLink(Base):
     linked_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class ExistingWorkspaceConversionOperation(Base):
+    __tablename__ = "existing_workspace_conversion_operations"
+    __table_args__ = (
+        Index("uq_existing_workspace_conversion_operations_uuid", "operation_uuid", unique=True),
+        Index("uq_existing_workspace_conversion_operations_idempotency", "idempotency_key", unique=True),
+        Index("ix_existing_workspace_conversion_operations_group", "school_group_id"),
+        Index("ix_existing_workspace_conversion_operations_owner", "intended_owner_email_normalized"),
+        Index("ix_existing_workspace_conversion_operations_status", "status"),
+        Index("ix_existing_workspace_conversion_operations_stage", "stage"),
+        Index(
+            "uq_existing_workspace_conversion_operations_open_group",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text("status IN ('awaiting_owner_registration','awaiting_owner_verification','awaiting_owner_alignment','awaiting_setup','ready','in_progress')"),
+            postgresql_where=text("status IN ('awaiting_owner_registration','awaiting_owner_verification','awaiting_owner_alignment','awaiting_setup','ready','in_progress')"),
+        ),
+        CheckConstraint(
+            "stage IN ('registration_preparation','owner_verification','owner_alignment','setup_review','conversion_ready','conversion_processing','converted','failed')",
+            name="ck_existing_workspace_conversion_operations_stage",
+        ),
+        CheckConstraint(
+            "status IN ('awaiting_owner_registration','awaiting_owner_verification','awaiting_owner_alignment','awaiting_setup','ready','in_progress','completed','failed')",
+            name="ck_existing_workspace_conversion_operations_status",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    operation_uuid = Column(String(36), nullable=False, unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    workspace_uuid_snapshot = Column(String(36), nullable=False)
+    expected_organization_name_snapshot = Column(String(160), nullable=False)
+    intended_owner_email_normalized = Column(String(180), nullable=False, index=True)
+    audit_snapshot_hash = Column(String(64), nullable=False)
+    canonical_parameter_hash = Column(String(64), nullable=False)
+    stage = Column(String(40), nullable=False)
+    status = Column(String(40), nullable=False)
+    dry_run = Column(Boolean, nullable=False, default=False)
+    idempotency_key = Column(String(120), nullable=False, unique=True)
+    approved_actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    execution_actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    aligned_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id", ondelete="SET NULL"), index=True)
+    aligned_operational_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    owner_transfer_approved_by_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    owner_transfer_approved_at = Column(DateTime)
+    current_classification_snapshot = Column(String(32), nullable=False)
+    current_lifecycle_snapshot = Column(String(20), nullable=False)
+    current_entitlement_snapshot_json = Column(Text, nullable=False, default="[]")
+    branch_snapshot_json = Column(Text, nullable=False, default="[]")
+    missing_field_snapshot_json = Column(Text, nullable=False, default="[]")
+    setup_snapshot_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime)
+    failure_code = Column(String(80))
+
+
+class ExistingWorkspaceConversionEvent(Base):
+    __tablename__ = "existing_workspace_conversion_events"
+    __table_args__ = (
+        Index("ix_existing_workspace_conversion_events_operation", "conversion_operation_id"),
+        Index("ix_existing_workspace_conversion_events_type", "event_type"),
+        Index("ix_existing_workspace_conversion_events_created", "created_at"),
+        CheckConstraint(
+            "result IN ('success','blocked','failed','deduplicated')",
+            name="ck_existing_workspace_conversion_events_result",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    conversion_operation_id = Column(
+        Integer,
+        ForeignKey("existing_workspace_conversion_operations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type = Column(String(48), nullable=False)
+    result = Column(String(20), nullable=False)
+    actor_user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), index=True)
+    actor_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id", ondelete="SET NULL"), index=True)
+    failure_code = Column(String(80))
+    details_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

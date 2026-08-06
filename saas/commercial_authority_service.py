@@ -339,6 +339,11 @@ def _canonical_status(group, access, commercial) -> str:
         ):
             return ENDING_AT_PERIOD_END
         return ACTIVE
+    if (
+        _clean(getattr(access, "reason_code", "")) == "activation_required"
+        and _clean(getattr(commercial, "commercial_state", "")) == "provisioning"
+    ):
+        return ACTIVATION_REQUIRED
     if state == commercial_access_service.PAYMENT_PROCESSING:
         return PAYMENT_PROCESSING
     if state == commercial_access_service.PAST_DUE:
@@ -396,9 +401,22 @@ def resolve_commercial_authority(
     reason_code = _clean(getattr(access, "reason_code", "")) or _clean(
         getattr(commercial, "reason_code", "")
     )
-    resolved = bool(commercial.resolved and workspace_entitlement.resolved)
+    activation_required = bool(
+        classification == WorkspaceClassification.CUSTOMER.value
+        and _clean(getattr(group, "workspace_lifecycle_status", "")) == "provisioning"
+        and commercial.resolved
+        and commercial.reason_code == "activation_required"
+        and access.reason_code == "activation_required"
+    )
+    resolved = bool(
+        activation_required
+        or (commercial.resolved and workspace_entitlement.resolved)
+    )
 
-    if classification == WorkspaceClassification.INTERNAL_SANDBOX.value:
+    if activation_required:
+        source = NO_COMMERCIAL_ACCESS
+        reason_code = "activation_required"
+    elif classification == WorkspaceClassification.INTERNAL_SANDBOX.value:
         source = INTERNAL_SANDBOX
         limits = CapacityLimits(unmetered=True)
     elif classification == WorkspaceClassification.CUSTOMER_DEMO.value:
@@ -480,7 +498,7 @@ def resolve_commercial_authority(
         recovery_action = "upgrade_subscription"
     elif source == PROMO_GRANT and violations:
         recovery_action = "contact_support"
-    elif source == NO_COMMERCIAL_ACCESS:
+    elif source == NO_COMMERCIAL_ACCESS and status != ACTIVATION_REQUIRED:
         recovery_action = "contact_support"
     elif not access_allowed and not recovery_action:
         recovery_action = "contact_support"

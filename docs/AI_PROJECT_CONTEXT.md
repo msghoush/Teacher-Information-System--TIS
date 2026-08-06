@@ -1,11 +1,36 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## M4B Controlled Existing Workspace Conversion
+
+M4B converts an explicitly audited internal sandbox into a customer workspace
+that still requires commercial activation. The durable conversion operation is
+the ownership-claim record: it stores the exact workspace tuple, normalized
+intended-owner email, approved M4A hash, canonical parameter hash, immutable
+branch/commercial snapshots, setup state, actors, stage, status, and failure
+code. Append-only conversion events contain only allowlisted redacted details.
+
+Preparation creates no account and sends no email. The intended owner registers
+and verifies through the normal TIS Account flow, explicitly claims the approved
+workspace, and is aligned through the shared operational-owner identity rules.
+No tenant ownership is granted before verification. The setup review accepts
+only legal name, an IANA timezone, and educational program; existing display
+name, country, branches, academic and operational records remain unchanged.
+
+Final execution is PostgreSQL-only and locks the operation and SchoolGroup. It
+re-audits immediately, requires exact identity and unchanged branch/dependency
+and sandbox-entitlement evidence, then ends the internal entitlement and sets
+`customer / provisioning` in one commit. It creates no active entitlement or
+tenant source. M1 resolves this coherent state as `activation_required`, keeps
+Organization Account access, and blocks operations until M3 promo activation.
+Existing-workspace Paddle activation is deliberately deferred; new-onboarding
+Paddle behavior is unchanged.
 
 ## M4A Existing Workspace Conversion Audit
 

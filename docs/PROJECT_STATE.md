@@ -1,11 +1,31 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-06
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Existing Workspace Controlled Conversion
+
+M4B is implemented. Migration
+`20260806_001_existing_workspace_controlled_conversion` adds the conversion
+operation/event ledger, tenant-profile legal name, append-only event guards,
+and a partial unique tenant-owner link constraint with duplicate preflight.
+The generic dry-run-first CLI requires exact workspace, owner, M4A hash,
+operation, idempotency, and actor parameters; write preparation and final
+conversion require explicit phrases and PostgreSQL.
+
+The normal TIS registration and email-verification flow establishes the owner
+identity. A verified owner then claims the prepared operation and completes
+only legal name, controlled IANA timezone, and educational program. Final
+conversion re-audits under row locks, detects branch/dependency or commercial
+drift, preserves every branch and operational record, ends internal sandbox
+authority, and leaves the customer workspace in coherent `activation_required`
+state with no active entitlement or tenant source. Organization Account and M3
+promo activation remain available; direct operations and existing-workspace
+Paddle activation remain unavailable. No production conversion has been run.
 
 ## Existing Workspace Conversion Audit Foundation
 
@@ -21,7 +41,7 @@ identity mismatch (`3`). Reflected model drift, soft-deleted dependencies,
 owner conflicts, and paid/demo/promo evidence fail closed. Archival candidate
 IDs are emitted only for active branches proven dependency-free.
 
-No Al-Andalus identifier exists in reusable service or CLI logic. No branch,
+No target-specific identifier exists in reusable service or CLI logic. No branch,
 account, owner, classification, lifecycle, entitlement, tenant link, approval,
 Paddle, email, or production data is changed. M4A grants neither hard-delete
 approval nor write-conversion authority; those remain later milestones.

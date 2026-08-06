@@ -1688,9 +1688,9 @@
             <nav class="actions" aria-label="TIS Account navigation">
                 <a class="btn secondary" href="/saas/account">{% if organization_account is defined and organization_account %}Organization Account{% else %}Account Setup{% endif %}</a>
                 {% if organization_account is defined and organization_account %}
-                    {% if organization_account.access.can_manage_billing %}<a class="btn secondary" href="/saas/subscription">Billing</a>{% endif %}
+                    {% if organization_account.access.can_manage_billing and not organization_account.suppress_commercial_billing %}<a class="btn secondary" href="/saas/subscription">Billing</a>{% endif %}
                     <a class="btn secondary" href="/saas/account/security">Security</a>
-                    {% if organization_account.access.commercial_access.allowed_access %}<a class="btn" href="/login">Enter TIS Platform</a>{% endif %}
+                    {% if organization_account.access.commercial_access.allowed_access and not organization_account.suppress_operational_entry %}<a class="btn" href="/login">Enter TIS Platform</a>{% endif %}
                 {% elif not (setup_console is defined and setup_console and organization is defined and organization) %}
                     <a class="btn secondary" href="/saas/account/profile">Profile</a>
                     <a class="btn secondary" href="/saas/subscription">Subscription</a>

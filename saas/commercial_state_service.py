@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 import models as operational_models
 from commercial_entitlements import CommercialState
-from saas import commercial_validation_service, workspace_entitlement_service
+from saas import commercial_validation_service, models, workspace_entitlement_service
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
@@ -85,6 +85,33 @@ def resolve_commercial_state(db: Session, school_group_id: int) -> CommercialSta
             status="manual_review",
             reason="invalid_workspace_classification_metadata",
             state=CommercialState.MANUAL_REVIEW,
+        )
+
+    if (
+        classification is WorkspaceClassification.CUSTOMER
+        and lifecycle is WorkspaceLifecycleStatus.PROVISIONING
+        and not db.query(models.WorkspaceEntitlement.id).filter(
+            models.WorkspaceEntitlement.school_group_id == group.id,
+            models.WorkspaceEntitlement.status == "active",
+        ).first()
+        and not db.query(models.TenantProvisioningLink.id).filter(
+            models.TenantProvisioningLink.school_group_id == group.id
+        ).first()
+        and not db.query(models.SubscriptionContract.id).filter(
+            models.SubscriptionContract.school_group_id == group.id
+        ).first()
+        and not db.query(models.PromoGrant.id).filter(
+            models.PromoGrant.school_group_id == group.id
+        ).first()
+        and not db.query(models.SaaSDemoWorkspaceProvisioning.id).filter(
+            models.SaaSDemoWorkspaceProvisioning.school_group_id == group.id
+        ).first()
+    ):
+        return _snapshot(
+            group,
+            status="resolved",
+            reason="activation_required",
+            state=CommercialState.PROVISIONING,
         )
 
     entitlement = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)

@@ -1,10 +1,11 @@
 knowledge_impact: yes
-summary: Implement M4A generic read-only evidence collection for future existing-workspace conversion design.
+summary: Implement M4B controlled existing-workspace owner alignment and activation-required conversion.
 affected_areas:
-  - production-diagnostics
   - existing-workspace-conversion
-  - tenant-relationship-audit
-  - branch-dependency-audit
+  - owner-verification-and-alignment
+  - commercial-access-authority
+  - organization-account
+  - database-schema
   - security
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
@@ -14,6 +15,6 @@ kms_files_updated:
   - docs/engineering/REPOSITORY_ARCHITECTURE.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/adr/README.md
-  - docs/adr/0021-existing-workspace-conversion-read-only-audit.md
+  - docs/adr/0022-controlled-existing-workspace-conversion.md
 no_impact_reason:
 major_change_override: no
