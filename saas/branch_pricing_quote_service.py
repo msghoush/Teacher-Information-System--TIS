@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+import models as operational_models
 from saas import currency_service, models
 
 
