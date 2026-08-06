@@ -530,6 +530,19 @@ M5: Platform access, permissions, and owner controls
 
 ## Paddle And Payment Architecture Summary
 
+Existing customer workspaces in `activation_required` can use a separate
+SchoolGroup-anchored paid activation flow. It shares Paddle customer/address/business
+and transaction infrastructure but does not create PendingOrganization or run tenant
+provisioning. Professional and Enterprise AI quote all active operational branches;
+Starter remains disabled until complete branch-entitlement enforcement is proven.
+The workspace-customer association persists the address and business used for that
+SchoolGroup, and a returned or reused Paddle transaction is accepted only after its
+complete billed transaction and current-quote lineage are revalidated.
+Verified `transaction.completed` evidence atomically establishes the paid contract,
+subscription, workspace/branch entitlements, paid tenant link, and active lifecycle.
+Classification remains `customer`, and browser return or `transaction.paid` never
+grants access.
+
 The payment architecture is organized under the `saas/` package.
 
 Key modules:

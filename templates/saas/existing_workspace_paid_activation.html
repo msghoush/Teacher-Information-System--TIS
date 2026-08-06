@@ -1,0 +1,111 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+  .activation-head { display:flex; justify-content:space-between; gap:20px; align-items:flex-start; margin-bottom:22px; }
+  .activation-head h1 { margin:4px 0 6px; }
+  .activation-head p { margin:0; color:var(--muted); }
+  .activation-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+  .activation-card { border:1px solid #dbe3ec; border-radius:8px; background:#fff; padding:20px; min-width:0; }
+  .activation-card h2 { margin:0 0 8px; font-size:18px; }
+  .activation-card p { margin:0 0 12px; color:var(--muted); line-height:1.55; }
+  .activation-plan-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:14px; margin:16px 0 22px; }
+  .activation-plan { display:flex; flex-direction:column; gap:10px; border:1px solid #dbe3ec; border-radius:8px; padding:18px; }
+  .activation-plan h3 { margin:0; font-size:18px; }
+  .activation-plan .plan-price { color:#183b66; font-weight:800; }
+  .activation-plan.is-unavailable { background:#f8fafc; color:#64748b; }
+  .activation-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+  .activation-fields label { display:grid; gap:6px; font-weight:700; }
+  .activation-fields input { width:100%; }
+  .activation-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:16px 0; }
+  .activation-metric { padding:14px; border:1px solid #dbe3ec; border-radius:8px; background:#f8fafc; }
+  .activation-metric span { display:block; color:var(--muted); font-size:13px; }
+  .activation-metric strong { display:block; margin-top:5px; }
+  @media (max-width:820px) { .activation-plan-grid { grid-template-columns:1fr; } }
+  @media (max-width:680px) { .activation-head { flex-direction:column; } .activation-grid,.activation-fields,.activation-summary { grid-template-columns:1fr; } }
+</style>
+
+<section class="activation-head">
+  <div>
+    <span class="page-eyebrow">Workspace Activation</span>
+    <h1>{{ workspace.name }}</h1>
+    <p>Activate this existing workspace without changing its branches, users, or academic data.</p>
+  </div>
+  <a class="btn secondary" href="/saas/account?organization_uuid={{ workspace.workspace_uuid | urlencode }}">Organization Account</a>
+</section>
+
+{% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+{% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
+
+{% if activation %}
+<section class="activation-card" aria-labelledby="activation-review-title">
+  <span class="page-eyebrow">Secure Payment Review</span>
+  <h2 id="activation-review-title">{{ selected_plan.plan_name }}</h2>
+  <div class="activation-summary">
+    <div class="activation-metric"><span>Billing interval</span><strong>{{ activation.billing_interval | capitalize }}</strong></div>
+    <div class="activation-metric"><span>Active branches</span><strong>{{ activation.branch_quantity }}</strong></div>
+    <div class="activation-metric"><span>Total</span><strong>{{ amount_display }}</strong></div>
+  </div>
+  <p>{{ unit_amount_display }} per active branch. Paddle quantity is {{ activation.branch_quantity }}.</p>
+  <p>All {{ activation.branch_quantity }} selected branches remain part of this workspace. Operational access begins only after verified payment completion.</p>
+  {% if activation.status in ['checkout_ready', 'checkout_started'] %}
+  <form method="post" action="/saas/account/workspaces/{{ workspace.workspace_uuid }}/activation/launch">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="activation_uuid" value="{{ activation.activation_uuid }}">
+    <button class="btn" type="submit">Continue to Secure Payment</button>
+  </form>
+  {% elif activation.status == 'payment_processing' %}
+  <div class="notice" role="status">Payment received. TIS is waiting for Paddle to complete confirmation. No action is required.</div>
+  {% elif activation.status == 'manual_review' %}
+  <div class="error" role="alert">Secure payment needs review. Please contact the TIS team.</div>
+  {% endif %}
+</section>
+{% elif eligibility.eligible %}
+<form method="post" action="/saas/account/workspaces/{{ workspace.workspace_uuid }}/activation/prepare">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="idempotency_key" value="{{ idempotency_key }}">
+  <section class="activation-card">
+    <h2>Choose billing interval</h2>
+    <label><span>Billing interval</span>
+      <select name="billing_interval" onchange="window.location.search='billing_interval='+encodeURIComponent(this.value)">
+        <option value="monthly"{% if billing_interval == 'monthly' %} selected{% endif %}>Monthly</option>
+        <option value="annual"{% if billing_interval == 'annual' %} selected{% endif %}>Annual</option>
+      </select>
+    </label>
+    <div class="activation-plan-grid">
+      {% for option in plans %}
+      <label class="activation-plan{% if not option.available %} is-unavailable{% endif %}">
+        <span><input type="radio" name="plan_id" value="{{ option.plan.id }}"{% if not option.available %} disabled{% endif %}{% if option.available and loop.index == 2 %} checked{% endif %}> {{ option.plan.plan_name }}</span>
+        {% if option.price %}<span class="plan-price">USD {{ '%.2f' | format(option.price.amount_minor / 100) }} per branch / {{ billing_interval }}</span>{% endif %}
+        <span>{{ option.quantity }} branch{% if option.quantity != 1 %}es{% endif %}</span>
+        {% if not option.available %}<small>{{ option.reason }}</small>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="activation-card" style="margin-top:16px">
+    <h2>Billing Contact</h2>
+    <p>These details are used for future Paddle billing documents. They do not change the sign-in email.</p>
+    <div class="activation-fields">
+      <label>Billing email<input type="email" name="billing_email" required value="{{ billing_contact.billing_email }}"></label>
+      <label>Billing organization<input type="text" name="billing_organization_name" required value="{{ billing_contact.billing_organization_name }}"></label>
+      <label>Contact name<input type="text" name="billing_contact_name" value="{{ billing_contact.billing_contact_name }}"></label>
+      <label>Country code<input type="text" name="country_code" maxlength="2" required value="{{ billing_contact.country_code }}"></label>
+      <label>Company number<input type="text" name="company_number" value="{{ billing_contact.company_number }}"></label>
+      <label>Tax identifier<input type="text" name="tax_identifier" value="{{ billing_contact.tax_identifier }}"></label>
+      <label>Country<input type="text" name="country_name" value="{{ billing_contact.country_name }}"></label>
+      <label>Region<input type="text" name="region_name" value="{{ billing_contact.region_name }}"></label>
+      <label>City<input type="text" name="city_name" value="{{ billing_contact.city_name }}"></label>
+      <label>District<input type="text" name="district_name" value="{{ billing_contact.district_name }}"></label>
+      <label>Neighborhood<input type="text" name="neighborhood_name" value="{{ billing_contact.neighborhood_name }}"></label>
+    </div>
+    <div class="actions"><button class="btn" type="submit">Review Secure Payment</button></div>
+  </section>
+</form>
+{% else %}
+<section class="activation-card">
+  <h2>Paid activation is unavailable</h2>
+  <p>This workspace cannot start a new paid activation at this time. Its existing data remains unchanged.</p>
+  <a class="btn secondary" href="/saas/account">Return to Organization Account</a>
+</section>
+{% endif %}
+{% endblock %}

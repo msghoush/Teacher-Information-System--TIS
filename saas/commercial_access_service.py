@@ -229,6 +229,74 @@ def resolve_workspace_access(
         lifecycle = _clean(group.workspace_lifecycle_status).lower()
         grant = promo_grant_service.resolve_promo_grant(db, group.id)
         entitlement = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)
+        if entitlement.active and entitlement.entitlement_type == "paid":
+            resolution = entitlement_service.resolve_entitlements(db, group.id)
+            subscription = (
+                db.get(saas_models.PaymentSubscription, resolution.subscription_id)
+                if resolution.subscription_id
+                else None
+            )
+            pending, target_plan = _pending_context(db, subscription)
+            if lifecycle == WorkspaceLifecycleStatus.ACTIVE.value and subscription is not None:
+                status = _clean(subscription.status).lower()
+                if resolution.resolved and status in {"active", "trialing"}:
+                    return _paid_state(
+                        blocked=False,
+                        state=ACTIVE if status == "active" else TRIALING,
+                        reason="subscription_entitled",
+                        group=group,
+                        resolution=resolution,
+                        subscription=subscription,
+                        pending=pending,
+                        target_plan=target_plan,
+                        action="enter_workspace",
+                        message_key=f"subscription_{status}",
+                    )
+                if resolution.resolved and status in {"canceled", "cancelled"}:
+                    return _paid_state(
+                        blocked=False,
+                        state=CANCELED,
+                        reason="canceled_paid_period_active",
+                        group=group,
+                        resolution=resolution,
+                        subscription=subscription,
+                        pending=pending,
+                        target_plan=target_plan,
+                        action="enter_workspace",
+                        message_key="subscription_canceled_paid_period",
+                    )
+            return _paid_state(
+                blocked=True,
+                state=(
+                    PAYMENT_PROCESSING
+                    if lifecycle == WorkspaceLifecycleStatus.PROVISIONING.value
+                    else INCONSISTENT
+                ),
+                reason=resolution.reason_code,
+                group=group,
+                resolution=resolution,
+                subscription=subscription,
+                pending=pending,
+                target_plan=target_plan,
+                action="view_subscription",
+                message_key="subscription_status_review",
+            )
+        paid_activation = db.query(
+            saas_models.ExistingWorkspacePaidActivation
+        ).filter(
+            saas_models.ExistingWorkspacePaidActivation.school_group_id == group.id,
+            saas_models.ExistingWorkspacePaidActivation.status.in_(
+                {
+                    "draft",
+                    "checkout_ready",
+                    "checkout_started",
+                    "payment_processing",
+                    "manual_review",
+                }
+            ),
+        ).order_by(
+            saas_models.ExistingWorkspacePaidActivation.id.desc()
+        ).first()
         if (
             lifecycle == WorkspaceLifecycleStatus.PROVISIONING.value
             and grant.reason_code == "missing_promo_grant"
@@ -239,9 +307,6 @@ def resolve_workspace_access(
             and not db.query(saas_models.TenantProvisioningLink.id).filter(
                 saas_models.TenantProvisioningLink.school_group_id == group.id
             ).first()
-            and not db.query(saas_models.SubscriptionContract.id).filter(
-                saas_models.SubscriptionContract.school_group_id == group.id
-            ).first()
             and not db.query(saas_models.PromoGrant.id).filter(
                 saas_models.PromoGrant.school_group_id == group.id
             ).first()
@@ -251,11 +316,13 @@ def resolve_workspace_access(
         ):
             return CommercialAccessState(
                 blocked=True,
-                kind="promo",
+                kind="subscription" if paid_activation is not None else "promo",
                 reason_code="activation_required",
                 commercial_state=PAYMENT_PROCESSING,
                 workspace_lifecycle=lifecycle,
-                recommended_action="apply_promo",
+                recommended_action=(
+                    "view_subscription" if paid_activation is not None else "apply_promo"
+                ),
                 customer_message_key="existing_workspace_activation_required",
             )
         if (

@@ -67,6 +67,14 @@ _TYPE_BY_CLASSIFICATION = {
     WorkspaceClassification.CUSTOMER.value: WorkspaceEntitlementType.PROMO.value,
 }
 
+_ALLOWED_TYPES_BY_CLASSIFICATION = {
+    **{key: {value} for key, value in _TYPE_BY_CLASSIFICATION.items()},
+    WorkspaceClassification.CUSTOMER.value: {
+        WorkspaceEntitlementType.PROMO.value,
+        WorkspaceEntitlementType.PAID.value,
+    },
+}
+
 _STATUS_BY_LIFECYCLE = {
     WorkspaceLifecycleStatus.PROVISIONING.value: WorkspaceEntitlementStatus.PENDING.value,
     WorkspaceLifecycleStatus.ACTIVE.value: WorkspaceEntitlementStatus.ACTIVE.value,
@@ -199,7 +207,9 @@ def resolve_workspace_entitlement(db: Session, school_group_id: int) -> Workspac
         source = commercial_validation_service.validate_entitlement_source(row.source).value
     except commercial_validation_service.CommercialValidationError:
         return _manual_review(group_id, "invalid_workspace_entitlement_metadata")
-    if entitlement_type != expected_type:
+    if entitlement_type not in _ALLOWED_TYPES_BY_CLASSIFICATION[
+        group.workspace_classification
+    ]:
         return _manual_review(group_id, "classification_entitlement_mismatch")
     if row.effective_from and row.effective_to and row.effective_to <= row.effective_from:
         return _manual_review(group_id, "invalid_entitlement_effective_window")

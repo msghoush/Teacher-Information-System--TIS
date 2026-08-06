@@ -46,3 +46,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0020-promo-redemption-and-commercial-grants.md`
 - `0021-existing-workspace-conversion-read-only-audit.md`
 - `0022-controlled-existing-workspace-conversion.md`
+- `0023-existing-workspace-paid-activation.md`

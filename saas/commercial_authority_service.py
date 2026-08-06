@@ -422,7 +422,13 @@ def resolve_commercial_authority(
     elif classification == WorkspaceClassification.CUSTOMER_DEMO.value:
         source = DEMO
         limits = CapacityLimits(unmetered=True)
-    elif classification == WorkspaceClassification.CUSTOMER_PAID.value:
+    elif (
+        classification == WorkspaceClassification.CUSTOMER_PAID.value
+        or (
+            classification == WorkspaceClassification.CUSTOMER.value
+            and workspace_entitlement.entitlement_type == "paid"
+        )
+    ):
         source = PAID_SUBSCRIPTION
         paid = entitlement_service.resolve_entitlements(db, group.id)
         resolved = bool(resolved and paid.resolved)

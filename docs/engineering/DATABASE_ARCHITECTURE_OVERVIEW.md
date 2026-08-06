@@ -207,6 +207,27 @@ Related files:
 
 `SubscriptionChangeRequest` is durable workflow/audit state for branch quantity, plan transition, and cancellation actions. It records requested/provider-observed state and lifecycle outcomes, but Paddle remains authoritative for monetary previews, proration, scheduled changes, transactions, and invoice documents.
 
+### Existing Workspace Paid Activation
+
+Migration `20260806_002_existing_workspace_paid_activation` adds a direct paid
+activation context for an existing SchoolGroup. `ExistingWorkspacePaidActivation`
+stores workspace/account/owner identity, selected plan and interval, provider price,
+branch quantity and immutable selection hash, quote fingerprint and amounts,
+idempotency, checkout/payment/contract lineage, provider transaction/subscription
+identity, lifecycle, and safe failure state. Versioned branch rows retain stable
+branch snapshots, and append-only redacted events retain lifecycle evidence.
+
+CheckoutSession and PaymentAttempt enforce an XOR between PendingOrganization and
+existing-workspace activation contexts. SubscriptionContract and
+PaymentSubscription permit a null PendingOrganization only when commercial authority
+is anchored through SchoolGroup/contract. OrganizationBillingProfile supports an
+exclusive PendingOrganization or SchoolGroup context. Explicit
+PaymentCustomerWorkspaceAssociation rows prevent implicit provider-customer sharing.
+They persist the provider address and business selected for each SchoolGroup so
+workspace billing identity remains stable even when the underlying customer is shared.
+Unique indexes enforce one unresolved activation per SchoolGroup and unique provider
+transaction/subscription mappings. No tenant-owned operational table is copied.
+
 Guardrails:
 
 - `PaymentSubscription.quantity` is paid branch-capacity authority.

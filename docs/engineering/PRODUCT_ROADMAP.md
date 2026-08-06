@@ -150,6 +150,13 @@ Improve onboarding language, progress, validation, customer reassurance, and pla
 
 Configure live Paddle behavior when the payment account and production readiness are approved.
 
+### Existing Workspace Paid Activation
+
+Implemented the SchoolGroup-anchored M4C Paddle activation path for verified owners
+of preserved existing customer workspaces. Sandbox validation and migration rollout
+remain deployment gates. Starter stays unavailable until complete restricted-branch
+enforcement is separately proven.
+
 ### Expand Entitlement Enforcement
 
 Extend plan entitlement checks beyond the current approved pilot only when commercial rules for each module are reviewed.

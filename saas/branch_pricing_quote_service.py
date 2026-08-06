@@ -113,6 +113,27 @@ def _clean_branch_name(value: str) -> str:
     return " ".join(str(value or "").strip().split())
 
 
+def resolve_active_plan_price(
+    db: Session,
+    *,
+    plan_id: int,
+    billing_interval: str,
+    currency_code: str = "USD",
+):
+    """Resolve the newest active catalog price for authoritative quote builders."""
+    return db.query(models.SubscriptionPlanPrice).filter(
+        models.SubscriptionPlanPrice.plan_id == int(plan_id),
+        models.SubscriptionPlanPrice.billing_interval
+        == str(billing_interval or "").strip().lower(),
+        models.SubscriptionPlanPrice.currency_code
+        == str(currency_code or "").strip().upper(),
+        models.SubscriptionPlanPrice.is_active.is_(True),
+    ).order_by(
+        models.SubscriptionPlanPrice.plan_version.desc(),
+        models.SubscriptionPlanPrice.id.desc(),
+    ).first()
+
+
 def evaluate_plan_capacity(
     plan,
     *,
@@ -518,15 +539,12 @@ def build_quote(
 
     price_row = None
     if plan and interval in {"monthly", "annual"}:
-        price_row = db.query(models.SubscriptionPlanPrice).filter(
-            models.SubscriptionPlanPrice.plan_id == plan.id,
-            models.SubscriptionPlanPrice.billing_interval == interval,
-            models.SubscriptionPlanPrice.currency_code == "USD",
-            models.SubscriptionPlanPrice.is_active == True,
-        ).order_by(
-            models.SubscriptionPlanPrice.plan_version.desc(),
-            models.SubscriptionPlanPrice.id.desc(),
-        ).first()
+        price_row = resolve_active_plan_price(
+            db,
+            plan_id=plan.id,
+            billing_interval=interval,
+            currency_code="USD",
+        )
     if plan and interval in {"monthly", "annual"} and not price_row:
         errors.append("Pricing is temporarily unavailable for this subscription option.")
 

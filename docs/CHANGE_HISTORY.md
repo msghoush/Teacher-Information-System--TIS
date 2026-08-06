@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-06 - Implemented M4C Existing Workspace Paid Activation
+
+Added a SchoolGroup-anchored paid activation workflow for verified owners of
+activation-required existing customer workspaces. The implementation adds additive
+schema, strict checkout/payment context constraints, operational capacity and branch
+quote snapshots, workspace billing/customer mapping, Paddle transaction launch,
+webhook-only atomic paid authority, Organization Account activation UX, centralized
+paid entitlement resolution for `customer` classification, and focused regression
+coverage. It does not create PendingOrganization or invoke tenant provisioning.
+
+Final PostgreSQL validation hardened reused-transaction verification, persisted
+workspace-specific provider address/business lineage, refreshed ORM state after
+workspace row locks for concurrent duplicate webhooks, and proved that paid-versus-
+promo races create exactly one commercial source with no partial losing records.
+
+Starter remains unavailable until complete restricted-branch enforcement is proven.
+No production data or real Paddle records were used during implementation. Live
+Paddle Sandbox checkout remains an environment validation gate.
+
 ## 2026-08-06 - Controlled Existing Workspace Owner Alignment And Conversion
 
 Added a durable, idempotent conversion ledger and dry-run-first PostgreSQL CLI

@@ -1839,12 +1839,25 @@ class CheckoutSession(Base):
     __tablename__ = "checkout_sessions"
     __table_args__ = (
         Index("ix_checkout_sessions_org", "pending_organization_id"),
+        Index("ix_checkout_sessions_existing_activation", "existing_workspace_paid_activation_id"),
         Index("ix_checkout_sessions_status", "status"),
+        CheckConstraint(
+            "(pending_organization_id IS NOT NULL AND plan_selection_id IS NOT NULL "
+            "AND existing_workspace_paid_activation_id IS NULL) OR "
+            "(pending_organization_id IS NULL AND plan_selection_id IS NULL "
+            "AND existing_workspace_paid_activation_id IS NOT NULL)",
+            name="ck_checkout_sessions_context",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
-    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
-    plan_selection_id = Column(Integer, ForeignKey("pending_organization_plan_selections.id"), nullable=False, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
+    plan_selection_id = Column(Integer, ForeignKey("pending_organization_plan_selections.id"), index=True)
+    existing_workspace_paid_activation_id = Column(
+        Integer,
+        ForeignKey("existing_workspace_paid_activations.id"),
+        index=True,
+    )
     status = Column(String(20), nullable=False, default="not_started")
     provider = Column(String(30))
     provider_checkout_id = Column(String(120))
@@ -1882,10 +1895,14 @@ class SubscriptionContract(Base):
     __table_args__ = (
         Index("ix_subscription_contracts_pending_org", "pending_organization_id"),
         Index("ix_subscription_contracts_status", "contract_status"),
+        CheckConstraint(
+            "pending_organization_id IS NOT NULL OR school_group_id IS NOT NULL",
+            name="ck_subscription_contracts_context",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
-    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     plan_id = Column(Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True)
     billing_interval = Column(String(20), nullable=False)
@@ -1943,6 +1960,11 @@ class OrganizationBillingProfile(Base):
             unique=True,
         ),
         Index(
+            "uq_organization_billing_profiles_group",
+            "school_group_id",
+            unique=True,
+        ),
+        Index(
             "ix_organization_billing_profiles_email",
             "billing_email_normalized",
         ),
@@ -1950,13 +1972,23 @@ class OrganizationBillingProfile(Base):
             "provider_sync_status IN ('not_started','pending','synced','failed')",
             name="ck_organization_billing_profiles_sync_status",
         ),
+        CheckConstraint(
+            "(pending_organization_id IS NOT NULL AND school_group_id IS NULL) OR "
+            "(pending_organization_id IS NULL AND school_group_id IS NOT NULL)",
+            name="ck_organization_billing_profiles_context",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
     pending_organization_id = Column(
         Integer,
         ForeignKey("pending_organizations.id"),
-        nullable=False,
+        unique=True,
+        index=True,
+    )
+    school_group_id = Column(
+        Integer,
+        ForeignKey("school_groups.id"),
         unique=True,
         index=True,
     )
@@ -1984,16 +2016,34 @@ class PaymentAttempt(Base):
     __table_args__ = (
         Index("uq_payment_attempts_attempt_uuid", "attempt_uuid", unique=True),
         Index("ix_payment_attempts_pending_org", "pending_organization_id"),
+        Index("ix_payment_attempts_existing_activation", "existing_workspace_paid_activation_id"),
         Index("ix_payment_attempts_checkout_session", "checkout_session_id"),
         Index("ix_payment_attempts_status", "status"),
         Index("ix_payment_attempts_provider_transaction_id", "provider_transaction_id"),
         Index("ix_payment_attempts_provider_subscription_id", "provider_subscription_id"),
+        Index(
+            "uq_payment_attempts_provider_transaction_id",
+            "provider_transaction_id",
+            unique=True,
+        ),
+        CheckConstraint(
+            "(pending_organization_id IS NOT NULL AND plan_selection_id IS NOT NULL "
+            "AND existing_workspace_paid_activation_id IS NULL) OR "
+            "(pending_organization_id IS NULL AND plan_selection_id IS NULL "
+            "AND existing_workspace_paid_activation_id IS NOT NULL)",
+            name="ck_payment_attempts_context",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
-    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
     checkout_session_id = Column(Integer, ForeignKey("checkout_sessions.id"), nullable=False, index=True)
-    plan_selection_id = Column(Integer, ForeignKey("pending_organization_plan_selections.id"), nullable=False, index=True)
+    plan_selection_id = Column(Integer, ForeignKey("pending_organization_plan_selections.id"), index=True)
+    existing_workspace_paid_activation_id = Column(
+        Integer,
+        ForeignKey("existing_workspace_paid_activations.id"),
+        index=True,
+    )
     payment_customer_id = Column(Integer, ForeignKey("payment_customers.id"), index=True)
     provider = Column(String(30), nullable=False, default="paddle")
     attempt_uuid = Column(String(36), nullable=False, unique=True)
@@ -2028,7 +2078,7 @@ class PaymentSubscription(Base):
     )
 
     id = Column(Integer, primary_key=True)
-    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), nullable=False, index=True)
+    pending_organization_id = Column(Integer, ForeignKey("pending_organizations.id"), index=True)
     subscription_contract_id = Column(Integer, ForeignKey("subscription_contracts.id"), nullable=False, index=True)
     payment_customer_id = Column(Integer, ForeignKey("payment_customers.id"), index=True)
     provider = Column(String(30), nullable=False, default="paddle")
@@ -2343,4 +2393,210 @@ class ExistingWorkspaceConversionEvent(Base):
     actor_saas_account_id = Column(Integer, ForeignKey("saas_accounts.id", ondelete="SET NULL"), index=True)
     failure_code = Column(String(80))
     details_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ExistingWorkspacePaidActivation(Base):
+    __tablename__ = "existing_workspace_paid_activations"
+    __table_args__ = (
+        Index("uq_existing_workspace_paid_activations_uuid", "activation_uuid", unique=True),
+        Index("ix_existing_workspace_paid_activations_group", "school_group_id"),
+        Index("ix_existing_workspace_paid_activations_account", "saas_account_id"),
+        Index("ix_existing_workspace_paid_activations_status", "status"),
+        Index("ix_existing_workspace_paid_activations_stage", "lifecycle_stage"),
+        Index(
+            "uq_existing_workspace_paid_activations_unresolved_group",
+            "school_group_id",
+            unique=True,
+            sqlite_where=text(
+                "status IN ('draft','checkout_ready','checkout_started',"
+                "'payment_processing','manual_review')"
+            ),
+            postgresql_where=text(
+                "status IN ('draft','checkout_ready','checkout_started',"
+                "'payment_processing','manual_review')"
+            ),
+        ),
+        Index(
+            "uq_existing_workspace_paid_activations_idempotency",
+            "checkout_idempotency_key",
+            unique=True,
+        ),
+        Index(
+            "uq_existing_workspace_paid_activations_transaction",
+            "provider_transaction_id",
+            unique=True,
+        ),
+        Index(
+            "uq_existing_workspace_paid_activations_subscription",
+            "provider_subscription_id",
+            unique=True,
+        ),
+        CheckConstraint(
+            "billing_interval IN ('monthly','annual')",
+            name="ck_existing_workspace_paid_activations_interval",
+        ),
+        CheckConstraint(
+            "status IN ('draft','checkout_ready','checkout_started','payment_processing',"
+            "'completed','failed','cancelled','manual_review','superseded')",
+            name="ck_existing_workspace_paid_activations_status",
+        ),
+        CheckConstraint(
+            "lifecycle_stage IN ('selection','review','checkout','payment','activation','completed')",
+            name="ck_existing_workspace_paid_activations_stage",
+        ),
+        CheckConstraint(
+            "branch_quantity > 0 AND quote_unit_amount_minor >= 0 "
+            "AND quote_aggregate_amount_minor >= 0",
+            name="ck_existing_workspace_paid_activations_quote_values",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    activation_uuid = Column(
+        String(36), nullable=False, unique=True, default=lambda: str(uuid.uuid4())
+    )
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    workspace_uuid_snapshot = Column(String(36), nullable=False)
+    saas_account_id = Column(Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True)
+    tenant_owner_link_id = Column(
+        Integer, ForeignKey("saas_account_user_links.id"), nullable=False, index=True
+    )
+    selected_plan_id = Column(
+        Integer, ForeignKey("subscription_plans.id"), nullable=False, index=True
+    )
+    selected_plan_code = Column(String(40), nullable=False)
+    plan_version = Column(Integer, nullable=False, default=1)
+    provider_price_id = Column(String(120), nullable=False)
+    billing_interval = Column(String(20), nullable=False)
+    status = Column(String(30), nullable=False, default="draft")
+    lifecycle_stage = Column(String(30), nullable=False, default="selection")
+    quote_version = Column(Integer, nullable=False, default=1)
+    branch_quantity = Column(Integer, nullable=False)
+    selected_branch_hash = Column(String(64), nullable=False, index=True)
+    quote_fingerprint = Column(String(64), nullable=False, index=True)
+    quote_currency_code = Column(String(3), nullable=False, default="USD")
+    quote_unit_amount_minor = Column(Integer, nullable=False)
+    quote_aggregate_amount_minor = Column(Integer, nullable=False)
+    checkout_idempotency_key = Column(String(120), nullable=False, unique=True)
+    current_checkout_session_id = Column(Integer, ForeignKey("checkout_sessions.id"), index=True)
+    current_payment_attempt_id = Column(Integer, ForeignKey("payment_attempts.id"), index=True)
+    subscription_contract_id = Column(
+        Integer, ForeignKey("subscription_contracts.id"), index=True
+    )
+    provider_transaction_id = Column(String(120), unique=True, index=True)
+    provider_subscription_id = Column(String(120), unique=True, index=True)
+    failure_code = Column(String(80))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime)
+
+
+class ExistingWorkspacePaidActivationBranch(Base):
+    __tablename__ = "existing_workspace_paid_activation_branches"
+    __table_args__ = (
+        Index(
+            "uq_existing_workspace_paid_activation_branches_version_branch",
+            "paid_activation_id",
+            "quote_version",
+            "branch_id",
+            unique=True,
+        ),
+        Index(
+            "ix_existing_workspace_paid_activation_branches_activation",
+            "paid_activation_id",
+        ),
+        Index("ix_existing_workspace_paid_activation_branches_branch", "branch_id"),
+        CheckConstraint(
+            "quote_version > 0",
+            name="ck_existing_workspace_paid_activation_branches_version",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    paid_activation_id = Column(
+        Integer,
+        ForeignKey("existing_workspace_paid_activations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    quote_version = Column(Integer, nullable=False, default=1)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False, index=True)
+    branch_identity_snapshot = Column(String(120), nullable=False)
+    branch_name_snapshot = Column(String(180), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class ExistingWorkspacePaidActivationEvent(Base):
+    __tablename__ = "existing_workspace_paid_activation_events"
+    __table_args__ = (
+        Index(
+            "ix_existing_workspace_paid_activation_events_activation",
+            "paid_activation_id",
+        ),
+        Index("ix_existing_workspace_paid_activation_events_type", "event_type"),
+        Index("ix_existing_workspace_paid_activation_events_created", "created_at"),
+        CheckConstraint(
+            "result IN ('success','blocked','failed','deduplicated','processing')",
+            name="ck_existing_workspace_paid_activation_events_result",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    paid_activation_id = Column(
+        Integer,
+        ForeignKey("existing_workspace_paid_activations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    event_type = Column(String(48), nullable=False)
+    result = Column(String(20), nullable=False)
+    actor_saas_account_id = Column(
+        Integer, ForeignKey("saas_accounts.id", ondelete="SET NULL"), index=True
+    )
+    failure_code = Column(String(80))
+    details_json = Column(Text, nullable=False, default="{}")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class PaymentCustomerWorkspaceAssociation(Base):
+    __tablename__ = "payment_customer_workspace_associations"
+    __table_args__ = (
+        Index(
+            "uq_payment_customer_workspace_associations_group",
+            "school_group_id",
+            unique=True,
+        ),
+        Index(
+            "uq_payment_customer_workspace_associations_customer_group",
+            "payment_customer_id",
+            "school_group_id",
+            unique=True,
+        ),
+        Index(
+            "ix_payment_customer_workspace_associations_account",
+            "saas_account_id",
+        ),
+        Index(
+            "ix_payment_customer_workspace_associations_address",
+            "provider_address_id",
+        ),
+        Index(
+            "ix_payment_customer_workspace_associations_business",
+            "provider_business_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    payment_customer_id = Column(
+        Integer, ForeignKey("payment_customers.id"), nullable=False, index=True
+    )
+    school_group_id = Column(
+        Integer, ForeignKey("school_groups.id"), nullable=False, unique=True, index=True
+    )
+    saas_account_id = Column(
+        Integer, ForeignKey("saas_accounts.id"), nullable=False, index=True
+    )
+    provider_address_id = Column(String(120))
+    provider_business_id = Column(String(120))
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
