@@ -336,6 +336,54 @@ def test_prepare_is_idempotent_and_creates_no_onboarding_or_provisioning_rows(db
     assert db.query(operational_models.SchoolGroup).count() == 1
 
 
+def test_saved_draft_can_switch_eligible_plan_without_starting_payment(db):
+    group, _branches, account, _link, plans = _fixture(db)
+    professional = _prepare(db, group, account, plans["professional"])
+    db.flush()
+
+    assert activation_service.can_change_plan_selection(db, professional)
+    enterprise = activation_service.prepare_activation(
+        db,
+        school_group_id=group.id,
+        account=account,
+        plan_id=plans["enterprise_ai"].id,
+        billing_interval="monthly",
+        selected_branch_ids=None,
+        idempotency_key="switch-to-enterprise",
+    )
+
+    assert enterprise.id != professional.id
+    assert professional.status == "superseded"
+    assert enterprise.status == "checkout_ready"
+    assert enterprise.selected_plan_code == "enterprise_ai"
+    assert enterprise.branch_quantity == 5
+    assert enterprise.quote_aggregate_amount_minor == 5 * 149_00
+    assert db.query(models.PaymentAttempt).count() == 0
+    assert db.get(models.CheckoutSession, professional.current_checkout_session_id).status == "stale"
+
+
+def test_checkout_in_progress_blocks_unsafe_plan_change(db):
+    group, _branches, account, _link, plans = _fixture(db)
+    activation = _prepare(db, group, account, plans["professional"])
+    activation.status = "checkout_started"
+    db.flush()
+
+    assert not activation_service.can_change_plan_selection(db, activation)
+    with pytest.raises(activation_service.ExistingWorkspacePaidActivationError) as caught:
+        activation_service.prepare_activation(
+            db,
+            school_group_id=group.id,
+            account=account,
+            plan_id=plans["enterprise_ai"].id,
+            billing_interval="monthly",
+            selected_branch_ids=None,
+            idempotency_key="unsafe-switch",
+        )
+    assert caught.value.reason_code == "activation_checkout_in_progress"
+    assert activation.status == "checkout_started"
+    assert db.query(models.ExistingWorkspacePaidActivation).count() == 1
+
+
 def test_context_xor_constraints_preserve_onboarding_integrity(db):
     group, _branches, account, _link, plans = _fixture(db)
     activation = _prepare(db, group, account, plans["professional"])
@@ -1502,5 +1550,8 @@ def test_account_activation_template_exposes_paid_and_promo_choices():
     assert "Choose a Plan" in account_template
     assert "Use Promo Code" in account_template
     assert "Continue to Secure Payment" in activation_template
+    assert "Change plan" in activation_template
+    assert "loop.index == 2" not in activation_template
+    assert "option.plan.id == selected_plan_id" in activation_template
     assert "Starter is unavailable" not in activation_template
     assert "Operational access begins only after verified payment completion" in activation_template

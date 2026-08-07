@@ -1403,12 +1403,24 @@ def existing_workspace_paid_activation(
             == access.school_group.id,
             models.ExistingWorkspacePaidActivation.saas_account_id == account.id,
         ).one_or_none()
-    if activation is None:
-        activation = existing_workspace_paid_activation_service.get_current_activation(
-            db, access.school_group.id
-        )
+    current_activation = existing_workspace_paid_activation_service.get_current_activation(
+        db, access.school_group.id
+    )
+    selection_draft = None
+    if not activation_uuid and existing_workspace_paid_activation_service.can_change_plan_selection(
+        db, current_activation
+    ):
+        # The account entry point is deliberately a plan-selection page. A saved
+        # quote supplies the default selection but must not bypass the owner's
+        # opportunity to choose another eligible plan before checkout begins.
+        selection_draft = current_activation
+    elif activation is None:
+        activation = current_activation
+    context_activation = activation or selection_draft
     interval = str(
-        getattr(activation, "billing_interval", "") or billing_interval or "monthly"
+        getattr(context_activation, "billing_interval", "")
+        or billing_interval
+        or "monthly"
     ).strip().lower()
     if interval not in {"monthly", "annual"}:
         interval = "monthly"
@@ -1420,8 +1432,8 @@ def existing_workspace_paid_activation(
         else ()
     )
     selected_plan = (
-        db.get(models.SubscriptionPlan, activation.selected_plan_id)
-        if activation is not None
+        db.get(models.SubscriptionPlan, context_activation.selected_plan_id)
+        if context_activation is not None
         else None
     )
     selected_branches = (
@@ -1434,9 +1446,15 @@ def existing_workspace_paid_activation(
         )
         .order_by(models.ExistingWorkspacePaidActivationBranch.branch_id.asc())
         .all()
-        if activation is not None
+        if context_activation is not None
         else ()
     )
+    selected_plan_id = getattr(selected_plan, "id", None)
+    if selected_plan_id is None:
+        selected_plan_id = next(
+            (option["plan"].id for option in plans if option["available"]),
+            None,
+        )
     billing_contact = billing_identity_service.workspace_billing_identity_form(
         db, access.school_group, account
     )
@@ -1454,7 +1472,12 @@ def existing_workspace_paid_activation(
             "billing_interval": interval,
             "billing_contact": billing_contact,
             "activation": activation,
+            "selection_draft": selection_draft,
+            "can_change_plan": existing_workspace_paid_activation_service.can_change_plan_selection(
+                db, context_activation
+            ),
             "selected_plan": selected_plan,
+            "selected_plan_id": selected_plan_id,
             "selected_branches": selected_branches,
             "amount_display": _usd_amount(
                 getattr(activation, "quote_aggregate_amount_minor", 0)
@@ -1498,6 +1521,21 @@ def prepare_existing_workspace_paid_activation(
     _require_saas_csrf(session_row, csrf_token)
     access = _existing_workspace_activation_access(db, account, workspace_uuid)
     try:
+        current_activation = (
+            existing_workspace_paid_activation_service.get_current_activation(
+                db, access.school_group.id
+            )
+        )
+        if current_activation and not (
+            existing_workspace_paid_activation_service.can_change_plan_selection(
+                db, current_activation
+            )
+        ):
+            raise existing_workspace_paid_activation_service.ExistingWorkspacePaidActivationError(
+                "activation_checkout_in_progress",
+                "Secure payment is already in progress for this workspace. "
+                "Return to the payment review to continue.",
+            )
         billing_identity_service.save_workspace_billing_profile(
             db,
             access.school_group,

@@ -29,6 +29,7 @@ OPEN_STATUSES = {
     "payment_processing",
     "manual_review",
 }
+PLAN_SELECTION_MUTABLE_STATUSES = {"draft", "checkout_ready"}
 STARTER_BRANCH_ENFORCEMENT_PROVEN = False
 CUSTOMER_SAFE_ERROR = (
     "Secure payment could not be prepared for this workspace. Please try again "
@@ -406,6 +407,25 @@ def get_current_activation(db: Session, school_group_id: int):
     ).first()
 
 
+def can_change_plan_selection(db: Session, activation) -> bool:
+    """Return whether an open activation draft may safely be replaced.
+
+    A quote remains editable until Paddle checkout has started. Once a checkout is
+    in progress, changing its terms would invalidate provider authority, so the
+    owner must finish or recover that checkout before choosing another plan.
+    """
+    if activation is None:
+        return True
+    if _clean(getattr(activation, "status", "")).lower() not in (
+        PLAN_SELECTION_MUTABLE_STATUSES
+    ):
+        return False
+    return not db.query(models.PaymentAttempt.id).filter(
+        models.PaymentAttempt.existing_workspace_paid_activation_id == activation.id,
+        models.PaymentAttempt.status.in_({"checkout_started", "payment_processing"}),
+    ).first()
+
+
 def _lock_group(db: Session, school_group_id: int):
     query = db.query(operational_models.SchoolGroup).filter(
         operational_models.SchoolGroup.id == int(school_group_id)
@@ -429,6 +449,12 @@ def prepare_activation(
     if group is None:
         raise ExistingWorkspacePaidActivationError("workspace_not_found")
     current = get_current_activation(db, group.id)
+    if current and not can_change_plan_selection(db, current):
+        raise ExistingWorkspacePaidActivationError(
+            "activation_checkout_in_progress",
+            "Secure payment is already in progress for this workspace. "
+            "Return to the payment review to continue.",
+        )
     eligibility = require_eligibility(
         db,
         school_group_id=group.id,
