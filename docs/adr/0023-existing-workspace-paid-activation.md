@@ -52,5 +52,9 @@ becomes `active` and operational access resolves through centralized services.
   activation quote.
 - PostgreSQL row-lock reads refresh mapped state before idempotency decisions, so a
   concurrent duplicate webhook cannot act on a pre-lock identity-map snapshot.
+- Organization Account payment presentation is attempt-authoritative: lifecycle
+  `provisioning` with no current attempt means Activation required, processing needs
+  a current unexpired checkout-started or payment-processing attempt, and terminal
+  attempts use recovery states.
 - Promo, normal onboarding payment, and demo-to-paid flows remain separate.
 - The additive migration must be applied before deploying the routes and webhook path.

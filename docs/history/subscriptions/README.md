@@ -1,7 +1,7 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-08-05
+last_updated: 2026-08-07
 ---
 
 # Subscription History
@@ -27,6 +27,11 @@ atomic drift rollback, and exactly one winner in a paid-versus-promo source race
 Workspace-specific provider address/business lineage and complete transaction
 validation prevent stale customer defaults or incomplete provider responses from
 becoming activation authority.
+
+Organization Account derives its activation badge from the current payment attempt,
+not from `workspace_lifecycle_status=provisioning`. No attempt means Activation
+required; a current unexpired checkout-started or processing attempt means Payment
+processing; failed, cancelled, and expired attempts use recovery presentation.
 
 ## 2026-08-05 - Secure Promo Definition Foundation
 

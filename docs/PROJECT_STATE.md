@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-07
 source_of_truth: true
 ---
 
@@ -631,6 +631,11 @@ validation covers migration idempotency and rollback, database constraints,
 concurrent prepare/launch, duplicate and out-of-order webhooks, drift rollback, and
 paid-versus-promo source races. Live Paddle validation was not possible without the
 Sandbox API, client, and webhook credentials.
+
+Organization Account status for an activation-required existing workspace is now
+derived from its current paid-activation attempt. With no attempt it displays
+`Activation required`; only a current unexpired checkout-started or payment-processing
+attempt displays `Payment processing`. Terminal attempts display recovery states.
 
 Known issues and watch points:
 

@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-07
 recommended_first_read: true
 ---
 
@@ -40,6 +40,13 @@ subtotal, interval, currency, customer, address, business, checkout URL, and ful
 custom-data lineage match the current quote. PostgreSQL lock acquisition refreshes
 mapped state before duplicate webhook decisions. Existing promo, demo-to-paid,
 and PendingOrganization checkout paths remain separate.
+
+Organization Account presentation distinguishes commercial activation from payment
+processing. A coherent `activation_required` workspace with no current payment
+attempt displays **Activation required**. **Payment processing** requires a current,
+unexpired existing-workspace `PaymentAttempt` in `checkout_started` or
+`payment_processing`; failed, cancelled, and expired attempts display recovery states.
+Workspace lifecycle `provisioning` alone is never payment evidence.
 
 ## M4B Controlled Existing Workspace Conversion
 

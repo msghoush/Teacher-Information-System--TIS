@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-07 - Corrected Existing Workspace Payment Status Presentation
+
+Organization Account now displays `Activation required` for a converted existing
+workspace that has no real unresolved Paddle checkout attempt. Payment processing is
+shown only for a current, unexpired `PaymentAttempt` in checkout-started or payment-
+processing state. Failed, cancelled, and expired attempts use recovery states, while
+completed paid and promo activation continue to show their active commercial state.
+No payment, Paddle, promo, capacity, or commercial-authority transition changed.
+
 ## 2026-08-06 - Implemented M4C Existing Workspace Paid Activation
 
 Added a SchoolGroup-anchored paid activation workflow for verified owners of
