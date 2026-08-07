@@ -114,6 +114,11 @@ def _payment_link_base_url(request: Request) -> str:
     return public_base
 
 
+def payment_link_base_url(request: Request) -> str:
+    """Return the configured Paddle payment-link page for shared checkout flows."""
+    return _payment_link_base_url(request)
+
+
 def _webhook_secret() -> str:
     value = str(os.environ.get("PADDLE_WEBHOOK_SECRET") or "").strip()
     if not value:
@@ -1446,6 +1451,19 @@ def process_webhook(db: Session, *, raw_body: bytes, headers: dict):
     )
 
     event_type = str(payload.get("event_type") or "").strip().lower()
+    from saas import existing_workspace_paid_activation_service
+
+    paid_activation_result = existing_workspace_paid_activation_service.reconcile_webhook(
+        db,
+        payload,
+        event_type,
+    )
+    if paid_activation_result is not None:
+        webhook_row.processing_status = paid_activation_result.get("status", "processed")
+        webhook_row.processing_error = paid_activation_result.get("reason_code")
+        webhook_row.processed_at = _utcnow()
+        return paid_activation_result
+
     from saas import subscription_change_service
 
     change_result = subscription_change_service.reconcile_quantity_change_webhook(

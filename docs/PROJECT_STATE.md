@@ -621,6 +621,17 @@ KMS v3.0 Phase 3D final scope:
 
 ## Current Known Issues
 
+M4C existing-workspace paid activation is implemented for verified tenant owners.
+Professional and Enterprise AI cover all active branches and use branch count as
+Paddle quantity. Starter is deliberately fail-closed until complete restricted-
+branch enforcement is proven. Deployment still requires migration
+`20260806_002_existing_workspace_paid_activation`, environment-specific active Paddle
+price mappings, and Sandbox validation before production use. Disposable PostgreSQL
+validation covers migration idempotency and rollback, database constraints,
+concurrent prepare/launch, duplicate and out-of-order webhooks, drift rollback, and
+paid-versus-promo source races. Live Paddle validation was not possible without the
+Sandbox API, client, and webhook credentials.
+
 Known issues and watch points:
 
 - KMS policy depends on future developers and AI agents consistently completing the Knowledge Impact Assessment.

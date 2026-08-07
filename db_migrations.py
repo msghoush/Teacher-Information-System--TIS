@@ -5355,6 +5355,192 @@ def _existing_workspace_controlled_conversion(engine, connection):
             )
 
 
+def _existing_workspace_paid_activation(engine, connection):
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+    import saas.models  # noqa: F401 - register SaaS metadata
+
+    if engine.dialect.name == "postgresql":
+        _add_column_if_missing(
+            connection, connection, "organization_billing_profiles",
+            "school_group_id", "school_group_id INTEGER",
+        )
+        for table_name in (
+            "existing_workspace_paid_activations",
+            "existing_workspace_paid_activation_branches",
+            "existing_workspace_paid_activation_events",
+            "payment_customer_workspace_associations",
+        ):
+            Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+        _add_column_if_missing(
+            connection,
+            connection,
+            "payment_customer_workspace_associations",
+            "provider_address_id",
+            "provider_address_id VARCHAR(120)",
+        )
+        _add_column_if_missing(
+            connection,
+            connection,
+            "payment_customer_workspace_associations",
+            "provider_business_id",
+            "provider_business_id VARCHAR(120)",
+        )
+        _add_column_if_missing(
+            connection, connection, "checkout_sessions",
+            "existing_workspace_paid_activation_id",
+            "existing_workspace_paid_activation_id INTEGER",
+        )
+        _add_column_if_missing(
+            connection, connection, "payment_attempts",
+            "existing_workspace_paid_activation_id",
+            "existing_workspace_paid_activation_id INTEGER",
+        )
+        for table_name, column_name in (
+            ("checkout_sessions", "pending_organization_id"),
+            ("checkout_sessions", "plan_selection_id"),
+            ("subscription_contracts", "pending_organization_id"),
+            ("organization_billing_profiles", "pending_organization_id"),
+            ("payment_attempts", "pending_organization_id"),
+            ("payment_attempts", "plan_selection_id"),
+            ("payment_subscriptions", "pending_organization_id"),
+        ):
+            _execute(
+                connection,
+                f"ALTER TABLE {table_name} ALTER COLUMN {column_name} DROP NOT NULL",
+            )
+        for table_name, constraint_name, column_name, target_table in (
+            ("organization_billing_profiles", "fk_organization_billing_profiles_school_group", "school_group_id", "school_groups"),
+            ("checkout_sessions", "fk_checkout_sessions_existing_workspace_paid_activation", "existing_workspace_paid_activation_id", "existing_workspace_paid_activations"),
+            ("payment_attempts", "fk_payment_attempts_existing_workspace_paid_activation", "existing_workspace_paid_activation_id", "existing_workspace_paid_activations"),
+        ):
+            _ensure_postgres_fk(
+                engine, connection, table_name=table_name,
+                constraint_name=constraint_name, column_name=column_name,
+                target_table=target_table,
+            )
+        _replace_postgres_check(
+            connection, "checkout_sessions", "ck_checkout_sessions_context",
+            "(pending_organization_id IS NOT NULL AND plan_selection_id IS NOT NULL "
+            "AND existing_workspace_paid_activation_id IS NULL) OR "
+            "(pending_organization_id IS NULL AND plan_selection_id IS NULL "
+            "AND existing_workspace_paid_activation_id IS NOT NULL)",
+        )
+        _replace_postgres_check(
+            connection, "payment_attempts", "ck_payment_attempts_context",
+            "(pending_organization_id IS NOT NULL AND plan_selection_id IS NOT NULL "
+            "AND existing_workspace_paid_activation_id IS NULL) OR "
+            "(pending_organization_id IS NULL AND plan_selection_id IS NULL "
+            "AND existing_workspace_paid_activation_id IS NOT NULL)",
+        )
+        _replace_postgres_check(
+            connection, "subscription_contracts", "ck_subscription_contracts_context",
+            "pending_organization_id IS NOT NULL OR school_group_id IS NOT NULL",
+        )
+        _replace_postgres_check(
+            connection, "organization_billing_profiles",
+            "ck_organization_billing_profiles_context",
+            "(pending_organization_id IS NOT NULL AND school_group_id IS NULL) OR "
+            "(pending_organization_id IS NULL AND school_group_id IS NOT NULL)",
+        )
+    else:
+        for table_name in (
+            "existing_workspace_paid_activations",
+            "existing_workspace_paid_activation_branches",
+            "existing_workspace_paid_activation_events",
+            "payment_customer_workspace_associations",
+        ):
+            Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+        for table_name in (
+            "organization_billing_profiles",
+            "subscription_contracts",
+            "checkout_sessions",
+            "payment_attempts",
+            "payment_subscriptions",
+        ):
+            _sqlite_rebuild_from_current_metadata(connection, table_name)
+
+    duplicate_transactions = connection.execute(text(
+        "SELECT provider_transaction_id, COUNT(*) AS item_count FROM payment_attempts "
+        "WHERE provider_transaction_id IS NOT NULL AND provider_transaction_id <> '' "
+        "GROUP BY provider_transaction_id HAVING COUNT(*) > 1 LIMIT 1"
+    )).first()
+    if duplicate_transactions is not None:
+        raise RuntimeError(
+            "M4C migration blocked: duplicate provider transaction mappings require review."
+        )
+    _create_unique_index_if_missing(
+        connection, connection, "payment_attempts",
+        "uq_payment_attempts_provider_transaction_id", "provider_transaction_id",
+    )
+    _create_unique_index_if_missing(
+        connection, connection, "organization_billing_profiles",
+        "uq_organization_billing_profiles_group", "school_group_id",
+    )
+    _create_index_if_missing(
+        connection, connection, "checkout_sessions",
+        "ix_checkout_sessions_existing_activation", "existing_workspace_paid_activation_id",
+    )
+    _create_index_if_missing(
+        connection, connection, "payment_attempts",
+        "ix_payment_attempts_existing_activation", "existing_workspace_paid_activation_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "payment_customer_workspace_associations",
+        "ix_payment_customer_workspace_associations_address",
+        "provider_address_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "payment_customer_workspace_associations",
+        "ix_payment_customer_workspace_associations_business",
+        "provider_business_id",
+    )
+
+    if engine.dialect.name == "postgresql":
+        _execute(
+            connection,
+            """
+            CREATE OR REPLACE FUNCTION tis_reject_paid_activation_event_mutation()
+            RETURNS trigger AS $$
+            BEGIN
+                RAISE EXCEPTION 'existing workspace paid activation events are append-only';
+            END;
+            $$ LANGUAGE plpgsql
+            """,
+        )
+        for action in ("UPDATE", "DELETE"):
+            trigger_name = f"trg_existing_workspace_paid_activation_events_no_{action.lower()}"
+            _execute(
+                connection,
+                f"DROP TRIGGER IF EXISTS {trigger_name} "
+                "ON existing_workspace_paid_activation_events",
+            )
+            _execute(
+                connection,
+                f"CREATE TRIGGER {trigger_name} BEFORE {action} "
+                "ON existing_workspace_paid_activation_events FOR EACH ROW "
+                "EXECUTE FUNCTION tis_reject_paid_activation_event_mutation()",
+            )
+    else:
+        for action in ("UPDATE", "DELETE"):
+            trigger_name = f"trg_existing_workspace_paid_activation_events_no_{action.lower()}"
+            _execute(connection, f"DROP TRIGGER IF EXISTS {trigger_name}")
+            _execute(
+                connection,
+                f"""
+                CREATE TRIGGER {trigger_name}
+                BEFORE {action} ON existing_workspace_paid_activation_events
+                BEGIN
+                    SELECT RAISE(ABORT, 'existing workspace paid activation events are append-only');
+                END
+                """,
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5560,6 +5746,11 @@ MIGRATIONS = (
         migration_id="20260806_001_existing_workspace_controlled_conversion",
         description="Add controlled existing-workspace owner alignment and activation-required conversion ledger",
         apply=_existing_workspace_controlled_conversion,
+    ),
+    Migration(
+        migration_id="20260806_002_existing_workspace_paid_activation",
+        description="Add existing-workspace paid activation and checkout contexts",
+        apply=_existing_workspace_paid_activation,
     ),
 )
 

@@ -36,7 +36,7 @@ _STATE_LABELS = {
     CommercialState.INTERNAL_SANDBOX_ACTIVE: "Internal Sandbox Active",
     CommercialState.CUSTOMER_DEMO_ACTIVE: "Customer Demo Active",
     CommercialState.CUSTOMER_PAID_ACTIVE: "Customer Paid Active",
-    CommercialState.CUSTOMER_ACTIVE: "Customer Promo Active",
+    CommercialState.CUSTOMER_ACTIVE: "Customer Active",
     CommercialState.INACTIVE: "Inactive",
     CommercialState.SUSPENDED: "Suspended",
     CommercialState.ARCHIVED: "Archived",
@@ -87,6 +87,20 @@ def resolve_commercial_state(db: Session, school_group_id: int) -> CommercialSta
             state=CommercialState.MANUAL_REVIEW,
         )
 
+    open_paid_activation = db.query(
+        models.ExistingWorkspacePaidActivation.id
+    ).filter(
+        models.ExistingWorkspacePaidActivation.school_group_id == group.id,
+        models.ExistingWorkspacePaidActivation.status.in_(
+            {
+                "draft",
+                "checkout_ready",
+                "checkout_started",
+                "payment_processing",
+                "manual_review",
+            }
+        ),
+    ).first()
     if (
         classification is WorkspaceClassification.CUSTOMER
         and lifecycle is WorkspaceLifecycleStatus.PROVISIONING
@@ -97,9 +111,12 @@ def resolve_commercial_state(db: Session, school_group_id: int) -> CommercialSta
         and not db.query(models.TenantProvisioningLink.id).filter(
             models.TenantProvisioningLink.school_group_id == group.id
         ).first()
-        and not db.query(models.SubscriptionContract.id).filter(
-            models.SubscriptionContract.school_group_id == group.id
-        ).first()
+        and (
+            open_paid_activation is not None
+            or not db.query(models.SubscriptionContract.id).filter(
+                models.SubscriptionContract.school_group_id == group.id
+            ).first()
+        )
         and not db.query(models.PromoGrant.id).filter(
             models.PromoGrant.school_group_id == group.id
         ).first()

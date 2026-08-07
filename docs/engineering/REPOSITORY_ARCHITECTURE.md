@@ -9,6 +9,30 @@ source_of_truth: true
 
 ## Existing Workspace Controlled Conversion Layer
 
+## Existing Workspace Paid Activation Boundary
+
+`saas/existing_workspace_paid_activation_service.py` owns eligibility, operational
+capacity recount, plan/branch quote snapshots, idempotent preparation, workspace
+Paddle-customer association, transaction launch, and webhook-only activation for
+an existing SchoolGroup. It reuses `saas/billing_identity_service.py`,
+`saas/paddle_client.py`, and the centralized commercial resolvers. It never calls
+the tenant provisioning engine and never creates a PendingOrganization.
+
+`ExistingWorkspacePaidActivation` is the durable authority context. CheckoutSession
+and PaymentAttempt accept exactly one of the established PendingOrganization context
+or this context. SchoolGroup-anchored billing profiles, contracts, and subscriptions
+support the existing workspace without weakening onboarding constraints.
+Payment-customer workspace associations retain the exact provider address and
+business lineage used by each SchoolGroup.
+
+The shared Paddle webhook dispatcher recognizes this context before onboarding and
+subscription-mutation handlers. Only matching `transaction.completed` evidence can
+create paid WorkspaceEntitlement, BranchEntitlement, PaymentSubscription, and the
+paid TenantProvisioningLink. Workspace classification remains `customer` and the
+lifecycle becomes `active`. A transaction is released only after complete provider
+billed-state and quote-lineage validation. Locking queries refresh mapped state
+before concurrent idempotency checks.
+
 `saas/existing_workspace_conversion_service.py` owns M4B preparation, verified
 owner alignment, setup validation, fresh-audit comparison, row locking,
 idempotency, and the final activation-required transition. It composes M4A,

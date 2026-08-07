@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 from datetime import datetime, timezone
 import json
@@ -20,7 +20,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, existing_workspace_paid_activation_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
@@ -314,6 +314,25 @@ def _organization_account_shell_context(request: Request, db: Session, account) 
             account,
         )
     return {"access": selected} if selected is not None else None
+
+
+def _existing_workspace_activation_access(db: Session, account, workspace_uuid: str):
+    _accesses, selected = customer_journey_service.select_organization_account_access(
+        db,
+        account,
+        organization_uuid=str(workspace_uuid or "").strip(),
+    )
+    if selected is None or not selected.is_owner or not selected.can_manage_billing:
+        raise HTTPException(status_code=404, detail="Workspace activation is unavailable.")
+    if str(selected.school_group.workspace_uuid or "").strip() != str(
+        workspace_uuid or ""
+    ).strip():
+        raise HTTPException(status_code=404, detail="Workspace activation is unavailable.")
+    return selected
+
+
+def _usd_amount(amount_minor: int | None) -> str:
+    return f"USD {int(amount_minor or 0) / 100:,.2f}"
 
 
 def _paddle_client_environment() -> str:
@@ -1352,6 +1371,257 @@ def resend_verification(
     )
 
 
+@router.get(
+    "/account/workspaces/{workspace_uuid}/activation",
+    response_class=HTMLResponse,
+)
+def existing_workspace_paid_activation(
+    workspace_uuid: str,
+    request: Request,
+    activation_uuid: str = Query(""),
+    billing_interval: str = Query("monthly"),
+    db: Session = Depends(get_db),
+):
+    account, _session_row, redirect = _require_verified_account(
+        request,
+        db,
+        next_path=f"/saas/account/workspaces/{workspace_uuid}/activation",
+    )
+    if redirect:
+        return redirect
+    access = _existing_workspace_activation_access(db, account, workspace_uuid)
+    eligibility = existing_workspace_paid_activation_service.resolve_eligibility(
+        db,
+        school_group_id=access.school_group.id,
+        account=account,
+    )
+    activation = None
+    if activation_uuid:
+        activation = db.query(models.ExistingWorkspacePaidActivation).filter(
+            models.ExistingWorkspacePaidActivation.activation_uuid == activation_uuid,
+            models.ExistingWorkspacePaidActivation.school_group_id
+            == access.school_group.id,
+            models.ExistingWorkspacePaidActivation.saas_account_id == account.id,
+        ).one_or_none()
+    if activation is None:
+        activation = existing_workspace_paid_activation_service.get_current_activation(
+            db, access.school_group.id
+        )
+    interval = str(
+        getattr(activation, "billing_interval", "") or billing_interval or "monthly"
+    ).strip().lower()
+    if interval not in {"monthly", "annual"}:
+        interval = "monthly"
+    plans = (
+        existing_workspace_paid_activation_service.list_plan_options(
+            db, eligibility, interval
+        )
+        if eligibility.eligible
+        else ()
+    )
+    selected_plan = (
+        db.get(models.SubscriptionPlan, activation.selected_plan_id)
+        if activation is not None
+        else None
+    )
+    selected_branches = (
+        db.query(models.ExistingWorkspacePaidActivationBranch)
+        .filter(
+            models.ExistingWorkspacePaidActivationBranch.paid_activation_id
+            == activation.id,
+            models.ExistingWorkspacePaidActivationBranch.quote_version
+            == activation.quote_version,
+        )
+        .order_by(models.ExistingWorkspacePaidActivationBranch.branch_id.asc())
+        .all()
+        if activation is not None
+        else ()
+    )
+    billing_contact = billing_identity_service.workspace_billing_identity_form(
+        db, access.school_group, account
+    )
+    db.rollback()
+    return _render(
+        request,
+        "saas/existing_workspace_paid_activation.html",
+        {
+            "account": account,
+            "organization_account": {"access": access},
+            "access": access,
+            "workspace": access.school_group,
+            "eligibility": eligibility,
+            "plans": plans,
+            "billing_interval": interval,
+            "billing_contact": billing_contact,
+            "activation": activation,
+            "selected_plan": selected_plan,
+            "selected_branches": selected_branches,
+            "amount_display": _usd_amount(
+                getattr(activation, "quote_aggregate_amount_minor", 0)
+            ),
+            "unit_amount_display": _usd_amount(
+                getattr(activation, "quote_unit_amount_minor", 0)
+            ),
+            "csrf_token": request.cookies.get(service.SAAS_CSRF_COOKIE, ""),
+            "idempotency_key": str(uuid.uuid4()),
+            "error": request.query_params.get("error", ""),
+            "notice": request.query_params.get("notice", ""),
+        },
+    )
+
+
+@router.post("/account/workspaces/{workspace_uuid}/activation/prepare")
+def prepare_existing_workspace_paid_activation(
+    workspace_uuid: str,
+    request: Request,
+    plan_id: int = Form(...),
+    billing_interval: str = Form(...),
+    idempotency_key: str = Form(...),
+    selected_branch_ids: str = Form(""),
+    billing_email: str = Form(...),
+    billing_organization_name: str = Form(...),
+    billing_contact_name: str = Form(""),
+    company_number: str = Form(""),
+    tax_identifier: str = Form(""),
+    country_code: str = Form(...),
+    country_name: str = Form(""),
+    region_name: str = Form(""),
+    city_name: str = Form(""),
+    district_name: str = Form(""),
+    neighborhood_name: str = Form(""),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    access = _existing_workspace_activation_access(db, account, workspace_uuid)
+    try:
+        billing_identity_service.save_workspace_billing_profile(
+            db,
+            access.school_group,
+            billing_email=billing_email,
+            billing_organization_name=billing_organization_name,
+            billing_contact_name=billing_contact_name,
+            company_number=company_number,
+            tax_identifier=tax_identifier,
+            country_code=country_code,
+            country_name=country_name,
+            region_name=region_name,
+            city_name=city_name,
+            district_name=district_name,
+            neighborhood_name=neighborhood_name,
+        )
+        branch_ids = tuple(
+            int(value)
+            for value in str(selected_branch_ids or "").split(",")
+            if value.strip().isdigit()
+        ) or None
+        activation = existing_workspace_paid_activation_service.prepare_activation(
+            db,
+            school_group_id=access.school_group.id,
+            account=account,
+            plan_id=plan_id,
+            billing_interval=billing_interval,
+            selected_branch_ids=branch_ids,
+            idempotency_key=idempotency_key,
+        )
+        db.commit()
+    except (
+        billing_identity_service.BillingIdentityError,
+        existing_workspace_paid_activation_service.ExistingWorkspacePaidActivationError,
+    ) as exc:
+        db.rollback()
+        logger.info(
+            "Existing-workspace activation preparation blocked school_group_id=%s reason=%s",
+            access.school_group.id,
+            getattr(exc, "reason_code", exc.__class__.__name__),
+        )
+        return RedirectResponse(
+            f"/saas/account/workspaces/{workspace_uuid}/activation?error="
+            + quote_plus(str(exc)),
+            status_code=302,
+        )
+    except OperationalError:
+        db.rollback()
+        logger.warning(
+            "Existing-workspace activation preparation deferred because the workspace "
+            "lock was unavailable school_group_id=%s",
+            access.school_group.id,
+            exc_info=True,
+        )
+        return RedirectResponse(
+            f"/saas/account/workspaces/{workspace_uuid}/activation?error="
+            + quote_plus(existing_workspace_paid_activation_service.CUSTOMER_SAFE_ERROR),
+            status_code=302,
+        )
+    return RedirectResponse(
+        f"/saas/account/workspaces/{workspace_uuid}/activation?activation_uuid="
+        + quote_plus(activation.activation_uuid),
+        status_code=302,
+    )
+
+
+@router.post("/account/workspaces/{workspace_uuid}/activation/launch")
+def launch_existing_workspace_paid_activation(
+    workspace_uuid: str,
+    request: Request,
+    activation_uuid: str = Form(...),
+    csrf_token: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    account, session_row, redirect = _require_verified_account(request, db)
+    if redirect:
+        return redirect
+    _require_saas_csrf(session_row, csrf_token)
+    access = _existing_workspace_activation_access(db, account, workspace_uuid)
+    try:
+        launch = existing_workspace_paid_activation_service.launch_checkout(
+            db,
+            activation_uuid=activation_uuid,
+            account=account,
+            checkout_url=payment_service.payment_link_base_url(request),
+        )
+        db.commit()
+        return RedirectResponse(launch.checkout_url, status_code=303)
+    except (
+        billing_identity_service.BillingIdentityError,
+        billing_identity_service.BillingIdentitySyncError,
+        existing_workspace_paid_activation_service.ExistingWorkspacePaidActivationError,
+        paddle_client.PaddleAPIError,
+    ) as exc:
+        db.rollback()
+        logger.warning(
+            "Existing-workspace activation launch failed school_group_id=%s reason=%s",
+            access.school_group.id,
+            getattr(exc, "reason_code", getattr(exc, "error_code", exc.__class__.__name__)),
+            exc_info=True,
+        )
+        return RedirectResponse(
+            f"/saas/account/workspaces/{workspace_uuid}/activation?activation_uuid="
+            + quote_plus(activation_uuid)
+            + "&error="
+            + quote_plus(existing_workspace_paid_activation_service.CUSTOMER_SAFE_ERROR),
+            status_code=302,
+        )
+    except OperationalError:
+        db.rollback()
+        logger.warning(
+            "Existing-workspace activation launch deferred because its checkout lock "
+            "was unavailable school_group_id=%s",
+            access.school_group.id,
+            exc_info=True,
+        )
+        return RedirectResponse(
+            f"/saas/account/workspaces/{workspace_uuid}/activation?activation_uuid="
+            + quote_plus(activation_uuid)
+            + "&error="
+            + quote_plus(existing_workspace_paid_activation_service.CUSTOMER_SAFE_ERROR),
+            status_code=302,
+        )
+
+
 @router.get("/account", response_class=HTMLResponse)
 def account_dashboard(
     request: Request,
@@ -1689,8 +1959,8 @@ def subscription_portal(
             return RedirectResponse(
                 "/saas/account?notice="
                 + quote_plus(
-                    "Promotional activation is available. Online subscription activation "
-                    "for an existing workspace is being prepared."
+                    "Choose a paid plan or use an eligible promo code to activate this "
+                    "existing workspace."
                 ),
                 status_code=302,
             )

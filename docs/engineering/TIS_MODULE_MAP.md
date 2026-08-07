@@ -24,6 +24,24 @@ source_of_truth: true
   `templates/saas/commercial_choice.html`, and `templates/saas/account.html`:
   owner-only onboarding and existing-organization activation journey.
 
+## Existing Workspace Paid Activation
+
+**Primary files**
+
+- `saas/existing_workspace_paid_activation_service.py`
+- `saas/billing_identity_service.py`
+- `saas/payment_service.py`
+- `templates/saas/existing_workspace_paid_activation.html`
+
+**Responsibility**
+
+Activate a previously converted existing customer workspace through an
+authoritative Paddle subscription while preserving the existing SchoolGroup and all
+operational data. The module owns direct activation eligibility, branch/capacity
+quote snapshots, checkout lineage, workspace billing/customer attribution, and the
+atomic webhook-confirmed commercial transition. It does not own tenant provisioning,
+normal onboarding checkout, promo redemption, or demo conversion.
+
 M3 never calls Paddle, creates payment evidence, converts internal sandboxes,
 or mutates staff/teacher activity. Exactly one paid/demo/promo tenant source is
 required.

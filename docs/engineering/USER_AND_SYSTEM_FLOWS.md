@@ -9,6 +9,45 @@ source_of_truth: true
 
 ## Existing Workspace Owner Alignment And Conversion
 
+## Existing Workspace Paid Activation
+
+1. A verified tenant owner opens Organization Account and selects **Choose a Plan**.
+2. TIS locks and validates the `customer`/`provisioning` SchoolGroup, exact owner
+   link, absence of commercial authority, and absence of conflicting paid, promo,
+   or demo activity.
+3. TIS recounts active operational branches and organization-wide staff users and
+   teachers. Professional and Enterprise AI require all active branches. Starter
+   remains unavailable until complete restricted-branch enforcement is proven.
+4. The owner confirms the workspace billing profile. TIS builds an authoritative
+   USD quote from the active plan price and stores branch-selection and quote hashes.
+5. Preparation creates a SchoolGroup-anchored contract, paid-activation aggregate,
+   immutable branch snapshot, and checkout session. It creates no pending
+   organization, provisioning job, workspace, tenant, or entitlement.
+6. Launch revalidates the current quote and either reuses a still-billed matching
+   Paddle transaction or creates one automatic-collection transaction with branch
+   quantity and stable authority metadata. Customer, address, and business mappings
+   are reused only through explicit account/workspace attribution. The workspace
+   association records the selected address and business, and every returned or
+   reused transaction must match the complete current billed quote and custom lineage.
+7. Browser return never activates access. `transaction.paid` displays processing.
+8. A signature-verified `transaction.completed` locks the SchoolGroup and activation,
+   revalidates all local and provider evidence, and atomically creates the paid
+   subscription authority, active branch entitlements, and paid tenant link. The
+   existing workspace becomes active without tenant provisioning.
+9. Duplicate webhooks are idempotent. Quote drift, capacity drift, branch drift,
+   stale transactions, provider mismatch, or a competing commercial source fail
+   closed without partial authority. PostgreSQL lock acquisition refreshes the
+   activation state before duplicate-event decisions.
+
+Guardrails:
+
+- `workspace_classification` remains `customer`; paid versus promo is commercial-source evidence.
+- Paddle quantity is branch count only. Staff and teacher totals affect eligibility only.
+- Existing operational and academic rows are never recreated or mutated by activation.
+- Organization Account remains available while operational access is blocked for recovery.
+
+## Controlled Existing Workspace Conversion
+
 1. A Platform Owner runs the M4B CLI in dry-run mode with the exact workspace
    tuple, intended-owner email, current M4A hash, operation UUID, and idempotency
    key. No row is changed.

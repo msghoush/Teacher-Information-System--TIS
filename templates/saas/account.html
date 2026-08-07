@@ -57,9 +57,12 @@
     <section class="account-section">
         <h2>Billing &amp; Subscription</h2>
         {% if organization_account.existing_workspace_activation_required %}
-        <p>Promotional activation is available. Online subscription activation for an existing workspace is being prepared.</p>
+        <p>Choose a paid subscription or apply a TIS-issued promo code to activate this workspace.</p>
         {% else %}
         <p>{% if access.commercial_access.current_plan_name %}Current plan: {{ access.commercial_access.current_plan_name }}.{% else %}Review subscription status and billing recovery options.{% endif %}</p>
+        {% endif %}
+        {% if organization_account.existing_workspace_activation_required and access.is_owner %}
+        <a class="btn account-section-action" href="/saas/account/workspaces/{{ access.organization_uuid | urlencode }}/activation">Choose a Plan</a>
         {% endif %}
         {% if organization_account.promo_activation_available %}
         <a class="btn secondary account-section-action" href="/saas/promo?organization_uuid={{ access.organization_uuid | urlencode }}">Use Promo Code</a>

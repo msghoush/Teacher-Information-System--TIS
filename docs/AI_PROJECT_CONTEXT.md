@@ -7,6 +7,40 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## M4C Existing Workspace Paid Activation
+
+M4C lets a verified tenant owner activate an existing `customer` workspace in
+`provisioning` through Paddle without recreating onboarding or tenant data. The
+durable `ExistingWorkspacePaidActivation` aggregate is anchored to SchoolGroup,
+workspace UUID, SaaS account, tenant-owner link, selected plan, billing interval,
+branch snapshot, quote fingerprint, checkout lineage, payment attempt, and a
+SchoolGroup-anchored subscription contract. Checkout and payment rows use strict
+pending-organization versus paid-activation contexts.
+
+Professional and Enterprise AI quotes include every active operational branch;
+Paddle quantity remains active branch count. Starter remains unavailable for
+existing workspaces until restricted-branch enforcement is proven across all
+operational entry points. Preparation creates no PendingOrganization,
+ProvisioningJob, SchoolGroup, or pre-payment entitlement. Billing identity is
+stored against SchoolGroup and explicitly associates any reused Paddle customer
+with the workspace. The association also snapshots the provider address and business
+used by that workspace, so a shared SaaS account cannot make another workspace's
+mutable customer defaults authoritative.
+
+Only a verified matching `transaction.completed` event can activate access. In
+one transaction TIS revalidates identity, quote, capacity, selected branches,
+provider customer/address/business, price, quantity, currency, interval,
+transaction, and subscription identity; then it confirms the contract and
+subscription, creates paid workspace and branch entitlements plus the paid
+TenantProvisioningLink, and changes lifecycle to `active`. Classification remains
+`customer`. `transaction.paid` is processing only, browser return grants nothing,
+and conflicting or stale evidence fails closed. Returned and reused transactions
+must be billed, automatic-collection transactions whose item, price, quantity,
+subtotal, interval, currency, customer, address, business, checkout URL, and full
+custom-data lineage match the current quote. PostgreSQL lock acquisition refreshes
+mapped state before duplicate webhook decisions. Existing promo, demo-to-paid,
+and PendingOrganization checkout paths remain separate.
+
 ## M4B Controlled Existing Workspace Conversion
 
 M4B converts an explicitly audited internal sandbox into a customer workspace

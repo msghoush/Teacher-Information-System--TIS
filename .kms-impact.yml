@@ -1,8 +1,24 @@
-knowledge_impact: no
-summary: Correct the existing-workspace branch-pricing quote module's missing operational-model import.
+knowledge_impact: yes
+summary: Implement M4C existing-workspace paid activation through Paddle without creating onboarding or tenant records.
 affected_areas:
-  - branch-pricing
-  - existing-workspace-checkout
+  - existing-workspace-paid-activation
+  - paddle-checkout-and-webhooks
+  - commercial-authority
+  - branch-entitlements
+  - organization-account
+  - database-schema
 kms_files_updated:
-no_impact_reason: This isolated defect correction adds the missing operational models import required by an existing quote path. It changes no pricing, quantities, capacity policy, checkout lifecycle, Paddle integration, schema, routes, entitlements, or documented architecture.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/README.md
+  - docs/adr/0023-existing-workspace-paid-activation.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/engineering/PRODUCT_ROADMAP.md
+  - docs/engineering/REPOSITORY_ARCHITECTURE.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/history/subscriptions/README.md
+no_impact_reason:
+major_change_override: no

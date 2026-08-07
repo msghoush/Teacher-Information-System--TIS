@@ -68,6 +68,12 @@ def get_billing_profile(db: Session, organization):
     ).one_or_none()
 
 
+def get_workspace_billing_profile(db: Session, school_group):
+    return db.query(models.OrganizationBillingProfile).filter(
+        models.OrganizationBillingProfile.school_group_id == school_group.id
+    ).one_or_none()
+
+
 def _primary_contact(db: Session, organization):
     return db.query(models.PendingOrganizationContact).filter(
         models.PendingOrganizationContact.pending_organization_id == organization.id,
@@ -141,6 +147,66 @@ def billing_identity_form(db: Session, organization, account) -> BillingIdentity
     )
 
 
+def workspace_billing_identity_form(db: Session, school_group, account) -> BillingIdentityForm:
+    profile = get_workspace_billing_profile(db, school_group)
+    contact_name = " ".join(
+        part
+        for part in (
+            _clean(getattr(account, "first_name", ""), 120),
+            _clean(getattr(account, "last_name", ""), 120),
+        )
+        if part
+    )
+    return BillingIdentityForm(
+        billing_email=_clean(
+            getattr(profile, "billing_email", "") or getattr(account, "email", ""),
+            180,
+        ),
+        billing_organization_name=_clean(
+            getattr(profile, "billing_organization_name", "")
+            or getattr(school_group, "name", ""),
+            180,
+        ),
+        billing_contact_name=_clean(
+            getattr(profile, "billing_contact_name", "") or contact_name,
+            180,
+        ),
+        company_number=_clean(getattr(profile, "company_number", ""), 180),
+        tax_identifier=_clean(getattr(profile, "tax_identifier", ""), 180),
+        country_code=_clean(
+            getattr(profile, "country_code", "")
+            or getattr(school_group, "country_code", ""),
+            2,
+        ).upper(),
+        country_name=_clean(
+            getattr(profile, "country_name", "")
+            or getattr(school_group, "country_name", ""),
+            120,
+        ),
+        region_name=_clean(
+            getattr(profile, "region_name", "")
+            or getattr(school_group, "region_name", ""),
+            160,
+        ),
+        city_name=_clean(
+            getattr(profile, "city_name", "") or getattr(school_group, "city_name", ""),
+            160,
+        ),
+        district_name=_clean(
+            getattr(profile, "district_name", "")
+            or getattr(school_group, "district_name", ""),
+            160,
+        ),
+        neighborhood_name=_clean(
+            getattr(profile, "neighborhood_name", "")
+            or getattr(school_group, "neighborhood_name", ""),
+            160,
+        ),
+        confirmed=bool(profile and profile.confirmed_at),
+        sync_status=_clean(
+            getattr(profile, "provider_sync_status", "not_started"), 20
+        ) or "not_started",
+    )
 def save_billing_profile(
     db: Session,
     organization,
@@ -202,8 +268,79 @@ def save_billing_profile(
     return profile
 
 
+def save_workspace_billing_profile(
+    db: Session,
+    school_group,
+    *,
+    billing_email: str,
+    billing_organization_name: str,
+    billing_contact_name: str = "",
+    company_number: str = "",
+    tax_identifier: str = "",
+    country_code: str,
+    country_name: str = "",
+    region_name: str = "",
+    city_name: str = "",
+    district_name: str = "",
+    neighborhood_name: str = "",
+):
+    normalized_email = auth.normalize_email(billing_email)
+    if not normalized_email or not auth.is_valid_email(normalized_email):
+        raise BillingIdentityError("Enter a valid billing email address.")
+    organization_name = _clean(billing_organization_name, 180)
+    if not organization_name:
+        raise BillingIdentityError(
+            "Enter the legal or billing organization or school name."
+        )
+    normalized_country = _clean(country_code, 2).upper()
+    if len(normalized_country) != 2 or not normalized_country.isalpha():
+        raise BillingIdentityError("Select a valid two-letter billing country code.")
+    profile = get_workspace_billing_profile(db, school_group)
+    values = {
+        "billing_email": _clean(billing_email, 180),
+        "billing_email_normalized": normalized_email,
+        "billing_organization_name": organization_name,
+        "billing_contact_name": _clean(billing_contact_name, 180) or None,
+        "company_number": _clean(company_number, 180) or None,
+        "tax_identifier": _clean(tax_identifier, 180) or None,
+        "country_code": normalized_country,
+        "country_name": _clean(country_name, 120) or None,
+        "region_name": _clean(region_name, 160) or None,
+        "city_name": _clean(city_name, 160) or None,
+        "district_name": _clean(district_name, 160) or None,
+        "neighborhood_name": _clean(neighborhood_name, 160) or None,
+    }
+    changed = profile is None or any(
+        getattr(profile, field_name, None) != value
+        for field_name, value in values.items()
+    )
+    if profile is None:
+        profile = models.OrganizationBillingProfile(
+            pending_organization_id=None,
+            school_group_id=school_group.id,
+        )
+        db.add(profile)
+    for field_name, value in values.items():
+        setattr(profile, field_name, value)
+    profile.confirmed_at = _utcnow()
+    if changed:
+        profile.provider_sync_status = "pending"
+        profile.provider_synced_at = None
+    db.flush()
+    return profile
+
+
 def require_confirmed_billing_profile(db: Session, organization):
     profile = get_billing_profile(db, organization)
+    if profile is None or not profile.confirmed_at:
+        raise BillingIdentityError(
+            "Confirm the organization billing contact before opening Secure Payment."
+        )
+    return profile
+
+
+def require_confirmed_workspace_billing_profile(db: Session, school_group):
+    profile = get_workspace_billing_profile(db, school_group)
     if profile is None or not profile.confirmed_at:
         raise BillingIdentityError(
             "Confirm the organization billing contact before opening Secure Payment."
@@ -233,28 +370,37 @@ def _address_details(profile) -> dict:
     }
 
 
-def _business_details(profile, organization) -> dict:
+def _billing_context_data(context) -> dict:
+    pending_uuid = str(getattr(context, "organization_uuid", "") or "").strip()
+    if pending_uuid:
+        return {"pending_organization_uuid": pending_uuid}
+    workspace_uuid = str(getattr(context, "workspace_uuid", "") or "").strip()
+    return {"workspace_uuid": workspace_uuid} if workspace_uuid else {}
+
+
+def _business_details(profile, context) -> dict:
     return {
         "name": profile.billing_organization_name,
         "company_number": profile.company_number,
         "tax_identifier": profile.tax_identifier,
         "contact_name": profile.billing_contact_name,
         "contact_email": profile.billing_email,
-        "custom_data": {
-            "pending_organization_uuid": str(organization.organization_uuid),
-        },
+        "custom_data": _billing_context_data(context),
     }
 
 
-def _select_existing_business(rows: list[dict], profile, organization) -> dict | None:
-    organization_uuid = str(organization.organization_uuid or "").strip()
+def _select_existing_business(rows: list[dict], profile, context) -> dict | None:
+    context_data = _billing_context_data(context)
     contextual = [
         row
         for row in rows
         if isinstance(row, dict)
         and str(row.get("status") or "active").strip().lower() == "active"
-        and str((row.get("custom_data") or {}).get("pending_organization_uuid") or "").strip()
-        == organization_uuid
+        and all(
+            str((row.get("custom_data") or {}).get(key) or "").strip()
+            == str(value or "").strip()
+            for key, value in context_data.items()
+        )
     ]
     if len(contextual) > 1:
         raise BillingIdentitySyncError("ambiguous_provider_business_mapping")
@@ -279,10 +425,9 @@ def _select_existing_business(rows: list[dict], profile, organization) -> dict |
     return exact[0] if exact else None
 
 
-def ensure_provider_billing_identity(
-    db: Session, organization, payment_customer
+def _ensure_provider_billing_identity(
+    db: Session, context, payment_customer, profile
 ) -> tuple[str, str]:
-    profile = require_confirmed_billing_profile(db, organization)
     customer_id = str(payment_customer.provider_customer_id or "").strip()
     if not customer_id.startswith("ctm_"):
         raise BillingIdentitySyncError(
@@ -341,7 +486,7 @@ def ensure_provider_billing_identity(
         payment_customer.provider_address_id = address_id
         payment_customer.country_code = profile.country_code
 
-        business_details = _business_details(profile, organization)
+        business_details = _business_details(profile, context)
         business_id = str(payment_customer.provider_business_id or "").strip()
         if business_id:
             provider_step = "business_update"
@@ -355,7 +500,7 @@ def ensure_provider_billing_identity(
             existing = _select_existing_business(
                 paddle_client.list_customer_businesses(customer_id=customer_id),
                 profile,
-                organization,
+                context,
             )
             if existing:
                 business_id = str(existing.get("id") or "").strip()
@@ -396,9 +541,13 @@ def ensure_provider_billing_identity(
         profile.provider_sync_status = "failed"
         profile.provider_synced_at = None
         logger.error(
-            "paddle_billing_identity_sync_failed organization_uuid=%s "
+            "paddle_billing_identity_sync_failed context_uuid=%s "
             "provider_step=%s error_code=%s status_code=%s error_type=%s detail=%s",
-            str(organization.organization_uuid or ""),
+            str(
+                getattr(context, "organization_uuid", "")
+                or getattr(context, "workspace_uuid", "")
+                or ""
+            ),
             provider_step,
             str(getattr(exc, "error_code", "") or "provider_request_failed"),
             str(getattr(exc, "status_code", "") or "unavailable"),
@@ -412,6 +561,28 @@ def ensure_provider_billing_identity(
             provider_status_code=getattr(exc, "status_code", None),
             provider_detail=str(getattr(exc, "detail", "") or "")[:500],
         ) from exc
+
+
+def ensure_provider_billing_identity(
+    db: Session, organization, payment_customer
+) -> tuple[str, str]:
+    return _ensure_provider_billing_identity(
+        db,
+        organization,
+        payment_customer,
+        require_confirmed_billing_profile(db, organization),
+    )
+
+
+def ensure_provider_workspace_billing_identity(
+    db: Session, school_group, payment_customer
+) -> tuple[str, str]:
+    return _ensure_provider_billing_identity(
+        db,
+        school_group,
+        payment_customer,
+        require_confirmed_workspace_billing_profile(db, school_group),
+    )
 
 
 def sync_active_subscription_billing_identity(

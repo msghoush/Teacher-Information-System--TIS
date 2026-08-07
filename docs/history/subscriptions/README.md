@@ -6,6 +6,28 @@ last_updated: 2026-08-05
 
 # Subscription History
 
+## 2026-08-06 - Existing Workspace Paid Activation Through Paddle
+
+Activation-required existing customer workspaces can now choose Professional or
+Enterprise AI from Organization Account, confirm a SchoolGroup billing identity,
+review an operational-branch quote, and launch Paddle without creating onboarding or
+tenant records. A dedicated activation aggregate preserves quote, branch, checkout,
+payment, contract, and provider lineage. Starter remains unavailable pending complete
+restricted-branch enforcement.
+
+Only verified `transaction.completed` evidence creates paid commercial authority.
+The atomic transition preserves the existing SchoolGroup and operational data, keeps
+classification `customer`, activates the workspace lifecycle, and creates the paid
+subscription, workspace/branch entitlements, and paid tenant link. Promo redemption,
+demo conversion, and new PendingOrganization checkout remain unchanged.
+
+Final PostgreSQL validation proved migration rollback/idempotency, one unresolved
+activation, one transaction launch, duplicate and out-of-order webhook safety,
+atomic drift rollback, and exactly one winner in a paid-versus-promo source race.
+Workspace-specific provider address/business lineage and complete transaction
+validation prevent stale customer defaults or incomplete provider responses from
+becoming activation authority.
+
 ## 2026-08-05 - Secure Promo Definition Foundation
 
 M2 adds Platform-managed Starter, Professional, and Enterprise AI promo
