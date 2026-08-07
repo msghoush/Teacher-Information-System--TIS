@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-07
 source_of_truth: true
 ---
 
@@ -22,7 +22,9 @@ source_of_truth: true
    USD quote from the active plan price and stores branch-selection and quote hashes.
 5. Preparation creates a SchoolGroup-anchored contract, paid-activation aggregate,
    immutable branch snapshot, and checkout session. It creates no pending
-   organization, provisioning job, workspace, tenant, or entitlement.
+   organization, provisioning job, workspace, tenant, or entitlement. Until launch
+   creates a real PaymentAttempt, Organization Account continues to show Activation
+   required rather than Payment processing.
 6. Launch revalidates the current quote and either reuses a still-billed matching
    Paddle transaction or creates one automatic-collection transaction with branch
    quantity and stable authority metadata. Customer, address, and business mappings
@@ -30,6 +32,7 @@ source_of_truth: true
    association records the selected address and business, and every returned or
    reused transaction must match the complete current billed quote and custom lineage.
 7. Browser return never activates access. `transaction.paid` displays processing.
+   Failed, cancelled, or expired attempts instead display a recovery state.
 8. A signature-verified `transaction.completed` locks the SchoolGroup and activation,
    revalidates all local and provider evidence, and atomically creates the paid
    subscription authority, active branch entitlements, and paid tenant link. The

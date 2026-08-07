@@ -24,6 +24,7 @@ from saas import (
     payment_service,
     promo_code_service,
     promo_redemption_service,
+    service,
 )
 
 
@@ -496,6 +497,8 @@ def test_transaction_paid_is_processing_only(db, monkeypatch):
         db, activation_uuid=activation.activation_uuid, account=account,
         checkout_url="https://app.test/saas/payment",
     )
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.commercial_state == commercial_access_service.PAYMENT_PROCESSING
     result = activation_service.reconcile_webhook(
         db,
         {"data": {
@@ -512,6 +515,89 @@ def test_transaction_paid_is_processing_only(db, monkeypatch):
     assert group.workspace_lifecycle_status == "provisioning"
     assert db.query(models.WorkspaceEntitlement).count() == 0
     assert db.query(models.TenantProvisioningLink).count() == 0
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.commercial_state == commercial_access_service.PAYMENT_PROCESSING
+
+
+def test_activation_required_without_checkout_is_not_payment_processing(db):
+    group, _branches, _account, _link, _plans = _fixture(db)
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.reason_code == "activation_required"
+    assert access.commercial_state == commercial_access_service.ACTIVATION_REQUIRED
+    assert access.commercial_state != commercial_access_service.PAYMENT_PROCESSING
+
+
+def test_prepared_checkout_without_payment_attempt_is_not_payment_processing(db):
+    group, _branches, account, _link, plans = _fixture(db)
+    _prepare(db, group, account, plans["professional"])
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.reason_code == "activation_required"
+    assert access.commercial_state == commercial_access_service.ACTIVATION_REQUIRED
+
+
+def test_manual_review_activation_is_not_payment_processing(db):
+    group, _branches, account, _link, plans = _fixture(db)
+    activation = _prepare(db, group, account, plans["professional"])
+    activation.status = "manual_review"
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.commercial_state == commercial_access_service.INCONSISTENT
+    assert access.commercial_state != commercial_access_service.PAYMENT_PROCESSING
+
+
+@pytest.mark.parametrize(
+    ("event_type", "expected_state"),
+    (
+        ("transaction.payment_failed", commercial_access_service.PAYMENT_FAILED),
+        ("transaction.canceled", commercial_access_service.PAYMENT_CANCELLED),
+        ("expired", commercial_access_service.PAYMENT_FAILED),
+    ),
+)
+def test_failed_or_cancelled_checkout_uses_recovery_state(
+    db, monkeypatch, event_type, expected_state
+):
+    group, _branches, account, _link, plans = _fixture(db)
+    activation = _prepare(db, group, account, plans["professional"])
+    customer = _customer(db, account)
+    monkeypatch.setattr(
+        billing_identity_service,
+        "ensure_provider_workspace_billing_identity",
+        lambda *_args: (customer.provider_address_id, customer.provider_business_id),
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        lambda **kwargs: _billed_transaction(kwargs, transaction_id="txn_recovery"),
+    )
+    activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.test/saas/payment",
+    )
+    if event_type == "expired":
+        attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+        attempt.expires_at = (
+            datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
+        )
+    else:
+        result = activation_service.reconcile_webhook(
+            db,
+            {
+                "data": {
+                    "id": "txn_recovery",
+                    "custom_data": {
+                        "checkout_context": "existing_workspace_paid_activation",
+                        "paid_activation_uuid": activation.activation_uuid,
+                    },
+                },
+            },
+            event_type,
+        )
+        assert result["status"] == "processed"
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.reason_code == "activation_required"
+    assert access.commercial_state == expected_state
+    assert access.commercial_state != commercial_access_service.PAYMENT_PROCESSING
 
 
 def test_completed_webhook_atomically_activates_existing_workspace(db, monkeypatch):
@@ -569,6 +655,37 @@ def test_completed_webhook_atomically_activates_existing_workspace(db, monkeypat
     )
     access = commercial_access_service.resolve_workspace_access(db, group.id)
     assert access.allowed_access and access.current_plan_code == "professional"
+    assert access.commercial_state == commercial_access_service.ACTIVE
+
+
+def test_pending_organization_payment_processing_mapping_is_unchanged(db):
+    account = models.SaaSAccount(
+        account_uuid=str(uuid.uuid4()),
+        email="pending-payment@example.edu",
+        email_normalized="pending-payment@example.edu",
+        status="active",
+        onboarding_status="ready_for_checkout",
+        account_purpose="customer",
+        email_verified_at=datetime.utcnow(),
+    )
+    db.add(account)
+    db.flush()
+    organization = models.PendingOrganization(
+        organization_uuid=str(uuid.uuid4()),
+        owner_saas_account_id=account.id,
+        organization_name="Pending Payment Academy",
+        status="ready_for_checkout",
+        billing_status="payment_processing",
+        payment_status="pending",
+    )
+    db.add(organization)
+    db.flush()
+    service.update_pending_dashboard_status(
+        account,
+        organization,
+        type("Progress", (), {"completion_percent": 100})(),
+    )
+    assert account.onboarding_status == "payment_processing"
 
 
 def test_shared_webhook_dispatcher_routes_paid_activation_before_onboarding(db, monkeypatch):

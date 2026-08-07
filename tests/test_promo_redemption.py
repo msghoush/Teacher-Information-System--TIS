@@ -20,6 +20,7 @@ import saas.models
 from dependencies import get_db
 from saas import (
     branch_entitlement_service,
+    commercial_access_service,
     commercial_authority_service,
     promo_code_service,
     promo_redemption_service,
@@ -264,6 +265,15 @@ class PromoRedemptionTests(unittest.TestCase):
         self.assertIsNone(result.tenant_link.pending_organization_id)
         self.assertEqual(result.tenant_link.promo_grant_id, result.grant.id)
         self.assertEqual(self.db.query(saas.models.PendingOrganization).count(), 0)
+        access = commercial_access_service.resolve_workspace_access(
+            self.db, result.school_group.id
+        )
+        self.assertTrue(access.allowed_access)
+        self.assertEqual(access.commercial_state, commercial_access_service.ACTIVE)
+        self.assertNotEqual(
+            access.commercial_state,
+            commercial_access_service.PAYMENT_PROCESSING,
+        )
 
     def test_over_limit_staff_and_teachers_block_without_mutation(self):
         account = self._account()
@@ -400,6 +410,8 @@ class PromoRedemptionTests(unittest.TestCase):
                 f"/saas/account?organization_uuid={group.workspace_uuid}"
             )
             self.assertEqual(overview.status_code, 200)
+            self.assertIn("Activation required", overview.text)
+            self.assertNotIn("Payment processing", overview.text)
             self.assertIn("Use Promo Code", overview.text)
             self.assertIn(
                 f"/saas/promo?organization_uuid={group.workspace_uuid}",

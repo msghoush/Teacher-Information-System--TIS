@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-07
 source_of_truth: true
 ---
 
@@ -542,6 +542,12 @@ Verified `transaction.completed` evidence atomically establishes the paid contra
 subscription, workspace/branch entitlements, paid tenant link, and active lifecycle.
 Classification remains `customer`, and browser return or `transaction.paid` never
 grants access.
+
+Account presentation does not infer payment from workspace lifecycle. A
+`customer / provisioning` workspace with no current paid-activation attempt displays
+Activation required. Payment processing requires a current unexpired attempt in
+checkout-started or payment-processing state; failed, cancelled, and expired attempts
+use recovery presentation. PendingOrganization and demo status resolution is separate.
 
 The payment architecture is organized under the `saas/` package.
 

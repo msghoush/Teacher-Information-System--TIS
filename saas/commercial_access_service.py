@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import logging
 
 from sqlalchemy.orm import Session
@@ -23,6 +23,9 @@ logger = logging.getLogger(__name__)
 ACTIVE = "active"
 TRIALING = "trialing"
 PAYMENT_PROCESSING = "payment_processing"
+ACTIVATION_REQUIRED = "activation_required"
+PAYMENT_FAILED = "payment_failed"
+PAYMENT_CANCELLED = "payment_cancelled"
 PAST_DUE = "past_due"
 PAUSED = "paused"
 CANCELED = "canceled"
@@ -120,6 +123,52 @@ def _log_inconsistent(group_id: int, reason: str, *, resolution=None) -> None:
         reason,
         _clean(getattr(resolution, "reason_code", "")),
     )
+
+
+def _existing_workspace_payment_state(db: Session, activation) -> str:
+    if activation is None:
+        return ACTIVATION_REQUIRED
+    attempt = (
+        db.get(saas_models.PaymentAttempt, activation.current_payment_attempt_id)
+        if activation.current_payment_attempt_id
+        else None
+    )
+    if attempt is not None and int(
+        getattr(attempt, "existing_workspace_paid_activation_id", 0) or 0
+    ) != int(activation.id):
+        return INCONSISTENT
+
+    attempt_status = _clean(getattr(attempt, "status", "")).lower()
+    activation_status = _clean(getattr(activation, "status", "")).lower()
+    if activation_status == "failed":
+        return PAYMENT_FAILED
+    if activation_status in {"cancelled", "canceled"}:
+        return PAYMENT_CANCELLED
+    if activation_status == "manual_review":
+        return INCONSISTENT
+    if activation_status == "completed":
+        return INCONSISTENT
+    if attempt_status in {"checkout_started", "payment_processing"}:
+        expires_at = getattr(attempt, "expires_at", None)
+        now = (
+            datetime.now(expires_at.tzinfo)
+            if getattr(expires_at, "tzinfo", None)
+            else datetime.now(timezone.utc).replace(tzinfo=None)
+        )
+        if expires_at is not None and expires_at <= now:
+            return PAYMENT_FAILED
+        return PAYMENT_PROCESSING
+    if attempt_status in {"payment_failed", "failed", "expired", "abandoned"}:
+        return PAYMENT_FAILED
+    if attempt_status in {"payment_cancelled", "cancelled", "canceled"}:
+        return PAYMENT_CANCELLED
+    if attempt is None and activation_status in {
+        "draft",
+        "checkout_ready",
+        "superseded",
+    }:
+        return ACTIVATION_REQUIRED
+    return INCONSISTENT
 
 
 def customer_access_presentation(
@@ -281,19 +330,8 @@ def resolve_workspace_access(
                 action="view_subscription",
                 message_key="subscription_status_review",
             )
-        paid_activation = db.query(
-            saas_models.ExistingWorkspacePaidActivation
-        ).filter(
+        paid_activation = db.query(saas_models.ExistingWorkspacePaidActivation).filter(
             saas_models.ExistingWorkspacePaidActivation.school_group_id == group.id,
-            saas_models.ExistingWorkspacePaidActivation.status.in_(
-                {
-                    "draft",
-                    "checkout_ready",
-                    "checkout_started",
-                    "payment_processing",
-                    "manual_review",
-                }
-            ),
         ).order_by(
             saas_models.ExistingWorkspacePaidActivation.id.desc()
         ).first()
@@ -314,16 +352,25 @@ def resolve_workspace_access(
                 saas_models.SaaSDemoWorkspaceProvisioning.school_group_id == group.id
             ).first()
         ):
+            payment_state = _existing_workspace_payment_state(db, paid_activation)
             return CommercialAccessState(
                 blocked=True,
                 kind="subscription" if paid_activation is not None else "promo",
                 reason_code="activation_required",
-                commercial_state=PAYMENT_PROCESSING,
+                commercial_state=payment_state,
                 workspace_lifecycle=lifecycle,
                 recommended_action=(
-                    "view_subscription" if paid_activation is not None else "apply_promo"
+                    "view_subscription"
+                    if payment_state == PAYMENT_PROCESSING
+                    else "apply_promo"
                 ),
-                customer_message_key="existing_workspace_activation_required",
+                customer_message_key=(
+                    "existing_workspace_payment_processing"
+                    if payment_state == PAYMENT_PROCESSING
+                    else "existing_workspace_payment_recovery"
+                    if payment_state in {PAYMENT_FAILED, PAYMENT_CANCELLED, INCONSISTENT}
+                    else "existing_workspace_activation_required"
+                ),
             )
         if (
             lifecycle == WorkspaceLifecycleStatus.ACTIVE.value
