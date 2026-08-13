@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-08-07
+last_updated: 2026-08-13
 source_of_truth: true
 ---
 
@@ -12,6 +12,10 @@ source_of_truth: true
 ## Existing Workspace Paid Activation
 
 1. A verified tenant owner opens Organization Account and selects **Choose a Plan**.
+   TIS displays all currently eligible paid plans. If the open activation is `draft`
+   or `checkout_ready`, its plan is highlighted but the owner may select another
+   eligible plan. Opening or changing this selection calls no Paddle API and creates
+   no PaymentAttempt.
 2. TIS locks and validates the `customer`/`provisioning` SchoolGroup, exact owner
    link, absence of commercial authority, and absence of conflicting paid, promo,
    or demo activity.
@@ -20,12 +24,16 @@ source_of_truth: true
    remains unavailable until complete restricted-branch enforcement is proven.
 4. The owner confirms the workspace billing profile. TIS builds an authoritative
    USD quote from the active plan price and stores branch-selection and quote hashes.
+   Changing an editable selection recalculates this quote and safely supersedes the
+   unfinished local draft without changing any branch.
 5. Preparation creates a SchoolGroup-anchored contract, paid-activation aggregate,
    immutable branch snapshot, and checkout session. It creates no pending
    organization, provisioning job, workspace, tenant, or entitlement. Until launch
    creates a real PaymentAttempt, Organization Account continues to show Activation
    required rather than Payment processing.
-6. Launch revalidates the current quote and either reuses a still-billed matching
+6. A `checkout_started`, `payment_processing`, manual-review, or inconsistent
+   activation cannot be silently replaced; plan changes fail closed until that
+   payment path is resolved. Launch revalidates the current quote and either reuses a still-billed matching
    Paddle transaction or creates one automatic-collection transaction with branch
    quantity and stable authority metadata. Customer, address, and business mappings
    are reused only through explicit account/workspace attribution. The workspace
@@ -47,6 +55,8 @@ Guardrails:
 - `workspace_classification` remains `customer`; paid versus promo is commercial-source evidence.
 - Paddle quantity is branch count only. Staff and teacher totals affect eligibility only.
 - Existing operational and academic rows are never recreated or mutated by activation.
+- Promo activation and PendingOrganization/new-organization checkout retain their
+  existing independent selection and payment behavior.
 - Organization Account remains available while operational access is blocked for recovery.
 
 ## Controlled Existing Workspace Conversion

@@ -1,7 +1,7 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-08-07
+last_updated: 2026-08-13
 ---
 
 # Subscription History
@@ -20,6 +20,13 @@ The atomic transition preserves the existing SchoolGroup and operational data, k
 classification `customer`, activates the workspace lifecycle, and creates the paid
 subscription, workspace/branch entitlements, and paid tenant link. Promo redemption,
 demo conversion, and new PendingOrganization checkout remain unchanged.
+
+Organization Account **Choose a Plan** reopens plan selection while the activation
+is `draft` or `checkout_ready`. The saved plan is highlighted but may be replaced by
+another eligible plan, which recalculates the authoritative branch quote without a
+Paddle call, PaymentAttempt, or branch mutation. Once checkout starts, payment is
+processing, or activation evidence requires manual review, replacement fails closed.
+Only verified payment completion can establish paid commercial authority.
 
 Final PostgreSQL validation proved migration rollback/idempotency, one unresolved
 activation, one transaction launch, duplicate and out-of-order webhook safety,

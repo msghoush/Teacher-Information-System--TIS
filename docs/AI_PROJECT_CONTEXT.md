@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-07
+last_updated: 2026-08-13
 recommended_first_read: true
 ---
 
@@ -21,7 +21,13 @@ Professional and Enterprise AI quotes include every active operational branch;
 Paddle quantity remains active branch count. Starter remains unavailable for
 existing workspaces until restricted-branch enforcement is proven across all
 operational entry points. Preparation creates no PendingOrganization,
-ProvisioningJob, SchoolGroup, or pre-payment entitlement. Billing identity is
+ProvisioningJob, SchoolGroup, or pre-payment entitlement. Organization Account's
+**Choose a Plan** action always opens plan selection while the activation is
+editable. A saved `draft` or `checkout_ready` selection is highlighted but may be
+replaced by another currently eligible plan, which rebuilds the authoritative quote.
+Plan browsing and draft replacement make no Paddle API call and create no
+PaymentAttempt. Once checkout is `checkout_started`, `payment_processing`, or in a
+manual-review/inconsistent state, plan replacement fails closed. Billing identity is
 stored against SchoolGroup and explicitly associates any reused Paddle customer
 with the workspace. The association also snapshots the provider address and business
 used by that workspace, so a shared SaaS account cannot make another workspace's

@@ -1,9 +1,9 @@
 knowledge_impact: yes
-summary: Correct existing-workspace Organization Account payment status so processing is shown only for an authoritative unresolved checkout attempt.
+summary: Correct existing-workspace plan selection so editable activation drafts can be reviewed and replaced before Paddle checkout starts.
 affected_areas:
   - existing-workspace-paid-activation
-  - commercial-access-presentation
   - organization-account
+  - activation-plan-selection
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/CHANGE_HISTORY.md
