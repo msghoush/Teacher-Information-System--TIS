@@ -424,6 +424,65 @@ def test_saved_draft_choose_plan_route_renders_selection_without_paddle_or_attem
     assert db.query(models.PaymentAttempt).count() == 0
 
 
+def test_saved_monthly_draft_interval_query_controls_selection_prices(db, monkeypatch):
+    group, _branches, account, _link, plans = _fixture(db)
+    _prepare(db, group, account, plans["professional"], interval="monthly")
+    workspace_uuid = group.workspace_uuid
+    db.commit()
+
+    def reject_paddle_call(*_args, **_kwargs):
+        raise AssertionError("Interval selection must not call Paddle.")
+
+    monkeypatch.setattr(activation_service.paddle_client, "_request_body", reject_paddle_call)
+    with _route_client(db, account) as client:
+        default_response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+        )
+        annual_response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+            "?billing_interval=annual"
+        )
+
+    assert default_response.status_code == 200
+    assert '<option value="monthly" selected>' in default_response.text
+    assert "USD 79.00 per branch / monthly" in default_response.text
+    assert annual_response.status_code == 200
+    assert '<option value="annual" selected>' in annual_response.text
+    assert "USD 790.00 per branch / annual" in annual_response.text
+    assert "USD 79.00 per branch / monthly" not in annual_response.text
+    assert db.query(models.ExistingWorkspacePaidActivation).count() == 1
+    assert db.query(models.PaymentAttempt).count() == 0
+
+
+def test_saved_annual_draft_defaults_annual_and_allows_explicit_monthly(db, monkeypatch):
+    group, _branches, account, _link, plans = _fixture(db)
+    _prepare(db, group, account, plans["professional"], interval="annual")
+    workspace_uuid = group.workspace_uuid
+    db.commit()
+
+    def reject_paddle_call(*_args, **_kwargs):
+        raise AssertionError("Interval selection must not call Paddle.")
+
+    monkeypatch.setattr(activation_service.paddle_client, "_request_body", reject_paddle_call)
+    with _route_client(db, account) as client:
+        default_response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+        )
+        monthly_response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+            "?billing_interval=monthly"
+        )
+
+    assert default_response.status_code == 200
+    assert '<option value="annual" selected>' in default_response.text
+    assert "USD 790.00 per branch / annual" in default_response.text
+    assert monthly_response.status_code == 200
+    assert '<option value="monthly" selected>' in monthly_response.text
+    assert "USD 79.00 per branch / monthly" in monthly_response.text
+    assert db.query(models.ExistingWorkspacePaidActivation).count() == 1
+    assert db.query(models.PaymentAttempt).count() == 0
+
+
 def test_explicit_activation_route_remains_payment_review(db):
     group, _branches, account, _link, plans = _fixture(db)
     activation = _prepare(db, group, account, plans["professional"])
@@ -434,12 +493,15 @@ def test_explicit_activation_route_remains_payment_review(db):
     with _route_client(db, account) as client:
         response = client.get(
             f"/saas/account/workspaces/{workspace_uuid}/activation"
-            f"?activation_uuid={activation_uuid}"
+            f"?activation_uuid={activation_uuid}&billing_interval=annual"
         )
 
     assert response.status_code == 200
     assert "Secure Payment Review" in response.text
     assert "Continue to Secure Payment" in response.text
+    assert "<strong>Monthly</strong>" in response.text
+    assert "USD 395.00" in response.text
+    assert "USD 3,950.00" not in response.text
     assert db.query(models.PaymentAttempt).count() == 0
 
 
