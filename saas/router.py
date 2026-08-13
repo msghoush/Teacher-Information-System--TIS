@@ -1379,7 +1379,7 @@ def existing_workspace_paid_activation(
     workspace_uuid: str,
     request: Request,
     activation_uuid: str = Query(""),
-    billing_interval: str = Query("monthly"),
+    billing_interval: str = Query(""),
     db: Session = Depends(get_db),
 ):
     account, _session_row, redirect = _require_verified_account(
@@ -1418,11 +1418,16 @@ def existing_workspace_paid_activation(
     elif activation is None:
         activation = current_activation
     context_activation = activation or selection_draft
-    interval = str(
-        getattr(context_activation, "billing_interval", "")
-        or billing_interval
-        or "monthly"
-    ).strip().lower()
+    requested_interval = str(billing_interval or "").strip().lower()
+    if activation is not None:
+        # Review is immutable quote presentation; query parameters cannot reprice it.
+        interval = str(activation.billing_interval or "monthly").strip().lower()
+    elif requested_interval in {"monthly", "annual"}:
+        interval = requested_interval
+    else:
+        interval = str(
+            getattr(selection_draft, "billing_interval", "") or "monthly"
+        ).strip().lower()
     if interval not in {"monthly", "annual"}:
         interval = "monthly"
     plans = (

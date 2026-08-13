@@ -1,9 +1,9 @@
 knowledge_impact: no
-summary: Fix the existing-workspace plan-selection GET route to render an editable saved activation draft without a split-state dereference or false contract conflict.
+summary: Fix existing-workspace plan selection so an explicit billing interval controls displayed options while immutable payment review remains tied to its stored quote.
 affected_areas:
   - existing-workspace-paid-activation
   - organization-account
   - activation-plan-selection
 kms_files_updated:
-no_impact_reason: This is a narrow defect correction to make the existing documented Choose-a-Plan lifecycle render correctly. It consistently uses the saved activation context for branch snapshots and allows only that draft's existing contract during eligibility resolution. It changes no lifecycle rule, payment authority, Paddle behavior, pricing, schema, migration, promo flow, branch data, or customer workflow.
+no_impact_reason: This is a narrow defect correction to the already documented Choose-a-Plan lifecycle. It distinguishes an explicit interval query from the saved draft default and keeps explicit activation review bound to its stored quote. It changes no lifecycle rule, payment authority, Paddle behavior, pricing, schema, migration, promo flow, branch data, or customer workflow.
 major_change_override: yes
