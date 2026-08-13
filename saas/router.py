@@ -1390,10 +1390,14 @@ def existing_workspace_paid_activation(
     if redirect:
         return redirect
     access = _existing_workspace_activation_access(db, account, workspace_uuid)
+    current_activation = existing_workspace_paid_activation_service.get_current_activation(
+        db, access.school_group.id
+    )
     eligibility = existing_workspace_paid_activation_service.resolve_eligibility(
         db,
         school_group_id=access.school_group.id,
         account=account,
+        allow_activation_id=getattr(current_activation, "id", None),
     )
     activation = None
     if activation_uuid:
@@ -1403,9 +1407,6 @@ def existing_workspace_paid_activation(
             == access.school_group.id,
             models.ExistingWorkspacePaidActivation.saas_account_id == account.id,
         ).one_or_none()
-    current_activation = existing_workspace_paid_activation_service.get_current_activation(
-        db, access.school_group.id
-    )
     selection_draft = None
     if not activation_uuid and existing_workspace_paid_activation_service.can_change_plan_selection(
         db, current_activation
@@ -1440,9 +1441,9 @@ def existing_workspace_paid_activation(
         db.query(models.ExistingWorkspacePaidActivationBranch)
         .filter(
             models.ExistingWorkspacePaidActivationBranch.paid_activation_id
-            == activation.id,
+            == context_activation.id,
             models.ExistingWorkspacePaidActivationBranch.quote_version
-            == activation.quote_version,
+            == context_activation.quote_version,
         )
         .order_by(models.ExistingWorkspacePaidActivationBranch.branch_id.asc())
         .all()
