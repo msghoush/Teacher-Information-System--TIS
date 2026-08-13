@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-07T10:38:56.738876+03:00",
+  "generated_at": "2026-08-13T22:05:18.682194+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "e39beb8",
+  "commit_sha": "c2b49fd",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "8982d9785d634a36f077c98fad2a07027dbfe8f5f3e4b97dc8797bcb6380ba6d",
-  "pdf_size_bytes": 834886,
+  "pdf_sha256": "41c64a1e2c8b1e54272ea358a31583635353e8c79d74e2a939df47595ed14369",
+  "pdf_size_bytes": 837603,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-07T10:34:24.551653+03:00",
-      "size_bytes": 56196,
-      "sha256": "573e0993b70fb6ebe6de9ff1789ef848c53fbe3c1bfadc0f269a6b3ea7efdabb",
+      "modified_at": "2026-08-13T22:04:33.064573+03:00",
+      "size_bytes": 56685,
+      "sha256": "1ce90c55865b46aa9b00418f678cf4c77b673076f6172ae88a90485e271f3a6a",
       "pdf_page": 15
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-08-07T10:34:24.554067+03:00",
-      "size_bytes": 57963,
-      "sha256": "33117cd26b2f501f9f50d5d81a9f80f6ed30dded740a19dfd27f8afb42473489",
+      "modified_at": "2026-08-13T22:04:44.201123+03:00",
+      "size_bytes": 58538,
+      "sha256": "01bfdc115d6d7a6490cb612b354a982ff571a379356d0e27e1a755c20e8943c0",
       "pdf_page": 34
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-07T10:34:24.552900+03:00",
-      "size_bytes": 45328,
-      "sha256": "fb33c7ee188b98f2962818bc78f9c986e8caba61fdd87da47971da4d3a6f77b4",
+      "modified_at": "2026-08-13T22:04:44.203571+03:00",
+      "size_bytes": 45766,
+      "sha256": "a5b968e90f95b473ff503bfa7a002718ab4a41c6cc9401ced54775d9292a7ae1",
       "pdf_page": 53
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-07T10:34:06.595176+03:00",
-      "size_bytes": 96360,
-      "sha256": "226d7e2e6464308623c5e3e05a81ecf7e9d4c99367e22c1a2fbbfbce6f042726",
+      "modified_at": "2026-08-13T22:04:54.134187+03:00",
+      "size_bytes": 96986,
+      "sha256": "f6a5fb89661f2f230e9b290c84d7b1ba25edf1e19a8f7e878def22308343e6d6",
       "pdf_page": 68
     },
     {
@@ -88,9 +88,9 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-08-07T10:34:24.555131+03:00",
-      "size_bytes": 46882,
-      "sha256": "9d78c9062ca0132bf4e4f707c4f0e1a07958c099d265245bfe517f4839fe3a50",
+      "modified_at": "2026-08-13T22:05:04.108086+03:00",
+      "size_bytes": 47614,
+      "sha256": "f5b888835c38e46990e416e181fd2d5a785a875aeed9f83658af9375d8fec6f1",
       "pdf_page": 133
     },
     {
@@ -354,9 +354,9 @@
     },
     {
       "path": "docs/adr/0023-existing-workspace-paid-activation.md",
-      "modified_at": "2026-08-07T10:34:29.434701+03:00",
-      "size_bytes": 3351,
-      "sha256": "b926895395752a51d7045c4b2dd338c40ed7cfa1f4f504de46c6f9b91ff27bc4",
+      "modified_at": "2026-08-13T22:04:54.136204+03:00",
+      "size_bytes": 4151,
+      "sha256": "177bf576c896a6ea638b05b3c6beed1bea98af404f5c515b2b44b962d0c2bac7",
       "pdf_page": 247
     },
     {
@@ -522,9 +522,9 @@
     },
     {
       "path": "docs/history/subscriptions/README.md",
-      "modified_at": "2026-08-07T10:34:24.556136+03:00",
-      "size_bytes": 17170,
-      "sha256": "a392b94c72e0253e6ecf86c5ab0b326216e8418dde71e48a7f10dda6b3dbacc8",
+      "modified_at": "2026-08-13T22:05:04.110251+03:00",
+      "size_bytes": 17663,
+      "sha256": "a533bc7724af43e7c76fc0adad146b89c41cfb1fe6a27a582b70c986691fe311",
       "pdf_page": 291
     },
     {
