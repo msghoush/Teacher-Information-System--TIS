@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -7,6 +8,9 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 
 import pytest
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker
@@ -16,6 +20,7 @@ import models as operational_models
 import auth
 import db_migrations
 from database import Base
+from dependencies import get_db
 from saas import (
     billing_identity_service,
     commercial_access_service,
@@ -26,6 +31,7 @@ from saas import (
     promo_redemption_service,
     service,
 )
+from saas.router import router as saas_router
 
 
 @pytest.fixture()
@@ -194,6 +200,23 @@ def _customer(db, account):
     return row
 
 
+def _route_client(db, account):
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(saas_router)
+
+    def override_get_db():
+        yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    session_token, csrf_token, _session = service.create_session(db, account)
+    db.commit()
+    client = TestClient(app)
+    client.cookies.set(service.SAAS_SESSION_COOKIE, session_token)
+    client.cookies.set(service.SAAS_CSRF_COOKIE, csrf_token)
+    return client
+
+
 def _billed_transaction(kwargs, *, transaction_id):
     interval = "month" if kwargs["custom_data"].get("billing_interval") == "monthly" else None
     if interval is None:
@@ -360,6 +383,83 @@ def test_saved_draft_can_switch_eligible_plan_without_starting_payment(db):
     assert enterprise.quote_aggregate_amount_minor == 5 * 149_00
     assert db.query(models.PaymentAttempt).count() == 0
     assert db.get(models.CheckoutSession, professional.current_checkout_session_id).status == "stale"
+
+
+def test_saved_draft_choose_plan_route_renders_selection_without_paddle_or_attempt(
+    db, monkeypatch
+):
+    group, branches, account, _link, plans = _fixture(db)
+    activation = _prepare(db, group, account, plans["professional"])
+    workspace_uuid = group.workspace_uuid
+    professional_id = plans["professional"].id
+    enterprise_id = plans["enterprise_ai"].id
+    activation_branch_count = db.query(
+        models.ExistingWorkspacePaidActivationBranch
+    ).filter_by(paid_activation_id=activation.id).count()
+    db.commit()
+    assert activation_branch_count == len(branches) == 5
+
+    def reject_paddle_call(*_args, **_kwargs):
+        raise AssertionError("Plan selection must not call Paddle.")
+
+    monkeypatch.setattr(activation_service.paddle_client, "_request_body", reject_paddle_call)
+    with _route_client(db, account) as client:
+        response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+    )
+
+    assert response.status_code == 200
+    assert "Choose billing interval" in response.text
+    assert "Secure Payment Review" not in response.text
+    professional_input = re.search(
+        rf'<input[^>]+name="plan_id"[^>]+value="{professional_id}"[^>]*>',
+        response.text,
+    )
+    enterprise_input = re.search(
+        rf'<input[^>]+name="plan_id"[^>]+value="{enterprise_id}"[^>]*>',
+        response.text,
+    )
+    assert professional_input and "checked" in professional_input.group(0)
+    assert enterprise_input and "disabled" not in enterprise_input.group(0)
+    assert db.query(models.PaymentAttempt).count() == 0
+
+
+def test_explicit_activation_route_remains_payment_review(db):
+    group, _branches, account, _link, plans = _fixture(db)
+    activation = _prepare(db, group, account, plans["professional"])
+    workspace_uuid = group.workspace_uuid
+    activation_uuid = activation.activation_uuid
+    db.commit()
+
+    with _route_client(db, account) as client:
+        response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+            f"?activation_uuid={activation_uuid}"
+        )
+
+    assert response.status_code == 200
+    assert "Secure Payment Review" in response.text
+    assert "Continue to Secure Payment" in response.text
+    assert db.query(models.PaymentAttempt).count() == 0
+
+
+def test_choose_plan_route_without_existing_activation_renders_eligible_plans(db):
+    group, _branches, account, _link, plans = _fixture(db)
+    workspace_uuid = group.workspace_uuid
+    professional_id = plans["professional"].id
+    enterprise_id = plans["enterprise_ai"].id
+    db.commit()
+
+    with _route_client(db, account) as client:
+        response = client.get(
+            f"/saas/account/workspaces/{workspace_uuid}/activation"
+        )
+
+    assert response.status_code == 200
+    assert "Your saved" not in response.text
+    assert f'value="{professional_id}"' in response.text
+    assert f'value="{enterprise_id}"' in response.text
+    assert db.query(models.PaymentAttempt).count() == 0
 
 
 def test_checkout_in_progress_blocks_unsafe_plan_change(db):

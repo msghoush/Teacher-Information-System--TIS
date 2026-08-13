@@ -1,16 +1,9 @@
-knowledge_impact: yes
-summary: Correct existing-workspace plan selection so editable activation drafts can be reviewed and replaced before Paddle checkout starts.
+knowledge_impact: no
+summary: Fix the existing-workspace plan-selection GET route to render an editable saved activation draft without a split-state dereference or false contract conflict.
 affected_areas:
   - existing-workspace-paid-activation
   - organization-account
   - activation-plan-selection
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/CHANGE_HISTORY.md
-  - docs/PROJECT_STATE.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/adr/0023-existing-workspace-paid-activation.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/history/subscriptions/README.md
-no_impact_reason:
-major_change_override: no
+no_impact_reason: This is a narrow defect correction to make the existing documented Choose-a-Plan lifecycle render correctly. It consistently uses the saved activation context for branch snapshots and allows only that draft's existing contract during eligibility resolution. It changes no lifecycle rule, payment authority, Paddle behavior, pricing, schema, migration, promo flow, branch data, or customer workflow.
+major_change_override: yes
