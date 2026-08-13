@@ -35,6 +35,15 @@ branch, customer, business/address, price, quantity, currency, interval, transac
 and subscription evidence, then atomically establishes paid commercial authority.
 No tenant provisioning engine is called.
 
+Plan selection and payment review are distinct states. Organization Account opens
+the selection surface when the current activation is `draft` or `checkout_ready`;
+the saved plan may be highlighted and replaced by another eligible plan, producing a
+fresh quote and superseding only unfinished local checkout authority. This selection
+work performs no Paddle API call, creates no PaymentAttempt, and mutates no branch.
+After checkout reaches `checkout_started` or `payment_processing`, or the activation
+is in a manual-review/inconsistent state, replacement fails closed rather than
+silently changing provider-bound commercial terms.
+
 The successful workspace remains classification `customer`; paid versus promo is
 represented by WorkspaceEntitlement and TenantProvisioningLink source. Lifecycle
 becomes `active` and operational access resolves through centralized services.
@@ -44,6 +53,8 @@ becomes `active` and operational access resolves through centralized services.
 - Existing branches, users, teachers, academic records, branding, and tenant identity
   are preserved.
 - Browser return and incomplete provider events cannot activate access.
+- Editable pre-checkout drafts can change plan without creating provider or payment
+  authority; in-progress or ambiguous payment states cannot be silently replaced.
 - Duplicate launch and webhook handling is idempotent; drift and source conflicts
   fail closed without partial authority.
 - Returned or reused transactions are accepted only when billed with automatic

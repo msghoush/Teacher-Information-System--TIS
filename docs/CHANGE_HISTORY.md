@@ -1,11 +1,22 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-13
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-13 - Corrected Existing Workspace Plan Selection
+
+Organization Account **Choose a Plan** now reopens eligible paid-plan selection for
+an existing workspace while its activation remains `draft` or `checkout_ready`.
+The saved plan is highlighted and can be replaced with a newly calculated
+authoritative quote. Browsing or replacing a draft creates no Paddle request or
+PaymentAttempt and does not mutate branches. Once checkout starts, payment is
+processing, or evidence requires manual review, replacement fails closed. Promo,
+PendingOrganization checkout, and verified-payment activation authority are
+unchanged.
 
 ## 2026-08-07 - Corrected Existing Workspace Payment Status Presentation
 

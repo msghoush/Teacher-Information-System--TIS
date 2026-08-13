@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-08-07
+last_updated: 2026-08-13
 source_of_truth: true
 ---
 
@@ -636,6 +636,13 @@ Organization Account status for an activation-required existing workspace is now
 derived from its current paid-activation attempt. With no attempt it displays
 `Activation required`; only a current unexpired checkout-started or payment-processing
 attempt displays `Payment processing`. Terminal attempts display recovery states.
+
+Existing-workspace plan selection is editable only before real checkout begins.
+Organization Account reopens the eligible plan-selection surface for `draft` and
+`checkout_ready` activations, highlights the saved choice, and recalculates a
+replacement quote without creating a Paddle transaction or PaymentAttempt.
+Checkout-started, payment-processing, and manual-review/inconsistent activations
+remain locked against silent replacement.
 
 Known issues and watch points:
 

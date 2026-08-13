@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-08-07
+last_updated: 2026-08-13
 source_of_truth: true
 ---
 
@@ -538,6 +538,13 @@ Starter remains disabled until complete branch-entitlement enforcement is proven
 The workspace-customer association persists the address and business used for that
 SchoolGroup, and a returned or reused Paddle transaction is accepted only after its
 complete billed transaction and current-quote lineage are revalidated.
+The existing-workspace **Choose a Plan** entry point remains a selection surface
+while the current activation is `draft` or `checkout_ready`. Its selected plan is a
+default, not commercial authority: another eligible plan may replace it and produce
+a fresh authoritative quote without calling Paddle, creating a PaymentAttempt, or
+changing branches. `checkout_started`, `payment_processing`, and manual-review or
+inconsistent activations are not silently replaced and fail closed against plan
+changes. Promo activation and PendingOrganization checkout remain separate flows.
 Verified `transaction.completed` evidence atomically establishes the paid contract,
 subscription, workspace/branch entitlements, paid tenant link, and active lifecycle.
 Classification remains `customer`, and browser return or `transaction.paid` never
