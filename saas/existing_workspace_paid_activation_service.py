@@ -928,27 +928,37 @@ def launch_checkout(db: Session, *, activation_uuid: str, account, checkout_url:
                 raise ExistingWorkspacePaidActivationError(
                     "payment_attempt_or_customer_missing"
                 )
-            transaction = paddle_client.get_transaction(
-                transaction_id=activation.provider_transaction_id
+            existing_checkout = db.get(
+                models.CheckoutSession,
+                activation.current_checkout_session_id,
             )
-            remote_checkout_url = _validate_existing_transaction(
-                transaction,
-                activation,
-                customer,
-                association,
-                account,
-                payment_attempt_uuid=existing_attempt.attempt_uuid,
+            if existing_checkout is None:
+                raise ExistingWorkspacePaidActivationError("checkout_lineage_missing")
+            validate_payment_launcher_transaction(
+                db,
+                attempt=existing_attempt,
+                transaction_id=activation.provider_transaction_id,
             )
             return CheckoutLaunch(
                 activation.activation_uuid,
                 activation.provider_transaction_id,
-                remote_checkout_url,
+                _clean(existing_checkout.checkout_url),
                 True,
             )
         except (ExistingWorkspacePaidActivationError, paddle_client.PaddleAPIError):
             old_attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
             if old_attempt and old_attempt.status not in {"payment_confirmed", "completed"}:
                 old_attempt.status = "superseded"
+            old_checkout = db.get(
+                models.CheckoutSession,
+                activation.current_checkout_session_id,
+            )
+            if old_checkout is not None:
+                old_checkout.status = "ready"
+                old_checkout.provider_checkout_id = None
+                old_checkout.checkout_url = None
+                old_checkout.last_payment_attempt_id = None
+            activation.current_payment_attempt_id = None
             activation.provider_transaction_id = None
     checkout = db.get(models.CheckoutSession, activation.current_checkout_session_id)
     if checkout is None or checkout.existing_workspace_paid_activation_id != activation.id:
