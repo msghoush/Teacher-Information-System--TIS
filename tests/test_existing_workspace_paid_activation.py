@@ -240,7 +240,10 @@ def _billed_transaction(kwargs, *, transaction_id):
         "details": {"totals": {"subtotal": str(kwargs["expected_subtotal"])}},
         "checkout": {
             "id": f"checkout_{transaction_id}",
-            "url": "https://checkout.example.test",
+            "url": (
+                "https://app.example.test/saas/payment"
+                f"?_ptxn={transaction_id}"
+            ),
         },
     }
 
@@ -594,6 +597,177 @@ def test_launch_reuses_customer_and_sends_authoritative_metadata(db, monkeypatch
     assert db.query(models.PaymentCustomerWorkspaceAssociation).filter_by(
         school_group_id=group.id, payment_customer_id=customer.id
     ).one()
+
+
+def _launch_workspace_checkout(db, monkeypatch, *, transaction_id="txn_launcher_valid"):
+    group, _branches, account, _link, plans = _fixture(db)
+    activation = _prepare(db, group, account, plans["professional"])
+    customer = _customer(db, account)
+    transaction = None
+
+    monkeypatch.setattr(
+        billing_identity_service,
+        "ensure_provider_workspace_billing_identity",
+        lambda *_args: (customer.provider_address_id, customer.provider_business_id),
+    )
+
+    def create_transaction(**kwargs):
+        nonlocal transaction
+        transaction = _billed_transaction(kwargs, transaction_id=transaction_id)
+        return transaction
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        create_transaction,
+    )
+    activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.example.test/saas/payment",
+    )
+    db.commit()
+    return group, account, activation, customer, transaction
+
+
+def test_existing_workspace_transaction_passes_public_launcher_validation(
+    db, monkeypatch
+):
+    _group, account, activation, _customer_row, transaction = (
+        _launch_workspace_checkout(db, monkeypatch)
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        lambda **_kwargs: transaction,
+    )
+    attempts_before = db.query(models.PaymentAttempt).count()
+
+    with patch.dict(
+        os.environ,
+        {"PADDLE_CLIENT_TOKEN": "test_client_token", "PADDLE_ENVIRONMENT": "sandbox"},
+    ):
+        with _route_client(db, account) as client:
+            response = client.get(
+                f"/saas/payment?_ptxn={activation.provider_transaction_id}"
+            )
+
+    assert response.status_code == 200
+    assert (
+        f'const transactionId = "{activation.provider_transaction_id}";'
+        in response.text
+    )
+    assert 'const launcherError = "";' in response.text
+    assert 'id="paymentLauncherSafeState" hidden' in response.text
+    assert db.query(models.PaymentAttempt).count() == attempts_before
+
+
+def test_existing_workspace_launcher_survives_transaction_created_webhook(
+    db, monkeypatch
+):
+    _group, _account, activation, _customer_row, transaction = (
+        _launch_workspace_checkout(
+            db,
+            monkeypatch,
+            transaction_id="txn_launcher_webhook_first",
+        )
+    )
+    monkeypatch.setattr(payment_service, "verify_webhook_signature", lambda *_args: None)
+    webhook_payload = {
+        "event_id": "evt_launcher_webhook_first",
+        "event_type": "transaction.created",
+        "data": transaction,
+    }
+    result = payment_service.process_webhook(
+        db,
+        raw_body=json.dumps(webhook_payload).encode("utf-8"),
+        headers={"Paddle-Signature": "test"},
+    )
+    db.commit()
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        lambda **_kwargs: transaction,
+    )
+
+    assert result == {"status": "ignored", "event_type": "transaction.created"}
+    assert payment_service.validate_payment_launcher_transaction(
+        db, activation.provider_transaction_id
+    ) == activation.provider_transaction_id
+
+
+@pytest.mark.parametrize(
+    ("mutation", "reason_code"),
+    (
+        (
+            lambda row: row["custom_data"].update(workspace_uuid=str(uuid.uuid4())),
+            "provider_transaction_lineage_mismatch",
+        ),
+        (
+            lambda row: row.update(customer_id="ctm_wrong_customer"),
+            "provider_customer_mismatch",
+        ),
+    ),
+)
+def test_existing_workspace_launcher_rejects_wrong_workspace_or_customer(
+    db, monkeypatch, mutation, reason_code
+):
+    _group, _account, activation, _customer_row, transaction = (
+        _launch_workspace_checkout(db, monkeypatch)
+    )
+    mutation(transaction)
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        lambda **_kwargs: transaction,
+    )
+
+    with pytest.raises(activation_service.ExistingWorkspacePaidActivationError) as caught:
+        payment_service.validate_payment_launcher_transaction(
+            db, activation.provider_transaction_id
+        )
+
+    assert caught.value.reason_code == reason_code
+
+
+def test_existing_workspace_launcher_rejects_unknown_and_terminal_attempts(
+    db, monkeypatch
+):
+    with pytest.raises(ValueError):
+        payment_service.validate_payment_launcher_transaction(db, "txn_unknown_launcher")
+
+    _group, _account, activation, _customer_row, _transaction = (
+        _launch_workspace_checkout(db, monkeypatch)
+    )
+    attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+
+    def reject_remote_lookup(**_kwargs):
+        raise AssertionError("Invalid local attempts must fail before Paddle lookup.")
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        reject_remote_lookup,
+    )
+    attempt.expires_at = datetime.utcnow() - timedelta(seconds=1)
+    db.commit()
+    with pytest.raises(activation_service.ExistingWorkspacePaidActivationError) as caught:
+        payment_service.validate_payment_launcher_transaction(
+            db, activation.provider_transaction_id
+        )
+    assert caught.value.reason_code == "launcher_attempt_expired"
+
+    attempt.expires_at = datetime.utcnow() + timedelta(hours=1)
+    attempt.status = "payment_failed"
+    activation.status = "failed"
+    db.commit()
+    with pytest.raises(activation_service.ExistingWorkspacePaidActivationError) as caught:
+        payment_service.validate_payment_launcher_transaction(
+            db, activation.provider_transaction_id
+        )
+
+    assert caught.value.reason_code == "launcher_state_invalid"
 
 
 @pytest.mark.parametrize(

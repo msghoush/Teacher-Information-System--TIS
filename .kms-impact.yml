@@ -1,9 +1,9 @@
 knowledge_impact: no
-summary: Fix existing-workspace plan selection so an explicit billing interval controls displayed options while immutable payment review remains tied to its stored quote.
+summary: Correct the public Paddle launcher validation for existing-workspace paid activation transactions.
 affected_areas:
   - existing-workspace-paid-activation
-  - organization-account
-  - activation-plan-selection
+  - secure-payment-launcher
+  - payment-lineage-validation
 kms_files_updated:
-no_impact_reason: This is a narrow defect correction to the already documented Choose-a-Plan lifecycle. It distinguishes an explicit interval query from the saved draft default and keeps explicit activation review bound to its stored quote. It changes no lifecycle rule, payment authority, Paddle behavior, pricing, schema, migration, promo flow, branch data, or customer workflow.
+no_impact_reason: This is a narrow defect correction to the documented M4C payment lifecycle. It applies the existing workspace, customer, quote, checkout, payment-attempt, and remote Paddle transaction guards to the existing-workspace context instead of requiring a PendingOrganization. It changes no commercial lifecycle rule, payment authority, pricing, schema, migration, promo behavior, branch data, or customer workflow.
 major_change_override: yes

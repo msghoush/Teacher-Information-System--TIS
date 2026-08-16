@@ -913,6 +913,14 @@ def validate_payment_launcher_transaction(db: Session, transaction_id: str) -> s
     if len(attempts) != 1:
         raise ValueError("Secure Payment could not be opened.")
     attempt = attempts[0]
+    if getattr(attempt, "existing_workspace_paid_activation_id", None) is not None:
+        from saas import existing_workspace_paid_activation_service
+
+        return existing_workspace_paid_activation_service.validate_payment_launcher_transaction(
+            db,
+            attempt=attempt,
+            transaction_id=cleaned_transaction_id,
+        )
     checkout_session = db.get(models.CheckoutSession, attempt.checkout_session_id)
     organization = db.get(models.PendingOrganization, attempt.pending_organization_id)
     payment_customer = db.get(models.PaymentCustomer, attempt.payment_customer_id)

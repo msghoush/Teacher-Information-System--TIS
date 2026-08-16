@@ -757,6 +757,124 @@ def _validate_existing_transaction(
     return checkout_url
 
 
+def validate_payment_launcher_transaction(
+    db: Session,
+    *,
+    attempt,
+    transaction_id: str,
+) -> str:
+    cleaned_transaction_id = _clean(transaction_id)
+    activation_id = getattr(attempt, "existing_workspace_paid_activation_id", None)
+    if (
+        not cleaned_transaction_id.startswith("txn_")
+        or activation_id is None
+        or getattr(attempt, "pending_organization_id", None) is not None
+    ):
+        raise ExistingWorkspacePaidActivationError("launcher_context_invalid")
+
+    activation = db.get(models.ExistingWorkspacePaidActivation, activation_id)
+    checkout = db.get(
+        models.CheckoutSession,
+        getattr(attempt, "checkout_session_id", None),
+    )
+    customer = db.get(
+        models.PaymentCustomer,
+        getattr(attempt, "payment_customer_id", None),
+    )
+    account = db.get(
+        models.SaaSAccount,
+        getattr(activation, "saas_account_id", None),
+    )
+    contract = db.get(
+        models.SubscriptionContract,
+        getattr(activation, "subscription_contract_id", None),
+    )
+    association = db.query(models.PaymentCustomerWorkspaceAssociation).filter(
+        models.PaymentCustomerWorkspaceAssociation.school_group_id
+        == getattr(activation, "school_group_id", None),
+        models.PaymentCustomerWorkspaceAssociation.payment_customer_id
+        == getattr(customer, "id", None),
+        models.PaymentCustomerWorkspaceAssociation.saas_account_id
+        == getattr(account, "id", None),
+    ).one_or_none()
+    required_lineage = (activation, checkout, customer, account, contract, association)
+    if any(row is None for row in required_lineage):
+        raise ExistingWorkspacePaidActivationError("launcher_lineage_missing")
+
+    local_state = (
+        _clean(activation.status).lower(),
+        _clean(attempt.status).lower(),
+        _clean(checkout.status).lower(),
+    )
+    if local_state not in {
+        ("checkout_started", "checkout_started", "started"),
+        ("payment_processing", "payment_processing", "processing"),
+    }:
+        raise ExistingWorkspacePaidActivationError("launcher_state_invalid")
+    expires_at = getattr(attempt, "expires_at", None)
+    if expires_at is None or expires_at <= _utcnow():
+        raise ExistingWorkspacePaidActivationError("launcher_attempt_expired")
+
+    checkout_url = _clean(getattr(checkout, "checkout_url", ""))
+    local_lineage_matches = (
+        int(activation.current_checkout_session_id or 0) == int(checkout.id)
+        and int(activation.current_payment_attempt_id or 0) == int(attempt.id)
+        and int(checkout.existing_workspace_paid_activation_id or 0)
+        == int(activation.id)
+        and int(checkout.last_payment_attempt_id or 0) == int(attempt.id)
+        and int(attempt.checkout_session_id or 0) == int(checkout.id)
+        and int(attempt.payment_customer_id or 0) == int(customer.id)
+        and int(contract.school_group_id or 0) == int(activation.school_group_id)
+        and _clean(attempt.provider).lower() == "paddle"
+        and _clean(attempt.provider_transaction_id) == cleaned_transaction_id
+        and _clean(activation.provider_transaction_id) == cleaned_transaction_id
+        and f"_ptxn={cleaned_transaction_id}" in checkout_url
+    )
+    if not local_lineage_matches:
+        raise ExistingWorkspacePaidActivationError("launcher_lineage_mismatch")
+
+    eligibility = require_eligibility(
+        db,
+        school_group_id=activation.school_group_id,
+        account=account,
+        allow_activation_id=activation.id,
+    )
+    quote = build_quote(
+        db,
+        eligibility=eligibility,
+        plan_id=activation.selected_plan_id,
+        billing_interval=activation.billing_interval,
+        selected_branch_ids=_selected_branch_ids(db, activation),
+    )
+    attempt_matches_quote = (
+        quote.ready
+        and quote.fingerprint == activation.quote_fingerprint
+        and _clean(attempt.provider_price_id) == quote.provider_price_id
+        and int(attempt.quantity or 0) == int(quote.quantity)
+        and int(attempt.unit_amount_minor or 0) == int(quote.unit_amount_minor)
+        and int(attempt.amount_minor or 0) == int(quote.aggregate_amount_minor)
+        and _clean(attempt.currency_code).upper() == quote.currency_code
+        and _clean(attempt.billing_interval).lower() == quote.billing_interval
+        and _clean(attempt.quote_fingerprint) == quote.fingerprint
+    )
+    if not attempt_matches_quote:
+        raise ExistingWorkspacePaidActivationError("launcher_quote_mismatch")
+
+    transaction = paddle_client.get_transaction(transaction_id=cleaned_transaction_id)
+    remote_checkout_url = _validate_existing_transaction(
+        transaction,
+        activation,
+        customer,
+        association,
+        account,
+        expected_transaction_id=cleaned_transaction_id,
+        payment_attempt_uuid=attempt.attempt_uuid,
+    )
+    if f"_ptxn={cleaned_transaction_id}" not in remote_checkout_url:
+        raise ExistingWorkspacePaidActivationError("provider_checkout_url_mismatch")
+    return cleaned_transaction_id
+
+
 def launch_checkout(db: Session, *, activation_uuid: str, account, checkout_url: str):
     query = db.query(models.ExistingWorkspacePaidActivation).filter(
         models.ExistingWorkspacePaidActivation.activation_uuid == _clean(activation_uuid)
