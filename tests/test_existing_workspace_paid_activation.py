@@ -631,6 +631,155 @@ def _launch_workspace_checkout(db, monkeypatch, *, transaction_id="txn_launcher_
     return group, account, activation, customer, transaction
 
 
+def test_non_expired_current_attempt_reuses_existing_workspace_transaction(
+    db, monkeypatch
+):
+    _group, account, activation, _customer_row, transaction = (
+        _launch_workspace_checkout(
+            db,
+            monkeypatch,
+            transaction_id="txn_reuse_current",
+        )
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        lambda **_kwargs: transaction,
+    )
+
+    def reject_new_transaction(**_kwargs):
+        raise AssertionError("A current launchable attempt must be reused.")
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        reject_new_transaction,
+    )
+    reused = activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.example.test/saas/payment",
+    )
+
+    assert reused.reused
+    assert reused.transaction_id == "txn_reuse_current"
+    assert db.query(models.PaymentAttempt).count() == 1
+
+
+def test_expired_attempt_is_superseded_and_replaced_with_launchable_transaction(
+    db, monkeypatch
+):
+    _group, account, activation, _customer_row, old_transaction = (
+        _launch_workspace_checkout(
+            db,
+            monkeypatch,
+            transaction_id="txn_reuse_expired",
+        )
+    )
+    old_attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+    old_attempt_id = old_attempt.id
+    old_attempt.expires_at = datetime.utcnow() - timedelta(minutes=1)
+    db.commit()
+
+    def reject_stale_lookup(**_kwargs):
+        raise AssertionError("An expired attempt must fail before Paddle lookup.")
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        reject_stale_lookup,
+    )
+    fresh_transaction = None
+
+    def create_fresh_transaction(**kwargs):
+        nonlocal fresh_transaction
+        fresh_transaction = _billed_transaction(
+            kwargs,
+            transaction_id="txn_reuse_fresh",
+        )
+        return fresh_transaction
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        create_fresh_transaction,
+    )
+    before_retry = datetime.utcnow()
+    replacement = activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.example.test/saas/payment",
+    )
+    db.commit()
+
+    old_attempt = db.get(models.PaymentAttempt, old_attempt_id)
+    fresh_attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+    assert not replacement.reused
+    assert replacement.transaction_id == "txn_reuse_fresh"
+    assert old_attempt.status == "superseded"
+    assert fresh_attempt.id != old_attempt.id
+    assert fresh_attempt.provider_transaction_id == "txn_reuse_fresh"
+    assert fresh_attempt.status == "checkout_started"
+    assert before_retry + timedelta(hours=1, minutes=59) < fresh_attempt.expires_at
+    assert fresh_attempt.expires_at <= datetime.utcnow() + timedelta(hours=2, minutes=1)
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        lambda **_kwargs: fresh_transaction,
+    )
+    assert payment_service.validate_payment_launcher_transaction(
+        db, fresh_attempt.provider_transaction_id
+    ) == fresh_attempt.provider_transaction_id
+    with pytest.raises(activation_service.ExistingWorkspacePaidActivationError) as caught:
+        payment_service.validate_payment_launcher_transaction(
+            db, old_transaction["id"]
+        )
+    assert caught.value.reason_code == "launcher_state_invalid"
+
+
+def test_terminal_attempt_is_not_reused(db, monkeypatch):
+    _group, account, activation, _customer_row, _transaction = (
+        _launch_workspace_checkout(
+            db,
+            monkeypatch,
+            transaction_id="txn_terminal_old",
+        )
+    )
+    old_attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+    old_attempt.status = "payment_cancelled"
+    db.commit()
+
+    def reject_terminal_lookup(**_kwargs):
+        raise AssertionError("A terminal attempt must fail before Paddle lookup.")
+
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "get_transaction",
+        reject_terminal_lookup,
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        lambda **kwargs: _billed_transaction(
+            kwargs,
+            transaction_id="txn_terminal_replacement",
+        ),
+    )
+    replacement = activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.example.test/saas/payment",
+    )
+
+    assert not replacement.reused
+    assert replacement.transaction_id == "txn_terminal_replacement"
+    assert old_attempt.status == "superseded"
+
+
 def test_existing_workspace_transaction_passes_public_launcher_validation(
     db, monkeypatch
 ):

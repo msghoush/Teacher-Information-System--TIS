@@ -1,9 +1,9 @@
 knowledge_impact: no
-summary: Correct the public Paddle launcher validation for existing-workspace paid activation transactions.
+summary: Prevent expired or otherwise invalid existing-workspace payment attempts from reusing stale Paddle checkout transactions.
 affected_areas:
   - existing-workspace-paid-activation
   - secure-payment-launcher
-  - payment-lineage-validation
+  - checkout-reuse
 kms_files_updated:
-no_impact_reason: This is a narrow defect correction to the documented M4C payment lifecycle. It applies the existing workspace, customer, quote, checkout, payment-attempt, and remote Paddle transaction guards to the existing-workspace context instead of requiring a PendingOrganization. It changes no commercial lifecycle rule, payment authority, pricing, schema, migration, promo behavior, branch data, or customer workflow.
+no_impact_reason: This is a narrow defect correction to the documented M4C payment lifecycle. It applies the existing launcher status, expiry, lineage, and quote checks before reusing a Paddle transaction, then follows the established supersession and fresh-attempt path when reuse is unsafe. It changes no commercial lifecycle rule, payment authority, pricing, schema, migration, promo behavior, branch data, or customer workflow.
 major_change_override: yes
