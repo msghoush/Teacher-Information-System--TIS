@@ -21,6 +21,317 @@ TARGET_DOMAINS = {"as.edu.sa", "www.as.edu.sa"}
 TARGET_NAME_KEYS = {"alandalus", "alandalusschools", "andalusschools"}
 
 
+def _utc(value):
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            value = datetime.datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if not isinstance(value, datetime.datetime):
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=datetime.timezone.utc)
+    return value.astimezone(datetime.timezone.utc)
+
+
+def _commercial_source_for_link(link):
+    sources = [
+        name
+        for name, field in (
+            ("paid_subscription", "subscription_contract_id"),
+            ("demo", "demo_request_id"),
+            ("promo", "promo_grant_id"),
+        )
+        if link.get(field) is not None
+    ]
+    if not sources:
+        return "none"
+    if len(sources) != 1:
+        return "conflict"
+    return sources[0]
+
+
+def _analyze_commercial_evidence(
+    *,
+    group_id,
+    tenant_links,
+    subscription_contracts,
+    demo_requests,
+    promo_codes,
+    promo_redemptions,
+    promo_grants,
+    workspace_entitlements,
+    promo_assignments,
+    branch_entitlements,
+    branches,
+    now=None,
+):
+    """Resolve sanitized audit evidence without changing application authority."""
+    observed_now = _utc(now) or datetime.datetime.now(datetime.timezone.utc)
+    result = {
+        "authoritative_commercial_source": "none",
+        "authoritative_plan_source": "none",
+        "source_free_tenant_links": [],
+        "source_conflict_tenant_links": [],
+        "blocking_invariants": [],
+        "promo_commercial_state": {
+            "promo_code_id": None,
+            "promo_redemption_id": None,
+            "promo_grant_id": None,
+            "plan_id": None,
+            "plan_code": None,
+            "plan_name": None,
+            "allowed_branches": None,
+            "allowed_staff_users": None,
+            "allowed_teachers": None,
+            "effective_from": None,
+            "effective_to": None,
+            "status": None,
+            "tenant_link_matches_grant": False,
+            "workspace_entitlement_matches_grant": False,
+            "branch_entitlements_coherent": False,
+        },
+        "promo_branch_state": [],
+    }
+    scoped_links = [row for row in tenant_links if row.get("school_group_id") == group_id]
+    for link in scoped_links:
+        source = _commercial_source_for_link(link)
+        if source == "none":
+            result["source_free_tenant_links"].append(link)
+        elif source == "conflict":
+            result["source_conflict_tenant_links"].append(link)
+    if not scoped_links:
+        return result
+    if len(scoped_links) != 1:
+        result["authoritative_commercial_source"] = "conflict"
+        result["blocking_invariants"].append("multiple_tenant_links_for_existing_workspace")
+        return result
+
+    link = scoped_links[0]
+    link_source = _commercial_source_for_link(link)
+    if link_source == "none":
+        result["blocking_invariants"].append("source_free_tenant_link")
+        return result
+    if link_source == "conflict":
+        result["authoritative_commercial_source"] = "conflict"
+        result["blocking_invariants"].append("multiple_commercial_sources_on_tenant_link")
+        return result
+    expected_entitlement_type = {
+        "paid_subscription": "paid",
+        "demo": "demo",
+        "promo": "promo",
+    }[link_source]
+    active_commercial_entitlements = [
+        row
+        for row in workspace_entitlements
+        if row.get("school_group_id") == group_id and row.get("status") == "active"
+    ]
+    if len(active_commercial_entitlements) > 1:
+        result["authoritative_commercial_source"] = "conflict"
+        result["blocking_invariants"].append("multiple_active_commercial_entitlements")
+        return result
+    incompatible_active_entitlements = [
+        row
+        for row in workspace_entitlements
+        if row.get("school_group_id") == group_id
+        and row.get("status") == "active"
+        and row.get("entitlement_type") != expected_entitlement_type
+    ]
+    if incompatible_active_entitlements:
+        result["authoritative_commercial_source"] = "conflict"
+        result["blocking_invariants"].append("multiple_active_commercial_entitlements")
+        return result
+    if link_source == "paid_subscription":
+        matching_contracts = [
+            row
+            for row in subscription_contracts
+            if row.get("id") == link.get("subscription_contract_id")
+            and row.get("school_group_id") in {None, group_id}
+        ]
+        if len(matching_contracts) != 1:
+            result["authoritative_commercial_source"] = "conflict"
+            result["authoritative_plan_source"] = "subscription_contract"
+            result["blocking_invariants"].append("subscription_contract_link_mismatch")
+            return result
+        result["authoritative_commercial_source"] = link_source
+        result["authoritative_plan_source"] = "subscription_contract"
+        return result
+    if link_source == "demo":
+        matching_demos = [
+            row
+            for row in demo_requests
+            if row.get("id") == link.get("demo_request_id")
+            and row.get("school_group_id") in {None, group_id}
+        ]
+        if len(matching_demos) != 1:
+            result["authoritative_commercial_source"] = "conflict"
+            result["authoritative_plan_source"] = "demo_request"
+            result["blocking_invariants"].append("demo_request_link_mismatch")
+            return result
+        result["authoritative_commercial_source"] = link_source
+        result["authoritative_plan_source"] = "demo_request"
+        return result
+
+    grant_id = link.get("promo_grant_id")
+    matching_grants = [
+        row
+        for row in promo_grants
+        if row.get("id") == grant_id and row.get("school_group_id") == group_id
+    ]
+    state = result["promo_commercial_state"]
+    state["promo_grant_id"] = grant_id
+    state["tenant_link_matches_grant"] = len(matching_grants) == 1
+    if len(matching_grants) != 1:
+        result["authoritative_commercial_source"] = "conflict"
+        result["blocking_invariants"].append("promo_tenant_link_mismatch")
+        return result
+
+    grant = matching_grants[0]
+    state.update(
+        {
+            "plan_id": grant.get("plan_id"),
+            "plan_code": grant.get("plan_code_snapshot"),
+            "plan_name": grant.get("plan_name_snapshot"),
+            "allowed_branches": grant.get("allowed_branches"),
+            "allowed_staff_users": grant.get("allowed_staff_users"),
+            "allowed_teachers": grant.get("allowed_teachers"),
+            "effective_from": grant.get("effective_from"),
+            "effective_to": grant.get("effective_to"),
+            "status": grant.get("status"),
+        }
+    )
+    redemptions = [
+        row
+        for row in promo_redemptions
+        if row.get("id") == grant.get("promo_redemption_id")
+        and row.get("school_group_id") == group_id
+    ]
+    if len(redemptions) == 1:
+        redemption = redemptions[0]
+        state["promo_redemption_id"] = redemption.get("id")
+        definitions = [
+            row for row in promo_codes if row.get("id") == redemption.get("promo_code_id")
+        ]
+        if len(definitions) == 1:
+            state["promo_code_id"] = definitions[0].get("id")
+        else:
+            result["blocking_invariants"].append("promo_definition_mismatch")
+        immutable_fields_match = all(
+            redemption.get(redemption_field) == grant.get(grant_field)
+            for redemption_field, grant_field in (
+                ("plan_id", "plan_id"),
+                ("plan_code_snapshot", "plan_code_snapshot"),
+                ("plan_name_snapshot", "plan_name_snapshot"),
+                ("allowed_branches", "allowed_branches"),
+                ("allowed_staff_users", "allowed_staff_users"),
+                ("allowed_teachers", "allowed_teachers"),
+                ("effective_from", "effective_from"),
+                ("effective_to", "effective_to"),
+            )
+        )
+        if not immutable_fields_match:
+            result["blocking_invariants"].append("promo_redemption_grant_snapshot_mismatch")
+    else:
+        result["blocking_invariants"].append("promo_redemption_mismatch")
+
+    effective_from = _utc(grant.get("effective_from"))
+    effective_to = _utc(grant.get("effective_to"))
+    grant_active = bool(
+        str(grant.get("status") or "").strip().lower() == "active"
+        and effective_from is not None
+        and effective_to is not None
+        and effective_from <= observed_now < effective_to
+    )
+    if not grant_active:
+        result["authoritative_commercial_source"] = "conflict"
+        result["authoritative_plan_source"] = "promo_grant"
+        result["blocking_invariants"].append("promo_grant_not_active")
+        return result
+    simultaneously_active_grants = [
+        row
+        for row in promo_grants
+        if row.get("school_group_id") == group_id
+        and str(row.get("status") or "").strip().lower() == "active"
+        and (_utc(row.get("effective_from")) or observed_now) <= observed_now
+        and (_utc(row.get("effective_to")) or observed_now) > observed_now
+    ]
+    if len(simultaneously_active_grants) != 1:
+        result["authoritative_commercial_source"] = "conflict"
+        result["authoritative_plan_source"] = "promo_grant"
+        result["blocking_invariants"].append("ambiguous_active_promo_grant")
+        return result
+
+    matching_entitlements = [
+        row
+        for row in workspace_entitlements
+        if row.get("school_group_id") == group_id
+        and row.get("promo_grant_id") == grant_id
+        and row.get("entitlement_type") == "promo"
+        and row.get("source") == "promo"
+        and row.get("status") == "active"
+    ]
+    state["workspace_entitlement_matches_grant"] = len(matching_entitlements) == 1
+    if len(matching_entitlements) != 1:
+        result["blocking_invariants"].append("promo_workspace_entitlement_mismatch")
+
+    entitlement_id = matching_entitlements[0].get("id") if len(matching_entitlements) == 1 else None
+    assignments = {
+        row.get("branch_id")
+        for row in promo_assignments
+        if row.get("promo_grant_id") == grant_id and row.get("school_group_id") == group_id
+    }
+    branch_rows = {row.get("id"): row for row in branches if row.get("id") is not None}
+    entitlement_rows = [
+        row
+        for row in branch_entitlements
+        if row.get("school_group_id") == group_id
+        and row.get("workspace_entitlement_id") == entitlement_id
+    ]
+    entitlement_by_branch = {}
+    for row in entitlement_rows:
+        entitlement_by_branch.setdefault(row.get("branch_id"), []).append(row)
+    branch_state = []
+    allowed_branches = int(grant.get("allowed_branches") or 0)
+    coherent = bool(
+        entitlement_id is not None
+        and assignments.issubset(branch_rows)
+        and len(assignments) <= allowed_branches
+    )
+    for branch_id in sorted(branch_rows):
+        branch = branch_rows[branch_id]
+        rows = entitlement_by_branch.get(branch_id, [])
+        mode = rows[0].get("entitlement_mode") if len(rows) == 1 else None
+        selected = branch_id in assignments
+        row_coherent = len(rows) == 1 and ((selected and mode == "active") or (not selected and mode == "inactive"))
+        coherent = coherent and row_coherent
+        operational_active = bool(branch.get("status") if "status" in branch else branch.get("is_active"))
+        branch_state.append(
+            {
+                "branch_id": branch_id,
+                "branch_name": branch.get("name"),
+                "operational_status": operational_active,
+                "selected_or_granted": selected,
+                "entitlement_status": mode,
+                "commercially_available": bool(operational_active and selected and mode == "active"),
+            }
+        )
+    if set(entitlement_by_branch) - set(branch_rows):
+        coherent = False
+    state["branch_entitlements_coherent"] = coherent
+    result["promo_branch_state"] = branch_state
+    if not coherent:
+        result["blocking_invariants"].append("promo_branch_entitlements_incoherent")
+
+    if result["blocking_invariants"]:
+        result["authoritative_commercial_source"] = "conflict"
+    else:
+        result["authoritative_commercial_source"] = "promo"
+    result["authoritative_plan_source"] = "promo_grant"
+    return result
+
+
 def _empty_report() -> dict:
     return {
         "organization": {
@@ -54,6 +365,13 @@ def _empty_report() -> dict:
             "provisioning_jobs": [],
             "subscription_contracts": [],
             "demo_records": [],
+            "promo_definitions": [],
+            "promo_activation_sessions": [],
+            "promo_redemptions": [],
+            "promo_grants": [],
+            "workspace_entitlements": [],
+            "promo_branch_assignments": [],
+            "branch_entitlements": [],
             "commercial_source": None,
             "partial_or_stale_alignment": [],
         },
@@ -68,6 +386,26 @@ def _empty_report() -> dict:
             "payment_customer_mapping": None,
             "payment_subscription_mapping": None,
         },
+        "promo_commercial_state": {
+            "promo_code_id": None,
+            "promo_redemption_id": None,
+            "promo_grant_id": None,
+            "plan_id": None,
+            "plan_code": None,
+            "plan_name": None,
+            "allowed_branches": None,
+            "allowed_staff_users": None,
+            "allowed_teachers": None,
+            "effective_from": None,
+            "effective_to": None,
+            "status": None,
+            "tenant_link_matches_grant": False,
+            "workspace_entitlement_matches_grant": False,
+            "branch_entitlements_coherent": False,
+        },
+        "promo_branch_state": [],
+        "authoritative_commercial_source": "none",
+        "authoritative_plan_source": "none",
         "preservation_summary": {
             "branches": 0,
             "operational_users": 0,
@@ -565,6 +903,7 @@ def _perform_audit() -> tuple[dict, int]:
                 "pending_organization_id",
                 "subscription_contract_id",
                 "demo_request_id",
+                "promo_grant_id",
                 "school_group_id",
                 "owner_operational_user_id",
                 "primary_branch_id",
@@ -647,6 +986,193 @@ def _perform_audit() -> tuple[dict, int]:
             )
         ]
         report["tenant_and_provisioning"]["demo_records"] = demos
+
+        plans = fetch(
+            "subscription_plans",
+            ["id", "plan_code", "code", "plan_name", "name", "status", "is_active", "version"],
+        )
+        plans_by_id = {row.get("id"): row for row in plans}
+        all_promo_redemptions = fetch(
+            "promo_redemptions",
+            [
+                "id",
+                "activation_session_id",
+                "promo_code_id",
+                "promo_definition_version",
+                "school_group_id",
+                "pending_organization_id",
+                "redeemed_at",
+                "commercial_source",
+                "status",
+                "masked_promo_reference",
+                "plan_id",
+                "plan_code_snapshot",
+                "plan_name_snapshot",
+                "allowed_branches",
+                "allowed_staff_users",
+                "allowed_teachers",
+                "effective_from",
+                "effective_to",
+                "grace_period_days",
+                "created_at",
+            ],
+        )
+        promo_redemptions = sorted(
+            (
+                row
+                for row in all_promo_redemptions
+                if (
+                    (group_id is not None and row.get("school_group_id") == group_id)
+                    or row.get("pending_organization_id") in pending_ids
+                )
+            ),
+            key=lambda row: int(row.get("id") or 0),
+        )
+        promo_redemption_ids = {
+            row.get("id") for row in promo_redemptions if row.get("id") is not None
+        }
+        promo_code_ids = {
+            row.get("promo_code_id")
+            for row in promo_redemptions
+            if row.get("promo_code_id") is not None
+        }
+        all_promo_codes = fetch(
+            "promo_codes",
+            [
+                "id",
+                "code_display_prefix",
+                "code_display_suffix",
+                "title",
+                "status",
+                "definition_version",
+                "subscription_plan_id",
+                "max_branches",
+                "max_system_users",
+                "max_teachers",
+                "scope_type",
+                "valid_from",
+                "redemption_deadline",
+                "fixed_access_expires_at",
+                "access_duration_days",
+                "grace_period_days",
+                "activated_at",
+                "paused_at",
+                "revoked_at",
+                "created_at",
+                "updated_at",
+            ],
+        )
+        promo_codes = sorted(
+            (row for row in all_promo_codes if row.get("id") in promo_code_ids),
+            key=lambda row: int(row.get("id") or 0),
+        )
+        promo_definitions = []
+        for row in promo_codes:
+            plan = plans_by_id.get(row.get("subscription_plan_id"), {})
+            promo_definitions.append(
+                {
+                    "id": row.get("id"),
+                    "masked_reference": (
+                        str(row.get("code_display_prefix") or "")
+                        + "..."
+                        + str(row.get("code_display_suffix") or "")
+                    ),
+                    "title": row.get("title"),
+                    "status": row.get("status"),
+                    "definition_version": row.get("definition_version"),
+                    "subscription_plan_id": row.get("subscription_plan_id"),
+                    "plan_code": plan.get("plan_code") or plan.get("code"),
+                    "plan_name": plan.get("plan_name") or plan.get("name"),
+                    "max_branches": row.get("max_branches"),
+                    "max_system_users": row.get("max_system_users"),
+                    "max_teachers": row.get("max_teachers"),
+                    "scope_type": row.get("scope_type"),
+                    "valid_from": row.get("valid_from"),
+                    "redemption_deadline": row.get("redemption_deadline"),
+                    "fixed_access_expires_at": row.get("fixed_access_expires_at"),
+                    "access_duration_days": row.get("access_duration_days"),
+                    "grace_period_days": row.get("grace_period_days"),
+                    "activated_at": row.get("activated_at"),
+                    "paused_at": row.get("paused_at"),
+                    "revoked_at": row.get("revoked_at"),
+                }
+            )
+        report["tenant_and_provisioning"]["promo_definitions"] = promo_definitions
+        report["tenant_and_provisioning"]["promo_redemptions"] = promo_redemptions
+
+        all_promo_grants = fetch(
+            "promo_grants",
+            [
+                "id",
+                "promo_redemption_id",
+                "school_group_id",
+                "plan_id",
+                "plan_code_snapshot",
+                "plan_name_snapshot",
+                "source",
+                "allowed_branches",
+                "allowed_staff_users",
+                "allowed_teachers",
+                "effective_from",
+                "effective_to",
+                "grace_period_days",
+                "status",
+                "activated_at",
+                "expired_at",
+                "revoked_at",
+                "supersedes_grant_id",
+                "created_at",
+            ],
+        )
+        promo_grants = sorted(
+            (
+                row
+                for row in all_promo_grants
+                if (
+                    (group_id is not None and row.get("school_group_id") == group_id)
+                    or row.get("promo_redemption_id") in promo_redemption_ids
+                )
+            ),
+            key=lambda row: int(row.get("id") or 0),
+        )
+        report["tenant_and_provisioning"]["promo_grants"] = promo_grants
+
+        activation_session_ids = {
+            row.get("activation_session_id")
+            for row in promo_redemptions
+            if row.get("activation_session_id") is not None
+        }
+        promo_sessions = sorted(
+            (
+                row
+                for row in fetch(
+                "promo_activation_sessions",
+                [
+                    "id",
+                    "activation_uuid",
+                    "promo_code_id",
+                    "promo_definition_version",
+                    "pending_organization_id",
+                    "school_group_id",
+                    "context_type",
+                    "status",
+                    "stage",
+                    "masked_promo_reference",
+                    "observed_branch_count",
+                    "observed_staff_users",
+                    "observed_teachers",
+                    "expires_at",
+                    "activated_at",
+                    "cancelled_at",
+                    "created_at",
+                    "updated_at",
+                ],
+                )
+                if row.get("id") in activation_session_ids
+            ),
+            key=lambda row: int(row.get("id") or 0),
+        )
+        report["tenant_and_provisioning"]["promo_activation_sessions"] = promo_sessions
 
         all_jobs = fetch(
             "provisioning_jobs",
@@ -794,10 +1320,6 @@ def _perform_audit() -> tuple[dict, int]:
             for row in contracts + subscriptions
             if row.get("plan_id") is not None
         }
-        plans = fetch(
-            "subscription_plans",
-            ["id", "plan_code", "code", "name", "status", "is_active", "version"],
-        )
         relevant_plans = [row for row in plans if row.get("id") in plan_ids]
         if len(relevant_plans) == 1:
             report["commercial_state"]["plan"] = relevant_plans[0]
@@ -854,41 +1376,82 @@ def _perform_audit() -> tuple[dict, int]:
                 "status",
                 "source",
                 "payment_subscription_id",
+                "promo_grant_id",
                 "effective_from",
                 "effective_to",
             ],
             "school_group_id = :group_id" if group_id is not None else "1 = 0",
             {"group_id": group_id},
         )
-        active_entitlements = [
-            row for row in entitlements if row.get("status") == "active"
-        ]
+        report["tenant_and_provisioning"]["workspace_entitlements"] = entitlements
         if entitlements:
             note(
                 "workspace_entitlements:"
                 + json.dumps(entitlements, default=_json_default, separators=(",", ":"))
             )
 
-        report["commercial_state"]["classification"] = report["organization"][
-            "classification"
+        promo_assignments = fetch(
+            "promo_grant_branch_assignments",
+            ["id", "promo_grant_id", "school_group_id", "branch_id", "branch_name_snapshot", "assignment_reason", "assigned_at"],
+            "school_group_id = :group_id" if group_id is not None else "1 = 0",
+            {"group_id": group_id},
+        )
+        branch_entitlements = fetch(
+            "branch_entitlements",
+            ["id", "school_group_id", "branch_id", "workspace_entitlement_id", "entitlement_mode", "reason_code", "created_at", "updated_at"],
+            "school_group_id = :group_id" if group_id is not None else "1 = 0",
+            {"group_id": group_id},
+        )
+        report["tenant_and_provisioning"]["promo_branch_assignments"] = promo_assignments
+        report["tenant_and_provisioning"]["branch_entitlements"] = branch_entitlements
+        commercial_evidence = _analyze_commercial_evidence(
+            group_id=group_id,
+            tenant_links=tenant_links,
+            subscription_contracts=contracts,
+            demo_requests=demos,
+            promo_codes=promo_codes,
+            promo_redemptions=promo_redemptions,
+            promo_grants=promo_grants,
+            workspace_entitlements=entitlements,
+            promo_assignments=promo_assignments,
+            branch_entitlements=branch_entitlements,
+            branches=branches,
+        )
+        report["commercial_state"]["classification"] = report["organization"]["classification"]
+        report["authoritative_commercial_source"] = commercial_evidence["authoritative_commercial_source"]
+        report["authoritative_plan_source"] = commercial_evidence["authoritative_plan_source"]
+        report["promo_commercial_state"] = commercial_evidence["promo_commercial_state"]
+        report["promo_branch_state"] = commercial_evidence["promo_branch_state"]
+        report["tenant_and_provisioning"]["commercial_source"] = report["authoritative_commercial_source"]
+        if (
+            report["authoritative_plan_source"] == "promo_grant"
+            and report["promo_commercial_state"]["plan_id"] is not None
+        ):
+            promo_plan_id = report["promo_commercial_state"]["plan_id"]
+            plan = plans_by_id.get(promo_plan_id, {})
+            report["commercial_state"]["plan"] = {
+                "id": promo_plan_id,
+                "plan_code": report["promo_commercial_state"]["plan_code"],
+                "plan_name": report["promo_commercial_state"]["plan_name"],
+                "catalog_plan_code": plan.get("plan_code") or plan.get("code"),
+                "catalog_plan_name": plan.get("plan_name") or plan.get("name"),
+                "authoritative": report["authoritative_commercial_source"] == "promo",
+                "source": "promo_grant",
+            }
+        linked_contract_ids = {
+            row.get("subscription_contract_id")
+            for row in tenant_links
+            if row.get("subscription_contract_id") is not None
+        }
+        report["tenant_and_provisioning"]["subscription_contracts"] = [
+            dict(row, authoritative=row.get("id") in linked_contract_ids)
+            for row in contracts
         ]
-        sources = set()
-        for row in tenant_links:
-            if row.get("subscription_contract_id") is not None:
-                sources.add("subscription_contract")
-            if row.get("demo_request_id") is not None:
-                sources.add("demo_request")
-        for row in active_entitlements:
-            sources.add(str(row.get("entitlement_type") or "workspace_entitlement"))
-        if len(sources) == 1:
-            report["tenant_and_provisioning"]["commercial_source"] = next(
-                iter(sources)
-            )
-        elif len(sources) > 1:
-            report["tenant_and_provisioning"]["commercial_source"] = "ambiguous"
-            report["conflicts"]["blocking_invariants"].append(
-                "multiple_commercial_source_types"
-            )
+        report["conflicts"]["blocking_invariants"].extend(
+            item
+            for item in commercial_evidence["blocking_invariants"]
+            if item not in report["conflicts"]["blocking_invariants"]
+        )
 
         billing_permission = bool(report["account"]["owner_role"])
         if matching_user and not billing_permission:
@@ -1032,6 +1595,7 @@ def _perform_audit() -> tuple[dict, int]:
             if (
                 row.get("subscription_contract_id") is None
                 and row.get("demo_request_id") is None
+                and row.get("promo_grant_id") is None
             )
         ]
         report["conflicts"]["source_free_tenant_links"] = source_free
@@ -1103,6 +1667,8 @@ def _perform_audit() -> tuple[dict, int]:
             blocking.append("commercial_record_points_to_wrong_workspace")
         if source_free:
             blocking.append("source_free_tenant_link")
+        if commercial_evidence["source_conflict_tenant_links"]:
+            blocking.append("multiple_commercial_sources_on_tenant_link")
         if organization and not organization.get("workspace_uuid"):
             blocking.append("workspace_uuid_missing")
         if organization and not organization.get("workspace_classification"):
@@ -1139,6 +1705,8 @@ def _perform_audit() -> tuple[dict, int]:
             or wrong_links
             or wrong_commercial
             or source_free
+            or commercial_evidence["source_conflict_tenant_links"]
+            or commercial_evidence["blocking_invariants"]
         )
 
         if material_conflict:
@@ -1193,9 +1761,11 @@ def _perform_audit() -> tuple[dict, int]:
         workspace_classification = (
             organization.get("workspace_classification") if organization else None
         )
-        if contracts:
+        if report["authoritative_commercial_source"] == "promo":
+            required_source = "promo_grant"
+        elif report["authoritative_commercial_source"] == "paid_subscription":
             required_source = "subscription_contract"
-        elif demos:
+        elif report["authoritative_commercial_source"] == "demo":
             required_source = "demo_request"
         elif workspace_classification == "customer_paid":
             required_source = "subscription_contract_required"

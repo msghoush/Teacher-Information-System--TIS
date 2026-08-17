@@ -1,9 +1,9 @@
 knowledge_impact: no
-summary: Prevent expired or otherwise invalid existing-workspace payment attempts from reusing stale Paddle checkout transactions.
+summary: Correct the temporary Al-Andalus read-only audit to recognize promo grants as an authoritative commercial source.
 affected_areas:
-  - existing-workspace-paid-activation
-  - secure-payment-launcher
-  - checkout-reuse
+  - production-diagnostics
+  - promo-commercial-audit
+  - legacy-tenant-audit
 kms_files_updated:
-no_impact_reason: This is a narrow defect correction to the documented M4C payment lifecycle. It applies the existing launcher status, expiry, lineage, and quote checks before reusing a Paddle transaction, then follows the established supersession and fresh-attempt path when reuse is unsafe. It changes no commercial lifecycle rule, payment authority, pricing, schema, migration, promo behavior, branch data, or customer workflow.
+no_impact_reason: This PR changes only a temporary standalone read-only production diagnostic and its focused tests. The audit now reports the already-documented PromoGrant commercial-source chain and immutable promo snapshot without changing runtime application code, commercial authority, promo activation, schema, migrations, tenant data, Paddle behavior, permissions, or customer workflows. It remains PostgreSQL-only, read-only, rollback-only, sanitized, and manually invoked.
 major_change_override: yes

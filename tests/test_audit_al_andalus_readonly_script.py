@@ -1,4 +1,6 @@
 import ast
+import datetime
+import importlib.util
 import re
 from pathlib import Path
 
@@ -8,6 +10,100 @@ SCRIPT_PATH = (
     / "scripts"
     / "audit_al_andalus_readonly.py"
 )
+
+
+def _load_diagnostic_module():
+    spec = importlib.util.spec_from_file_location(
+        "audit_al_andalus_readonly_test_module", SCRIPT_PATH
+    )
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def _promo_evidence(*, status="active", link_changes=None):
+    now = datetime.datetime(2026, 8, 17, tzinfo=datetime.timezone.utc)
+    link = {
+        "id": 10,
+        "school_group_id": 1,
+        "subscription_contract_id": None,
+        "demo_request_id": None,
+        "promo_grant_id": 30,
+    }
+    link.update(link_changes or {})
+    return {
+        "group_id": 1,
+        "tenant_links": [link],
+        "subscription_contracts": [
+            {"id": 99, "school_group_id": 1, "plan_id": 2, "payment_status": "pending"}
+        ],
+        "demo_requests": [],
+        "promo_codes": [{"id": 11, "subscription_plan_id": 3}],
+        "promo_redemptions": [
+            {
+                "id": 20,
+                "promo_code_id": 11,
+                "school_group_id": 1,
+                "plan_id": 3,
+                "plan_code_snapshot": "enterprise_ai",
+                "plan_name_snapshot": "Enterprise AI",
+                "allowed_branches": 5,
+                "allowed_staff_users": 20,
+                "allowed_teachers": 100,
+                "effective_from": now - datetime.timedelta(days=1),
+                "effective_to": now + datetime.timedelta(days=30),
+            }
+        ],
+        "promo_grants": [
+            {
+                "id": 30,
+                "promo_redemption_id": 20,
+                "school_group_id": 1,
+                "plan_id": 3,
+                "plan_code_snapshot": "enterprise_ai",
+                "plan_name_snapshot": "Enterprise AI",
+                "allowed_branches": 5,
+                "allowed_staff_users": 20,
+                "allowed_teachers": 100,
+                "effective_from": now - datetime.timedelta(days=1),
+                "effective_to": now + datetime.timedelta(days=30),
+                "status": status,
+            }
+        ],
+        "workspace_entitlements": [
+            {
+                "id": 40,
+                "school_group_id": 1,
+                "entitlement_type": "promo",
+                "status": "active",
+                "source": "promo",
+                "promo_grant_id": 30,
+            }
+        ],
+        "promo_assignments": [
+            {"promo_grant_id": 30, "school_group_id": 1, "branch_id": 1}
+        ],
+        "branch_entitlements": [
+            {
+                "school_group_id": 1,
+                "branch_id": 1,
+                "workspace_entitlement_id": 40,
+                "entitlement_mode": "active",
+            },
+            {
+                "school_group_id": 1,
+                "branch_id": 2,
+                "workspace_entitlement_id": 40,
+                "entitlement_mode": "inactive",
+            },
+        ],
+        "branches": [
+            {"id": 1, "name": "Main", "status": True},
+            {"id": 2, "name": "Archive", "status": False},
+        ],
+        "now": now,
+    }
 
 
 def test_al_andalus_production_diagnostic_is_static_and_read_only():
@@ -72,3 +168,98 @@ def test_al_andalus_production_diagnostic_is_static_and_read_only():
     assert "provider_customer_id_present" in source
     assert source.count("db.rollback()") >= 3
     assert "db.close()" in source
+
+
+def test_valid_promo_source_and_enterprise_snapshot_override_historical_contract():
+    module = _load_diagnostic_module()
+    result = module._analyze_commercial_evidence(**_promo_evidence())
+
+    assert result["authoritative_commercial_source"] == "promo"
+    assert result["authoritative_plan_source"] == "promo_grant"
+    assert result["source_free_tenant_links"] == []
+    assert result["promo_commercial_state"] == {
+        "promo_code_id": 11,
+        "promo_redemption_id": 20,
+        "promo_grant_id": 30,
+        "plan_id": 3,
+        "plan_code": "enterprise_ai",
+        "plan_name": "Enterprise AI",
+        "allowed_branches": 5,
+        "allowed_staff_users": 20,
+        "allowed_teachers": 100,
+        "effective_from": _promo_evidence()["promo_grants"][0]["effective_from"],
+        "effective_to": _promo_evidence()["promo_grants"][0]["effective_to"],
+        "status": "active",
+        "tenant_link_matches_grant": True,
+        "workspace_entitlement_matches_grant": True,
+        "branch_entitlements_coherent": True,
+    }
+    assert result["promo_branch_state"][0]["commercially_available"] is True
+    assert result["promo_branch_state"][1]["commercially_available"] is False
+
+
+def test_mismatched_and_multiple_promo_sources_fail_closed():
+    module = _load_diagnostic_module()
+    mismatch = _promo_evidence(link_changes={"promo_grant_id": 31})
+    mismatch_result = module._analyze_commercial_evidence(**mismatch)
+    assert mismatch_result["authoritative_commercial_source"] == "conflict"
+    assert "promo_tenant_link_mismatch" in mismatch_result["blocking_invariants"]
+
+    multiple = _promo_evidence(link_changes={"subscription_contract_id": 99})
+    multiple_result = module._analyze_commercial_evidence(**multiple)
+    assert multiple_result["authoritative_commercial_source"] == "conflict"
+    assert "multiple_commercial_sources_on_tenant_link" in multiple_result["blocking_invariants"]
+
+
+def test_expired_promo_grant_does_not_resolve_active():
+    module = _load_diagnostic_module()
+    evidence = _promo_evidence(status="expired")
+    evidence["promo_grants"][0]["effective_to"] = evidence["now"] - datetime.timedelta(seconds=1)
+    result = module._analyze_commercial_evidence(**evidence)
+
+    assert result["authoritative_commercial_source"] == "conflict"
+    assert result["authoritative_plan_source"] == "promo_grant"
+    assert "promo_grant_not_active" in result["blocking_invariants"]
+
+
+def test_paid_and_demo_sources_remain_supported():
+    module = _load_diagnostic_module()
+    empty = {
+        "group_id": 1,
+        "subscription_contracts": [{"id": 8, "school_group_id": 1}],
+        "demo_requests": [{"id": 9, "school_group_id": 1}],
+        "promo_codes": [],
+        "promo_redemptions": [],
+        "promo_grants": [],
+        "workspace_entitlements": [],
+        "promo_assignments": [],
+        "branch_entitlements": [],
+        "branches": [],
+    }
+    paid = module._analyze_commercial_evidence(
+        tenant_links=[{
+            "school_group_id": 1,
+            "subscription_contract_id": 8,
+            "demo_request_id": None,
+            "promo_grant_id": None,
+        }],
+        **empty,
+    )
+    demo = module._analyze_commercial_evidence(
+        tenant_links=[{
+            "school_group_id": 1,
+            "subscription_contract_id": None,
+            "demo_request_id": 9,
+            "promo_grant_id": None,
+        }],
+        **empty,
+    )
+
+    assert (paid["authoritative_commercial_source"], paid["authoritative_plan_source"]) == (
+        "paid_subscription",
+        "subscription_contract",
+    )
+    assert (demo["authoritative_commercial_source"], demo["authoritative_plan_source"]) == (
+        "demo",
+        "demo_request",
+    )
