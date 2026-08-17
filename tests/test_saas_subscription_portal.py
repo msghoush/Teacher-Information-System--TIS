@@ -214,6 +214,29 @@ class SaaSSubscriptionPortalTests(unittest.TestCase):
         self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
         return self.client.get("/saas/subscription", follow_redirects=False)
 
+    def test_subscription_route_returns_rendered_response_and_selection_cookie(self):
+        fixture = self._create_subscription(
+            plan_code="professional",
+            quantity=2,
+            active_branches=1,
+        )
+        identity = self._attach_billing_identity(fixture)
+        self.client.cookies.set(service.SAAS_SESSION_COOKIE, fixture["session_token"])
+
+        response = self.client.get(
+            "/saas/subscription?organization_uuid=" + identity["organization_uuid"],
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.content)
+        self.assertIn("Your TIS subscription", response.text)
+        self.assertIn(fixture["plan_name"], response.text)
+        self.assertEqual(
+            response.cookies.get(service.SAAS_ORGANIZATION_COOKIE),
+            identity["organization_uuid"],
+        )
+
     def _attach_billing_identity(self, fixture, *, billing_email="billing@academy.edu"):
         db = self.Session()
         try:
