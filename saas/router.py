@@ -2104,6 +2104,16 @@ def subscription_portal(
             ).strip(),
         },
     )
+    if requested_organization_uuid and selected_access is not None:
+        response.set_cookie(
+            service.SAAS_ORGANIZATION_COOKIE,
+            selected_access.organization_uuid,
+            **auth.secure_cookie_kwargs(
+                request,
+                max_age=service.session_max_age_seconds(),
+            ),
+        )
+    return response
 
 
 def _existing_workspace_setup_shell(db: Session, account, school_group_id: int):
@@ -2218,16 +2228,6 @@ def save_existing_workspace_setup_review(
         + quote_plus("Workspace setup details are complete and ready for controlled conversion."),
         status_code=302,
     )
-    if requested_organization_uuid and selected_access is not None:
-        response.set_cookie(
-            service.SAAS_ORGANIZATION_COOKIE,
-            selected_access.organization_uuid,
-            **auth.secure_cookie_kwargs(
-                request,
-                max_age=service.session_max_age_seconds(),
-            ),
-        )
-    return response
 
 
 def _resolve_billing_contact_update_context(
