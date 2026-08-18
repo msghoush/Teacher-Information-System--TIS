@@ -53,6 +53,8 @@ class CommercialAccessState:
     pending_target_plan_name: str = ""
     recommended_action: str = ""
     customer_message_key: str = ""
+    recovery_period: bool = False
+    recovery_until: datetime | None = None
 
     @property
     def allowed_access(self) -> bool:
@@ -182,6 +184,27 @@ def customer_access_presentation(
                 "plan to continue accessing your workspace."
             ),
             action_label="Subscribe Now",
+            action_url="/saas/subscription",
+        )
+    if state.kind == "promo" and state.commercial_state == EXPIRED:
+        ended = (
+            state.current_period_end.strftime("%d %b %Y")
+            if state.current_period_end is not None
+            else "the scheduled expiry date"
+        )
+        recovery_copy = (
+            " You are currently in the commercial recovery period."
+            if state.recovery_period
+            else ""
+        )
+        return CommercialAccessPresentation(
+            title="Promotional Access Expired",
+            message=(
+                f"Your promotional access ended on {ended}. Your organization data "
+                f"remains preserved.{recovery_copy} Continue from Organization Account "
+                "to review paid subscription options for this existing workspace."
+            ),
+            action_label="Continue with a Subscription",
             action_url="/saas/subscription",
         )
     presentations = {
@@ -391,7 +414,7 @@ def resolve_workspace_access(
                 customer_message_key="promo_access_active",
             )
         state = (
-            EXPIRED if grant.resolved and grant.status == "expired"
+            EXPIRED if grant.resolved and grant.status in {"recovery", "expired"}
             else SUSPENDED if lifecycle == WorkspaceLifecycleStatus.SUSPENDED.value
             else ARCHIVED if lifecycle == WorkspaceLifecycleStatus.ARCHIVED.value
             else PAYMENT_PROCESSING if lifecycle == WorkspaceLifecycleStatus.PROVISIONING.value
@@ -407,7 +430,15 @@ def resolve_workspace_access(
             current_period_end=grant.effective_to,
             workspace_lifecycle=lifecycle,
             recommended_action="contact_support",
-            customer_message_key=("promo_access_expired" if state == EXPIRED else "promo_access_unavailable"),
+            customer_message_key=(
+                "promo_access_recovery_period"
+                if state == EXPIRED and grant.recovery_active
+                else "promo_access_expired"
+                if state == EXPIRED
+                else "promo_access_unavailable"
+            ),
+            recovery_period=grant.recovery_active,
+            recovery_until=grant.recovery_until,
         )
     if (
         group.workspace_classification == WorkspaceClassification.CUSTOMER_PAID.value

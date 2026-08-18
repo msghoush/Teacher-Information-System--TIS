@@ -52,6 +52,8 @@ class ActivationEligibility:
     branch_count: int = 0
     staff_user_count: int = 0
     teacher_count: int = 0
+    commercial_source: str = "activation_required"
+    promo_grant_id: int | None = None
 
 
 @dataclass(frozen=True)
@@ -166,11 +168,12 @@ def resolve_eligibility(
     group = db.get(operational_models.SchoolGroup, int(school_group_id))
     if group is None:
         return ActivationEligibility(False, "workspace_not_found")
-    if (
-        _clean(group.workspace_classification) != WorkspaceClassification.CUSTOMER.value
-        or _clean(group.workspace_lifecycle_status)
-        != WorkspaceLifecycleStatus.PROVISIONING.value
-    ):
+    classification = _clean(group.workspace_classification)
+    lifecycle = _clean(group.workspace_lifecycle_status)
+    if classification != WorkspaceClassification.CUSTOMER.value or lifecycle not in {
+        WorkspaceLifecycleStatus.PROVISIONING.value,
+        WorkspaceLifecycleStatus.ACTIVE.value,
+    }:
         return ActivationEligibility(False, "workspace_not_activation_required", group)
     if (
         account is None
@@ -182,21 +185,51 @@ def resolve_eligibility(
     if owner_link is None:
         return ActivationEligibility(False, "verified_tenant_owner_required", group)
 
-    if db.query(models.WorkspaceEntitlement.id).filter(
-        models.WorkspaceEntitlement.school_group_id == group.id,
-        models.WorkspaceEntitlement.status == "active",
-    ).first():
-        return ActivationEligibility(False, "active_commercial_entitlement_exists", group, owner_link)
-    if db.query(models.TenantProvisioningLink.id).filter(
-        models.TenantProvisioningLink.school_group_id == group.id
-    ).first():
-        return ActivationEligibility(False, "commercial_tenant_link_exists", group, owner_link)
+    commercial_source = "activation_required"
+    promo_grant_id = None
+    if lifecycle == WorkspaceLifecycleStatus.ACTIVE.value:
+        from saas import promo_grant_service
+
+        promo = promo_grant_service.resolve_promo_grant(db, group.id)
+        if promo.active:
+            return ActivationEligibility(False, "active_promo_not_convertible", group, owner_link)
+        if not promo.resolved or promo.status not in {"recovery", "expired"}:
+            return ActivationEligibility(False, "promo_continuation_not_eligible", group, owner_link)
+        links = db.query(models.TenantProvisioningLink).filter(
+            models.TenantProvisioningLink.school_group_id == group.id
+        ).all()
+        entitlements = db.query(models.WorkspaceEntitlement).filter(
+            models.WorkspaceEntitlement.school_group_id == group.id,
+            models.WorkspaceEntitlement.status == "active",
+        ).all()
+        if (
+            len(links) != 1
+            or int(links[0].promo_grant_id or 0) != int(promo.grant_id or 0)
+            or links[0].subscription_contract_id is not None
+            or links[0].demo_request_id is not None
+            or len(entitlements) != 1
+            or entitlements[0].entitlement_type != "promo"
+            or int(entitlements[0].promo_grant_id or 0) != int(promo.grant_id or 0)
+        ):
+            return ActivationEligibility(False, "promo_commercial_source_mismatch", group, owner_link)
+        commercial_source = "promo"
+        promo_grant_id = int(promo.grant_id)
+    else:
+        if db.query(models.WorkspaceEntitlement.id).filter(
+            models.WorkspaceEntitlement.school_group_id == group.id,
+            models.WorkspaceEntitlement.status == "active",
+        ).first():
+            return ActivationEligibility(False, "active_commercial_entitlement_exists", group, owner_link)
+        if db.query(models.TenantProvisioningLink.id).filter(
+            models.TenantProvisioningLink.school_group_id == group.id
+        ).first():
+            return ActivationEligibility(False, "commercial_tenant_link_exists", group, owner_link)
     if db.query(models.PromoActivationSession.id).filter(
         models.PromoActivationSession.school_group_id == group.id,
         models.PromoActivationSession.status == "open",
     ).first():
         return ActivationEligibility(False, "promo_activation_in_progress", group, owner_link)
-    if db.query(models.PromoGrant.id).filter(
+    if commercial_source != "promo" and db.query(models.PromoGrant.id).filter(
         models.PromoGrant.school_group_id == group.id
     ).first():
         return ActivationEligibility(False, "promo_commercial_source_exists", group, owner_link)
@@ -236,6 +269,8 @@ def resolve_eligibility(
         usage.branches,
         usage.staff_users,
         usage.teachers,
+        commercial_source,
+        promo_grant_id,
     )
 
 
@@ -1152,7 +1187,128 @@ def _activation_capacity_is_current(db: Session, activation, account):
         billing_interval=activation.billing_interval,
         selected_branch_ids=_selected_branch_ids(db, activation),
     )
-    return quote.ready and quote.fingerprint == activation.quote_fingerprint
+    return (
+        quote.ready and quote.fingerprint == activation.quote_fingerprint,
+        eligibility,
+    )
+
+
+def _apply_confirmed_promo_conversion(
+    db: Session,
+    *,
+    activation,
+    eligibility: ActivationEligibility,
+    group,
+    contract,
+    subscription,
+    owner_link,
+):
+    from saas import entitlement_service, workspace_entitlement_service
+
+    promo_grant_id = int(eligibility.promo_grant_id or 0)
+    link = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.school_group_id == group.id
+    ).one_or_none()
+    grant = db.get(models.PromoGrant, promo_grant_id) if promo_grant_id else None
+    promo_entitlement = db.query(models.WorkspaceEntitlement).filter(
+        models.WorkspaceEntitlement.school_group_id == group.id,
+        models.WorkspaceEntitlement.status == "active",
+    ).one_or_none()
+    if (
+        eligibility.commercial_source != "promo"
+        or link is None
+        or grant is None
+        or promo_entitlement is None
+        or int(link.promo_grant_id or 0) != promo_grant_id
+        or int(promo_entitlement.promo_grant_id or 0) != promo_grant_id
+        or promo_entitlement.entitlement_type != "promo"
+        or grant.status not in {"active", "expired"}
+    ):
+        raise ExistingWorkspacePaidActivationError("promo_conversion_source_mismatch")
+
+    now = _utcnow()
+    with db.begin_nested():
+        promo_entitlement.status = "ended"
+        grant.status = "converted_to_paid"
+        grant.expired_at = grant.expired_at or grant.effective_to or now
+        db.flush()
+
+        paid_entitlement = models.WorkspaceEntitlement(
+            school_group_id=group.id,
+            entitlement_type="paid",
+            status="active",
+            source="subscription",
+            payment_subscription_id=subscription.id,
+            effective_from=now,
+        )
+        db.add(paid_entitlement)
+        db.flush()
+
+        selected_ids = set(_selected_branch_ids(db, activation))
+        branches = db.query(operational_models.Branch).filter(
+            operational_models.Branch.school_group_id == group.id
+        ).order_by(operational_models.Branch.id.asc()).all()
+        existing_by_branch = {
+            int(row.branch_id): row
+            for row in db.query(models.BranchEntitlement).filter(
+                models.BranchEntitlement.school_group_id == group.id
+            ).all()
+        }
+        for branch in branches:
+            mode = (
+                BranchEntitlementMode.ACTIVE.value
+                if branch.id in selected_ids and bool(branch.status)
+                else BranchEntitlementMode.INACTIVE.value
+            )
+            reason = None if mode == BranchEntitlementMode.ACTIVE.value else "not_in_paid_branch_selection"
+            row = existing_by_branch.get(int(branch.id))
+            if row is None:
+                row = models.BranchEntitlement(
+                    school_group_id=group.id,
+                    branch_id=branch.id,
+                    workspace_entitlement_id=paid_entitlement.id,
+                )
+                db.add(row)
+            row.workspace_entitlement_id = paid_entitlement.id
+            row.entitlement_mode = mode
+            row.reason_code = reason
+
+        link.promo_grant_id = None
+        link.subscription_contract_id = contract.id
+        link.demo_request_id = None
+        link.tenant_status = "tenant_active"
+        contract.school_group_id = group.id
+        group.workspace_classification = WorkspaceClassification.CUSTOMER.value
+        group.workspace_lifecycle_status = WorkspaceLifecycleStatus.ACTIVE.value
+        db.add(models.PromoRedemptionEvent(
+            promo_code_id=None,
+            promo_redemption_id=grant.promo_redemption_id,
+            promo_grant_id=grant.id,
+            actor_saas_account_id=activation.saas_account_id,
+            actor_operational_user_id=owner_link.operational_user_id,
+            school_group_id=group.id,
+            event_type="converted_to_paid",
+            result="success",
+            operation_key=f"paid-activation:{activation.activation_uuid}",
+            details_json=_safe_event_details({
+                "plan_code": activation.selected_plan_code,
+                "billing_interval": activation.billing_interval,
+                "quantity": activation.branch_quantity,
+            }),
+        ))
+        db.flush()
+
+        paid = entitlement_service.resolve_entitlements(db, group.id)
+        workspace = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)
+        if (
+            not paid.resolved
+            or int(paid.subscription_id or 0) != int(subscription.id)
+            or not workspace.resolved
+            or workspace.entitlement_type != "paid"
+            or int(workspace.payment_subscription_id or 0) != int(subscription.id)
+        ):
+            raise ExistingWorkspacePaidActivationError("promo_paid_authority_validation_failed")
+    return paid_entitlement
 
 
 def _complete_paid_activation(db: Session, activation, data: dict):
@@ -1169,16 +1325,17 @@ def _complete_paid_activation(db: Session, activation, data: dict):
     owner_link = db.get(models.SaaSAccountUserLink, activation.tenant_owner_link_id)
     if group is None or account is None or owner_link is None:
         raise ExistingWorkspacePaidActivationError("activation_identity_missing")
-    if not _activation_capacity_is_current(db, activation, account):
+    capacity_current, eligibility = _activation_capacity_is_current(db, activation, account)
+    if not capacity_current:
         raise ExistingWorkspacePaidActivationError("activation_capacity_or_quote_drift")
     reason = _validate_completed_payload(db, activation, data)
     if reason:
         raise ExistingWorkspacePaidActivationError(reason)
-    if db.query(models.TenantProvisioningLink.id).filter(
+    if eligibility.commercial_source != "promo" and db.query(models.TenantProvisioningLink.id).filter(
         models.TenantProvisioningLink.school_group_id == group.id
     ).first():
         raise ExistingWorkspacePaidActivationError("commercial_source_conflict")
-    if db.query(models.WorkspaceEntitlement.id).filter(
+    if eligibility.commercial_source != "promo" and db.query(models.WorkspaceEntitlement.id).filter(
         models.WorkspaceEntitlement.school_group_id == group.id,
         models.WorkspaceEntitlement.status == "active",
     ).first():
@@ -1227,49 +1384,60 @@ def _complete_paid_activation(db: Session, activation, data: dict):
     attempt.provider_subscription_id = subscription_id
     attempt.completed_at = attempt.completed_at or _utcnow()
     checkout.status = "completed"
-    entitlement = models.WorkspaceEntitlement(
-        school_group_id=group.id,
-        entitlement_type="paid",
-        status="active",
-        source="subscription",
-        payment_subscription_id=subscription.id,
-        effective_from=_utcnow(),
-    )
-    db.add(entitlement)
-    db.flush()
-    selected_ids = set(_selected_branch_ids(db, activation))
-    branches = db.query(operational_models.Branch).filter(
-        operational_models.Branch.school_group_id == group.id
-    ).order_by(operational_models.Branch.id.asc()).all()
-    for branch in branches:
-        db.add(models.BranchEntitlement(
+    if eligibility.commercial_source == "promo":
+        _apply_confirmed_promo_conversion(
+            db,
+            activation=activation,
+            eligibility=eligibility,
+            group=group,
+            contract=contract,
+            subscription=subscription,
+            owner_link=owner_link,
+        )
+    else:
+        entitlement = models.WorkspaceEntitlement(
             school_group_id=group.id,
-            branch_id=branch.id,
-            workspace_entitlement_id=entitlement.id,
-            entitlement_mode=(
-                BranchEntitlementMode.ACTIVE.value
-                if branch.id in selected_ids
-                else BranchEntitlementMode.INACTIVE.value
-            ),
-            reason_code=(None if branch.id in selected_ids else "not_in_paid_branch_selection"),
+            entitlement_type="paid",
+            status="active",
+            source="subscription",
+            payment_subscription_id=subscription.id,
+            effective_from=_utcnow(),
+        )
+        db.add(entitlement)
+        db.flush()
+        selected_ids = set(_selected_branch_ids(db, activation))
+        branches = db.query(operational_models.Branch).filter(
+            operational_models.Branch.school_group_id == group.id
+        ).order_by(operational_models.Branch.id.asc()).all()
+        for branch in branches:
+            db.add(models.BranchEntitlement(
+                school_group_id=group.id,
+                branch_id=branch.id,
+                workspace_entitlement_id=entitlement.id,
+                entitlement_mode=(
+                    BranchEntitlementMode.ACTIVE.value
+                    if branch.id in selected_ids
+                    else BranchEntitlementMode.INACTIVE.value
+                ),
+                reason_code=(None if branch.id in selected_ids else "not_in_paid_branch_selection"),
+            ))
+        primary_branch = next((row for row in branches if row.id in selected_ids), None)
+        primary_year = db.query(operational_models.AcademicYear).filter(
+            operational_models.AcademicYear.school_group_id == group.id,
+            operational_models.AcademicYear.is_active.is_(True),
+        ).order_by(operational_models.AcademicYear.id.desc()).first()
+        db.add(models.TenantProvisioningLink(
+            pending_organization_id=None,
+            subscription_contract_id=contract.id,
+            demo_request_id=None,
+            promo_grant_id=None,
+            school_group_id=group.id,
+            owner_operational_user_id=owner_link.operational_user_id,
+            primary_branch_id=getattr(primary_branch, "id", None),
+            primary_academic_year_id=getattr(primary_year, "id", None),
+            tenant_status="tenant_active",
+            activated_at=_utcnow(),
         ))
-    primary_branch = next((row for row in branches if row.id in selected_ids), None)
-    primary_year = db.query(operational_models.AcademicYear).filter(
-        operational_models.AcademicYear.school_group_id == group.id,
-        operational_models.AcademicYear.is_active.is_(True),
-    ).order_by(operational_models.AcademicYear.id.desc()).first()
-    db.add(models.TenantProvisioningLink(
-        pending_organization_id=None,
-        subscription_contract_id=contract.id,
-        demo_request_id=None,
-        promo_grant_id=None,
-        school_group_id=group.id,
-        owner_operational_user_id=owner_link.operational_user_id,
-        primary_branch_id=getattr(primary_branch, "id", None),
-        primary_academic_year_id=getattr(primary_year, "id", None),
-        tenant_status="tenant_active",
-        activated_at=_utcnow(),
-    ))
     group.workspace_classification = WorkspaceClassification.CUSTOMER.value
     group.workspace_lifecycle_status = WorkspaceLifecycleStatus.ACTIVE.value
     account.onboarding_status = "tenant_active"

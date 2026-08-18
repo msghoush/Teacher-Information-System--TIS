@@ -17,7 +17,9 @@ import models
 import saas.models
 from dependencies import get_db
 from saas import (
+    commercial_access_service,
     commercial_authority_service,
+    promo_grant_service,
     promo_code_service,
     promo_redemption_service,
     service,
@@ -259,6 +261,8 @@ class PromoCommercialPortalTests(unittest.TestCase):
         self.assertIn("Commercial Access", response.text)
         self.assertIn("Enterprise AI", response.text)
         self.assertIn("Promotional Access", response.text)
+        self.assertIn('data-commercial-source="promo"', response.text)
+        self.assertIn('commercial-badge--plan-enterprise', response.text)
         self.assertIn("Active", response.text)
         self.assertIn("25 Aug 2027", response.text)
         self.assertIn(self.fixture["masked_reference"], response.text)
@@ -285,6 +289,12 @@ class PromoCommercialPortalTests(unittest.TestCase):
         paid_portal.assert_not_called()
         paddle_transactions.assert_not_called()
         paddle_checkout.assert_not_called()
+        account_response = self.client.get(
+            "/saas/account?organization_uuid="
+            + str(self.fixture["group"].workspace_uuid),
+            follow_redirects=False,
+        )
+        self.assertIn('data-commercial-source="promo"', account_response.text)
         authority = commercial_authority_service.resolve_commercial_authority(
             self.db,
             self.fixture["group"].id,
@@ -401,6 +411,84 @@ class PromoCommercialPortalTests(unittest.TestCase):
         self.assertNotIn("promo_grant_expired", response.text)
         self.assertNotIn("TenantProvisioningLink", response.text)
         self.assertNotIn("PromoGrant", response.text)
+
+    def test_promo_recovery_period_is_commercial_only_and_offers_continuation(self):
+        grant = self.db.query(saas.models.PromoGrant).filter_by(
+            school_group_id=self.fixture["group"].id
+        ).one()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        grant.effective_from = now - timedelta(days=2)
+        grant.effective_to = now - timedelta(days=1)
+        grant.grace_period_days = 7
+        self.db.commit()
+        persisted_statuses = (
+            grant.status,
+            self.db.query(saas.models.WorkspaceEntitlement).filter_by(
+                school_group_id=self.fixture["group"].id
+            ).one().status,
+        )
+        self.client.cookies.set(
+            service.SAAS_SESSION_COOKIE,
+            self.fixture["session_token"],
+        )
+
+        with patch("saas.paddle_client.create_transaction") as paddle_checkout:
+            response = self.client.get(
+                "/saas/subscription?organization_uuid="
+                + str(self.fixture["group"].workspace_uuid),
+                follow_redirects=False,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Recovery Period", response.text)
+        self.assertIn("Continue with a Subscription", response.text)
+        self.assertIn(
+            f"/saas/account/workspaces/{self.fixture['group'].workspace_uuid}/activation",
+            response.text,
+        )
+        access = commercial_access_service.resolve_workspace_access(
+            self.db, self.fixture["group"].id
+        )
+        self.assertTrue(access.blocked)
+        self.assertTrue(access.recovery_period)
+        self.assertEqual(
+            promo_grant_service.resolve_promo_grant(
+                self.db,
+                self.fixture["group"].id,
+                now=grant.effective_to.replace(tzinfo=timezone.utc),
+            ).status,
+            "recovery",
+        )
+        self.assertEqual(
+            promo_grant_service.resolve_promo_grant(
+                self.db,
+                self.fixture["group"].id,
+                now=(grant.effective_to - timedelta(microseconds=1)).replace(
+                    tzinfo=timezone.utc
+                ),
+            ).status,
+            "active",
+        )
+        self.assertEqual(
+            promo_grant_service.resolve_promo_grant(
+                self.db,
+                self.fixture["group"].id,
+                now=(grant.effective_to + timedelta(days=7)).replace(
+                    tzinfo=timezone.utc
+                ),
+            ).status,
+            "expired",
+        )
+        self.assertEqual(
+            persisted_statuses,
+            (
+                grant.status,
+                self.db.query(saas.models.WorkspaceEntitlement).filter_by(
+                    school_group_id=self.fixture["group"].id
+                ).one().status,
+            ),
+        )
+        paddle_checkout.assert_not_called()
 
 
 if __name__ == "__main__":

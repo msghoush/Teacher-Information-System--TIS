@@ -92,11 +92,21 @@ the owner changes operational usage and resumes.
 Billing & Subscription is source-aware after organization selection and permission
 validation. Paid workspaces retain the existing Paddle subscription portal; demo
 workspaces retain their dedicated demo journey; promo workspaces render a dedicated
-read-only Commercial Access page. Promo presentation composes M1 authority for plan,
+Commercial Access page. Promo presentation composes M1 authority for plan,
 status, capacity usage, and remaining capacity with the attributable grant/redemption
-for effective dates and a masked reference. It does not call Paddle or expose paid
-subscription controls, billing history, invoices, provider details, or internal
-resolver diagnostics. No promo-to-paid conversion workflow exists yet.
+for effective dates and a masked reference. Normal operational access ends exactly at
+the grant's `effective_to`; grace days provide only a customer recovery window and do
+not extend access.
+
+Expired and recovery-period promo owners may continue through the existing-workspace
+paid plan and Paddle checkout path. Promo remains the sole authority while checkout
+is pending, failed, abandoned, or unconfirmed. A verified completed transaction locks
+and revalidates the existing tenant and atomically replaces promo source evidence with
+paid contract, subscription, workspace entitlement, and branch entitlement evidence.
+The SchoolGroup, workspace UUID, branches, users, teachers, academic data, branding,
+ownership, and immutable promo records are retained. Active-promo early conversion is
+not supported. Shared commercial badges are generated from centralized authority for
+compact operational, Organization Account, and full commercial presentation.
 
 ## Promo Definition And Governance Boundary
 

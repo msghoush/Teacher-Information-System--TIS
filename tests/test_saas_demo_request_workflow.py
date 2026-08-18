@@ -1104,7 +1104,9 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
         self.assertIn("Demo Active", customer_page.text)
         self.assertIn("Enter TIS Platform", customer_page.text)
         account_page = self.client.get("/saas/account")
-        self.assertIn("Demo Workspace Activation is complete", account_page.text)
+        self.assertIn('data-commercial-source="demo"', account_page.text)
+        self.assertIn("Demo Access", account_page.text)
+        self.assertIn("Active", account_page.text)
         self.assertNotIn("Continue to Secure Payment", account_page.text)
         owner_page = owner.get(f"/saas-admin/demo-requests/{request_uuid}")
         self.assertIn("Demo Active", owner_page.text)
@@ -1667,7 +1669,10 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                 current_user=user,
             )
             self.assertEqual(api_response.status_code, 403)
-            self.assertIn(b'"code":"demo_expired"', api_response.body)
+            self.assertIn(
+                b'"code":"commercial_access_unavailable"', api_response.body
+            )
+            self.assertNotIn(b'"code":"demo_expired"', api_response.body)
             self.assertEqual(
                 db.query(saas.models.SaaSDemoLifecycleEvent).filter_by(
                     event_type="access_blocked"
@@ -1744,7 +1749,10 @@ class SaaSDemoRequestWorkflowTests(unittest.TestCase):
                 current_user=user,
             )
             self.assertEqual(response.status_code, 403)
-            self.assertIn(b'"code":"demo_access_unavailable"', response.body)
+            self.assertIn(
+                b'"code":"commercial_access_unavailable"', response.body
+            )
+            self.assertNotIn(b'"code":"demo_access_unavailable"', response.body)
             self.assertNotIn(b"inconsistent_demo_lifecycle_timestamps", response.body)
         finally:
             db.close()

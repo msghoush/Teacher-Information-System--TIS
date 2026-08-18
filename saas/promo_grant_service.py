@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,8 @@ class PromoGrantResolution:
     allowed_teachers: int | None = None
     effective_from: datetime | None = None
     effective_to: datetime | None = None
+    grace_period_days: int = 0
+    recovery_until: datetime | None = None
     status: str = ""
     active_branch_ids: frozenset[int] = frozenset()
 
@@ -44,6 +46,10 @@ class PromoGrantResolution:
     @property
     def active(self) -> bool:
         return self.resolved and self.status == "active"
+
+    @property
+    def recovery_active(self) -> bool:
+        return self.resolved and self.status == "recovery"
 
 
 def _utc(value: datetime | None) -> datetime | None:
@@ -86,9 +92,12 @@ def resolve_promo_grant(
             return _manual_review(group_id, "ambiguous_active_promo_grant")
         latest = rows[-1]
         if _utc(latest.effective_to) and current >= _utc(latest.effective_to):
+            grace_days = max(int(latest.grace_period_days or 0), 0)
+            recovery_until = _utc(latest.effective_to) + timedelta(days=grace_days)
+            in_recovery = grace_days > 0 and current < recovery_until
             return PromoGrantResolution(
                 RESOLVED,
-                "promo_grant_expired",
+                "promo_grant_recovery_period" if in_recovery else "promo_grant_expired",
                 group_id,
                 grant_id=latest.id,
                 grant_uuid=str(latest.grant_uuid or ""),
@@ -100,7 +109,9 @@ def resolve_promo_grant(
                 allowed_teachers=int(latest.allowed_teachers),
                 effective_from=latest.effective_from,
                 effective_to=latest.effective_to,
-                status="expired",
+                grace_period_days=grace_days,
+                recovery_until=recovery_until,
+                status="recovery" if in_recovery else "expired",
             )
         return _manual_review(group_id, "promo_grant_not_effective")
 
@@ -131,6 +142,11 @@ def resolve_promo_grant(
         allowed_teachers=int(grant.allowed_teachers),
         effective_from=grant.effective_from,
         effective_to=grant.effective_to,
+        grace_period_days=max(int(grant.grace_period_days or 0), 0),
+        recovery_until=(
+            _utc(grant.effective_to)
+            + timedelta(days=max(int(grant.grace_period_days or 0), 0))
+        ),
         status="active",
         active_branch_ids=branch_ids,
     )

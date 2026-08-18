@@ -310,10 +310,15 @@ def enforce_workspace_commercial_access(
     presentation = commercial_access_service.customer_access_presentation(commercial)
     detail = presentation.message
     if _is_api_or_download_request(request):
+        logger.info(
+            "Commercial API access blocked school_group_id=%s reason=%s",
+            school_group_id,
+            commercial.reason_code,
+        )
         return JSONResponse(
             {
                 "detail": detail,
-                "code": commercial.reason_code,
+                "code": "commercial_access_unavailable",
             },
             status_code=403,
         )

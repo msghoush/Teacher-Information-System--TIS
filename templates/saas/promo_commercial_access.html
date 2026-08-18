@@ -1,4 +1,5 @@
 {% extends "saas/base.html" %}
+{% from "_commercial_badge.html" import commercial_badge %}
 {% block title %}Commercial Access | TIS{% endblock %}
 {% block content %}
 <style>
@@ -39,7 +40,7 @@
             <h1>Commercial Access</h1>
             <p>Review your organization's current TIS plan, promotional access period, and available capacity.</p>
         </div>
-        <span class="promo-access-badge is-{{ promo_portal.status_tone }}">{{ promo_portal.status_label }}</span>
+        {{ commercial_badge(commercial_badge_view, "full") }}
     </header>
 
     {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
@@ -52,14 +53,22 @@
                 <h2 id="promo-plan-title">{{ promo_portal.plan_name }}</h2>
                 <p>{{ promo_portal.access_label }}</p>
             </div>
-            <span class="promo-access-badge is-{{ promo_portal.status_tone }}">{{ promo_portal.status_label }}</span>
+            {{ commercial_badge(commercial_badge_view, "compact") }}
         </div>
         <dl class="promo-facts">
             <div class="promo-fact"><dt>Access type</dt><dd>{{ promo_portal.access_label }}</dd></div>
             <div class="promo-fact"><dt>Access period</dt><dd>{{ promo_portal.effective_from_label }} to {{ promo_portal.effective_to_label }}</dd></div>
+            {% if promo_portal.recovery_until_label %}<div class="promo-fact"><dt>Recovery period</dt><dd>Available until {{ promo_portal.recovery_until_label }}</dd></div>{% endif %}
             {% if promo_portal.masked_promo_reference %}<div class="promo-fact"><dt>Promo reference</dt><dd>{{ promo_portal.masked_promo_reference }}</dd></div>{% endif %}
         </dl>
     </section>
+
+    {% if promo_portal.continuation_available %}
+    <section class="promo-support" aria-label="Continue with a subscription">
+        <div><h2>Continue with this workspace</h2><p>Choose a paid plan for this existing organization. No workspace or tenant data will be recreated.</p></div>
+        <a class="btn" href="{{ promo_portal.continuation_url }}">Continue with a Subscription</a>
+    </section>
+    {% endif %}
 
     <section class="promo-section" aria-labelledby="promo-capacity-title">
         <h2 id="promo-capacity-title">Organization Capacity</h2>

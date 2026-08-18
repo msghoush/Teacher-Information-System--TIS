@@ -157,8 +157,23 @@ Guardrails:
     Commercial Access with the grant plan, safe status/window, masked reference, and
     M1 branch/system-user/teacher usage and remaining capacity. It never invokes the
     paid subscription resolver, Paddle billing history, invoices, plan/quantity
-    changes, or cancellation. Paid and demo presentations remain unchanged, and
-    promo-to-paid conversion is not offered.
+    changes, or cancellation while promo access is active.
+11. Operational promo access ends exactly at `effective_to`. Before that instant the
+    grant is active; at that instant and through `grace_period_days` it is expired in
+    a recovery period; after grace it remains expired. Both expired states block all
+    normal tenant operations while preserving Organization Account and tenant data.
+12. A verified owner may begin paid continuation only for recovery-period or expired
+    promo authority. Plan selection and Paddle checkout reuse the existing SchoolGroup
+    and M4C quote/identity lineage. Pending, failed, canceled, expired, or abandoned
+    checkout does not end promo authority or restore expired operational access.
+13. `transaction.completed` locks the SchoolGroup and activation, revalidates current
+    capacity, quote, provider identity, promo source, and paid evidence, then atomically
+    ends the promo workspace entitlement, relinks the sole tenant source to the paid
+    contract, establishes paid workspace and branch entitlements, and records immutable
+    conversion audit. Duplicate confirmation is idempotent; conflicts roll back the
+    authority transition and enter manual review.
+14. Active promo early conversion is blocked. Promotional value is not a paid credit,
+    and no proration or unused-promo-value calculation is invented.
 
 ## Platform Promo Definition
 
