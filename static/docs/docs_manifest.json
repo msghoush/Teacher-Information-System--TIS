@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-18T11:22:49.100446+03:00",
+  "generated_at": "2026-08-18T12:12:53.458627+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "8dbec47",
+  "commit_sha": "50d96b1",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "8f6c4541c94eb38cc7e733f230c03cc510f9bb5404c6795d01a675ea702d6359",
-  "pdf_size_bytes": 858155,
+  "pdf_sha256": "2ecf5c3b8cb068164488e28952b023d20a64836bb3eddfd39468c08f544c59b7",
+  "pdf_size_bytes": 858275,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-18T11:21:42.260496+03:00",
-      "size_bytes": 58961,
-      "sha256": "562c55891800ab6f962bd82499f4ef28743765fc626efa55aea05427136e344c",
+      "modified_at": "2026-08-18T12:11:58.437038+03:00",
+      "size_bytes": 58960,
+      "sha256": "1f73c8944899ec6fb6b00e8942c39ad9c87131ac138fbb60b91eb27bb32dee59",
       "pdf_page": 15
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-08-18T11:21:42.263084+03:00",
-      "size_bytes": 60448,
-      "sha256": "45d26039e64e97b26bae8ed792606b034c00445d5e771f900359c6c173707931",
+      "modified_at": "2026-08-18T12:11:58.439332+03:00",
+      "size_bytes": 60519,
+      "sha256": "f82cd40c3b561d2a322f072ca2e86d966d552c0151b1694e977c208197e2d5da",
       "pdf_page": 34
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-18T11:21:42.264288+03:00",
-      "size_bytes": 47482,
-      "sha256": "f137013584ecb9c92bea6dc35d2cbb28d08a1839b989b832a7a80c641f7810fc",
+      "modified_at": "2026-08-18T12:11:58.442727+03:00",
+      "size_bytes": 47519,
+      "sha256": "38e2785a7b2ba980263a4bd9bc0b72df67d05a7ddf69e4deaf434d82905ffa15",
       "pdf_page": 54
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-18T11:21:42.265935+03:00",
-      "size_bytes": 99648,
-      "sha256": "e69da90589b3563c4de80a7c7e525088304c2846dddc20351c8e8a83a9cda9d4",
+      "modified_at": "2026-08-18T12:11:58.444113+03:00",
+      "size_bytes": 99702,
+      "sha256": "f5e32ba81635509f54ab5bedebbdeee11b2823f2869447ef21bd8eb4a6521d2e",
       "pdf_page": 70
     },
     {
@@ -81,9 +81,9 @@
     },
     {
       "path": "docs/engineering/REPOSITORY_ARCHITECTURE.md",
-      "modified_at": "2026-08-18T11:21:42.269376+03:00",
-      "size_bytes": 27673,
-      "sha256": "8a531512e8f56b5a13534ea19e8fcd0ce7cfca26c2d01988be9b82df9c78f336",
+      "modified_at": "2026-08-18T12:11:58.446144+03:00",
+      "size_bytes": 27731,
+      "sha256": "92f1d8f125ad52c0e2fa07457898736e7c82d6a72977e3f5ffa41921a6b54bd5",
       "pdf_page": 125
     },
     {
@@ -361,9 +361,9 @@
     },
     {
       "path": "docs/adr/0024-promo-expiry-recovery-and-paid-continuation.md",
-      "modified_at": "2026-08-18T11:21:42.275096+03:00",
-      "size_bytes": 2887,
-      "sha256": "5950e8b8744d60c47268c9d0d36db1bb4fc5de8c7c4e170d5054c6bb0bf58bd7",
+      "modified_at": "2026-08-18T12:11:58.447989+03:00",
+      "size_bytes": 2960,
+      "sha256": "0444bb5e390aef87518fc5b632489d70e7dade56ddbd766825ecd72b9e4769fd",
       "pdf_page": 254
     },
     {

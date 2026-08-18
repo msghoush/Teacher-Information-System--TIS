@@ -85,8 +85,8 @@ verified completed Paddle transaction. Completion reuses the tenant and atomical
 ends promo entitlement authority, relinks the existing tenant source to the paid
 contract, establishes paid workspace and branch entitlements, and retains promo
 history. Active promos cannot convert early. A shared source/plan/status badge now
-identifies Promo, Demo, and Paid authority in the operational header, Organization
-Account, and the detailed commercial page.
+identifies Promo, Demo, and Paid authority in Organization Account and the detailed
+commercial page. The normal operational header remains commercial-status free.
 
 ## Promo Code Foundation And Platform Management
 

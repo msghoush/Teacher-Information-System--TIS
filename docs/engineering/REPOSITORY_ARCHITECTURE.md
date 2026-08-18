@@ -131,8 +131,9 @@ No replacement tenant or synthetic onboarding organization is created.
 `saas/commercial_badge_service.py` is the sole commercial identity presentation
 adapter. It accepts centralized commercial access, rejects unresolved placeholder
 sources, and returns semantic source, status, icon, and plan tokens for the reusable
-`templates/_commercial_badge.html` component. The operational shell uses compact
-mode; Organization Account and commercial access use full mode.
+`templates/_commercial_badge.html` component. Organization Account and commercial
+access use the shared presentation; the operational shell deliberately performs no
+commercial-badge lookup or rendering.
 
 ## Promo Definition Layer
 

@@ -59,7 +59,9 @@ def test_commercial_badges_are_source_plan_and_state_aware():
 def test_badge_template_has_compact_accessible_authority_markers():
     template = open("templates/_commercial_badge.html", encoding="utf-8").read()
     css = open("static/css/commercial-badges.css", encoding="utf-8").read()
+    app_shell_css = open("static/css/app-shell.css", encoding="utf-8").read()
     operational = open("templates/base.html", encoding="utf-8").read()
+    operational_shell = open("ui_shell.py", encoding="utf-8").read()
     account = open("templates/saas/account.html", encoding="utf-8").read()
     promo = open("templates/saas/promo_commercial_access.html", encoding="utf-8").read()
 
@@ -70,7 +72,11 @@ def test_badge_template_has_compact_accessible_authority_markers():
     assert ".commercial-badge--demo" in css
     assert ".commercial-badge--paid" in css
     assert "@media (max-width: 640px)" in css
-    assert 'commercial_badge(shell.commercial_badge, "compact")' in operational
+    assert "_commercial_badge.html" not in operational
+    assert "shell.commercial_badge" not in operational
+    assert "header-commercial-identity" not in operational
+    assert "commercial_badge_service" not in operational_shell
+    assert ".header-commercial-identity" not in app_shell_css
     assert 'commercial_badge(organization_account.commercial_badge, "full")' in account
     assert 'commercial_badge(commercial_badge_view, "full")' in promo
 

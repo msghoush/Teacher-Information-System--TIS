@@ -106,7 +106,8 @@ paid contract, subscription, workspace entitlement, and branch entitlement evide
 The SchoolGroup, workspace UUID, branches, users, teachers, academic data, branding,
 ownership, and immutable promo records are retained. Active-promo early conversion is
 not supported. Shared commercial badges are generated from centralized authority for
-compact operational, Organization Account, and full commercial presentation.
+Organization Account and full commercial presentation. The normal operational shell
+does not expose commercial source, plan, or lifecycle identity.
 
 ## Promo Definition And Governance Boundary
 

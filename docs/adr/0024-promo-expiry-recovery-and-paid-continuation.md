@@ -38,8 +38,9 @@ requires manual review. Duplicate provider confirmation is idempotent.
 Commercial identity presentation is centralized in `commercial_badge_service`.
 Prepared source/status/plan/icon tokens drive one reusable badge for Promo, Demo, and
 Paid authority. Templates do not infer authority from historical rows. Compact mode is
-used in the operational header; full mode is used in Organization Account and the
-commercial page. Unresolved or source-free states do not claim a commercial badge.
+available to authorized Organization Account presentation, and full mode is used on
+the commercial page. The normal operational header does not render commercial
+identity. Unresolved or source-free states do not claim a commercial badge.
 
 # Consequences
 
