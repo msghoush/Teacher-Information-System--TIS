@@ -409,6 +409,8 @@ def _empty_report() -> dict:
         "preservation_summary": {
             "branches": 0,
             "operational_users": 0,
+            "operational_user_rows": 0,
+            "authoritative_active_staff_users": None,
             "teachers": 0,
             "academic_years": 0,
             "subjects": 0,
@@ -464,6 +466,7 @@ def _perform_audit() -> tuple[dict, int]:
 
     from sqlalchemy import inspect, text
     from database import SessionLocal
+    from saas import commercial_authority_service
 
     notes_seen = set()
     db = SessionLocal()
@@ -1549,6 +1552,13 @@ def _perform_audit() -> tuple[dict, int]:
         preservation = report["preservation_summary"]
         preservation["branches"] = len(branches)
         preservation["operational_users"] = scoped_count("users")
+        preservation["operational_user_rows"] = preservation["operational_users"]
+        authority = commercial_authority_service.resolve_commercial_authority(
+            db, group_id
+        )
+        preservation["authoritative_active_staff_users"] = int(
+            authority.usage.staff_users
+        )
         preservation["teachers"] = scoped_count("teachers")
         preservation["academic_years"] = scoped_count("academic_years")
         preservation["subjects"] = scoped_count("subjects")

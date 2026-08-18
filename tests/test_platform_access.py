@@ -5,7 +5,7 @@ import re
 import tempfile
 import unittest
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 from urllib.parse import parse_qs, unquote_plus, urlparse
@@ -289,6 +289,110 @@ class PlatformAccessTests(unittest.TestCase):
             ),
         ])
         self.db.commit()
+
+    def _activate_promo_for_group(self, *, allowed_branches: int):
+        self.group_a.workspace_classification = "customer"
+        self.group_a.workspace_lifecycle_status = "active"
+        email = f"promo-{uuid.uuid4().hex}@capacity.example"
+        account = saas_models.SaaSAccount(
+            account_uuid=str(uuid.uuid4()),
+            email=email,
+            email_normalized=email,
+            password_hash="unused",
+            first_name="Promo",
+            last_name="Owner",
+            status="active",
+        )
+        plans = [
+            saas_models.SubscriptionPlan(
+                plan_code=code,
+                plan_name=name,
+                max_branches=branches,
+                max_staff_users=staff,
+                max_system_users=staff,
+                max_teachers=teachers,
+                is_active=True,
+                is_public=True,
+                sort_order=order,
+            )
+            for order, (code, name, branches, staff, teachers) in enumerate((
+                ("starter", "Starter", 1, 5, 25),
+                ("professional", "Professional", 5, 20, 100),
+                ("enterprise_ai", "Enterprise AI", 25, 100, 500),
+            ), start=1)
+        ]
+        self.db.add_all((account, *plans))
+        self.db.flush()
+        plan = next(row for row in plans if row.plan_code == "enterprise_ai")
+        now = datetime.utcnow()
+        grant = saas_models.PromoGrant(
+            promo_redemption_id=9000 + self.group_a.id,
+            school_group_id=self.group_a.id,
+            plan_id=plan.id,
+            plan_code_snapshot=plan.plan_code,
+            plan_name_snapshot=plan.plan_name,
+            allowed_branches=allowed_branches,
+            allowed_staff_users=100,
+            allowed_teachers=500,
+            effective_from=now - timedelta(days=1),
+            effective_to=now + timedelta(days=30),
+            definition_snapshot_json="{}",
+            capacity_snapshot_json="{}",
+            scope_snapshot_json="{}",
+            immutable_snapshot_hash="b" * 64,
+            activated_at=now,
+        )
+        self.db.add(grant)
+        self.db.flush()
+        workspace = saas_models.WorkspaceEntitlement(
+            school_group_id=self.group_a.id,
+            entitlement_type="promo",
+            status="active",
+            source="promo",
+            promo_grant_id=grant.id,
+            effective_from=grant.effective_from,
+            effective_to=grant.effective_to,
+        )
+        self.db.add(workspace)
+        self.db.flush()
+        owner = self.branch_user
+        self.db.add_all((
+            saas_models.TenantProvisioningLink(
+                promo_grant_id=grant.id,
+                school_group_id=self.group_a.id,
+                owner_operational_user_id=owner.id,
+                primary_branch_id=self.branch_a1.id,
+                primary_academic_year_id=self.year_a.id,
+                tenant_status="tenant_active",
+            ),
+            saas_models.SaaSAccountUserLink(
+                saas_account_id=account.id,
+                operational_user_id=owner.id,
+                school_group_id=self.group_a.id,
+                link_type="tenant_owner",
+            ),
+        ))
+        for branch in (self.branch_a1, self.branch_a2):
+            self.db.add_all((
+                saas_models.PromoGrantBranchAssignment(
+                    promo_grant_id=grant.id,
+                    school_group_id=self.group_a.id,
+                    branch_id=branch.id,
+                    branch_identity_snapshot=str(branch.id),
+                    branch_name_snapshot=branch.name,
+                    assigned_by_saas_account_id=account.id,
+                    assigned_at=now,
+                ),
+                saas_models.BranchEntitlement(
+                    school_group_id=self.group_a.id,
+                    branch_id=branch.id,
+                    workspace_entitlement_id=workspace.id,
+                    entitlement_mode="active",
+                    reason_code="promo_grant_selected",
+                ),
+            ))
+        self.db.commit()
+        return SimpleNamespace(account=account, grant=grant, workspace=workspace)
 
     def _request(self, path, user, branch=None, year=None, method="GET", organization=None):
         cookies = [f"{auth.SESSION_COOKIE_KEY}={auth.create_session_token(user)}"]
@@ -1066,6 +1170,219 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertIn("allows 1 active branch", payload["errors"][0]["message"])
         self.db.refresh(inactive)
         self.assertFalse(inactive.status)
+
+    def test_promo_individual_reactivation_updates_commercial_evidence_atomically(self):
+        promo = self._activate_promo_for_group(allowed_branches=3)
+        inactive = models.Branch(
+            name="Promo Inactive",
+            school_group_id=self.group_a.id,
+            status=False,
+        )
+        self.db.add(inactive)
+        self.db.flush()
+        entitlement = saas_models.BranchEntitlement(
+            school_group_id=self.group_a.id,
+            branch_id=inactive.id,
+            workspace_entitlement_id=promo.workspace.id,
+            entitlement_mode="inactive",
+            reason_code="promo_grant_not_selected",
+        )
+        self.db.add(entitlement)
+        self.db.commit()
+
+        response = main.update_branch(
+            branch_id=inactive.id,
+            request=self._request(
+                f"/system-configuration/branches/{inactive.id}",
+                self.platform_owner,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+            ),
+            name=inactive.name,
+            region="",
+            country_code="",
+            region_id="",
+            region_manual="",
+            city_id="",
+            city_manual="",
+            district_name="",
+            neighborhood_name="",
+            status="active",
+            return_to="/system-configuration/branches",
+            db=self.db,
+        )
+        self.assertIn("Branch+updated+successfully", response.headers["location"])
+        self.db.refresh(inactive)
+        self.db.refresh(entitlement)
+        self.assertTrue(inactive.status)
+        self.assertEqual(entitlement.entitlement_mode, "active")
+        self.assertEqual(
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                promo_grant_id=promo.grant.id,
+                branch_id=inactive.id,
+            ).count(),
+            1,
+        )
+
+    def test_promo_individual_reactivation_at_capacity_changes_nothing(self):
+        promo = self._activate_promo_for_group(allowed_branches=2)
+        inactive = models.Branch(
+            name="Promo Capacity Blocked",
+            school_group_id=self.group_a.id,
+            status=False,
+        )
+        self.db.add(inactive)
+        self.db.flush()
+        entitlement = saas_models.BranchEntitlement(
+            school_group_id=self.group_a.id,
+            branch_id=inactive.id,
+            workspace_entitlement_id=promo.workspace.id,
+            entitlement_mode="inactive",
+        )
+        self.db.add(entitlement)
+        self.db.commit()
+
+        response = main.update_branch(
+            branch_id=inactive.id,
+            request=self._request(
+                f"/system-configuration/branches/{inactive.id}",
+                self.platform_owner,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+            ),
+            name=inactive.name,
+            region="",
+            country_code="",
+            region_id="",
+            region_manual="",
+            city_id="",
+            city_manual="",
+            district_name="",
+            neighborhood_name="",
+            status="active",
+            return_to="/system-configuration/branches",
+            db=self.db,
+        )
+        self.assertIn("allows+2+active+branches", response.headers["location"])
+        self.db.refresh(inactive)
+        self.db.refresh(entitlement)
+        self.assertFalse(inactive.status)
+        self.assertEqual(entitlement.entitlement_mode, "inactive")
+        self.assertEqual(
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                branch_id=inactive.id
+            ).count(),
+            0,
+        )
+
+    def test_promo_bulk_reactivation_updates_evidence_and_rolls_back_on_conflict(self):
+        promo = self._activate_promo_for_group(allowed_branches=4)
+        first = models.Branch(
+            name="Promo Bulk First", school_group_id=self.group_a.id, status=False
+        )
+        conflicting = models.Branch(
+            name="Promo Bulk Conflict", school_group_id=self.group_a.id, status=False
+        )
+        self.db.add_all((first, conflicting))
+        self.db.flush()
+        first_entitlement = saas_models.BranchEntitlement(
+            school_group_id=self.group_a.id,
+            branch_id=first.id,
+            workspace_entitlement_id=promo.workspace.id,
+            entitlement_mode="inactive",
+        )
+        conflicting_entitlement = saas_models.BranchEntitlement(
+            school_group_id=self.group_a.id,
+            branch_id=conflicting.id,
+            workspace_entitlement_id=promo.workspace.id,
+            entitlement_mode="inactive",
+        )
+        self.db.add_all((first_entitlement, conflicting_entitlement))
+        self.db.flush()
+        self.db.add(saas_models.PromoGrantBranchAssignment(
+            promo_grant_id=promo.grant.id,
+            school_group_id=self.group_a.id,
+            branch_id=conflicting.id,
+            branch_identity_snapshot=str(conflicting.id),
+            branch_name_snapshot=conflicting.name,
+            assigned_by_saas_account_id=promo.account.id,
+            assigned_at=datetime.utcnow(),
+        ))
+        self.db.commit()
+
+        response = main.bulk_update_branches(
+            request=self._request(
+                "/system-configuration/branches/bulk-update",
+                self.platform_owner,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+            ),
+            payload={"items": [
+                {"id": first.id, "status": "active", "_changed_fields": ["status"]},
+                {"id": conflicting.id, "status": "active", "_changed_fields": ["status"]},
+            ]},
+            db=self.db,
+        )
+        payload = json.loads(response.body)
+        self.assertFalse(payload["ok"])
+        self.assertIn("requires review", payload["errors"][0]["message"])
+        self.db.refresh(first)
+        self.db.refresh(conflicting)
+        self.db.refresh(first_entitlement)
+        self.assertFalse(first.status)
+        self.assertFalse(conflicting.status)
+        self.assertEqual(first_entitlement.entitlement_mode, "inactive")
+        self.assertEqual(
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                branch_id=first.id
+            ).count(),
+            0,
+        )
+
+    def test_promo_bulk_reactivation_updates_status_and_entitlement_together(self):
+        promo = self._activate_promo_for_group(allowed_branches=3)
+        inactive = models.Branch(
+            name="Promo Bulk Success", school_group_id=self.group_a.id, status=False
+        )
+        self.db.add(inactive)
+        self.db.flush()
+        entitlement = saas_models.BranchEntitlement(
+            school_group_id=self.group_a.id,
+            branch_id=inactive.id,
+            workspace_entitlement_id=promo.workspace.id,
+            entitlement_mode="inactive",
+        )
+        self.db.add(entitlement)
+        self.db.commit()
+        response = main.bulk_update_branches(
+            request=self._request(
+                "/system-configuration/branches/bulk-update",
+                self.platform_owner,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+            ),
+            payload={"items": [{
+                "id": inactive.id,
+                "status": "active",
+                "_changed_fields": ["status"],
+            }]},
+            db=self.db,
+        )
+        self.assertTrue(json.loads(response.body)["ok"])
+        self.db.refresh(inactive)
+        self.db.refresh(entitlement)
+        self.assertTrue(inactive.status)
+        self.assertEqual(entitlement.entitlement_mode, "active")
+        self.assertEqual(
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                branch_id=inactive.id
+            ).count(),
+            1,
+        )
 
     def test_academic_year_switch_is_blocked_when_it_would_increase_teachers(self):
         self._activate_paid_plan_for_group("starter", 5, max_teachers=1)

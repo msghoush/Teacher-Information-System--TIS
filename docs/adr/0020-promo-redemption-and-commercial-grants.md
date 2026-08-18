@@ -38,6 +38,20 @@ inputs only; overage blocks activation and never modifies people or roles.
 Active internal sandboxes cannot be converted by this workflow. Paddle and all
 payment records remain outside promo activation.
 
+The selectable set and entitlement inventory are distinct. Selection considers
+eligible operationally active branches. Final activation inventories every
+preserved workspace branch: selected branches receive one assignment and active
+entitlement, while unselected branches receive an inactive entitlement without an
+assignment or operational-status change. Branch reactivation uses the existing M1
+SchoolGroup lock and capacity decision, then updates operational status, assignment,
+and entitlement in the same transaction.
+
+Legacy missing inactive evidence may be reconciled only when one active promo grant,
+one promo tenant source, one owner, one matching workspace entitlement, and coherent
+assignments are proven. The generic PostgreSQL CLI is dry-run by default and explicit
+apply creates only missing inactive entitlements. It never changes branch status,
+assignments, grant capacity, or people records; uncertainty remains manual review.
+
 ## Consequences
 
 - Existing aligned organizations require a controlled prior classification and
@@ -47,5 +61,7 @@ payment records remain outside promo activation.
   closed.
 - Unused branch capacity may cover future normal branch creation, but staff and
   teacher capacity is never auto-reconciled.
+- Existing preserved branches always carry explicit active or inactive promo
+  entitlement evidence.
 - Promo renewal, transfer, paid conversion, communication, and automated expiry
   jobs remain deferred.

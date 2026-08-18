@@ -332,6 +332,88 @@ class PromoRedemptionTests(unittest.TestCase):
         inactive = branch_entitlement_service.resolve_branch_entitlement(self.db, branches[1].id)
         self.assertEqual(inactive.effective_status, "inactive")
 
+    @patch("saas.promo_redemption_service.audit.write_audit_event")
+    def test_existing_inactive_branch_receives_explicit_inactive_entitlement(self, _audit):
+        account = self._account()
+        group = models.SchoolGroup(
+            name="Inactive Branch Promo Customer",
+            workspace_classification="customer",
+            workspace_lifecycle_status="provisioning",
+        )
+        self.db.add(group)
+        self.db.flush()
+        selected = models.Branch(school_group_id=group.id, name="Selected", status=True)
+        other_active = models.Branch(school_group_id=group.id, name="Other Active", status=True)
+        preserved_inactive = models.Branch(
+            school_group_id=group.id, name="Preserved Inactive", status=False
+        )
+        year = models.AcademicYear(
+            school_group_id=group.id, year_name="2026-2027", is_active=True
+        )
+        self.db.add_all((selected, other_active, preserved_inactive, year))
+        self.db.flush()
+        user = models.User(
+            user_id="7700000002",
+            username="inactive.branch.owner",
+            user_type=auth.USER_TYPE_TENANT,
+            access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+            school_group_id=group.id,
+            branch_id=selected.id,
+            academic_year_id=year.id,
+            is_active=True,
+        )
+        self.db.add(user)
+        self.db.flush()
+        self.db.add(saas.models.SaaSAccountUserLink(
+            saas_account_id=account.id,
+            operational_user_id=user.id,
+            school_group_id=group.id,
+            link_type="tenant_owner",
+        ))
+        self.db.commit()
+        created = self._promo("starter")
+        review = promo_redemption_service.start_activation(
+            self.db,
+            account=account,
+            raw_code=created.raw_code,
+            school_group=group,
+            operational_user=user,
+            idempotency_key="inactive-branch-selection",
+        )
+        review = promo_redemption_service.select_branches(
+            self.db,
+            activation_uuid=review.session.activation_uuid,
+            account=account,
+            branch_ids=[selected.id],
+        )
+        result = promo_redemption_service.activate_promo(
+            self.db,
+            activation_uuid=review.session.activation_uuid,
+            account=account,
+            idempotency_key="activate-inactive-branch-selection",
+        )
+        self.db.commit()
+
+        rows = {
+            row.branch_id: row
+            for row in self.db.query(saas.models.BranchEntitlement).filter_by(
+                workspace_entitlement_id=result.workspace_entitlement.id
+            ).all()
+        }
+        self.assertEqual(set(rows), {selected.id, other_active.id, preserved_inactive.id})
+        self.assertEqual(rows[selected.id].entitlement_mode, "active")
+        self.assertEqual(rows[other_active.id].entitlement_mode, "inactive")
+        self.assertEqual(rows[preserved_inactive.id].entitlement_mode, "inactive")
+        self.assertEqual(result.grant.allowed_branches, 1)
+        self.assertFalse(self.db.get(models.Branch, preserved_inactive.id).status)
+        assignment_ids = {
+            row.branch_id
+            for row in self.db.query(saas.models.PromoGrantBranchAssignment).filter_by(
+                promo_grant_id=result.grant.id
+            ).all()
+        }
+        self.assertEqual(assignment_ids, {selected.id})
+
     def test_internal_sandbox_is_not_auto_converted(self):
         account = self._account()
         group = models.SchoolGroup(name="Internal", workspace_classification="internal_sandbox", workspace_lifecycle_status="active")

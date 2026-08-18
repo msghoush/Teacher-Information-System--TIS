@@ -634,7 +634,11 @@ def activate_promo(
         all_branches = tuple(workspace.branches)
     else:
         owner_user = db.get(operational_models.User, session.operational_user_id)
-        all_branches = review.branches
+        all_branches = tuple(
+            db.query(operational_models.Branch).filter(
+                operational_models.Branch.school_group_id == group.id,
+            ).order_by(operational_models.Branch.id.asc()).all()
+        )
         primary_branch = next((row for row in all_branches if row.id == getattr(owner_user, "branch_id", None)), all_branches[0])
         academic_year = db.query(operational_models.AcademicYear).filter(
             operational_models.AcademicYear.school_group_id == group.id,

@@ -93,14 +93,22 @@ Final activation locks session, definition, and workspace in stable order and
 commits immutable `PromoRedemption`/`PromoGrant`, branch assignments and
 entitlements, promo `WorkspaceEntitlement`, promo `TenantProvisioningLink`,
 lifecycle updates, and audit together. `saas/promo_grant_service.py` resolves
-effective grants and expiration; M1 composes that result. `auth.py` restricts
-customer-classified operational branch queries to explicit active promo branch
-entitlements. Pending or inconsistent evidence fails closed.
+effective grants and expiration and owns atomic assignment/entitlement activation
+when a branch is created or reactivated; M1 composes that result. `auth.py`
+restricts customer-classified operational branch queries to explicit active promo
+branch entitlements. Pending or inconsistent evidence fails closed.
 
 Existing-branch selection does not alter `Branch.status`. Staff and teachers
 are organization-wide validation inputs and are never selected, disabled, or
 deleted. Normal future branch creation may consume only an unused grant branch
 slot. Paddle remains outside this layer.
+
+`saas/promo_branch_entitlement_reconciliation_service.py` is the conservative
+repair boundary for legacy incomplete promo evidence. It requires one resolved
+active promo authority, tenant source, owner, and workspace entitlement; inventories
+all branches, assignments, and entitlement rows; and can create only a missing
+inactive entitlement for an unassigned branch. The PostgreSQL CLI defaults to
+dry-run, locks and revalidates on apply, and commits or rolls back as one unit.
 
 ## Promo Definition Layer
 

@@ -135,11 +135,23 @@ Guardrails:
    validation and recount. It rejects internal sandboxes and every conflicting
    commercial source.
 6. One transaction creates immutable redemption/grant snapshots, explicit
-   branch assignments and entitlement states, a promo workspace entitlement,
-   the promo-sourced tenant link, customer/active lifecycle, and redacted audit.
+   branch assignments and entitlement states for the complete preserved branch
+   inventory, a promo workspace entitlement, the promo-sourced tenant link,
+   customer/active lifecycle, and redacted audit. Selected branches are assigned
+   and active; every unselected branch is explicitly inactive without changing its
+   operational status or consuming grant capacity.
 7. A pending session grants nothing. Active access resolves through M1 and only
    selected branches are queryable. Expiry or inconsistent evidence fails
    closed. No Paddle call or payment object is involved.
+8. Reactivating an unassigned branch locks the SchoolGroup, recounts M1 usage, and
+   either rejects at capacity or commits operational status, one grant assignment,
+   and active branch entitlement together. Bulk reactivation applies the same rule
+   to the complete batch and rolls back all changes on any conflict.
+9. `scripts/reconcile_promo_branch_entitlements.py` targets one SchoolGroup and
+   workspace UUID. Dry-run reports only safe missing inactive evidence. Explicit
+   apply revalidates under lock and inserts only those inactive entitlements;
+   ambiguous authority, ownership, assignments, or entitlement lineage requires
+   manual review.
 
 ## Platform Promo Definition
 

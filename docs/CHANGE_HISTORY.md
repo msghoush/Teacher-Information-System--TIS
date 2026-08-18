@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-17 - Corrected Promo Branch Entitlement Lifecycle
+
+Promo activation now creates explicit active or inactive entitlement evidence for
+every preserved branch, including operationally inactive unselected branches that
+previously fell outside the selectable-branch query. Individual and bulk branch
+reactivation continue through centralized capacity authority and now update branch
+status, promo assignment, and entitlement atomically. Capacity exhaustion and
+contradictory evidence fail before commit.
+
+Added a generic PostgreSQL-only reconciliation command that defaults to dry-run,
+locks and revalidates on explicit apply, and creates only deterministically missing
+inactive branch entitlements. It never changes branch status, assignment, grant,
+capacity, Paddle, or people records. The Al-Andalus audit now distinguishes broad
+operational-user row inventory from M1 authoritative active staff usage.
+
 ## 2026-08-13 - Corrected Existing Workspace Plan Selection
 
 Organization Account **Choose a Plan** now reopens eligible paid-plan selection for
