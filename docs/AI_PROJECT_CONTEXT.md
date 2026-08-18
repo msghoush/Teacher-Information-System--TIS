@@ -121,10 +121,15 @@ from that chain. Pending sessions grant nothing, expired or ambiguous grants
 fail closed, and no Paddle API or billing record participates.
 
 When eligible branches exceed promo capacity, the owner selects exactly the
-covered branches; unselected branch data remains intact but commercially
-inactive. Staff and teacher records are never selected or deactivated. Their
-authoritative organization-wide counts must already fit the immutable grant or
-activation is blocked for reconciliation.
+covered branches. Every preserved workspace branch receives explicit evidence:
+selected branches receive an assignment and active entitlement, while every
+unselected branch, including an operationally inactive branch, receives an
+inactive entitlement without consuming grant capacity or changing operational
+status. Reactivation locks and rechecks M1 capacity, then activates the branch,
+assignment, and entitlement in one commit. A PostgreSQL-only, dry-run-first
+reconciliation command can add only deterministically missing inactive evidence;
+ambiguous or contradictory chains require manual review. Staff and teacher records
+are never selected or deactivated, and their authoritative counts must fit the grant.
 
 ## M2 Promo Code Foundation
 

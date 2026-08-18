@@ -13,6 +13,12 @@ RESOLVED = "resolved"
 MANUAL_REVIEW = "manual_review"
 
 
+class PromoBranchAssignmentError(ValueError):
+    def __init__(self, reason_code: str, message: str):
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
 @dataclass(frozen=True)
 class PromoGrantResolution:
     resolution_status: str
@@ -130,52 +136,146 @@ def resolve_promo_grant(
     )
 
 
-def assign_new_branch_if_available(db: Session, branch, *, actor_saas_account_id: int | None = None):
-    group = db.get(operational_models.SchoolGroup, int(getattr(branch, "school_group_id", 0) or 0))
+def activate_branch_if_available(
+    db: Session,
+    branch,
+    *,
+    actor_saas_account_id: int | None = None,
+    lock: bool = True,
+):
+    group_id = int(getattr(branch, "school_group_id", 0) or 0)
+    group_query = db.query(operational_models.SchoolGroup).filter(
+        operational_models.SchoolGroup.id == group_id
+    )
+    if lock:
+        group_query = group_query.with_for_update()
+    group = group_query.one_or_none()
     if group is None or str(group.workspace_classification or "") != "customer":
         return None
     grant_resolution = resolve_promo_grant(db, group.id)
     if not grant_resolution.active:
-        raise ValueError("Promo branch capacity is unavailable.")
-    existing = db.query(models.BranchEntitlement).filter_by(branch_id=branch.id).one_or_none()
-    if existing is not None:
+        raise PromoBranchAssignmentError(
+            "promo_branch_capacity_unavailable",
+            "Promo branch capacity is unavailable.",
+        )
+    entitlements = db.query(models.WorkspaceEntitlement).filter(
+        models.WorkspaceEntitlement.promo_grant_id == grant_resolution.grant_id,
+        models.WorkspaceEntitlement.status == "active",
+    ).all()
+    if len(entitlements) != 1:
+        raise PromoBranchAssignmentError(
+            "promo_workspace_entitlement_ambiguous",
+            "Promo branch entitlement is unavailable.",
+        )
+    entitlement = entitlements[0]
+    existing_rows = db.query(models.BranchEntitlement).filter(
+        models.BranchEntitlement.branch_id == branch.id
+    ).all()
+    if len(existing_rows) > 1:
+        raise PromoBranchAssignmentError(
+            "promo_branch_entitlement_ambiguous",
+            "Promo branch entitlement requires review.",
+        )
+    existing = existing_rows[0] if existing_rows else None
+    if existing is not None and (
+        int(existing.school_group_id) != group.id
+        or int(existing.workspace_entitlement_id) != int(entitlement.id)
+    ):
+        raise PromoBranchAssignmentError(
+            "promo_branch_entitlement_mismatch",
+            "Promo branch entitlement requires review.",
+        )
+    assignments = db.query(models.PromoGrantBranchAssignment).filter(
+        models.PromoGrantBranchAssignment.branch_id == branch.id
+    ).all()
+    if len(assignments) > 1:
+        raise PromoBranchAssignmentError(
+            "promo_branch_assignment_ambiguous",
+            "Promo branch assignment requires review.",
+        )
+    assignment = assignments[0] if assignments else None
+    if assignment is not None and (
+        int(assignment.school_group_id) != group.id
+        or int(assignment.promo_grant_id) != int(grant_resolution.grant_id)
+    ):
+        raise PromoBranchAssignmentError(
+            "promo_branch_assignment_mismatch",
+            "Promo branch assignment requires review.",
+        )
+    if assignment is not None:
+        if existing is None or existing.entitlement_mode != "active":
+            raise PromoBranchAssignmentError(
+                "promo_branch_assignment_entitlement_conflict",
+                "Promo branch assignment requires review.",
+            )
         return existing
+    if existing is not None and existing.entitlement_mode == "active":
+        raise PromoBranchAssignmentError(
+            "promo_active_entitlement_missing_assignment",
+            "Promo branch assignment requires review.",
+        )
+    if existing is not None and existing.entitlement_mode != "inactive":
+        raise PromoBranchAssignmentError(
+            "promo_branch_entitlement_mode_invalid",
+            "Promo branch entitlement requires review.",
+        )
+
     assigned_count = db.query(models.PromoGrantBranchAssignment.id).filter(
         models.PromoGrantBranchAssignment.promo_grant_id == grant_resolution.grant_id
     ).count()
     if assigned_count >= int(grant_resolution.allowed_branches or 0):
-        raise ValueError("Promo branch capacity has been reached.")
-    entitlement = db.query(models.WorkspaceEntitlement).filter(
-        models.WorkspaceEntitlement.promo_grant_id == grant_resolution.grant_id,
-        models.WorkspaceEntitlement.status == "active",
-    ).one_or_none()
-    if entitlement is None:
-        raise ValueError("Promo branch entitlement is unavailable.")
+        raise PromoBranchAssignmentError(
+            "promo_branch_capacity_reached",
+            "Promo branch capacity has been reached.",
+        )
+    resolved_actor_id = actor_saas_account_id
+    if resolved_actor_id is None:
+        owner_links = db.query(models.SaaSAccountUserLink).filter(
+            models.SaaSAccountUserLink.school_group_id == group.id,
+            models.SaaSAccountUserLink.link_type == "tenant_owner",
+        ).all()
+        if len(owner_links) != 1:
+            raise PromoBranchAssignmentError(
+                "promo_owner_mapping_ambiguous",
+                "Promo organization owner mapping is unavailable.",
+            )
+        resolved_actor_id = owner_links[0].saas_account_id
     assignment = models.PromoGrantBranchAssignment(
         promo_grant_id=grant_resolution.grant_id,
         school_group_id=group.id,
         branch_id=branch.id,
         branch_identity_snapshot=str(branch.id),
         branch_name_snapshot=str(branch.name or "")[:160],
-        assigned_by_saas_account_id=actor_saas_account_id,
+        assigned_by_saas_account_id=resolved_actor_id,
         assignment_reason="unused_promo_capacity",
         assigned_at=datetime.now(UTC).replace(tzinfo=None),
     )
-    if assignment.assigned_by_saas_account_id is None:
-        owner_link = db.query(models.SaaSAccountUserLink).filter(
-            models.SaaSAccountUserLink.school_group_id == group.id,
-            models.SaaSAccountUserLink.link_type == "tenant_owner",
-        ).one_or_none()
-        assignment.assigned_by_saas_account_id = getattr(owner_link, "saas_account_id", None)
-    if assignment.assigned_by_saas_account_id is None:
-        raise ValueError("Promo organization owner mapping is unavailable.")
-    row = models.BranchEntitlement(
-        school_group_id=group.id,
-        branch_id=branch.id,
-        workspace_entitlement_id=entitlement.id,
-        entitlement_mode="active",
-        reason_code="promo_unused_capacity_assigned",
-    )
-    db.add_all((assignment, row))
+    if existing is None:
+        existing = models.BranchEntitlement(
+            school_group_id=group.id,
+            branch_id=branch.id,
+            workspace_entitlement_id=entitlement.id,
+            entitlement_mode="active",
+            reason_code="promo_unused_capacity_assigned",
+        )
+        db.add(existing)
+    else:
+        existing.entitlement_mode = "active"
+        existing.reason_code = "promo_unused_capacity_assigned"
+    db.add(assignment)
     db.flush()
-    return row
+    return existing
+
+
+def assign_new_branch_if_available(
+    db: Session,
+    branch,
+    *,
+    actor_saas_account_id: int | None = None,
+):
+    return activate_branch_if_available(
+        db,
+        branch,
+        actor_saas_account_id=actor_saas_account_id,
+        lock=False,
+    )

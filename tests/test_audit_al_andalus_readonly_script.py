@@ -166,8 +166,18 @@ def test_al_andalus_production_diagnostic_is_static_and_read_only():
     assert "session_token" not in source.lower()
     assert "provider_subscription_id_present" in source
     assert "provider_customer_id_present" in source
+    assert 'preservation["operational_user_rows"]' in source
+    assert 'preservation["authoritative_active_staff_users"]' in source
+    assert "commercial_authority_service.resolve_commercial_authority" in source
     assert source.count("db.rollback()") >= 3
     assert "db.close()" in source
+
+
+def test_audit_distinguishes_user_inventory_from_authoritative_staff_usage():
+    module = _load_diagnostic_module()
+    preservation = module._empty_report()["preservation_summary"]
+    assert preservation["operational_user_rows"] == 0
+    assert preservation["authoritative_active_staff_users"] is None
 
 
 def test_valid_promo_source_and_enterprise_snapshot_override_historical_contract():

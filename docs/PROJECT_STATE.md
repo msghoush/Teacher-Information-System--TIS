@@ -63,6 +63,14 @@ through the shared workspace builder. Staff/teacher excess blocks without
 mutation. Internal sandboxes, incompatible sources, ambiguous links, and
 expired grants fail closed. No Paddle or billing object is created.
 
+Promo activation now writes explicit branch evidence for the complete preserved
+workspace inventory: selected branches are assigned and active, while unselected
+branches are explicitly inactive even when their operational status is inactive.
+Individual and bulk branch reactivation enforce grant capacity and update the
+operational branch, assignment, and entitlement in one transaction. A generic
+PostgreSQL reconciliation CLI defaults to dry-run and may create only safely
+attributable missing inactive evidence; contradictory chains remain manual review.
+
 ## Promo Code Foundation And Platform Management
 
 M2 is implemented as an additive promo-definition layer. `promo_codes` stores

@@ -171,6 +171,17 @@ activation without mutating people records. Pending sessions grant no access,
 expiry fails closed, and paid subscription history and provider behavior are
 unchanged.
 
+## 2026-08-17 - Explicit Promo Branch Evidence And Reconciliation
+
+Promo activation now separates selectable active branches from the complete
+preserved workspace branch inventory. Selected branches receive one assignment and
+active entitlement; every unselected branch receives an inactive entitlement even
+when operationally inactive. Branch creation and individual or bulk reactivation
+consume unused promo capacity and update assignment, entitlement, and operational
+status atomically. A dry-run-first PostgreSQL reconciliation command repairs only
+deterministically missing inactive evidence and leaves contradictory states for
+manual review.
+
 ## 2026-07-28 - Expired-Demo Checkout Identity Repair
 
 Paddle sandbox recovery now recognizes the existing active tenant owner as

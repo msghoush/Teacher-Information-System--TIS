@@ -49,6 +49,7 @@ from saas import (
     commercial_state_service,
     demo_request_service,
     entitlement_service,
+    promo_grant_service,
     service as saas_service,
     workspace_classification_service,
     workspace_entitlement_service,
@@ -13800,8 +13801,6 @@ def create_branch(
     db.add(branch_row)
     db.flush()
     try:
-        from saas import promo_grant_service
-
         promo_grant_service.assign_new_branch_if_available(db, branch_row)
     except ValueError as exc:
         db.rollback()
@@ -14095,6 +14094,7 @@ def bulk_update_branches(
         for planned in update_plan
         if planned["status_changed"]
     }
+    capacity_decisions = {}
     if status_changed_group_ids and not errors:
         try:
             commercial_authority_service.lock_school_groups(
@@ -14150,7 +14150,7 @@ def bulk_update_branches(
                 if final_statuses.get(branch_id, False)
             }
             try:
-                commercial_authority_service.require_capacity_change(
+                capacity_decisions[group_id] = commercial_authority_service.require_capacity_change(
                     db,
                     group_id,
                     lock=False,
@@ -14177,6 +14177,35 @@ def bulk_update_branches(
         if status_changed_group_ids:
             db.rollback()
         return _bulk_json_error(errors)
+
+    try:
+        for planned in update_plan:
+            branch_row = planned["row"]
+            if (
+                planned["status_changed"]
+                and not bool(branch_row.status)
+                and bool(planned["status"])
+                and capacity_decisions.get(branch_row.school_group_id)
+                and capacity_decisions[branch_row.school_group_id].source
+                == commercial_authority_service.PROMO_GRANT
+            ):
+                promo_grant_service.activate_branch_if_available(
+                    db,
+                    branch_row,
+                    lock=False,
+                )
+    except promo_grant_service.PromoBranchAssignmentError as exc:
+        db.rollback()
+        return _bulk_json_error(
+            [
+                _bulk_item_error(
+                    item_id=getattr(branch_row, "id", None),
+                    label=str(getattr(branch_row, "name", "") or "Branch"),
+                    field="status",
+                    message=str(exc),
+                )
+            ]
+        )
 
     for planned in update_plan:
         branch_row = planned["row"]
@@ -14332,7 +14361,7 @@ def update_branch(
         }
         active_branch_ids.add(int(branch_row.id))
         try:
-            commercial_authority_service.require_capacity_change(
+            capacity_decision = commercial_authority_service.require_capacity_change(
                 db,
                 branch_row.school_group_id,
                 proposed_branches=len(active_branch_ids),
@@ -14342,7 +14371,16 @@ def update_branch(
                     active_branch_ids=active_branch_ids,
                 ),
             )
-        except commercial_authority_service.CapacityAuthorityError as exc:
+            if capacity_decision.source == commercial_authority_service.PROMO_GRANT:
+                promo_grant_service.activate_branch_if_available(
+                    db,
+                    branch_row,
+                    lock=False,
+                )
+        except (
+            commercial_authority_service.CapacityAuthorityError,
+            promo_grant_service.PromoBranchAssignmentError,
+        ) as exc:
             db.rollback()
             return _redirect_with_error(safe_return_to, str(exc))
 

@@ -79,8 +79,15 @@ Paddle is not involved.
 Branch selection is the only reversible capacity selection in M3. Existing
 branches above the grant require exactly the allowed count; fewer branches are
 all selected and unused capacity remains available for normal future branch
-creation. Staff and teachers are never modified. Any organization-wide excess
-blocks activation until the owner changes operational usage and resumes.
+creation. The final entitlement inventory covers every preserved branch: selected
+branches have an assignment and active entitlement; unselected active or inactive
+branches have an explicit inactive entitlement. Operational status is unchanged.
+Individual and bulk reactivation acquire the workspace lock, enforce grant capacity,
+and update status, assignment, and entitlement atomically. The dry-run-first
+`reconcile_promo_branch_entitlements.py` command may add only missing inactive
+evidence for a coherent active promo source and otherwise fails closed. Staff and
+teachers are never modified. Any organization-wide excess blocks activation until
+the owner changes operational usage and resumes.
 
 ## Promo Definition And Governance Boundary
 
