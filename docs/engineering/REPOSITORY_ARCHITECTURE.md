@@ -110,6 +110,14 @@ all branches, assignments, and entitlement rows; and can create only a missing
 inactive entitlement for an unassigned branch. The PostgreSQL CLI defaults to
 dry-run, locks and revalidates on apply, and commits or rolls back as one unit.
 
+`saas/commercial_portal_service.py` is the read-only customer presentation adapter
+for promo authority. It consumes `commercial_authority_service` rather than
+recounting capacity, then resolves the attributable `PromoGrant` and
+`PromoRedemption` only for immutable dates and the masked promo reference. The SaaS
+subscription route selects this adapter by authoritative source before invoking the
+paid portal. Promo, paid, and demo view models remain separate; Jinja templates do
+not decide commercial authority and the promo view has no Paddle-backed actions.
+
 ## Promo Definition Layer
 
 Promo administration is an isolated SaaS/Platform layer. The router requires a

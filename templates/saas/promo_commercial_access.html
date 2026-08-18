@@ -1,0 +1,96 @@
+{% extends "saas/base.html" %}
+{% block title %}Commercial Access | TIS{% endblock %}
+{% block content %}
+<style>
+    .promo-access-page { display:grid; gap:20px; }
+    .promo-access-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+    .promo-access-heading h1 { margin:4px 0 8px; font-size:30px; }
+    .promo-access-heading p { margin:0; color:var(--muted); max-width:680px; }
+    .promo-access-badge { display:inline-flex; align-items:center; min-height:30px; padding:5px 11px; border:1px solid #bbd5c4; border-radius:999px; background:#eef8f1; color:#245d38; font-size:13px; font-weight:700; white-space:nowrap; }
+    .promo-access-badge.is-expired, .promo-access-badge.is-unavailable { border-color:#e1c9a6; background:#fff8eb; color:#79541e; }
+    .promo-overview { padding:20px; border:1px solid var(--border); border-radius:8px; background:#f8fbff; }
+    .promo-plan-row { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; }
+    .promo-plan-row h2 { margin:3px 0 5px; font-size:24px; }
+    .promo-plan-row p { margin:0; color:var(--muted); }
+    .promo-facts { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:18px 0 0; }
+    .promo-fact, .promo-capacity-card { min-width:0; padding:15px; border:1px solid var(--border); border-radius:8px; background:#fff; }
+    .promo-fact dt, .promo-capacity-card span { color:var(--muted); font-size:12px; font-weight:700; text-transform:uppercase; }
+    .promo-fact dd { margin:6px 0 0; font-weight:700; overflow-wrap:anywhere; }
+    .promo-section h2 { margin:0 0 5px; font-size:20px; }
+    .promo-section > p { margin:0 0 14px; color:var(--muted); }
+    .promo-capacity-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+    .promo-capacity-card strong { display:block; margin:8px 0 3px; font-size:22px; }
+    .promo-capacity-card small { display:block; color:var(--muted); }
+    .promo-safe-message { padding:16px; border:1px solid #e1c9a6; border-radius:8px; background:#fff8eb; color:#624719; }
+    .promo-support { display:flex; justify-content:space-between; align-items:center; gap:18px; padding-top:18px; border-top:1px solid var(--border); }
+    .promo-support h2 { margin:0 0 4px; font-size:18px; }
+    .promo-support p { margin:0; color:var(--muted); }
+    @media (max-width:760px) {
+        .promo-access-heading, .promo-plan-row, .promo-support { align-items:stretch; flex-direction:column; }
+        .promo-facts, .promo-capacity-grid { grid-template-columns:1fr; }
+        .promo-access-badge { align-self:flex-start; }
+        .promo-support .btn { width:100%; }
+    }
+</style>
+<div class="promo-access-page">
+    <header class="promo-access-heading">
+        <div>
+            <span class="page-eyebrow">Billing &amp; Subscription</span>
+            <h1>Commercial Access</h1>
+            <p>Review your organization's current TIS plan, promotional access period, and available capacity.</p>
+        </div>
+        <span class="promo-access-badge is-{{ promo_portal.status_tone }}">{{ promo_portal.status_label }}</span>
+    </header>
+
+    {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
+    {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+
+    <section class="promo-overview" aria-labelledby="promo-plan-title">
+        <div class="promo-plan-row">
+            <div>
+                <span class="page-eyebrow">Current Plan</span>
+                <h2 id="promo-plan-title">{{ promo_portal.plan_name }}</h2>
+                <p>{{ promo_portal.access_label }}</p>
+            </div>
+            <span class="promo-access-badge is-{{ promo_portal.status_tone }}">{{ promo_portal.status_label }}</span>
+        </div>
+        <dl class="promo-facts">
+            <div class="promo-fact"><dt>Access type</dt><dd>{{ promo_portal.access_label }}</dd></div>
+            <div class="promo-fact"><dt>Access period</dt><dd>{{ promo_portal.effective_from_label }} to {{ promo_portal.effective_to_label }}</dd></div>
+            {% if promo_portal.masked_promo_reference %}<div class="promo-fact"><dt>Promo reference</dt><dd>{{ promo_portal.masked_promo_reference }}</dd></div>{% endif %}
+        </dl>
+    </section>
+
+    <section class="promo-section" aria-labelledby="promo-capacity-title">
+        <h2 id="promo-capacity-title">Organization Capacity</h2>
+        <p>Current usage is measured from your authoritative TIS workspace access.</p>
+        {% if promo_portal.capacity_available %}
+        <div class="promo-capacity-grid">
+            {% for capacity in promo_portal.capacities %}
+            <article class="promo-capacity-card" data-capacity="{{ capacity.key }}">
+                <span>{{ capacity.label }}</span>
+                <strong>{{ capacity.used }} of {{ capacity.limit }} used</strong>
+                <small>{{ capacity.remaining }} available</small>
+            </article>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="promo-safe-message" role="status">{{ promo_portal.status_message }}</div>
+        {% endif %}
+    </section>
+
+    <section class="promo-section" aria-labelledby="promo-details-title">
+        <h2 id="promo-details-title">Commercial Details</h2>
+        <dl class="promo-facts">
+            <div class="promo-fact"><dt>Access type</dt><dd>{{ promo_portal.access_label }}</dd></div>
+            <div class="promo-fact"><dt>Billing status</dt><dd>No recurring subscription while promotional access is active.</dd></div>
+            <div class="promo-fact"><dt>Access valid until</dt><dd>{{ promo_portal.effective_to_label }}</dd></div>
+        </dl>
+    </section>
+
+    <section class="promo-support" aria-label="TIS support">
+        <div><h2>Need help with commercial access?</h2><p>The TIS team can help with access questions and future subscription options.</p></div>
+        <a class="btn secondary" href="mailto:{{ support_email }}">Contact TIS Support</a>
+    </section>
+</div>
+{% endblock %}

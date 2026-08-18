@@ -131,6 +131,16 @@ reconciliation command can add only deterministically missing inactive evidence;
 ambiguous or contradictory chains require manual review. Staff and teacher records
 are never selected or deactivated, and their authoritative counts must fit the grant.
 
+Organization Account resolves the authoritative commercial source before choosing
+its customer presentation. Paid authority continues through the Paddle-backed
+subscription portal, demo authority keeps its dedicated journey, and promo authority
+uses `commercial_portal_service` to compose the central commercial authority with
+only attributable immutable promo metadata. The promo page shows the grant plan,
+safe status and dates, masked reference, and authoritative branch/system-user/teacher
+capacity. It exposes no recurring billing, invoice, cancellation, plan-change, or
+quantity-change controls. Promo-to-paid conversion remains a separate unimplemented
+commercial milestone.
+
 ## M2 Promo Code Foundation
 
 M2 adds secure, definition-only Starter, Professional, and Enterprise AI promo
@@ -492,6 +502,7 @@ Key files and folders:
 - `saas/`: SaaS account, onboarding, payment, billing, and provisioning services/routes.
 - `saas/entitlement_service.py`: provider-confirmed commercial entitlement and paid branch-capacity resolution.
 - `saas/commercial_authority_service.py`: unified operational commercial access, capacity counters, structured decisions, and tenant row locking.
+- `saas/commercial_portal_service.py`: source-aware customer commercial presentation for promo-backed workspaces without duplicating commercial decisions.
 - `saas/subscription_portal_service.py`: customer subscription portal view model.
 - `saas/subscription_change_service.py`, `saas/subscription_plan_change_service.py`, and `saas/subscription_cancellation_service.py`: provider-authoritative quantity, plan, and cancellation workflows.
 - `saas/subscription_lifecycle_service.py`: centralized lifecycle state and allowed-action policy.

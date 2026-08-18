@@ -156,6 +156,17 @@ ready, canceled, past-due, unrelated, and mismatched transactions, while retry
 clicks reuse the existing started checkout rather than creating another
 transaction.
 
+## 2026-08-18 - Promo-Aware Commercial Access Portal
+
+Organization Account Billing & Subscription now resolves the selected workspace's
+authoritative commercial source before choosing a customer view. Promo-backed
+workspaces render a dedicated read-only Commercial Access page composed from M1
+capacity authority and attributable immutable promo metadata. It shows the plan,
+safe access status and period, masked reference, and authoritative capacity without
+calling Paddle or exposing recurring billing, invoice, plan-change, quantity-change,
+or cancellation controls. Paid and demo portals are unchanged. Promo-to-paid
+conversion remains deferred.
+
 ## 2026-08-05 - Promo Commercial Grants
 
 Approved promo definitions can now become non-Paddle commercial authority only

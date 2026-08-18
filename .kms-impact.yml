@@ -1,10 +1,9 @@
 knowledge_impact: yes
-summary: Correct promo branch entitlement inventory, atomic branch reactivation, and safe reconciliation of legacy missing inactive evidence.
+summary: Add source-aware Organization Account commercial presentation for promo-backed customer workspaces.
 affected_areas:
-  - promo-redemption
-  - branch-entitlements
-  - branch-reactivation
-  - production-reconciliation
+  - organization-account
+  - commercial-access-portal
+  - promo-customer-presentation
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
