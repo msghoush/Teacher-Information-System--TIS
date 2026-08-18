@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Project State
 
+## Stage 5 SchoolGroup Boundary Correction Complete
+
+Operational SchoolGroup create/delete actions now require both Platform identity and
+global SchoolGroup-management capability. Tenant create/delete permissions were
+removed from role defaults, direct stale-permission requests fail before side
+effects, and tenant SchoolGroup updates are constrained to the linked workspace.
+School Management now presents paid and promo branch capacity from unified
+commercial authority, while existing locked mutation enforcement is unchanged. The
+individual last-active-branch rule is SchoolGroup-scoped. A sanitized, read-only
+PostgreSQL provenance audit is available for later Platform Owner review; no
+production audit or remediation has been run.
+
 ## Existing Workspace Controlled Conversion
 
 M4B is implemented. Migration

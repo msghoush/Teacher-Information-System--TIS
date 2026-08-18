@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## SchoolGroup Configuration Boundary
+
+`main.py` owns the operational School Management route boundary. Direct top-level
+SchoolGroup creation and deletion require Platform identity plus
+`schools.manage_all_schools` and the matching action permission; tenant updates are
+limited to the linked SchoolGroup. `permission_registry.py` keeps organization
+create/delete out of tenant role assignments. Templates consume explicit server-side
+capabilities and never substitute UI hiding for handler authorization.
+
+School Management branch capacity is a presentation adapter over
+`saas/commercial_authority_service.py`; it must not call a paid-only resolver or
+recalculate promo usage. Mutation routes remain the authority for locked capacity
+enforcement and atomic promo evidence. `scripts/audit_schoolgroup_provenance.py` is
+an operator-only PostgreSQL read-only diagnostic. It emits no names or contact data,
+rolls back on exit, and owns no remediation behavior.
+
 ## Existing Workspace Controlled Conversion Layer
 
 ## Existing Workspace Paid Activation Boundary

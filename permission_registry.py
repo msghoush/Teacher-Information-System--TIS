@@ -248,6 +248,8 @@ ALL_PERMISSION_KEYS = tuple(PERMISSION_LABELS.keys())
 
 DEVELOPER_ONLY_PERMISSION_KEYS = {
     "dashboard.view_all_schools",
+    "schools.create",
+    "schools.delete",
     "schools.manage_all_schools",
     "configuration.export_audit_log",
     "configuration.manage_global_defaults",

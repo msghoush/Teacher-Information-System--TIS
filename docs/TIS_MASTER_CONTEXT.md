@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Stage 5 SchoolGroup Management Boundary
+
+Top-level SchoolGroup creation and deletion from operational configuration are
+platform-global actions, not tenant administration. Each requires Platform identity,
+`schools.manage_all_schools`, and the matching create/delete permission. Tenant
+Administrators no longer receive those permissions by default, and stale permission
+state cannot bypass the identity guard. Tenant SchoolGroup updates remain available
+only for the user's linked SchoolGroup; foreign IDs fail before mutation.
+
+School Management consumes the unified commercial authority facade for branch
+capacity presentation. Promo and paid tenants therefore see authoritative used,
+allowed, and remaining branch capacity while branch mutations retain the existing
+locked, source-aware enforcement and atomic promo evidence. A read-only PostgreSQL
+provenance audit can identify active internal sandboxes with missing tenant-link and
+workspace-entitlement evidence for Platform Owner review; it performs no repair.
+
 ## Controlled Existing Workspace Conversion Boundary
 
 M4B is the only supported bridge from an audited internal sandbox to a customer

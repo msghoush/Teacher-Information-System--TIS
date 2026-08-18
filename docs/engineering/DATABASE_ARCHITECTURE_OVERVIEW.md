@@ -1,11 +1,26 @@
 ---
 title: TIS Database Architecture Overview
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-18
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## SchoolGroup Creation Provenance Audit
+
+No schema or migration is added for the Stage 5 authorization correction. Direct
+operational create/delete is restricted to Platform identities with global
+SchoolGroup capability, while tenant updates resolve the linked SchoolGroup before a
+row is loaded for mutation. Branch capacity continues to lock and recount the owning
+SchoolGroup in the mutation transaction.
+
+`scripts/audit_schoolgroup_provenance.py` queries active `internal_sandbox`
+SchoolGroups that lack both `TenantProvisioningLink` and explicit
+`WorkspaceEntitlement` evidence. It reports only a numeric review key, hashed
+workspace reference, timestamp, aggregate operational counts, and review guidance.
+The PostgreSQL transaction is repeatable-read and read-only and is always rolled
+back. Findings are never automatically linked, reclassified, suspended, or deleted.
 
 ## Promo Redemption And Grant Persistence
 

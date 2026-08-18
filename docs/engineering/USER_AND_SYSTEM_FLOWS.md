@@ -1,11 +1,30 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-08-13
+last_updated: 2026-08-18
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## SchoolGroup Management And Branch Capacity Flow
+
+1. School Management resolves the authenticated identity and registered permission.
+2. Direct SchoolGroup create/delete additionally requires a Platform identity and
+   `schools.manage_all_schools`; tenant users fail before validation or side effects.
+3. A tenant with `schools.edit` may update only the SchoolGroup resolved from the
+   tenant link/scope. Platform users require global management capability for an
+   arbitrary SchoolGroup.
+4. The page resolves branch usage and limits through unified commercial authority.
+   It shows customer-safe used/allowed state and only shows branch creation when one
+   more active branch is currently permitted.
+5. Branch POST requests independently re-resolve tenant scope, lock the SchoolGroup,
+   recount capacity, and reject stale or over-limit requests before insertion.
+6. For promo authority with remaining capacity, the same transaction creates the
+   branch, promo assignment, and active branch entitlement. At capacity it changes
+   nothing.
+7. The last-active-branch check counts only active branches in the target
+   SchoolGroup.
 
 ## Existing Workspace Owner Alignment And Conversion
 

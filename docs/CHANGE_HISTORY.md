@@ -1,11 +1,27 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-08-13
+last_updated: 2026-08-18
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-18 - Enforced SchoolGroup Management Boundary
+
+Direct operational SchoolGroup creation and deletion now require Platform identity,
+the matching create/delete permission, and `schools.manage_all_schools`. Tenant role
+defaults no longer include top-level create/delete, stale permission state cannot
+bypass the handler guard, and tenant updates are limited to the linked SchoolGroup.
+Unauthorized requests fail before validation, storage, or database mutation.
+
+School Management now uses unified commercial authority for source-aware branch
+capacity presentation, including accurate promo `used of allowed` state. Existing
+locked branch enforcement and atomic promo assignment remain unchanged. The
+individual last-active-branch safeguard now counts within the target SchoolGroup.
+Added a PostgreSQL-only, repeatable-read, rollback-on-exit provenance audit that
+reports suspicious unlinked active internal sandboxes for manual review without
+repairing them.
 
 ## 2026-08-18 - Completed Promo Expiry Recovery And Paid Continuation
 

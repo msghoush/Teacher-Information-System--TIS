@@ -1,11 +1,26 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-18
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## SchoolGroup Management Boundary Components
+
+- `main.py`: Platform identity/global capability checks for SchoolGroup create and
+  delete, tenant-linked update scope, unified branch-capacity presentation, and the
+  SchoolGroup-scoped final-active-branch safeguard.
+- `permission_registry.py`: top-level `schools.create` and `schools.delete` are
+  developer-only; `schools.manage_all_schools` is the global manual-management
+  capability.
+- `templates/system_configuration_schools.html`: hides global create/delete actions
+  from tenants and presents source-neutral authoritative branch usage.
+- `saas/commercial_authority_service.py` and `saas/promo_grant_service.py`: unchanged
+  authority and atomic capacity/assignment boundary used by the page and mutations.
+- `scripts/audit_schoolgroup_provenance.py`: sanitized read-only detection of active,
+  unlinked internal sandboxes without explicit workspace entitlement.
 
 ## M3 Promo Redemption Components
 

@@ -1,11 +1,31 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-13
+last_updated: 2026-08-18
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Stage 5 SchoolGroup Authorization And Capacity Presentation
+
+Direct operational SchoolGroup creation and deletion are global platform actions.
+They require a Platform identity plus `schools.manage_all_schools` and the
+corresponding `schools.create` or `schools.delete` permission. Tenant roles cannot
+receive those create/delete permissions, and platform identity is checked again in
+the handlers so stale permission state cannot cross the boundary. Tenant users with
+`schools.edit` may update only their linked SchoolGroup; arbitrary IDs fail before
+validation or mutation. Approved paid, demo, promo, and conversion provisioning
+remain separate and unchanged.
+
+School Management presents branch usage through
+`saas/commercial_authority_service.py`, so paid and promo workspaces use the same
+authoritative source-aware counts without exposing source internals. Branch create,
+promo assignment, and entitlement remain atomic under the existing SchoolGroup lock.
+The individual last-active-branch safeguard now counts only the target SchoolGroup.
+`scripts/audit_schoolgroup_provenance.py` is a PostgreSQL-only, repeatable-read,
+read-only report for active internal sandboxes that have neither tenant provenance
+nor explicit workspace entitlement; it never remediates candidates.
 
 ## M4C Existing Workspace Paid Activation
 
