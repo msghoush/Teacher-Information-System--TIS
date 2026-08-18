@@ -71,6 +71,14 @@ operational branch, assignment, and entitlement in one transaction. A generic
 PostgreSQL reconciliation CLI defaults to dry-run and may create only safely
 attributable missing inactive evidence; contradictory chains remain manual review.
 
+Organization Account Billing & Subscription now selects its presentation from the
+authoritative commercial source. Promo-backed customers receive a first-class
+Commercial Access page showing their immutable grant plan and period, safe active or
+expired status, masked promo reference, and M1-resolved branch, system-user, and
+teacher capacity. Paid subscription and demo pages remain separate. Promo pages make
+no Paddle or billing-history call and expose no paid plan, quantity, cancellation, or
+invoice action. Promo-to-paid conversion remains deferred.
+
 ## Promo Code Foundation And Platform Management
 
 M2 is implemented as an additive promo-definition layer. `promo_codes` stores

@@ -52,6 +52,14 @@ assignments are proven. The generic PostgreSQL CLI is dry-run by default and exp
 apply creates only missing inactive entitlements. It never changes branch status,
 assignments, grant capacity, or people records; uncertainty remains manual review.
 
+Customer commercial presentation follows the same source boundary. After
+organization and billing permission validation, the subscription route resolves M1
+authority first. Paid and demo sources keep their existing dedicated portals; promo
+source uses a separate read-only view model. That adapter accepts M1 plan, status,
+usage, limits, and remaining capacity and reads the attributable grant/redemption
+only for effective dates and the masked reference. It must not query Paddle, expose
+paid-only controls, or move commercial decisions into templates.
+
 ## Consequences
 
 - Existing aligned organizations require a controlled prior classification and
@@ -65,3 +73,6 @@ assignments, grant capacity, or people records; uncertainty remains manual revie
   entitlement evidence.
 - Promo renewal, transfer, paid conversion, communication, and automated expiry
   jobs remain deferred.
+- Promo customers can inspect current commercial access without fabricating a paid
+  subscription. A promo-to-paid action remains unavailable until a separately
+  approved provider-authoritative conversion workflow exists.

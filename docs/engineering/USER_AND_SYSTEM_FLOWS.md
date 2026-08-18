@@ -152,6 +152,13 @@ Guardrails:
    apply revalidates under lock and inserts only those inactive entitlements;
    ambiguous authority, ownership, assignments, or entitlement lineage requires
    manual review.
+10. An authorized owner opening Organization Account Billing & Subscription is
+    routed by the selected workspace's authoritative source. Promo authority renders
+    Commercial Access with the grant plan, safe status/window, masked reference, and
+    M1 branch/system-user/teacher usage and remaining capacity. It never invokes the
+    paid subscription resolver, Paddle billing history, invoices, plan/quantity
+    changes, or cancellation. Paid and demo presentations remain unchanged, and
+    promo-to-paid conversion is not offered.
 
 ## Platform Promo Definition
 

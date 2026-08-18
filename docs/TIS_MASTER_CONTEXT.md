@@ -89,6 +89,15 @@ evidence for a coherent active promo source and otherwise fails closed. Staff an
 teachers are never modified. Any organization-wide excess blocks activation until
 the owner changes operational usage and resumes.
 
+Billing & Subscription is source-aware after organization selection and permission
+validation. Paid workspaces retain the existing Paddle subscription portal; demo
+workspaces retain their dedicated demo journey; promo workspaces render a dedicated
+read-only Commercial Access page. Promo presentation composes M1 authority for plan,
+status, capacity usage, and remaining capacity with the attributable grant/redemption
+for effective dates and a masked reference. It does not call Paddle or expose paid
+subscription controls, billing history, invoices, provider details, or internal
+resolver diagnostics. No promo-to-paid conversion workflow exists yet.
+
 ## Promo Definition And Governance Boundary
 
 Platform Console now manages definition-only promo offers for the three active

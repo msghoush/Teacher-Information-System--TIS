@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-18 - Added Promo-Aware Commercial Access Presentation
+
+Organization Account Billing & Subscription now selects paid, demo, or promo
+presentation from the selected workspace's authoritative commercial source. Promo
+customers receive a dedicated read-only page for their grant plan, safe access
+status and period, masked reference, and centralized branch/system-user/teacher
+capacity. The page does not invoke Paddle or expose paid-only billing and mutation
+controls. Existing paid and demo journeys remain unchanged, and promo-to-paid
+conversion remains deferred.
+
 ## 2026-08-17 - Corrected Promo Branch Entitlement Lifecycle
 
 Promo activation now creates explicit active or inactive entitlement evidence for

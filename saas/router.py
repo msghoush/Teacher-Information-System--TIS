@@ -20,7 +20,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, existing_workspace_paid_activation_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_authority_service, commercial_portal_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, existing_workspace_paid_activation_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
@@ -2009,6 +2009,49 @@ def subscription_portal(
                 status_code=302,
             )
         setattr(account, "_selected_school_group_id", int(selected_access.school_group.id))
+    portal_authority = (
+        commercial_portal_service.resolve_portal_authority(
+            db,
+            int(selected_access.school_group.id),
+        )
+        if selected_access is not None
+        else None
+    )
+    if (
+        portal_authority is not None
+        and portal_authority.source == commercial_authority_service.PROMO_GRANT
+    ):
+        promo_portal = commercial_portal_service.build_promo_commercial_portal(
+            db,
+            int(selected_access.school_group.id),
+            authority=portal_authority,
+        )
+        response = _render(
+            request,
+            "saas/promo_commercial_access.html",
+            {
+                "account": account,
+                "organization_account": {"access": selected_access},
+                "promo_portal": promo_portal,
+                "support_email": str(
+                    os.environ.get("TIS_SUPPORT_EMAIL")
+                    or os.environ.get("EMAIL_REPLY_TO")
+                    or "info@tisplatform.com"
+                ).strip(),
+                "notice": request.query_params.get("notice", ""),
+                "error": request.query_params.get("error", ""),
+            },
+        )
+        if requested_organization_uuid:
+            response.set_cookie(
+                service.SAAS_ORGANIZATION_COOKIE,
+                selected_access.organization_uuid,
+                **auth.secure_cookie_kwargs(
+                    request,
+                    max_age=service.session_max_age_seconds(),
+                ),
+            )
+        return response
     demo_journey = customer_journey_service.resolve_demo_subscription_journey(
         db, account
     )
