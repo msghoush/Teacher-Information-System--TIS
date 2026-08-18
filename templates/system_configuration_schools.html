@@ -172,7 +172,7 @@
             </a>
             {% endif %}
             {% endfor %}
-            {% if can("schools.create") %}
+            {% if can_create_school_group %}
             <form class="field" method="post" action="/system-configuration/schools">
                 <label for="new_school_name">New School / Organization</label>
                 <input id="new_school_name" name="name" placeholder="School name" required>
@@ -198,11 +198,11 @@
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <div class="field">
                         <label for="school_name">School / Organization Name</label>
-                        <input id="school_name" name="name" value="{{ selected_school_group.name }}" required {% if not can("schools.edit") %}disabled{% endif %}>
+                        <input id="school_name" name="name" value="{{ selected_school_group.name }}" required {% if not can_edit_selected_school_group %}disabled{% endif %}>
                     </div>
                     <div class="field">
                         <label for="school_status">Status</label>
-                        <select id="school_status" name="status" {% if not can("schools.edit") %}disabled{% endif %}>
+                        <select id="school_status" name="status" {% if not can_edit_selected_school_group %}disabled{% endif %}>
                             <option value="active" {% if selected_school_group.status %}selected{% endif %}>Active</option>
                             <option value="inactive" {% if not selected_school_group.status %}selected{% endif %}>Inactive</option>
                         </select>
@@ -212,16 +212,16 @@
                         selected_school_group.country_code,
                         selected_school_group.region_name,
                         selected_school_group.city_name,
-                        disabled=not can("schools.edit"),
+                        disabled=not can_edit_selected_school_group,
                         required=false,
                         district_name=selected_school_group.district_name,
                         neighborhood_name=selected_school_group.neighborhood_name
                     ) }}
-                    {% if can("schools.edit") %}
+                    {% if can_edit_selected_school_group %}
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save School</button>
                     {% endif %}
                 </form>
-                {% if can("schools.delete") %}
+                {% if can_delete_selected_school_group %}
                 <div class="danger-zone">
                     <div>
                         <strong>Delete School</strong>
@@ -247,17 +247,17 @@
                     </div>
                     <div class="collapsible-summary-actions">
                         <span class="status-pill">{{ school_branch_rows|length }} branch{{ "" if school_branch_rows|length == 1 else "es" }}</span>
-                        {% if branch_capacity.subscription_managed and branch_capacity.entitlement_resolution_status == "resolved" %}
+                        {% if branch_capacity.show_capacity and branch_capacity.resolution_status == "resolved" and branch_capacity.branch_limit is not none %}
                         <span class="status-pill {% if branch_capacity.is_over_capacity %}is-warning{% elif branch_capacity.is_at_capacity %}is-muted{% else %}is-success{% endif %}">
-                            {{ branch_capacity.active_branch_count }}/{{ branch_capacity.paid_branch_quantity }} active
+                            Branches: {{ branch_capacity.branch_usage }} of {{ branch_capacity.branch_limit }} used
                         </span>
                         {% endif %}
                         <span class="action-btn action-btn-secondary" data-branch-collapse-label>Expand</span>
                     </div>
                 </summary>
                 <div class="collapsible-body">
-                {% if branch_capacity.subscription_managed %}
-                    {% if branch_capacity.entitlement_resolution_status != "resolved" %}
+                {% if branch_capacity.show_capacity %}
+                    {% if branch_capacity.resolution_status != "resolved" or branch_capacity.branch_limit is none %}
                     <div class="capacity-notice is-unavailable" data-branch-capacity-state="unavailable">
                         <div class="capacity-notice-copy">
                             <strong>Branch capacity unavailable</strong>
@@ -268,27 +268,27 @@
                     <div class="capacity-notice is-warning" data-branch-capacity-state="over">
                         <div class="capacity-notice-copy">
                             <strong>Confirmed branch capacity exceeded</strong>
-                            <p>Your organization has {{ branch_capacity.active_branch_count }} active branches and confirmed paid capacity for {{ branch_capacity.paid_branch_quantity }}. Existing branches remain unchanged.</p>
+                            <p>Your organization has {{ branch_capacity.branch_usage }} active branches and commercial capacity for {{ branch_capacity.branch_limit }}. Existing branches remain unchanged.</p>
                         </div>
-                        {% if can_any("branches.create", "branches.activate_deactivate") %}
+                        {% if branch_capacity.can_increase_capacity and can_any("branches.create", "branches.activate_deactivate") %}
                         <a class="action-btn action-btn-primary" href="/saas/subscription">Increase Branch Capacity</a>
                         {% endif %}
                     </div>
                     {% elif branch_capacity.is_at_capacity %}
                     <div class="capacity-notice" data-branch-capacity-state="at-capacity">
                         <div class="capacity-notice-copy">
-                            <strong>All paid branch capacity is in use</strong>
-                            <p>Your subscription currently covers {{ branch_capacity.paid_branch_quantity }} active branches. Increase branch capacity from Subscription Management to add another branch.</p>
+                            <strong>Branch capacity reached</strong>
+                            <p>Branches: {{ branch_capacity.branch_usage }} of {{ branch_capacity.branch_limit }} used.</p>
                         </div>
-                        {% if can_any("branches.create", "branches.activate_deactivate") %}
+                        {% if branch_capacity.can_increase_capacity and can_any("branches.create", "branches.activate_deactivate") %}
                         <a class="action-btn action-btn-primary" href="/saas/subscription">Increase Branch Capacity</a>
                         {% endif %}
                     </div>
                     {% else %}
                     <div class="capacity-notice" data-branch-capacity-state="available">
                         <div class="capacity-notice-copy">
-                            <strong>{{ branch_capacity.remaining_paid_capacity }} branch seat{% if branch_capacity.remaining_paid_capacity != 1 %}s{% endif %} available</strong>
-                            <p>Your confirmed subscription capacity is ready for another active branch.</p>
+                            <strong>{{ branch_capacity.remaining_capacity }} branch seat{% if branch_capacity.remaining_capacity != 1 %}s{% endif %} available</strong>
+                            <p>Branches: {{ branch_capacity.branch_usage }} of {{ branch_capacity.branch_limit }} used.</p>
                         </div>
                     </div>
                     {% endif %}

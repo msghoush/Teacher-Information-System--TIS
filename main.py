@@ -12064,6 +12064,34 @@ def _can_manage_all_school_scopes(db: Session, current_user) -> bool:
     )
 
 
+def _can_create_school_groups(db: Session, current_user) -> bool:
+    return bool(
+        auth.is_platform_user(current_user)
+        and auth.has_permission(db, current_user, "schools.create")
+        and auth.has_permission(db, current_user, "schools.manage_all_schools")
+    )
+
+
+def _can_edit_school_group(
+    db: Session,
+    current_user,
+    school_group_id: int,
+) -> bool:
+    if not auth.has_permission(db, current_user, "schools.edit"):
+        return False
+    if auth.is_platform_user(current_user):
+        return auth.has_permission(db, current_user, "schools.manage_all_schools")
+    return _get_user_school_group_id(db, current_user) == school_group_id
+
+
+def _can_delete_school_groups(db: Session, current_user) -> bool:
+    return bool(
+        auth.is_platform_user(current_user)
+        and auth.has_permission(db, current_user, "schools.delete")
+        and auth.has_permission(db, current_user, "schools.manage_all_schools")
+    )
+
+
 def _can_manage_global_role_permissions(db: Session, current_user) -> bool:
     return auth.has_permission(
         db,
@@ -12331,14 +12359,15 @@ def _build_school_management_context(request: Request, db: Session, current_user
     school_academic_year_rows = []
     school_branch_rows = []
     branch_capacity = {
-        "subscription_managed": False,
-        "entitlement_resolution_status": "not_applicable",
-        "paid_branch_quantity": None,
-        "active_branch_count": 0,
-        "remaining_paid_capacity": None,
+        "show_capacity": False,
+        "resolution_status": "not_applicable",
+        "branch_limit": None,
+        "branch_usage": 0,
+        "remaining_capacity": None,
         "is_at_capacity": False,
         "is_over_capacity": False,
         "can_add_active_branch": True,
+        "can_increase_capacity": False,
     }
     if school_group_id:
         school_academic_year_rows = _build_academic_year_configuration_rows(
@@ -12350,21 +12379,47 @@ def _build_school_management_context(request: Request, db: Session, current_user
             for row in _build_branch_configuration_rows(db)
             if row.get("school_group_id") == school_group_id
         ]
-        capacity_resolution = entitlement_service.resolve_branch_capacity(
+        capacity_resolution = commercial_authority_service.resolve_commercial_authority(
             db,
             school_group_id,
         )
-        if capacity_resolution is not None:
-            branch_capacity = {
-                "subscription_managed": True,
-                "entitlement_resolution_status": capacity_resolution.resolution_status,
-                "paid_branch_quantity": capacity_resolution.paid_branch_quantity,
-                "active_branch_count": capacity_resolution.active_branch_count,
-                "remaining_paid_capacity": capacity_resolution.remaining_paid_capacity,
-                "is_at_capacity": capacity_resolution.is_at_capacity,
-                "is_over_capacity": capacity_resolution.is_over_capacity,
-                "can_add_active_branch": capacity_resolution.can_add_active_branch,
-            }
+        branch_limit = capacity_resolution.limits.branches
+        branch_usage = capacity_resolution.usage.branches
+        is_metered = not capacity_resolution.limits.unmetered
+        can_add_active_branch = bool(
+            capacity_resolution.resolved
+            and capacity_resolution.access_allowed
+            and (
+                capacity_resolution.limits.unmetered
+                or (branch_limit is not None and branch_usage < branch_limit)
+            )
+        )
+        branch_capacity = {
+            "show_capacity": is_metered,
+            "resolution_status": capacity_resolution.resolution_status,
+            "branch_limit": branch_limit,
+            "branch_usage": branch_usage,
+            "remaining_capacity": (
+                capacity_resolution.remaining.branches
+                if branch_limit is not None
+                else None
+            ),
+            "is_at_capacity": bool(
+                capacity_resolution.resolved
+                and branch_limit is not None
+                and branch_usage == branch_limit
+            ),
+            "is_over_capacity": bool(
+                capacity_resolution.resolved
+                and branch_limit is not None
+                and branch_usage > branch_limit
+            ),
+            "can_add_active_branch": can_add_active_branch,
+            "can_increase_capacity": (
+                capacity_resolution.source
+                == commercial_authority_service.PAID_SUBSCRIPTION
+            ),
+        }
     return {
         **context,
         "school_academic_year_rows": school_academic_year_rows,
@@ -12376,6 +12431,14 @@ def _build_school_management_context(request: Request, db: Session, current_user
             key=str.casefold,
         ),
         "school_delete_summary": _build_school_delete_summary(db, school_group_id),
+        "can_create_school_group": _can_create_school_groups(db, current_user),
+        "can_edit_selected_school_group": bool(
+            school_group_id
+            and _can_edit_school_group(db, current_user, school_group_id)
+        ),
+        "can_delete_selected_school_group": bool(
+            school_group_id and _can_delete_school_groups(db, current_user)
+        ),
     }
 
 
@@ -12713,6 +12776,15 @@ def create_school_group(
     current_user, redirect_response = _get_configuration_access(request, db)
     if redirect_response:
         return redirect_response
+    if not _can_create_school_groups(db, current_user):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("schools.create", "schools.manage_all_schools"),
+            page_key="system-configuration",
+            message="Only authorized platform users can create school organizations.",
+        )
 
     cleaned_name = " ".join(str(name or "").split())
     if not cleaned_name:
@@ -12809,6 +12881,14 @@ def update_school_group(
     current_user, redirect_response = _get_configuration_access(request, db)
     if redirect_response:
         return redirect_response
+    if not _can_edit_school_group(db, current_user, school_group_id):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("schools.edit",),
+            page_key="system-configuration",
+        )
 
     school_group = db.query(models.SchoolGroup).filter(
         models.SchoolGroup.id == school_group_id
@@ -12871,6 +12951,15 @@ def delete_school_group(
     current_user, redirect_response = _get_configuration_access(request, db)
     if redirect_response:
         return redirect_response
+    if not _can_delete_school_groups(db, current_user):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=("schools.delete", "schools.manage_all_schools"),
+            page_key="system-configuration",
+            message="Only authorized platform users can delete school organizations.",
+        )
 
     safe_return_to = _safe_redirect_path(return_to)
     school_group = db.query(models.SchoolGroup).filter(
@@ -14339,6 +14428,7 @@ def update_branch(
         )
 
     active_branch_count = db.query(models.Branch).filter(
+        models.Branch.school_group_id == branch_row.school_group_id,
         models.Branch.status == True
     ).count()
     if (

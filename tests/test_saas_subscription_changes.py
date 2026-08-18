@@ -444,7 +444,8 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         body = self._school_management_body(fixture)
 
         self.assertIn('data-branch-capacity-state="at-capacity"', body)
-        self.assertIn("currently covers 4 active branches", body)
+        self.assertIn("Branches: 4 of 4 used", body)
+        self.assertIn("Branch capacity reached", body)
         self.assertIn('href="/saas/subscription"', body)
         self.assertIn("Increase Branch Capacity", body)
         self.assertNotIn('action="/system-configuration/branches"', body)
@@ -454,7 +455,7 @@ class SaaSSubscriptionChangeTests(unittest.TestCase):
         fixture = self._fixture(quantity=4, active_branches=5)
         body = self._school_management_body(fixture)
         self.assertIn('data-branch-capacity-state="over"', body)
-        self.assertIn("5 active branches and confirmed paid capacity for 4", body)
+        self.assertIn("5 active branches and commercial capacity for 4", body)
         self.assertNotIn('action="/system-configuration/branches"', body)
 
         db = self.Session()

@@ -290,7 +290,7 @@ class PlatformAccessTests(unittest.TestCase):
         ])
         self.db.commit()
 
-    def _activate_promo_for_group(self, *, allowed_branches: int):
+    def _activate_promo_for_group(self, *, allowed_branches: int, selected_branches=None):
         self.group_a.workspace_classification = "customer"
         self.group_a.workspace_lifecycle_status = "active"
         email = f"promo-{uuid.uuid4().hex}@capacity.example"
@@ -372,7 +372,8 @@ class PlatformAccessTests(unittest.TestCase):
                 link_type="tenant_owner",
             ),
         ))
-        for branch in (self.branch_a1, self.branch_a2):
+        selected_branches = tuple(selected_branches or (self.branch_a1, self.branch_a2))
+        for branch in selected_branches:
             self.db.add_all((
                 saas_models.PromoGrantBranchAssignment(
                     promo_grant_id=grant.id,
@@ -417,6 +418,436 @@ class PlatformAccessTests(unittest.TestCase):
             "app": main.app,
         }
         return Request(scope)
+
+    def _school_management_body(self, user=None) -> str:
+        response = main.system_configuration_schools(
+            request=self._request(
+                "/system-configuration/schools",
+                user or self.branch_user,
+                self.branch_a1,
+                self.year_a,
+                organization=self.group_a,
+            ),
+            db=self.db,
+        )
+        self.assertEqual(response.status_code, 200)
+        return bytes(response.body).decode("utf-8")
+
+    @staticmethod
+    def _submitted_location():
+        return SimpleNamespace(
+            country_code="LB",
+            country_name="Lebanon",
+            region_name="Beirut",
+            city_name="Beirut",
+        )
+
+    def test_tenant_administrator_cannot_see_or_post_school_creation_even_with_stale_permission(self):
+        body = self._school_management_body()
+        self.assertNotIn("NEW SCHOOL / ORGANIZATION", body.upper())
+        self.assertNotIn("Create School", body)
+
+        group_count = self.db.query(models.SchoolGroup).count()
+        branch_count = self.db.query(models.Branch).count()
+        link_count = self.db.query(saas_models.TenantProvisioningLink).count()
+        entitlement_count = self.db.query(saas_models.WorkspaceEntitlement).count()
+        with (
+            patch("auth.has_permission", return_value=True),
+            patch("main.branding_storage.ensure_organization_logo_dir") as storage,
+        ):
+            response = main.create_school_group(
+                request=self._request(
+                    "/system-configuration/schools",
+                    self.branch_user,
+                    self.branch_a1,
+                    self.year_a,
+                    method="POST",
+                    organization=self.group_a,
+                ),
+                name="Unauthorized School",
+                country_code="LB",
+                region_id="",
+                region_manual="Beirut",
+                city_id="",
+                city_manual="Beirut",
+                district_name="",
+                neighborhood_name="",
+                return_to="/system-configuration/schools",
+                db=self.db,
+            )
+
+        self.assertEqual(response.status_code, 403)
+        storage.assert_not_called()
+        self.assertEqual(self.db.query(models.SchoolGroup).count(), group_count)
+        self.assertEqual(self.db.query(models.Branch).count(), branch_count)
+        self.assertEqual(self.db.query(saas_models.TenantProvisioningLink).count(), link_count)
+        self.assertEqual(self.db.query(saas_models.WorkspaceEntitlement).count(), entitlement_count)
+
+    def test_platform_owner_can_create_school_group(self):
+        with (
+            patch("main._resolve_submitted_location", return_value=self._submitted_location()),
+            patch("main.branding_storage.ensure_organization_logo_dir") as storage,
+        ):
+            response = main.create_school_group(
+                request=self._request(
+                    "/system-configuration/schools",
+                    self.platform_owner,
+                    method="POST",
+                ),
+                name="Owner Created Sandbox",
+                country_code="LB",
+                region_id="",
+                region_manual="",
+                city_id="",
+                city_manual="",
+                district_name="",
+                neighborhood_name="",
+                return_to="/system-configuration/schools",
+                db=self.db,
+            )
+
+        self.assertEqual(response.status_code, 302)
+        created = self.db.query(models.SchoolGroup).filter_by(name="Owner Created Sandbox").one()
+        storage.assert_called_once_with(created.id)
+        self.assertEqual(
+            self.db.query(models.Branch).filter_by(school_group_id=created.id).count(),
+            1,
+        )
+
+    def test_platform_developer_requires_explicit_global_school_capability(self):
+        developer = models.User(
+            user_id="9010",
+            username="scoped_developer",
+            email="scoped-developer@example.com",
+            password=auth.get_password_hash("password123"),
+            is_active=True,
+            user_type=auth.USER_TYPE_PLATFORM,
+            platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+            access_scope=auth.ACCESS_SCOPE_GLOBAL,
+            platform_permissions_initialized=True,
+        )
+        self.db.add(developer)
+        self.db.flush()
+        for key in ("schools.view", "schools.create"):
+            self.db.add(models.PlatformUserPermission(
+                platform_user_id=developer.id,
+                permission_key=key,
+                is_allowed=True,
+            ))
+        self.db.commit()
+
+        request = self._request("/system-configuration/schools", developer, method="POST")
+        denied = main.create_school_group(
+            request=request,
+            name="Developer Denied Sandbox",
+            country_code="LB",
+            region_id="",
+            region_manual="Beirut",
+            city_id="",
+            city_manual="Beirut",
+            district_name="",
+            neighborhood_name="",
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+        self.assertEqual(denied.status_code, 403)
+
+        self.db.add(models.PlatformUserPermission(
+            platform_user_id=developer.id,
+            permission_key="schools.manage_all_schools",
+            is_allowed=True,
+        ))
+        self.db.commit()
+        developer._permission_cache = {}
+        with (
+            patch("main._resolve_submitted_location", return_value=self._submitted_location()),
+            patch("main.branding_storage.ensure_organization_logo_dir"),
+        ):
+            allowed = main.create_school_group(
+                request=request,
+                name="Developer Allowed Sandbox",
+                country_code="LB",
+                region_id="",
+                region_manual="",
+                city_id="",
+                city_manual="",
+                district_name="",
+                neighborhood_name="",
+                return_to="/system-configuration/schools",
+                db=self.db,
+            )
+        self.assertEqual(allowed.status_code, 302)
+
+    def test_tenant_school_update_is_scoped_and_school_delete_is_platform_only(self):
+        original_a_name = self.group_a.name
+        original_b_name = self.group_b.name
+        foreign_update = main.update_school_group(
+            school_group_id=self.group_b.id,
+            request=self._request(
+                f"/system-configuration/schools/{self.group_b.id}",
+                self.branch_user,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+                organization=self.group_a,
+            ),
+            name="Cross Tenant Rename",
+            status="inactive",
+            country_code="",
+            region_id="",
+            region_manual="",
+            city_id="",
+            city_manual="",
+            district_name="",
+            neighborhood_name="",
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+        own_delete = main.delete_school_group(
+            school_group_id=self.group_a.id,
+            request=self._request(
+                f"/system-configuration/schools/{self.group_a.id}/delete",
+                self.branch_user,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+                organization=self.group_a,
+            ),
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+        foreign_delete = main.delete_school_group(
+            school_group_id=self.group_b.id,
+            request=self._request(
+                f"/system-configuration/schools/{self.group_b.id}/delete",
+                self.branch_user,
+                self.branch_a1,
+                self.year_a,
+                method="POST",
+                organization=self.group_a,
+            ),
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+
+        self.assertEqual(foreign_update.status_code, 403)
+        self.assertEqual(own_delete.status_code, 403)
+        self.assertEqual(foreign_delete.status_code, 403)
+        self.db.refresh(self.group_a)
+        self.db.refresh(self.group_b)
+        self.assertEqual(self.group_a.name, original_a_name)
+        self.assertEqual(self.group_b.name, original_b_name)
+
+    def test_platform_owner_can_update_and_delete_school_group(self):
+        target = models.SchoolGroup(name="Platform Managed School", status=True)
+        self.db.add(target)
+        self.db.flush()
+        target_branch = models.Branch(
+            name="Platform Managed School",
+            school_group_id=target.id,
+            status=True,
+        )
+        self.db.add(target_branch)
+        self.db.commit()
+
+        updated = main.update_school_group(
+            school_group_id=target.id,
+            request=self._request(
+                f"/system-configuration/schools/{target.id}",
+                self.platform_owner,
+                method="POST",
+            ),
+            name="Platform Managed School Updated",
+            status="active",
+            country_code="",
+            region_id="",
+            region_manual="",
+            city_id="",
+            city_manual="",
+            district_name="",
+            neighborhood_name="",
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+        self.assertEqual(updated.status_code, 302)
+        self.db.refresh(target)
+        self.assertEqual(target.name, "Platform Managed School Updated")
+
+        deleted = main.delete_school_group(
+            school_group_id=target.id,
+            request=self._request(
+                f"/system-configuration/schools/{target.id}/delete",
+                self.platform_owner,
+                method="POST",
+            ),
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+        self.assertEqual(deleted.status_code, 302)
+        self.assertIsNone(self.db.get(models.SchoolGroup, target.id))
+        self.assertEqual(
+            self.db.query(models.Branch).filter_by(school_group_id=target.id).count(),
+            0,
+        )
+
+    def test_promo_school_management_capacity_is_source_aware_at_four_of_four(self):
+        extra = (
+            models.Branch(name="A3", school_group_id=self.group_a.id, status=True),
+            models.Branch(name="A4", school_group_id=self.group_a.id, status=True),
+        )
+        self.db.add_all(extra)
+        self.db.flush()
+        self._activate_promo_for_group(
+            allowed_branches=4,
+            selected_branches=(self.branch_a1, self.branch_a2, *extra),
+        )
+
+        body = self._school_management_body()
+
+        self.assertIn("Branches: 4 of 4 used", body)
+        self.assertIn("Branch capacity reached", body)
+        self.assertNotIn("subscription capacity unavailable", body.lower())
+        self.assertNotIn('action="/system-configuration/branches"', body)
+        self.assertNotIn("Increase Branch Capacity", body)
+
+    def test_promo_four_of_five_can_create_fifth_branch_atomically(self):
+        extra = (
+            models.Branch(name="A3", school_group_id=self.group_a.id, status=True),
+            models.Branch(name="A4", school_group_id=self.group_a.id, status=True),
+        )
+        self.db.add_all(extra)
+        self.db.flush()
+        promo = self._activate_promo_for_group(
+            allowed_branches=5,
+            selected_branches=(self.branch_a1, self.branch_a2, *extra),
+        )
+        body = self._school_management_body()
+        self.assertIn("Branches: 4 of 5 used", body)
+        self.assertIn('action="/system-configuration/branches"', body)
+
+        with patch("main._resolve_submitted_location", return_value=self._submitted_location()):
+            response = main.create_branch(
+                request=self._request(
+                    "/system-configuration/branches",
+                    self.branch_user,
+                    self.branch_a1,
+                    self.year_a,
+                    method="POST",
+                    organization=self.group_a,
+                ),
+                name="Promo Fifth Branch",
+                region="",
+                country_code="LB",
+                region_id="",
+                region_manual="",
+                city_id="",
+                city_manual="",
+                district_name="",
+                neighborhood_name="",
+                school_group_id=self.group_b.id,
+                return_to="/system-configuration/schools",
+                db=self.db,
+            )
+        self.assertEqual(response.status_code, 302)
+        branch = self.db.query(models.Branch).filter_by(name="Promo Fifth Branch").one()
+        self.assertEqual(branch.school_group_id, self.group_a.id)
+        self.assertEqual(
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                promo_grant_id=promo.grant.id,
+                branch_id=branch.id,
+            ).count(),
+            1,
+        )
+        entitlement = self.db.query(saas_models.BranchEntitlement).filter_by(
+            workspace_entitlement_id=promo.workspace.id,
+            branch_id=branch.id,
+        ).one()
+        self.assertEqual(entitlement.entitlement_mode, "active")
+
+    def test_promo_four_of_four_direct_branch_post_changes_nothing(self):
+        extra = (
+            models.Branch(name="A3", school_group_id=self.group_a.id, status=True),
+            models.Branch(name="A4", school_group_id=self.group_a.id, status=True),
+        )
+        self.db.add_all(extra)
+        self.db.flush()
+        promo = self._activate_promo_for_group(
+            allowed_branches=4,
+            selected_branches=(self.branch_a1, self.branch_a2, *extra),
+        )
+        before = (
+            self.db.query(models.Branch).filter_by(school_group_id=self.group_a.id).count(),
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                promo_grant_id=promo.grant.id
+            ).count(),
+            self.db.query(saas_models.BranchEntitlement).filter_by(
+                workspace_entitlement_id=promo.workspace.id
+            ).count(),
+        )
+        with patch("main._resolve_submitted_location", return_value=self._submitted_location()):
+            response = main.create_branch(
+                request=self._request(
+                    "/system-configuration/branches",
+                    self.branch_user,
+                    self.branch_a1,
+                    self.year_a,
+                    method="POST",
+                    organization=self.group_a,
+                ),
+                name="Blocked Promo Fifth",
+                region="",
+                country_code="LB",
+                region_id="",
+                region_manual="",
+                city_id="",
+                city_manual="",
+                district_name="",
+                neighborhood_name="",
+                school_group_id=self.group_b.id,
+                return_to="/system-configuration/schools",
+                db=self.db,
+            )
+        after = (
+            self.db.query(models.Branch).filter_by(school_group_id=self.group_a.id).count(),
+            self.db.query(saas_models.PromoGrantBranchAssignment).filter_by(
+                promo_grant_id=promo.grant.id
+            ).count(),
+            self.db.query(saas_models.BranchEntitlement).filter_by(
+                workspace_entitlement_id=promo.workspace.id
+            ).count(),
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(after, before)
+
+    def test_last_active_branch_guard_is_scoped_to_target_school_group(self):
+        response = main.update_branch(
+            branch_id=self.branch_b1.id,
+            request=self._request(
+                f"/system-configuration/branches/{self.branch_b1.id}",
+                self.tenant_b,
+                self.branch_b1,
+                self.year_b,
+                method="POST",
+                organization=self.group_b,
+            ),
+            name=self.branch_b1.name,
+            region="",
+            country_code="",
+            region_id="",
+            region_manual="",
+            city_id="",
+            city_manual="",
+            district_name="",
+            neighborhood_name="",
+            status="inactive",
+            return_to="/system-configuration/schools",
+            db=self.db,
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("At+least+one+active+branch", response.headers["location"])
+        self.db.refresh(self.branch_b1)
+        self.assertTrue(self.branch_b1.status)
 
     def test_platform_owner_can_switch_across_organizations(self):
         request = self._request(

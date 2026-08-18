@@ -1,7 +1,7 @@
 ---
 title: Provisioning History
 module: provisioning
-last_updated: 2026-06-26
+last_updated: 2026-08-18
 ---
 
 # Provisioning History
@@ -19,6 +19,17 @@ Related files:
 - `saas/service.py`
 - `saas/router.py`
 - `templates/saas/admin_provisioning.html`
+
+## 2026-08-18 - SchoolGroup Operational Creation Boundary
+
+Direct operational SchoolGroup creation and deletion now require Platform identity
+and explicit global SchoolGroup-management capability. Tenant role defaults no
+longer include these actions, stale permissions cannot cross the handler boundary,
+and tenant updates accept only the linked SchoolGroup. Approved paid, demo, promo,
+and conversion provisioning paths are unchanged. A separate PostgreSQL-only
+read-only provenance audit reports active internal sandboxes missing tenant-link and
+explicit entitlement evidence for later Platform Owner review; it performs no
+remediation.
 
 ## 2026-07-22 - Lifecycle-Aware Platform Owner Queue
 

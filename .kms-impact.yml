@@ -1,7 +1,19 @@
-knowledge_impact: no
-summary: Correct the reusable branding editor's responsive layout when its optional school-group selector is absent.
+knowledge_impact: yes
+summary: Enforce platform-only top-level SchoolGroup creation and deletion, tenant-scoped updates, and source-aware School Management branch capacity.
 affected_areas:
-  - branding-editor-layout
+  - schoolgroup-authorization
+  - tenant-isolation
+  - commercial-capacity-presentation
+  - workspace-provenance-audit
 kms_files_updated:
-no_impact_reason: This corrects an existing branding editor layout defect without changing workflows, permissions, branding business rules, services, APIs, schema, storage, or the reusable editor architecture.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/engineering/REPOSITORY_ARCHITECTURE.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/history/provisioning/README.md
+no_impact_reason:
+major_change_override: no
