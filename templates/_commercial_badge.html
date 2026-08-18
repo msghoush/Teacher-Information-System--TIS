@@ -1,0 +1,13 @@
+{% from "_app_icons.html" import icon %}
+{% macro commercial_badge(badge, mode="compact") -%}
+{% if badge %}
+<span class="commercial-badge commercial-badge--{{ mode }} commercial-badge--{{ badge.source_tone }} commercial-badge--{{ badge.status_tone }} commercial-badge--plan-{{ badge.plan_tone }}" aria-label="{{ badge.aria_label }}" data-commercial-source="{{ badge.source }}" data-commercial-status="{{ badge.status_tone }}">
+    <span class="commercial-badge__icon">{{ icon(badge.icon, "commercial-badge__svg") }}</span>
+    <span class="commercial-badge__copy">
+        <strong>{{ badge.access_label }}</strong>
+        <span class="commercial-badge__status">{{ badge.status_label }}</span>
+        {% if badge.plan_name %}<span class="commercial-badge__plan">{{ badge.plan_name }}</span>{% endif %}
+    </span>
+</span>
+{% endif %}
+{%- endmacro %}

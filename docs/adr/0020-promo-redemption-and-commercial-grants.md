@@ -60,6 +60,12 @@ usage, limits, and remaining capacity and reads the attributable grant/redemptio
 only for effective dates and the masked reference. It must not query Paddle, expose
 paid-only controls, or move commercial decisions into templates.
 
+Operational grant access ends exactly at `PromoGrant.effective_to`.
+`grace_period_days` is a recovery and paid-continuation window only and is never
+added to the effective operational-access period. Request-time resolution derives
+active, recovery, or expired state without mutating the immutable grant history or
+tenant data.
+
 ## Consequences
 
 - Existing aligned organizations require a controlled prior classification and
@@ -71,8 +77,7 @@ paid-only controls, or move commercial decisions into templates.
   teacher capacity is never auto-reconciled.
 - Existing preserved branches always carry explicit active or inactive promo
   entitlement evidence.
-- Promo renewal, transfer, paid conversion, communication, and automated expiry
-  jobs remain deferred.
-- Promo customers can inspect current commercial access without fabricating a paid
-  subscription. A promo-to-paid action remains unavailable until a separately
-  approved provider-authoritative conversion workflow exists.
+- Promo renewal, transfer, communication, automated expiry jobs, and active-promo
+  early conversion remain deferred.
+- Expired and recovery-period promo authority may enter the separately governed,
+  provider-authoritative existing-workspace paid continuation in ADR 0024.

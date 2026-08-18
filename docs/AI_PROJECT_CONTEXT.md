@@ -137,9 +137,23 @@ subscription portal, demo authority keeps its dedicated journey, and promo autho
 uses `commercial_portal_service` to compose the central commercial authority with
 only attributable immutable promo metadata. The promo page shows the grant plan,
 safe status and dates, masked reference, and authoritative branch/system-user/teacher
-capacity. It exposes no recurring billing, invoice, cancellation, plan-change, or
-quantity-change controls. Promo-to-paid conversion remains a separate unimplemented
-commercial milestone.
+capacity. Operational promo access ends exactly at `PromoGrant.effective_to`;
+`grace_period_days` is only a recovery window for Organization Account and paid
+continuation and never extends operational access.
+
+An expired or recovery-period promo owned by a verified tenant owner can enter the
+existing-workspace paid activation flow. Checkout preparation and pending payment do
+not change promo authority. Only verified provider completion locks and revalidates
+the tenant, quote, capacity, promo source, and paid evidence, then atomically ends the
+promo entitlement, relinks the existing tenant source to the paid contract, creates
+paid workspace/branch entitlements, and preserves the SchoolGroup, workspace UUID,
+branches, users, teachers, data, branding, and immutable promo history. Active-promo
+early conversion remains blocked because promotional value is not paid credit.
+
+`commercial_badge_service` converts centralized commercial access into one reusable,
+source-aware Promo, Demo, or Paid badge view model. Operational and Organization
+Account templates render that prepared identity and never infer authority from a
+historical contract, grant, plan, or subscription row.
 
 ## M2 Promo Code Foundation
 

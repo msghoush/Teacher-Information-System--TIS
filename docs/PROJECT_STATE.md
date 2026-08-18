@@ -75,9 +75,18 @@ Organization Account Billing & Subscription now selects its presentation from th
 authoritative commercial source. Promo-backed customers receive a first-class
 Commercial Access page showing their immutable grant plan and period, safe active or
 expired status, masked promo reference, and M1-resolved branch, system-user, and
-teacher capacity. Paid subscription and demo pages remain separate. Promo pages make
-no Paddle or billing-history call and expose no paid plan, quantity, cancellation, or
-invoice action. Promo-to-paid conversion remains deferred.
+teacher capacity. Paid subscription and demo pages remain separate. Operational promo
+access now ends exactly at `effective_to`; grace days are represented as recovery only
+and do not authorize tenant operations.
+
+Expired and recovery-period promo workspaces can continue with a paid subscription
+through M4C existing-workspace activation. Promo authority is unchanged until a
+verified completed Paddle transaction. Completion reuses the tenant and atomically
+ends promo entitlement authority, relinks the existing tenant source to the paid
+contract, establishes paid workspace and branch entitlements, and retains promo
+history. Active promos cannot convert early. A shared source/plan/status badge now
+identifies Promo, Demo, and Paid authority in the operational header, Organization
+Account, and the detailed commercial page.
 
 ## Promo Code Foundation And Platform Management
 

@@ -116,7 +116,23 @@ recounting capacity, then resolves the attributable `PromoGrant` and
 `PromoRedemption` only for immutable dates and the masked promo reference. The SaaS
 subscription route selects this adapter by authoritative source before invoking the
 paid portal. Promo, paid, and demo view models remain separate; Jinja templates do
-not decide commercial authority and the promo view has no Paddle-backed actions.
+not decide commercial authority. The promo view exposes the existing-workspace paid
+continuation entry only when `existing_workspace_paid_activation_service` proves an
+expired or recovery-period promo source and verified tenant owner.
+
+`promo_grant_service` derives active, recovery, and expired time states. Recovery is
+presentation/conversion eligibility only; commercial access remains blocked from the
+exact expiry timestamp. `existing_workspace_paid_activation_service` owns the locked,
+provider-confirmed promo-to-paid transition. It keeps promo authority during checkout
+and atomically moves the existing `TenantProvisioningLink`, workspace entitlement,
+and branch entitlements to the confirmed paid contract/subscription at completion.
+No replacement tenant or synthetic onboarding organization is created.
+
+`saas/commercial_badge_service.py` is the sole commercial identity presentation
+adapter. It accepts centralized commercial access, rejects unresolved placeholder
+sources, and returns semantic source, status, icon, and plan tokens for the reusable
+`templates/_commercial_badge.html` component. The operational shell uses compact
+mode; Organization Account and commercial access use full mode.
 
 ## Promo Definition Layer
 

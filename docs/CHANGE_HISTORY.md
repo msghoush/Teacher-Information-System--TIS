@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-18 - Completed Promo Expiry Recovery And Paid Continuation
+
+Promotional operational access now ends exactly at `PromoGrant.effective_to`.
+`grace_period_days` is a commercial recovery window for Organization Account and
+paid continuation only; it never extends operational access and does not archive or
+delete tenant data.
+
+Verified owners of expired or recovery-period promo workspaces can use the existing
+tenant paid-activation flow. Checkout and pending payment leave promo authority
+unchanged. Verified provider completion atomically ends the promo entitlement,
+relinks the existing tenant source to the paid contract, establishes paid workspace
+and branch entitlements, and preserves tenant identity, data, branding, ownership,
+and immutable promo history. Active-promo early conversion remains blocked.
+
+Added one authority-driven commercial badge component for Promo, Demo, and Paid
+sources across the operational header, Organization Account, and full commercial
+view. Expired promo access uses promo-specific continuation wording, and protected
+API responses return a customer-safe generic commercial code while internal reasons
+remain in server logs.
+
 ## 2026-08-18 - Added Promo-Aware Commercial Access Presentation
 
 Organization Account Billing & Subscription now selects paid, demo, or promo

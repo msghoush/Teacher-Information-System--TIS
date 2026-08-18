@@ -1,4 +1,5 @@
 {% extends "saas/base.html" %}
+{% from "_commercial_badge.html" import commercial_badge %}
 {% block content %}
 {% if notice %}<div class="notice" role="status">{{ notice }}</div>{% endif %}
 {% if organization_account %}
@@ -26,9 +27,13 @@
         <h1 id="organization-account-title">{{ access.workspace_name }}</h1>
         <p>Manage your organization details, branches, billing, and account security.</p>
     </div>
+    {% if organization_account.commercial_badge %}
+    {{ commercial_badge(organization_account.commercial_badge, "full") }}
+    {% else %}
     <span class="account-status{% if access.commercial_access.allowed_access %} is-active{% endif %}">
         {{ customer_status_label(access.commercial_access.commercial_state, "Account review") }}
     </span>
+    {% endif %}
 </section>
 
 {% if not access.commercial_access.allowed_access %}

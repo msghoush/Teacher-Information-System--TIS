@@ -1,0 +1,40 @@
+.commercial-badge {
+    --commercial-source: #315b86;
+    --commercial-source-soft: #edf4fb;
+    --commercial-status: #37644b;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    max-width: 100%;
+    min-height: 30px;
+    padding: 5px 10px;
+    border: 1px solid color-mix(in srgb, var(--commercial-source) 32%, #ffffff);
+    border-radius: 999px;
+    background: var(--commercial-source-soft);
+    color: var(--commercial-source);
+    font-size: 12px;
+    line-height: 1.2;
+    box-sizing: border-box;
+}
+.commercial-badge--promo { --commercial-source: #74551d; --commercial-source-soft: #fff8e8; }
+.commercial-badge--demo { --commercial-source: #285e78; --commercial-source-soft: #edf8fb; }
+.commercial-badge--paid { --commercial-source: #226047; --commercial-source-soft: #eef8f2; }
+.commercial-badge--warning { --commercial-status: #865f18; border-color: #dec48f; }
+.commercial-badge--review { --commercial-status: #7a3f35; border-color: #dfb7af; }
+.commercial-badge--info { --commercial-status: #315b86; }
+.commercial-badge--plan-professional { box-shadow: inset 0 0 0 1px rgba(49, 91, 134, .08); }
+.commercial-badge--plan-enterprise { box-shadow: inset 0 0 0 1px rgba(116, 85, 29, .14); }
+.commercial-badge__icon { display: inline-flex; flex: 0 0 auto; }
+.commercial-badge__svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.commercial-badge__copy { display: inline-flex; align-items: center; gap: 5px; min-width: 0; }
+.commercial-badge__copy strong { color: inherit; white-space: nowrap; }
+.commercial-badge__status { color: var(--commercial-status); font-weight: 700; white-space: nowrap; }
+.commercial-badge__status::before, .commercial-badge__plan::before { content: "\00b7"; margin-right: 5px; color: currentColor; opacity: .65; }
+.commercial-badge__plan { min-width: 0; color: #43566c; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.commercial-badge--full { min-height: 36px; padding: 7px 12px; font-size: 13px; }
+.commercial-badge--full .commercial-badge__svg { width: 18px; height: 18px; }
+@media (max-width: 640px) {
+    .commercial-badge { max-width: min(100%, 290px); }
+    .commercial-badge__copy { flex-wrap: wrap; row-gap: 2px; }
+    .commercial-badge__plan { max-width: 150px; }
+}

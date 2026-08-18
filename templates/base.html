@@ -1,4 +1,5 @@
 {% from "_app_icons.html" import icon %}
+{% from "_commercial_badge.html" import commercial_badge %}
 {% from "_tis_logo.html" import tis_logo, tis_logo_path with context %}
 <!DOCTYPE html>
 <html lang="en">
@@ -10,6 +11,7 @@
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', compact=true)) }}?v=20260620a">
     <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260622a">
     <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}?v=20260619a">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/commercial-badges.css') }}?v=20260818a">
     {% if shell.design_css %}
     <style>{{ shell.design_css | safe }}</style>
     {% endif %}
@@ -238,6 +240,9 @@
                         <span>{{ icon("school", "shell-icon") }} School</span>
                         <strong>{{ shell.school_group_name }}</strong>
                     </div>
+                    {% if shell.commercial_badge %}
+                    <div class="header-commercial-identity">{{ commercial_badge(shell.commercial_badge, "compact") }}</div>
+                    {% endif %}
                     <div class="header-chip">
                         <span>{{ icon("branch", "shell-icon") }} Branch / Campus</span>
                         <strong>{{ shell.branch_name }}</strong>

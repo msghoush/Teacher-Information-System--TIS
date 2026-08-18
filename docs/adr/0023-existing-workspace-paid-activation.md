@@ -48,6 +48,14 @@ The successful workspace remains classification `customer`; paid versus promo is
 represented by WorkspaceEntitlement and TenantProvisioningLink source. Lifecycle
 becomes `active` and operational access resolves through centralized services.
 
+The same aggregate supports a verified owner continuing an existing expired or
+recovery-period promo workspace. Promo authority remains unchanged through plan
+selection, checkout, and payment processing. On verified completion, the locked
+transaction revalidates the exact promo tenant link and entitlement, ends promo
+entitlement authority, relinks that same tenant link to the paid contract, establishes
+paid workspace and branch entitlements, and preserves immutable promo evidence.
+Active promo grants are not eligible for early conversion.
+
 # Consequences
 
 - Existing branches, users, teachers, academic records, branding, and tenant identity
@@ -67,5 +75,6 @@ becomes `active` and operational access resolves through centralized services.
   `provisioning` with no current attempt means Activation required, processing needs
   a current unexpired checkout-started or payment-processing attempt, and terminal
   attempts use recovery states.
-- Promo, normal onboarding payment, and demo-to-paid flows remain separate.
+- Normal onboarding payment and demo-to-paid flows remain separate. Promo-to-paid
+  reuses this aggregate only through the explicit source transition in ADR 0024.
 - The additive migration must be applied before deploying the routes and webhook path.

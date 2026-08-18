@@ -5,6 +5,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -28,6 +29,7 @@ from saas import (
     models,
     payment_service,
     promo_code_service,
+    promo_grant_service,
     promo_redemption_service,
     service,
 )
@@ -160,6 +162,88 @@ def _fixture(db, *, branches=5):
             price.provider_price_id = f"pri_{code}_{interval}"
     db.commit()
     return group, branch_rows, account, link, plans
+
+
+def _activate_promo(db, group, branches, account, owner_link, plan, *, expire=False):
+    os.environ.setdefault(
+        "TIS_PROMO_CODE_HMAC_SECRET",
+        "existing-workspace-promo-continuation-test-secret",
+    )
+    actor = operational_models.User(
+        user_id=f"P{uuid.uuid4().hex[:8]}",
+        username=f"promo-platform-{uuid.uuid4().hex}",
+        email=f"promo-platform-{uuid.uuid4().hex}@example.test",
+        user_type=auth.USER_TYPE_PLATFORM,
+        platform_role=auth.PLATFORM_ROLE_OWNER,
+        access_scope=auth.ACCESS_SCOPE_GLOBAL,
+        is_active=True,
+    )
+    db.add(actor)
+    db.flush()
+    now = datetime.now(timezone.utc)
+    with patch("saas.promo_code_service.audit.write_audit_event"):
+        created = promo_code_service.create_promo(
+            db,
+            actor=actor,
+            values={
+                "title": "Existing workspace continuation",
+                "subscription_plan_id": plan.id,
+                "max_branches": len(branches),
+                "max_system_users": 100,
+                "max_teachers": 500,
+                "scope_type": "organization",
+                "school_group_id": group.id,
+                "pending_organization_id": None,
+                "intended_account_email_normalized": account.email_normalized,
+                "permitted_email_domain_normalized": None,
+                "branch_ids": tuple(row.id for row in branches),
+                "transferable": False,
+                "one_redemption_per_organization": True,
+                "max_total_redemptions": 1,
+                "valid_from": now - timedelta(minutes=1),
+                "redemption_deadline": now + timedelta(days=2),
+                "fixed_access_expires_at": now + timedelta(days=30),
+                "access_duration_days": None,
+                "grace_period_days": 7,
+            },
+        )
+        promo_code_service.activate_promo(
+            db, promo_uuid=created.promo.promo_uuid, actor=actor
+        )
+    owner = db.get(operational_models.User, owner_link.operational_user_id)
+    review = promo_redemption_service.start_activation(
+        db,
+        account=account,
+        raw_code=created.raw_code,
+        school_group=group,
+        operational_user=owner,
+        idempotency_key=f"promo-start-{uuid.uuid4()}",
+    )
+    if review.selection_required:
+        review = promo_redemption_service.select_branches(
+            db,
+            activation_uuid=review.session.activation_uuid,
+            account=account,
+            branch_ids=[row.id for row in branches],
+        )
+    with patch("saas.promo_redemption_service.audit.write_audit_event"):
+        activated = promo_redemption_service.activate_promo(
+            db,
+            activation_uuid=review.session.activation_uuid,
+            account=account,
+            idempotency_key=f"promo-activate-{uuid.uuid4()}",
+        )
+    if expire:
+        expired_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=1)
+        effective_from = expired_at - timedelta(days=1)
+        activated.grant.effective_from = effective_from
+        activated.grant.effective_to = expired_at
+        activated.redemption.effective_from = effective_from
+        activated.redemption.effective_to = expired_at
+        activated.workspace_entitlement.effective_from = effective_from
+        activated.workspace_entitlement.effective_to = expired_at
+    db.commit()
+    return activated
 
 
 def _prepare(db, group, account, plan, *, interval="monthly"):
@@ -1189,6 +1273,298 @@ def test_completed_webhook_atomically_activates_existing_workspace(db, monkeypat
     access = commercial_access_service.resolve_workspace_access(db, group.id)
     assert access.allowed_access and access.current_plan_code == "professional"
     assert access.commercial_state == commercial_access_service.ACTIVE
+
+
+def test_active_promo_cannot_begin_early_paid_conversion(db):
+    group, branches, account, owner_link, plans = _fixture(db)
+    _activate_promo(
+        db, group, branches, account, owner_link, plans["enterprise_ai"]
+    )
+
+    eligibility = activation_service.resolve_eligibility(
+        db, school_group_id=group.id, account=account
+    )
+
+    assert not eligibility.eligible
+    assert eligibility.reason_code == "active_promo_not_convertible"
+    assert db.query(models.PaymentAttempt).count() == 0
+
+
+def test_expired_promo_recovery_allows_checkout_without_restoring_access(
+    db, monkeypatch
+):
+    group, branches, account, owner_link, plans = _fixture(db)
+    activated = _activate_promo(
+        db,
+        group,
+        branches,
+        account,
+        owner_link,
+        plans["enterprise_ai"],
+        expire=True,
+    )
+    grant_resolution = promo_grant_service.resolve_promo_grant(db, group.id)
+    assert grant_resolution.recovery_active
+    assert not commercial_access_service.resolve_workspace_access(db, group.id).allowed_access
+
+    activation = _prepare(db, group, account, plans["professional"])
+    assert activation.status == "checkout_ready"
+    assert db.query(models.PaymentAttempt).count() == 0
+    assert activated.grant.status == "active"
+    assert activated.workspace_entitlement.status == "active"
+    assert db.query(models.TenantProvisioningLink).filter_by(
+        school_group_id=group.id, promo_grant_id=activated.grant.id
+    ).one()
+
+    customer = _customer(db, account)
+    monkeypatch.setattr(
+        billing_identity_service,
+        "ensure_provider_workspace_billing_identity",
+        lambda *_args: (customer.provider_address_id, customer.provider_business_id),
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        lambda **kwargs: _billed_transaction(kwargs, transaction_id="txn_promo_pending"),
+    )
+    activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.test/saas/payment",
+    )
+    assert activated.grant.status == "active"
+    assert activated.workspace_entitlement.status == "active"
+    assert not commercial_access_service.resolve_workspace_access(db, group.id).allowed_access
+
+    activation_service.reconcile_webhook(
+        db,
+        {
+            "data": {
+                "id": "txn_promo_pending",
+                "custom_data": {
+                    "checkout_context": "existing_workspace_paid_activation",
+                    "paid_activation_uuid": activation.activation_uuid,
+                },
+            }
+        },
+        "transaction.payment_failed",
+    )
+    assert activated.grant.status == "active"
+    assert activated.workspace_entitlement.status == "active"
+    assert db.query(models.WorkspaceEntitlement).filter_by(
+        school_group_id=group.id, entitlement_type="paid", status="active"
+    ).count() == 0
+
+
+def test_confirmed_expired_promo_conversion_reuses_tenant_and_is_idempotent(
+    db, monkeypatch
+):
+    group, branches, account, owner_link, plans = _fixture(db)
+    academic_year = db.query(operational_models.AcademicYear).filter_by(
+        school_group_id=group.id, is_active=True
+    ).one()
+    db.add(operational_models.Teacher(
+        teacher_id="PROMO0001",
+        first_name="Preserved",
+        last_name="Teacher",
+        branch_id=branches[0].id,
+        academic_year_id=academic_year.id,
+    ))
+    db.flush()
+    activated = _activate_promo(
+        db,
+        group,
+        branches,
+        account,
+        owner_link,
+        plans["enterprise_ai"],
+        expire=True,
+    )
+    workspace_uuid = group.workspace_uuid
+    operational_ids = {
+        "groups": tuple(row.id for row in db.query(operational_models.SchoolGroup).all()),
+        "branches": tuple(row.id for row in branches),
+        "users": tuple(
+            row.id
+            for row in db.query(operational_models.User).filter_by(
+                school_group_id=group.id
+            ).all()
+        ),
+        "teachers": tuple(
+            row.id
+            for row in db.query(operational_models.Teacher)
+            .join(
+                operational_models.Branch,
+                operational_models.Branch.id == operational_models.Teacher.branch_id,
+            )
+            .filter(operational_models.Branch.school_group_id == group.id)
+            .all()
+        ),
+    }
+    activation = _prepare(db, group, account, plans["professional"])
+    customer = _customer(db, account)
+    monkeypatch.setattr(
+        billing_identity_service,
+        "ensure_provider_workspace_billing_identity",
+        lambda *_args: (customer.provider_address_id, customer.provider_business_id),
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        lambda **kwargs: _billed_transaction(kwargs, transaction_id="txn_promo_convert"),
+    )
+    activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.test/saas/payment",
+    )
+    attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+    activation._attempt_uuid = attempt.attempt_uuid
+    activation._account_uuid = account.account_uuid
+    payload = _completed_payload(
+        activation,
+        customer,
+        transaction_id="txn_promo_convert",
+        subscription_id="sub_promo_convert",
+    )
+
+    result = activation_service.reconcile_webhook(
+        db, {"data": payload}, "transaction.completed"
+    )
+    repeated = activation_service.reconcile_webhook(
+        db, {"data": payload}, "transaction.completed"
+    )
+
+    assert result["status"] == "processed"
+    assert repeated["deduplicated"] is True
+    assert group.workspace_uuid == workspace_uuid
+    assert activated.grant.status == "converted_to_paid"
+    assert activated.workspace_entitlement.status == "ended"
+    tenant_link = db.query(models.TenantProvisioningLink).filter_by(
+        school_group_id=group.id
+    ).one()
+    assert tenant_link.promo_grant_id is None
+    assert tenant_link.subscription_contract_id == activation.subscription_contract_id
+    assert db.query(models.WorkspaceEntitlement).filter_by(
+        school_group_id=group.id, entitlement_type="paid", status="active"
+    ).one()
+    assert db.query(models.WorkspaceEntitlement).filter_by(
+        school_group_id=group.id, entitlement_type="promo", status="active"
+    ).count() == 0
+    assert operational_ids == {
+        "groups": tuple(row.id for row in db.query(operational_models.SchoolGroup).all()),
+        "branches": tuple(row.id for row in db.query(operational_models.Branch).filter_by(
+            school_group_id=group.id
+        ).order_by(operational_models.Branch.id).all()),
+        "users": tuple(row.id for row in db.query(operational_models.User).filter_by(
+            school_group_id=group.id
+        ).all()),
+        "teachers": tuple(
+            row.id
+            for row in db.query(operational_models.Teacher)
+            .join(
+                operational_models.Branch,
+                operational_models.Branch.id == operational_models.Teacher.branch_id,
+            )
+            .filter(operational_models.Branch.school_group_id == group.id)
+            .all()
+        ),
+    }
+    access = commercial_access_service.resolve_workspace_access(db, group.id)
+    assert access.allowed_access
+    assert access.kind == "subscription"
+    assert access.current_plan_code == "professional"
+
+
+def test_promo_conversion_validation_failure_rolls_back_authority_transition(
+    db, monkeypatch
+):
+    group, branches, account, owner_link, plans = _fixture(db)
+    activated = _activate_promo(
+        db,
+        group,
+        branches,
+        account,
+        owner_link,
+        plans["enterprise_ai"],
+        expire=True,
+    )
+    original_branch_entitlements = tuple(
+        (row.id, row.workspace_entitlement_id, row.entitlement_mode)
+        for row in db.query(models.BranchEntitlement)
+        .filter_by(school_group_id=group.id)
+        .order_by(models.BranchEntitlement.id)
+        .all()
+    )
+    activation = _prepare(db, group, account, plans["professional"])
+    customer = _customer(db, account)
+    monkeypatch.setattr(
+        billing_identity_service,
+        "ensure_provider_workspace_billing_identity",
+        lambda *_args: (customer.provider_address_id, customer.provider_business_id),
+    )
+    monkeypatch.setattr(
+        activation_service.paddle_client,
+        "create_transaction",
+        lambda **kwargs: _billed_transaction(
+            kwargs, transaction_id="txn_promo_conversion_conflict"
+        ),
+    )
+    activation_service.launch_checkout(
+        db,
+        activation_uuid=activation.activation_uuid,
+        account=account,
+        checkout_url="https://app.test/saas/payment",
+    )
+    attempt = db.get(models.PaymentAttempt, activation.current_payment_attempt_id)
+    activation._attempt_uuid = attempt.attempt_uuid
+    activation._account_uuid = account.account_uuid
+    payload = _completed_payload(
+        activation,
+        customer,
+        transaction_id="txn_promo_conversion_conflict",
+        subscription_id="sub_promo_conversion_conflict",
+    )
+    monkeypatch.setattr(
+        "saas.entitlement_service.resolve_entitlements",
+        lambda *_args, **_kwargs: SimpleNamespace(
+            resolved=False,
+            subscription_id=None,
+            reason_code="forced_validation_conflict",
+        ),
+    )
+
+    result = activation_service.reconcile_webhook(
+        db, {"data": payload}, "transaction.completed"
+    )
+
+    assert result == {
+        "status": "manual_review",
+        "event_type": "transaction.completed",
+        "reason_code": "promo_paid_authority_validation_failed",
+    }
+    assert activated.grant.status == "active"
+    assert activated.workspace_entitlement.status == "active"
+    link = db.query(models.TenantProvisioningLink).filter_by(
+        school_group_id=group.id
+    ).one()
+    assert link.promo_grant_id == activated.grant.id
+    assert link.subscription_contract_id is None
+    assert db.query(models.WorkspaceEntitlement).filter_by(
+        school_group_id=group.id, entitlement_type="paid", status="active"
+    ).count() == 0
+    assert original_branch_entitlements == tuple(
+        (row.id, row.workspace_entitlement_id, row.entitlement_mode)
+        for row in db.query(models.BranchEntitlement)
+        .filter_by(school_group_id=group.id)
+        .order_by(models.BranchEntitlement.id)
+        .all()
+    )
+    assert not commercial_access_service.resolve_workspace_access(
+        db, group.id
+    ).allowed_access
 
 
 def test_pending_organization_payment_processing_mapping_is_unchanged(db):

@@ -28,10 +28,13 @@ class PromoCommercialPortalView:
     status_message: str
     effective_from_label: str
     effective_to_label: str
+    recovery_until_label: str
     masked_promo_reference: str
     access_active: bool
     capacity_available: bool
     capacities: tuple[PromoCapacityView, ...]
+    continuation_available: bool
+    continuation_url: str
 
 
 def _date_label(value: date | datetime | None) -> str:
@@ -66,6 +69,8 @@ def build_promo_commercial_portal(
     school_group_id: int,
     *,
     authority=None,
+    continuation_available: bool = False,
+    continuation_url: str = "",
 ) -> PromoCommercialPortalView:
     authority = authority or resolve_portal_authority(db, school_group_id)
     if authority.source != commercial_authority_service.PROMO_GRANT:
@@ -75,11 +80,19 @@ def build_promo_commercial_portal(
 
     promo = promo_grant_service.resolve_promo_grant(db, school_group_id)
     active = bool(authority.access_allowed and authority.resolved and promo.active)
+    recovery = bool(promo.recovery_active)
     expired = bool(promo.resolved and promo.status == "expired")
     if active:
         status_label = "Active"
         status_tone = "active"
         status_message = "Your promotional access is active."
+    elif recovery:
+        status_label = "Recovery Period"
+        status_tone = "recovery"
+        status_message = (
+            "Your promotional access period has ended. Operational access remains "
+            "blocked while you review continuation options for this existing workspace."
+        )
     elif expired:
         status_label = "Expired"
         status_tone = "expired"
@@ -128,8 +141,13 @@ def build_promo_commercial_portal(
         status_message=status_message,
         effective_from_label=_date_label(promo.effective_from or authority.effective_from),
         effective_to_label=_date_label(promo.effective_to or authority.effective_to),
+        recovery_until_label=(
+            _date_label(promo.recovery_until) if recovery else ""
+        ),
         masked_promo_reference=_promo_reference(db, promo),
         access_active=active,
         capacity_available=capacity_available,
         capacities=capacities,
+        continuation_available=bool(continuation_available),
+        continuation_url=str(continuation_url or ""),
     )

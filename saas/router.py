@@ -20,7 +20,7 @@ from dependencies import get_db
 import email_service
 import location_service
 from demo_workflow import DemoRequestStatus
-from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_authority_service, commercial_portal_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, existing_workspace_paid_activation_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
+from saas import ai_feature_registry, billing_history_service, billing_identity_service, billing_service, branch_pricing_quote_service, commercial_authority_service, commercial_badge_service, commercial_portal_service, commercial_state_service, customer_journey_service, demo_access_service, demo_conversion_service, demo_eligibility_maintenance_service, demo_email_service, demo_feature_registry, demo_lifecycle_service, demo_notification_service, demo_operations_service, demo_provisioning_service, demo_request_service, draft_lifecycle_service, existing_workspace_conversion_service, existing_workspace_paid_activation_service, models, oauth, orphaned_test_account_service, paddle_client, payment_service, pricing_service, promo_code_service, promo_redemption_service, provisioning_service, service, subscription_cancellation_service, subscription_change_service, subscription_plan_change_service, subscription_portal_service, test_account_deletion_service, workspace_analysis_service, workspace_deletion_service
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
 
 
@@ -313,7 +313,16 @@ def _organization_account_shell_context(request: Request, db: Session, account) 
             db,
             account,
         )
-    return {"access": selected} if selected is not None else None
+    return (
+        {
+            "access": selected,
+            "commercial_badge": commercial_badge_service.build_commercial_badge(
+                db, selected.school_group.id
+            ),
+        }
+        if selected is not None
+        else None
+    )
 
 
 def _existing_workspace_activation_access(db: Session, account, workspace_uuid: str):
@@ -1718,6 +1727,9 @@ def account_dashboard(
             .count()
         )
         organization = selected_workspace.organization
+        commercial_badge = commercial_badge_service.build_commercial_badge(
+            db, selected_workspace.school_group.id
+        )
         existing_workspace_activation_required = bool(
             selected_workspace.school_group.workspace_classification
             == WorkspaceClassification.CUSTOMER.value
@@ -1751,6 +1763,7 @@ def account_dashboard(
                     "promo_activation_available": promo_activation_available,
                     "existing_workspace_activation_required": existing_workspace_activation_required,
                     "suppress_commercial_billing": existing_workspace_activation_required,
+                    "commercial_badge": commercial_badge,
                 },
             },
         )
@@ -2021,10 +2034,29 @@ def subscription_portal(
         portal_authority is not None
         and portal_authority.source == commercial_authority_service.PROMO_GRANT
     ):
+        current_activation = existing_workspace_paid_activation_service.get_current_activation(
+            db, int(selected_access.school_group.id)
+        )
+        continuation = existing_workspace_paid_activation_service.resolve_eligibility(
+            db,
+            school_group_id=int(selected_access.school_group.id),
+            account=account,
+            allow_activation_id=getattr(current_activation, "id", None),
+        )
+        continuation_available = bool(
+            selected_access.is_owner and continuation.eligible
+        )
+        continuation_url = (
+            f"/saas/account/workspaces/{selected_access.organization_uuid}/activation"
+            if continuation_available
+            else ""
+        )
         promo_portal = commercial_portal_service.build_promo_commercial_portal(
             db,
             int(selected_access.school_group.id),
             authority=portal_authority,
+            continuation_available=continuation_available,
+            continuation_url=continuation_url,
         )
         response = _render(
             request,
@@ -2033,6 +2065,9 @@ def subscription_portal(
                 "account": account,
                 "organization_account": {"access": selected_access},
                 "promo_portal": promo_portal,
+                "commercial_badge_view": commercial_badge_service.build_commercial_badge(
+                    db, int(selected_access.school_group.id)
+                ),
                 "support_email": str(
                     os.environ.get("TIS_SUPPORT_EMAIL")
                     or os.environ.get("EMAIL_REPLY_TO")

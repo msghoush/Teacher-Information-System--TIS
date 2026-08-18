@@ -167,6 +167,26 @@ calling Paddle or exposing recurring billing, invoice, plan-change, quantity-cha
 or cancellation controls. Paid and demo portals are unchanged. Promo-to-paid
 conversion remains deferred.
 
+## 2026-08-18 - Promo Expiry Recovery And Paid Continuation
+
+Promo access is dynamically active only before `PromoGrant.effective_to`. At expiry,
+operations fail closed even when persisted entitlement rows still say active.
+`grace_period_days` identifies a recovery interval for customer presentation and
+paid continuation only; it never extends operational access or mutates tenant data.
+
+Expired and recovery-period promo owners can prepare the existing-workspace paid
+activation quote and launch Paddle checkout without replacing the SchoolGroup.
+Promo remains the sole tenant source until verified `transaction.completed` evidence.
+Completion locks and revalidates current authority, then atomically ends promo
+entitlement, relinks the existing tenant source to the paid contract, establishes
+paid workspace/branch entitlements, and records immutable conversion history. Failed,
+abandoned, or conflicting attempts retain promo authority and no paid entitlement.
+Active promo conversion is deliberately deferred to avoid treating unused promo value
+as paid credit.
+
+A shared authority-driven badge component now renders Promo, Demo, and Paid identity
+with source icon, lifecycle status, and plan treatment in compact and full modes.
+
 ## 2026-08-05 - Promo Commercial Grants
 
 Approved promo definitions can now become non-Paddle commercial authority only
