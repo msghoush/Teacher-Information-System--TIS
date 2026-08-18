@@ -913,6 +913,69 @@ class PlatformAccessTests(unittest.TestCase):
         )
         self.assertEqual(branding_context["selected_school_group"].id, self.group_b.id)
 
+    def test_branding_layout_preserves_global_sidebar_and_expands_tenant_editor(self):
+        platform_response = main.system_configuration_logos(
+            self._request(
+                "/system-configuration/logos",
+                self.platform_owner,
+                self.branch_b1,
+                self.year_b,
+            ),
+            db=self.db,
+        )
+        platform_html = platform_response.body.decode("utf-8")
+
+        self.assertEqual(platform_response.status_code, 200)
+        self.assertIn('class="branding-shell"', platform_html)
+        self.assertNotIn(
+            'class="branding-shell branding-shell--editor-only"',
+            platform_html,
+        )
+        self.assertIn('class="group-panel"', platform_html)
+        self.assertEqual(platform_html.count('id="school_group_label_'), 6)
+
+        administrator_response = main.school_branding(
+            self._request(
+                "/school-branding",
+                self.tenant_b,
+                self.branch_b1,
+                self.year_b,
+            ),
+            db=self.db,
+        )
+        administrator_html = administrator_response.body.decode("utf-8")
+
+        self.assertEqual(administrator_response.status_code, 200)
+        self.assertIn(
+            'class="branding-shell branding-shell--editor-only"',
+            administrator_html,
+        )
+        self.assertNotIn('class="group-panel"', administrator_html)
+        self.assertEqual(administrator_html.count('id="school_group_label_'), 6)
+        self.assertIn('class="branch-overrides"', administrator_html)
+        self.assertEqual(administrator_html.count('id="branch_label_'), 6)
+
+        self.assertIn(
+            ".branding-shell--editor-only { grid-template-columns: minmax(0, 1fr); }",
+            administrator_html,
+        )
+        self.assertIn("container-type: inline-size;", administrator_html)
+        self.assertIn(
+            ".logo-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }",
+            administrator_html,
+        )
+        self.assertIn("@container (min-width: 560px)", administrator_html)
+        self.assertIn(
+            ".logo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }",
+            administrator_html,
+        )
+        self.assertIn("@container (min-width: 840px)", administrator_html)
+        self.assertIn(
+            ".logo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }",
+            administrator_html,
+        )
+        self.assertNotIn("overflow-x: auto", administrator_html)
+
     def test_education_excellence_is_limited_to_its_organization(self):
         same_group = auth.get_current_user(
             self._request("/dashboard", self.excellence_user, self.branch_a2, self.year_a),

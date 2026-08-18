@@ -14,6 +14,7 @@
     .config-nav-link { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 800; text-decoration: none; }
     .config-nav-link.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
     .branding-shell { display: grid; grid-template-columns: minmax(240px, 300px) minmax(0, 1fr); gap: 14px; align-items: start; }
+    .branding-shell--editor-only { grid-template-columns: minmax(0, 1fr); }
     .group-panel,
     .editor-panel { border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
     .group-panel { padding: 12px; position: sticky; top: 12px; }
@@ -31,10 +32,10 @@
     .editor-title h2 { margin: 0; color: #17365d; font-size: 24px; }
     .status-pill { display: inline-flex; align-items: center; min-height: 26px; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 900; background: #eef4fb; color: #48607f; }
     .status-pill.is-success { background: #ecfdf3; color: #027a48; }
-    .section-card { display: grid; gap: 12px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #f8fbff; }
+    .section-card { display: grid; gap: 12px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #f8fbff; container-type: inline-size; }
     .section-card h3 { margin: 0; color: #17365d; font-size: 18px; }
     .section-card p { margin: 0; color: #60728c; font-size: 13px; line-height: 1.45; }
-    .logo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .logo-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
     .logo-card { display: grid; gap: 10px; padding: 12px; border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; min-width: 0; }
     .logo-preview { display: flex; align-items: center; justify-content: center; height: calc(var(--branding-preview-logo-height) + 28px); padding: 12px; border: 1px dashed #b8c9df; border-radius: 10px; background: linear-gradient(180deg, #fbfdff, #f5f8fc); }
     .logo-preview img { display: block; width: auto; height: auto; max-width: min(100%, var(--branding-preview-logo-max-width)); max-height: var(--branding-preview-logo-height); object-fit: contain; object-position: center; image-rendering: auto; }
@@ -62,13 +63,16 @@
     details.branch-overrides { border: 1px solid #d8e2f0; border-radius: 12px; background: #fff; overflow: hidden; }
     details.branch-overrides summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; cursor: pointer; color: #17365d; font-weight: 900; background: #f5f8fc; }
     .branch-override-body { display: grid; gap: 12px; padding: 12px; }
+    @container (min-width: 560px) {
+        .logo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @container (min-width: 840px) {
+        .logo-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
     @media (max-width: 1180px) {
-        .branding-shell { grid-template-columns: 1fr; }
+        .branding-shell { grid-template-columns: minmax(0, 1fr); }
         .group-panel { position: static; }
         .group-list { max-height: none; }
-    }
-    @media (max-width: 900px) {
-        .logo-grid { grid-template-columns: 1fr; }
     }
 </style>
 {% endblock %}
@@ -159,7 +163,7 @@
     </nav>
     {% endif %}
 
-    <section class="branding-shell">
+    <section class="branding-shell{% if not can_manage_all_logo_scopes %} branding-shell--editor-only{% endif %}">
         {% if can_manage_all_logo_scopes %}
         <aside class="group-panel">
             <div class="panel-head">
