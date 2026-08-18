@@ -1,5 +1,4 @@
 {% from "_app_icons.html" import icon %}
-{% from "_commercial_badge.html" import commercial_badge %}
 {% from "_tis_logo.html" import tis_logo, tis_logo_path with context %}
 <!DOCTYPE html>
 <html lang="en">
@@ -240,9 +239,6 @@
                         <span>{{ icon("school", "shell-icon") }} School</span>
                         <strong>{{ shell.school_group_name }}</strong>
                     </div>
-                    {% if shell.commercial_badge %}
-                    <div class="header-commercial-identity">{{ commercial_badge(shell.commercial_badge, "compact") }}</div>
-                    {% endif %}
                     <div class="header-chip">
                         <span>{{ icon("branch", "shell-icon") }} Branch / Campus</span>
                         <strong>{{ shell.branch_name }}</strong>

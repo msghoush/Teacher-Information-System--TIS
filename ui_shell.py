@@ -514,16 +514,6 @@ def build_shell_context(
         models.SchoolGroup.id == scoped_school_group_id
     ).first() if scoped_school_group_id else None
     demo_workspace = None
-    commercial_badge = None
-    if school_group and not auth.is_platform_user(current_user):
-        try:
-            from saas import commercial_badge_service
-
-            commercial_badge = commercial_badge_service.build_commercial_badge(
-                db, school_group.id
-            )
-        except Exception:
-            commercial_badge = None
     if (
         school_group
         and not auth.is_platform_user(current_user)
@@ -727,7 +717,6 @@ def build_shell_context(
             "new_notification_count": new_notification_count,
             "new_demo_request_count": new_demo_request_count,
             "demo_workspace": demo_workspace,
-            "commercial_badge": commercial_badge,
             "school_logos": get_school_logo_slots(request, db, getattr(branch, "id", scoped_branch_id)),
             "design_css": design_css,
             "visual_design_css": visual_design_css,

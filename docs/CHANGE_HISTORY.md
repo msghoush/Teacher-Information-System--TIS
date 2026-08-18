@@ -22,8 +22,9 @@ and branch entitlements, and preserves tenant identity, data, branding, ownershi
 and immutable promo history. Active-promo early conversion remains blocked.
 
 Added one authority-driven commercial badge component for Promo, Demo, and Paid
-sources across the operational header, Organization Account, and full commercial
-view. Expired promo access uses promo-specific continuation wording, and protected
+sources in Organization Account and the full commercial view. The normal operational
+header intentionally remains focused on tenant context. Expired promo access uses
+promo-specific continuation wording, and protected
 API responses return a customer-safe generic commercial code while internal reasons
 remain in server logs.
 

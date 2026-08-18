@@ -151,8 +151,8 @@ branches, users, teachers, data, branding, and immutable promo history. Active-p
 early conversion remains blocked because promotional value is not paid credit.
 
 `commercial_badge_service` converts centralized commercial access into one reusable,
-source-aware Promo, Demo, or Paid badge view model. Operational and Organization
-Account templates render that prepared identity and never infer authority from a
+source-aware Promo, Demo, or Paid badge view model. Organization Account and
+commercial templates render that prepared identity and never infer authority from a
 historical contract, grant, plan, or subscription row.
 
 ## M2 Promo Code Foundation
