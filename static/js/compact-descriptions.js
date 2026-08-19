@@ -1,6 +1,6 @@
 (() => {
     const MAX_VISIBLE_WORDS = 3;
-    // Precise selectors cover established components; semantic rules below catch page-specific variants.
+    // Only established components and explicit data attributes opt in.
     const KNOWN_COMPONENT_SELECTOR = [
         ".tis-kpi-card",
         ".config-module-card",
@@ -38,19 +38,8 @@
     ].join(", ");
     const DESCRIPTION_TEXT_SELECTOR = [
         "[data-compact-description]",
-        "p",
-        "small",
-        "[class*='description']",
-        "[class*='subtitle']",
-        "[class*='-note']",
-        "[class*='-lede']",
-        "button [class*='copy'] > span",
-        "a [class*='copy'] > span",
-        "[role='button'] [class*='copy'] > span",
+        KNOWN_DESCRIPTION_SELECTOR,
     ].join(", ");
-    const DESCRIPTION_CLASS_PATTERN = /(?:^|[-_])(description|subtitle|note|lede|supporting|helper)(?:$|[-_])/i;
-    const COMPONENT_CLASS_PATTERN = /(?:^|[-_])(card|action|quick|summary|banner|hero|tile|panel|toolbar|workspace|inspector)(?:$|[-_])/i;
-    const HEADING_CONTEXT_CLASS_PATTERN = /(?:^|[-_])(copy|head|header|title|intro|hero|toolbar)(?:$|[-_])/i;
     const DIRECT_BANNER_SELECTOR = [
         ".notice-banner",
         ".calendar-banner.is-notice",
@@ -93,17 +82,9 @@
     const normalizedText = (element) => element.textContent.replace(/\s+/g, " ").trim();
     const wordCount = (text) => (text.match(/\S+/g) || []).length;
 
-    const classListMatches = (element, pattern) => (
-        element instanceof Element
-        && Array.from(element.classList).some((className) => pattern.test(className))
-    );
-
     const isSemanticComponent = (element) => (
         element instanceof Element
-        && (
-            element.matches(KNOWN_COMPONENT_SELECTOR)
-            || classListMatches(element, COMPONENT_CLASS_PATTERN)
-        )
+        && element.matches(KNOWN_COMPONENT_SELECTOR)
     );
 
     const componentAncestors = (element) => {
@@ -118,15 +99,6 @@
         return components;
     };
 
-    const hasDirectHeading = (element) => Array.from(element.children).some((child) => (
-        /^H[1-6]$/.test(child.tagName)
-    ));
-
-    const isLeafDescription = (element) => (
-        classListMatches(element, DESCRIPTION_CLASS_PATTERN)
-        && !element.querySelector("h1, h2, h3, h4, h5, h6, p, small, button, a, input, select, textarea")
-    );
-
     const isDescriptionCandidate = (element) => {
         if (!(element instanceof Element) || !element.closest(".page-stage")) {
             return false;
@@ -137,45 +109,7 @@
         if (element.hasAttribute("data-compact-description")) {
             return true;
         }
-        if (element.matches(KNOWN_DESCRIPTION_SELECTOR)) {
-            return true;
-        }
-
-        const tagName = element.tagName;
-        const parent = element.parentElement;
-        const components = componentAncestors(element);
-        const insideInteractiveAction = Boolean(element.closest("button, a, [role='button']"));
-
-        if (insideInteractiveAction) {
-            if (tagName === "P" || tagName === "SMALL" || isLeafDescription(element)) {
-                return true;
-            }
-            if (tagName === "SPAN" && parent && classListMatches(parent, HEADING_CONTEXT_CLASS_PATTERN)) {
-                return true;
-            }
-        }
-        if (isLeafDescription(element) && components.length > 0) {
-            return true;
-        }
-        if (tagName === "P" && parent) {
-            if (hasDirectHeading(parent) || isSemanticComponent(parent)) {
-                return true;
-            }
-            if (classListMatches(parent, HEADING_CONTEXT_CLASS_PATTERN) && components.length > 0) {
-                return true;
-            }
-        }
-        if (tagName === "SMALL" && components.length > 0 && parent) {
-            if (
-                isSemanticComponent(parent)
-                || hasDirectHeading(parent)
-                || parent.querySelector(":scope > strong, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6")
-                || classListMatches(parent, HEADING_CONTEXT_CLASS_PATTERN)
-            ) {
-                return true;
-            }
-        }
-        return false;
+        return element.matches(KNOWN_DESCRIPTION_SELECTOR);
     };
 
     const prepareDirectBannerDescriptions = (root) => {
