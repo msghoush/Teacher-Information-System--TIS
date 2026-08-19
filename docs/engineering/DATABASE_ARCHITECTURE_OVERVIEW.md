@@ -541,17 +541,29 @@ Related files:
 ## Timetable
 
 Represents:
-Weekly lesson placement and timetable settings.
+Weekly lesson placement, timetable settings, durable versions, immutable input
+snapshots, one active-version pointer per scope, placement locks, and future
+generation-run evidence.
 
 Ownership boundary:
 Timetable data depends on planning, teacher, subject, section, branch, and year context.
 
 Must never be mixed:
 - Timetable edits must preserve scheduling constraints and scope.
+- `TimetableEntry` belongs to exactly one version and preserves section/teacher
+  collision guarantees inside that version. Its branch/year must match the
+  pointed version.
+- `TimetableActiveVersion` is the only active-selection authority and its
+  SchoolGroup/Branch/Academic-Year tuple must match the target version exactly.
+- Active, superseded, and archived versions are immutable. Mutable compatibility
+  edits occur on a draft copy.
 
 Related files:
 - `routers/timetable.py`
 - `timetable_logic.py`
+- `timetable_version_service.py`
+- `timetable_snapshot_service.py`
+- `docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md`
 
 ## Academic Calendar
 

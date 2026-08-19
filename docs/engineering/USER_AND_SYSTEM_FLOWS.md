@@ -824,6 +824,37 @@ Guardrails:
 - App must not silently rewrite source docs.
 - Regenerate button is not implemented yet.
 
+## Timetable Version Compatibility Flow
+
+1. A scoped timetable read resolves SchoolGroup, Branch, and Academic Year.
+2. It loads the compatibility operational version: a working draft sourced from
+   the active version when one exists after an edit, otherwise the active version,
+   otherwise the newest scoped draft.
+3. Section and teacher views, XLSX, and PDF use only that version's placements.
+4. On the first legacy assignment edit of an active timetable, the service copies
+   every placement and intended lock into a new mutable draft.
+5. The requested edit changes the draft, increments `edit_revision`, and records
+   manual-change evidence. The active pointer and imported history do not change.
+6. Later legacy edits reuse the same working draft until explicit version and
+   publication workflows are introduced.
+
+Migration flow:
+
+1. Find only branch/year scopes with existing placements.
+2. verify Branch and Academic Year resolve to one SchoolGroup or fail the whole
+   migration transaction;
+3. capture current Planning/settings authority in a deterministic snapshot;
+4. preserve and attach every placement to one imported compatibility version;
+5. record safe stale reason codes without changing a placement; and
+6. create one exact-scope active pointer without fabricating publication approval.
+
+Guardrails:
+
+- Active, superseded, and archived versions are not mutated in place.
+- No timetable mutation is allowed without explicit valid tenant scope.
+- Planning remains authority for real section-subject demand and HRT fallback.
+- Stage 2 executes no generation and treats no display-only block as a solver rule.
+
 ## Human / AI Developer Onboarding Flow
 
 Flow:

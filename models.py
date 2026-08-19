@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import relationship
 from database import Base
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
@@ -768,24 +768,267 @@ class TimetableNonTeachingBlock(Base):
     end_period = Column(Integer, nullable=False)
 
 
+class TimetableInputSnapshot(Base):
+    __tablename__ = "timetable_input_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "id",
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            name="uq_timetable_input_snapshots_id_scope",
+        ),
+        CheckConstraint(
+            "snapshot_schema_version > 0",
+            name="ck_timetable_input_snapshots_schema_version",
+        ),
+        Index(
+            "ix_timetable_input_snapshots_scope_created",
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            "created_at",
+        ),
+        Index(
+            "ix_timetable_input_snapshots_full_fingerprint",
+            "full_input_fingerprint",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    snapshot_schema_version = Column(Integer, nullable=False, default=1)
+    canonical_snapshot_json = Column(Text, nullable=False)
+    planning_fingerprint = Column(String(64), nullable=False)
+    period_configuration_fingerprint = Column(String(64), nullable=False)
+    constraint_fingerprint = Column(String(64), nullable=False)
+    lock_fingerprint = Column(String(64), nullable=False)
+    full_input_fingerprint = Column(String(64), nullable=False)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    provenance = Column(String(40), nullable=False, default="manual")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class TimetableVersion(Base):
+    __tablename__ = "timetable_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            "version_number",
+            name="uq_timetable_versions_scope_number",
+        ),
+        UniqueConstraint(
+            "id",
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            name="uq_timetable_versions_id_full_scope",
+        ),
+        UniqueConstraint(
+            "id",
+            "branch_id",
+            "academic_year_id",
+            name="uq_timetable_versions_id_branch_year",
+        ),
+        CheckConstraint(
+            "lifecycle_status IN ('draft','publication_ready','superseded','archived')",
+            name="ck_timetable_versions_lifecycle_status",
+        ),
+        CheckConstraint(
+            "origin IN ('manual','imported','generated','regenerated')",
+            name="ck_timetable_versions_origin",
+        ),
+        CheckConstraint(
+            "quality_score IS NULL OR (quality_score >= 0 AND quality_score <= 100)",
+            name="ck_timetable_versions_quality_score",
+        ),
+        CheckConstraint(
+            "edit_revision >= 0",
+            name="ck_timetable_versions_edit_revision",
+        ),
+        Index("uq_timetable_versions_public_id", "public_id", unique=True),
+        Index(
+            "ix_timetable_versions_scope_status",
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            "lifecycle_status",
+        ),
+        Index("ix_timetable_versions_source", "source_version_id"),
+        Index("ix_timetable_versions_snapshot", "input_snapshot_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()))
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    version_number = Column(Integer, nullable=False)
+    lifecycle_status = Column(String(32), nullable=False, default="draft")
+    origin = Column(String(24), nullable=False, default="manual")
+    source_version_id = Column(Integer, ForeignKey("timetable_versions.id"), nullable=True)
+    input_snapshot_id = Column(
+        Integer,
+        ForeignKey("timetable_input_snapshots.id"),
+        nullable=False,
+    )
+    # Kept as a durable future link without a circular database foreign key;
+    # TimetableGenerationRun.result_version_id is the constrained reverse link.
+    generation_run_id = Column(Integer, nullable=True, index=True)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    generated_at = Column(DateTime, nullable=True)
+    has_manual_changes = Column(Boolean, nullable=False, default=False)
+    manual_change_count = Column(Integer, nullable=False, default=0)
+    quality_score = Column(Integer, nullable=True)
+    quality_summary_json = Column(Text, nullable=True)
+    generation_seed = Column(Integer, nullable=True)
+    solver_name = Column(String(80), nullable=True)
+    solver_version = Column(String(40), nullable=True)
+    solver_configuration_json = Column(Text, nullable=True)
+    authority_fingerprint = Column(String(64), nullable=False)
+    is_stale = Column(Boolean, nullable=False, default=False)
+    stale_reason_json = Column(Text, nullable=False, default="[]")
+    published_at = Column(DateTime, nullable=True)
+    published_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    superseded_at = Column(DateTime, nullable=True)
+    superseded_by_version_id = Column(Integer, ForeignKey("timetable_versions.id"), nullable=True)
+    archived_at = Column(DateTime, nullable=True)
+    archived_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    edit_revision = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TimetableGenerationRun(Base):
+    __tablename__ = "timetable_generation_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            "idempotency_key",
+            name="uq_timetable_generation_runs_scope_idempotency",
+        ),
+        CheckConstraint(
+            "request_mode IN ('generate','regenerate')",
+            name="ck_timetable_generation_runs_request_mode",
+        ),
+        CheckConstraint(
+            "status IN ('queued','running','validating','succeeded','infeasible','timed_out','stale_input','cancel_requested','cancelled','internal_error','concurrent_run_rejected')",
+            name="ck_timetable_generation_runs_status",
+        ),
+        Index(
+            "ix_timetable_generation_runs_scope_status",
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            "status",
+        ),
+        Index("ix_timetable_generation_runs_snapshot", "input_snapshot_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    requested_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    request_mode = Column(String(20), nullable=False)
+    source_version_id = Column(Integer, ForeignKey("timetable_versions.id"), nullable=True)
+    source_edit_revision = Column(Integer, nullable=True)
+    input_snapshot_id = Column(
+        Integer,
+        ForeignKey("timetable_input_snapshots.id"),
+        nullable=False,
+    )
+    status = Column(String(32), nullable=False, default="queued")
+    solver_name = Column(String(80), nullable=True)
+    solver_version = Column(String(40), nullable=True)
+    solver_configuration_json = Column(Text, nullable=True)
+    generation_seed = Column(Integer, nullable=True)
+    diversity_configuration_json = Column(Text, nullable=True)
+    queued_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    started_at = Column(DateTime, nullable=True)
+    validating_at = Column(DateTime, nullable=True)
+    finished_at = Column(DateTime, nullable=True)
+    lease_owner = Column(String(120), nullable=True)
+    lease_expires_at = Column(DateTime, nullable=True)
+    heartbeat_at = Column(DateTime, nullable=True)
+    failure_category = Column(String(80), nullable=True)
+    safe_failure_details = Column(Text, nullable=True)
+    result_version_id = Column(Integer, ForeignKey("timetable_versions.id"), nullable=True)
+    idempotency_key = Column(String(120), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TimetableActiveVersion(Base):
+    __tablename__ = "timetable_active_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            name="uq_timetable_active_versions_scope",
+        ),
+        ForeignKeyConstraint(
+            ["timetable_version_id", "school_group_id", "branch_id", "academic_year_id"],
+            [
+                "timetable_versions.id",
+                "timetable_versions.school_group_id",
+                "timetable_versions.branch_id",
+                "timetable_versions.academic_year_id",
+            ],
+            name="fk_timetable_active_versions_exact_scope",
+        ),
+        CheckConstraint(
+            "revision >= 0",
+            name="ck_timetable_active_versions_revision",
+        ),
+        Index("ix_timetable_active_versions_version", "timetable_version_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    timetable_version_id = Column(Integer, nullable=False)
+    activated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    activated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    revision = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TimetableEntry(Base):
     __tablename__ = "timetable_entries"
     __table_args__ = (
         UniqueConstraint(
-            "branch_id",
-            "academic_year_id",
+            "timetable_version_id",
             "planning_section_id",
             "day_key",
             "period_index",
             name="uq_timetable_entries_section_slot",
         ),
         UniqueConstraint(
-            "branch_id",
-            "academic_year_id",
+            "timetable_version_id",
             "teacher_id",
             "day_key",
             "period_index",
             name="uq_timetable_entries_teacher_slot",
+        ),
+        ForeignKeyConstraint(
+            ["timetable_version_id", "branch_id", "academic_year_id"],
+            [
+                "timetable_versions.id",
+                "timetable_versions.branch_id",
+                "timetable_versions.academic_year_id",
+            ],
+            name="fk_timetable_entries_version_scope",
         ),
         Index(
             "ix_timetable_entries_scope_section",
@@ -802,6 +1045,7 @@ class TimetableEntry(Base):
     )
 
     id = Column(Integer, primary_key=True)
+    timetable_version_id = Column(Integer, nullable=False)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
     academic_year_id = Column(
         Integer,
@@ -817,6 +1061,11 @@ class TimetableEntry(Base):
     teacher_id = Column(Integer, ForeignKey("teachers.id"), nullable=False)
     day_key = Column(String(16), nullable=False)
     period_index = Column(Integer, nullable=False)
+    is_locked = Column(Boolean, nullable=False, default=False)
+    locked_at = Column(DateTime, nullable=True)
+    locked_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class HiringPlanDraft(Base):

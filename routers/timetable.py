@@ -22,6 +22,12 @@ import auth
 import branding_storage
 import models
 from dependencies import get_db
+from timetable_version_service import (
+    TimetableVersionError,
+    ensure_compatibility_editable_version,
+    mutate_draft_placement,
+    resolve_scope_school_group_id,
+)
 from timetable_logic import (
     build_timetable_workspace_payload,
     get_scope_ids,
@@ -1746,92 +1752,89 @@ async def assign_timetable_slot(
         day_key=day_key,
         period_index=period_index,
     )
-    existing_entry_row = None
-    if existing_entry_payload and existing_entry_payload.get("id"):
-        existing_entry_row = db.query(models.TimetableEntry).filter(
-            models.TimetableEntry.id == int(existing_entry_payload["id"]),
-            models.TimetableEntry.branch_id == branch_id,
-            models.TimetableEntry.academic_year_id == academic_year_id,
-        ).first()
-
     if not subject_code:
-        if not existing_entry_row:
+        if not existing_entry_payload:
             return _json_error("That slot is already empty.")
-        db.delete(existing_entry_row)
-        db.commit()
-        refreshed_payload = build_timetable_workspace_payload(db, branch_id, academic_year_id)
-        return _json_success(refreshed_payload, message="Timetable slot cleared.")
-
-    option_payload = _find_section_option(
-        workspace_payload,
-        section_id=section_id,
-        subject_code=subject_code,
-    )
-    if not option_payload:
-        return _json_error("Selected subject is not part of this section timetable plan.")
-    if not option_payload.get("is_schedulable") or not option_payload.get("teacher_id"):
-        return _json_error(
-            "This subject does not currently have an assigned teacher in planning, so it cannot be placed yet."
+        teacher_id = None
+        teacher_payload = None
+    else:
+        option_payload = _find_section_option(
+            workspace_payload,
+            section_id=section_id,
+            subject_code=subject_code,
         )
+        if not option_payload:
+            return _json_error("Selected subject is not part of this section timetable plan.")
+        if not option_payload.get("is_schedulable") or not option_payload.get("teacher_id"):
+            return _json_error(
+                "This subject does not currently have an assigned teacher in planning, so it cannot be placed yet."
+            )
 
-    teacher_id = int(option_payload["teacher_id"])
-    teacher_payload = _find_teacher_by_id(workspace_payload, teacher_id)
-    if not teacher_payload:
-        return _json_error("Assigned teacher is not available in the active branch and academic year.")
+        teacher_id = int(option_payload["teacher_id"])
+        teacher_payload = _find_teacher_by_id(workspace_payload, teacher_id)
+        if not teacher_payload:
+            return _json_error("Assigned teacher is not available in the active branch and academic year.")
 
-    other_entry_for_teacher = _find_teacher_conflict(
-        workspace_payload,
-        teacher_id=teacher_id,
-        day_key=day_key,
-        period_index=period_index,
-        ignore_entry_id=existing_entry_payload.get("id") if existing_entry_payload else None,
-    )
-    if other_entry_for_teacher:
-        return _json_error(
-            f"{teacher_payload['teacher_name']} is already teaching "
-            f"{other_entry_for_teacher.get('section_label', 'another section')} in that slot."
+        other_entry_for_teacher = _find_teacher_conflict(
+            workspace_payload,
+            teacher_id=teacher_id,
+            day_key=day_key,
+            period_index=period_index,
+            ignore_entry_id=existing_entry_payload.get("id") if existing_entry_payload else None,
         )
+        if other_entry_for_teacher:
+            return _json_error(
+                f"{teacher_payload['teacher_name']} is already teaching "
+                f"{other_entry_for_teacher.get('section_label', 'another section')} in that slot."
+            )
 
-    ignore_entry_id = (
-        int(existing_entry_payload.get("id") or 0)
-        if existing_entry_payload
-        else 0
-    )
-    scheduled_count = sum(
-        1
-        for entry in workspace_payload.get("entries", [])
-        if int(entry.get("section_id") or 0) == section_id
-        and str(entry.get("subject_code") or "").strip().upper() == subject_code
-        and str(entry.get("status") or "") == "scheduled"
-        and int(entry.get("id") or 0) != ignore_entry_id
-    )
-    weekly_hours = int(option_payload.get("weekly_hours") or 0)
-    if scheduled_count >= weekly_hours:
-        return _json_error(
-            f"{subject_code} already reached its required {weekly_hours} hour"
-            + ("" if weekly_hours == 1 else "s")
-            + f" for {section_payload['section_label']}."
+        ignore_entry_id = (
+            int(existing_entry_payload.get("id") or 0)
+            if existing_entry_payload
+            else 0
         )
+        scheduled_count = sum(
+            1
+            for entry in workspace_payload.get("entries", [])
+            if int(entry.get("section_id") or 0) == section_id
+            and str(entry.get("subject_code") or "").strip().upper() == subject_code
+            and str(entry.get("status") or "") == "scheduled"
+            and int(entry.get("id") or 0) != ignore_entry_id
+        )
+        weekly_hours = int(option_payload.get("weekly_hours") or 0)
+        if scheduled_count >= weekly_hours:
+            return _json_error(
+                f"{subject_code} already reached its required {weekly_hours} hour"
+                + ("" if weekly_hours == 1 else "s")
+                + f" for {section_payload['section_label']}."
+            )
 
     try:
-        if existing_entry_row is None:
-            db.add(
-                models.TimetableEntry(
-                    branch_id=branch_id,
-                    academic_year_id=academic_year_id,
-                    planning_section_id=section_id,
-                    subject_code=subject_code,
-                    teacher_id=teacher_id,
-                    day_key=day_key,
-                    period_index=period_index,
-                )
-            )
-        else:
-            existing_entry_row.subject_code = subject_code
-            existing_entry_row.teacher_id = teacher_id
-            existing_entry_row.day_key = day_key
-            existing_entry_row.period_index = period_index
+        school_group_id = resolve_scope_school_group_id(
+            db,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        editable_version = ensure_compatibility_editable_version(
+            db,
+            school_group_id=school_group_id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+            actor_user_id=str(getattr(current_user, "user_id", "") or "") or None,
+        )
+        mutate_draft_placement(
+            db,
+            version=editable_version,
+            planning_section_id=section_id,
+            day_key=day_key,
+            period_index=period_index,
+            subject_code=subject_code or None,
+            teacher_id=teacher_id if subject_code else None,
+        )
         db.commit()
+    except TimetableVersionError as exc:
+        db.rollback()
+        return _json_error(str(exc))
     except IntegrityError:
         db.rollback()
         return _json_error(
@@ -1841,8 +1844,8 @@ async def assign_timetable_slot(
     refreshed_payload = build_timetable_workspace_payload(db, branch_id, academic_year_id)
     return _json_success(
         refreshed_payload,
-        message=(
+        message=("Timetable slot cleared." if not subject_code else (
             f"{subject_code} assigned to {section_payload['section_label']} "
             f"with {teacher_payload['teacher_name']}."
-        ),
+        )),
     )

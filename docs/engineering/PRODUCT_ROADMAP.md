@@ -1,7 +1,7 @@
 ---
 title: TIS Product Roadmap
 documentation_version: 3.1
-last_updated: 2026-08-05
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
@@ -120,6 +120,15 @@ accounting. No AI business feature or M8B9 operational control is included.
 
 ## Current
 
+### Smart Timetable Foundation
+
+Stage 2 is complete: durable timetable versions, snapshots/fingerprints, exact-scope
+active selection, locks, generation-run schema, imported-current migration, and
+copy-on-write compatibility for current edits and exports. Stage 3 should define
+structural readiness and approved constraint capture. Stage 4 may then introduce
+branch-scoped solver execution, candidate comparison, and publication using the
+version foundation. No solver or generation UI exists yet.
+
 ### KMS Enforcement Review
 
 Review enforcement against real development tasks, keep classification conservative, and tune only demonstrated false positives without permitting silent no-impact declarations.
@@ -166,6 +175,15 @@ Extend plan entitlement checks beyond the current approved pilot only when comme
 Continue production validation, renewal/payment-failure handling, reconciliation observability, and owner support workflows without weakening Paddle authority or tenant isolation.
 
 ## Future
+
+### Constraint-Based Smart Timetable Generation
+
+Build structural readiness separately from solver feasibility, then add
+solver-independent candidate validation and a durable background execution model.
+CP-SAT remains the recommended approach. Regeneration must create diverse new
+candidates without overwriting the active version. Availability, rooms/resources,
+cross-campus coordination, normalized slot semantics, and rule/preferences UI each
+remain separately approved future boundaries.
 
 ### AI Academic Assistant
 

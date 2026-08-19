@@ -752,6 +752,25 @@ Current priority is automatic KMS synchronization enforcement and reliable post-
 - `scripts/check_kms_impact.py` validates major-change classification, declared Markdown updates, and generated-artifact freshness.
 - GitHub Actions block pull-request integration and production deployment when KMS validation fails.
 
+## Smart Timetable Architecture Baseline
+
+ADR 0026 governs timetable evolution. Planning remains authority for section
+demand, subject requirements, assigned teachers, and HRT fallback; one placement
+means one teaching period, and `Subject.weekly_hours` remains the compatibility
+weekly-period authority. Timetables are durable SchoolGroup/Branch/Academic-Year
+versions. Active selection is a separate unique exact-scope pointer, not a version
+Boolean. Active, superseded, and archived history is immutable; drafts are mutable.
+
+Stage 2 provides models, migration, snapshots/fingerprints, lock persistence,
+version services, future generation-run evidence, and version-aware current
+views/exports. Existing placements are imported unchanged. The legacy assignment
+route creates/reuses a copy-on-write working draft rather than editing active
+history. Do not infer that an imported active version passed future publication.
+
+No automatic generator, CP-SAT/OR-Tools dependency, worker, generation endpoint,
+availability/room/rule model, or generation UI exists. Readiness, constraints,
+solver execution, comparison, and publication require later approved stages.
+
 ## Critical Rules
 
 - Do not touch SaaS flows unless explicitly approved.

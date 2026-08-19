@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-19 - Added Smart Timetable Stage 2 Version Foundation
+
+Accepted ADR 0026 and added durable timetable versions, deterministic authority
+snapshots and SHA-256 fingerprints, one exact-scope active pointer, persisted
+placement locks, future generation-run metadata, and per-version section/teacher
+collision constraints. Existing populated timetables migrate without placement
+changes into imported compatibility versions; inconsistent rows remain present
+with safe version-level stale evidence, and settings-only scopes remain empty.
+
+The current timetable page and exports now read one operational version. The
+existing assignment route uses copy-on-write so active history is immutable while
+the current editing experience continues through a mutable working draft. No
+solver, worker, generation route/UI, availability, room/resource, or rule model
+was introduced.
+
 ## 2026-08-19 - Restricted Compact Descriptions To Intentional UI Components
 
 Changed the shared compact-description enhancer from broad tag and class-name
