@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-19
 ---
 
 # Architecture Decision Records
@@ -47,3 +47,5 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0021-existing-workspace-conversion-read-only-audit.md`
 - `0022-controlled-existing-workspace-conversion.md`
 - `0023-existing-workspace-paid-activation.md`
+- `0024-promo-expiry-recovery-and-paid-continuation.md`
+- `0025-capacity-based-packaging-and-common-customer-feature-baseline.md`

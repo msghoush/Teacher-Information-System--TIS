@@ -1,10 +1,18 @@
 ---
 title: SaaS Onboarding History
 module: saas-onboarding
-last_updated: 2026-07-30
+last_updated: 2026-08-19
 ---
 
 # SaaS Onboarding History
+
+## 2026-08-19 - Common Customer Feature Baseline
+
+The July 16 feature matrix below remains historical context and is superseded by
+ADR 0025. Normal customer PlanEntitlement values are now common across Starter,
+Professional, and Enterprise AI; plan selection remains capacity- and
+billing-oriented. Existing paid workspace entitlements resolve the new matrix
+dynamically and require no per-workspace feature backfill.
 
 ## 2026-07-30 - Secure Payment Retry And Checkout Lineage
 

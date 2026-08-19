@@ -1,7 +1,7 @@
 ---
 title: TIS Landing Page Master Content
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
@@ -226,7 +226,7 @@ Section Text
 TIS is being developed with a future AI vision that goes beyond simple content generation. Instead of using AI as a separate tool, future AI-powered capabilities are planned to work inside the platform’s academic workflows, supporting schools through the data already stored, reviewed, and approved in TIS.
 This future intelligence layer can support academic calendars, observation follow-up, curriculum planning, teacher support, assessment generation, dashboards, branch progress indicators, and leadership decision-making.
 At the center of this vision is a curriculum-to-classroom workflow. Uploaded curriculum data, standards, learning outcomes, annual plans, weekly plans, lesson plans, and confirmed instructional coverage can become the foundation for guided planning, AI-assisted recommendations, assessment generation, answer keys, and academic analytics.
-Future AI capabilities will be introduced progressively through subscription-based plans, allowing schools to access more advanced intelligence features as their needs grow.
+Future AI capabilities will be introduced progressively across the normal TIS customer product, subject to permissions, workspace scope, configured consumption allowances, and release readiness.
 Key Capabilities
 1. Curriculum-to-Classroom AI Support
 Assist teachers and academic leaders in moving from uploaded curriculum to annual plans, weekly plans, lesson plans, and verified coverage.
@@ -238,8 +238,8 @@ Help supervisors generate suggested teacher improvement plans based on observati
 Suggest activities for international events, SDG awareness, curriculum links, classroom activities, and school-wide academic events.
 5. Academic Analytics and Recommendations
 Provide future intelligent insights related to planning progress, teacher follow-up, assessment readiness, curriculum coverage, and branch performance.
-6. Subscription-Based AI Growth
-Introduce advanced AI features progressively through higher subscription plans, giving schools flexibility to grow into more powerful capabilities.
+6. Managed AI Growth
+Introduce advanced AI features progressively while controlling provider consumption, safety, and release readiness independently from plan capacity.
 ________________________________________
 12. From Curriculum to Classroom — With Guided AI Support
 Section Label
@@ -256,19 +256,19 @@ ________________________________________
 Section Label
 Subscription Plans
 Main Heading
-Choose the Level of Academic Intelligence Your School Needs.
+Choose the Organization Capacity Your School Needs.
 Section Text
-TIS is being developed as a subscription-based SaaS platform, allowing schools and educational organizations to start with essential academic operations and grow into more advanced capabilities over time.
-As the platform expands, subscription plans can support different levels of access, from core teacher and academic operations to advanced dashboards, multi-branch management, supervision workflows, and future AI-powered intelligence.
+TIS is a subscription-based organization SaaS platform. Starter, Professional, and Enterprise AI share the normal customer product baseline and primarily represent different organization capacities.
+Permissions, workspace scope, operational prerequisites, and separately configured AI consumption policy continue to control safe use.
 Plan Cards
-1. Core
-For schools that need a structured way to organize teacher data, academic operations, basic planning visibility, and essential workflows.
+1. Starter
+For organizations within the Starter branch, staff-user, and teacher capacity ceilings.
 2. Professional
-For schools that need stronger dashboards, shared academic calendars, observation workflows, staffing visibility, and improved coordination across teams.
+For organizations that require the Professional branch, staff-user, and teacher capacity ceilings.
 3. Enterprise AI
-For school groups and larger organizations that need multi-branch visibility, advanced customization, branch progress intelligence, AI-assisted planning, assessment generation, analytics, and strategic decision support.
+For larger organizations within the Enterprise AI branch, staff-user, and teacher capacity ceilings.
 Supporting Note
-AI-powered capabilities will be introduced progressively and may vary according to subscription level, school needs, and platform development stage.
+AI-powered capabilities will be introduced progressively and remain subject to permissions, workspace scope, configured usage allowances, and platform development stage.
 CTA
 Request Early Access
 Request Pricing

@@ -1223,8 +1223,9 @@ function PricingSection() {
 
         <Reveal delay={220}>
           <p className="mx-auto mt-8 max-w-3xl text-center text-sm leading-6 text-slate-500">
-            AI-powered capabilities will be introduced progressively and may vary according
-            to subscription level, school needs, and platform development stage.
+            AI-powered capabilities will be introduced progressively. Availability remains
+            subject to user permissions, workspace scope, configured usage allowances, and
+            platform development stage.
           </p>
         </Reveal>
       </div>

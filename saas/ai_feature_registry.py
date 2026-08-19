@@ -21,7 +21,7 @@ _FEATURES = (
         display_name="TIS AI Academic Assistant",
         entitlement_key="module.ai",
         permission_key=AI_PERMISSION_KEY,
-        eligible_plan_codes=("enterprise_ai",),
+        eligible_plan_codes=("starter", "professional", "enterprise_ai"),
         demo_allowance=2,
     ),
     AIFeatureDefinition(
@@ -29,7 +29,7 @@ _FEATURES = (
         display_name="AI Exam Analysis",
         entitlement_key="module.ai",
         permission_key=AI_PERMISSION_KEY,
-        eligible_plan_codes=("enterprise_ai",),
+        eligible_plan_codes=("starter", "professional", "enterprise_ai"),
         demo_allowance=2,
     ),
     AIFeatureDefinition(
@@ -37,7 +37,7 @@ _FEATURES = (
         display_name="AI Coaching Recommendations",
         entitlement_key="module.ai",
         permission_key=AI_PERMISSION_KEY,
-        eligible_plan_codes=("enterprise_ai",),
+        eligible_plan_codes=("starter", "professional", "enterprise_ai"),
         demo_allowance=2,
     ),
     AIFeatureDefinition(
@@ -45,7 +45,7 @@ _FEATURES = (
         display_name="AI Action Plan Generation",
         entitlement_key="module.ai",
         permission_key=AI_PERMISSION_KEY,
-        eligible_plan_codes=("enterprise_ai",),
+        eligible_plan_codes=("starter", "professional", "enterprise_ai"),
         demo_allowance=2,
     ),
     AIFeatureDefinition(
@@ -53,7 +53,7 @@ _FEATURES = (
         display_name="AI Assessment Quality Review",
         entitlement_key="module.ai",
         permission_key=AI_PERMISSION_KEY,
-        eligible_plan_codes=("enterprise_ai",),
+        eligible_plan_codes=("starter", "professional", "enterprise_ai"),
         demo_allowance=2,
         enabled=False,
     ),

@@ -1,11 +1,33 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.1
-last_updated: 2026-08-18
+last_updated: 2026-08-19
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Capacity-Based Packaging And Common Customer Features
+
+Starter, Professional, and Enterprise AI now represent organization scale, not
+progressive access to normal customer modules. Their ceilings remain 1/5/25,
+5/20/100, and 25/100/500 for active branches, operational staff users, and
+teachers. Paid, active promo, and active customer-demo authority share the normal
+customer baseline only after source/lifecycle, permission, tenant, branch, and
+academic-year checks succeed.
+
+`saas/customer_feature_policy.py` classifies that baseline and explicitly excludes
+the Developer-only audit export. `saas.entitlement_service.evaluate_feature_access`
+is the shared source-aware decision used by Advanced Reporting. Promo activation
+and migration `20260819_001_capacity_based_customer_feature_baseline` persist the
+same baseline without changing exact promo capacities or immutable promo history.
+Standard, Full, and Custom demos retain the baseline; Custom controls only
+legitimate scope, safety, experimental, and consumption policy.
+
+Enabled AI features are commercially available across paid tiers, promo, and
+active demo with `ai.use`. `saas/ai_consumption_policy.py` separately resolves
+execution allowance. Existing reservations, counters, idempotency, and operation
+events remain unchanged, and globally disabled AI definitions remain unavailable.
 
 ## Stage 5 SchoolGroup Authorization And Capacity Presentation
 
@@ -204,9 +226,10 @@ support. System-user and teacher counts remain included eligibility ceilings
 and never become provider quantity. Review Capacity shows current paid branches,
 required active branches, additional billed branches, the plan ceiling, and the
 resulting minimum eligible plan without describing unused plan ceiling as
-prepaid capacity. Until the commercial feature matrix is approved, customer
-plan cards show only plan identity, three capacity ceilings, current/eligibility
-state, and permitted plan-change actions.
+prepaid capacity. The approved commercial feature matrix is common across the
+three self-service plans, so customer plan cards continue to show plan identity,
+three capacity ceilings, current/eligibility state, and permitted plan-change
+actions rather than a feature ladder.
 
 An authorized operational organization owner or user with
 `subscriptions.manage_billing` sees Billing & Subscription under System

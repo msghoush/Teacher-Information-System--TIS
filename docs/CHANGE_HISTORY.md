@@ -1,11 +1,28 @@
 ---
 title: TIS Change History
 documentation_version: 3.1
-last_updated: 2026-08-18
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-19 - Capacity-Based Packaging And Common Customer Feature Baseline
+
+Accepted ADR 0025 and replaced the temporary plan-feature ladder with one normal
+customer baseline for coherent active paid, promo, and customer-demo workspaces.
+Starter, Professional, and Enterprise AI retain their existing branch, staff, and
+teacher ceilings. Advanced Reporting and enabled AI are source-aware and
+plan-neutral while permissions, tenant/branch/year scope, commercial lifecycle,
+branch entitlement, and globally disabled features remain fail-closed.
+
+Added idempotent migration
+`20260819_001_capacity_based_customer_feature_baseline` for plan values, compatible
+legacy flags, current active promo operational feature values, and active demo
+baseline policy. Exact promo capacity and immutable grant/redemption history are
+unchanged. Added a separate minimal AI consumption-policy boundary and retained
+reservation, counter, and operation-event accounting. Updated only affected
+customer copy; report generators and calculations did not change.
 
 ## 2026-08-18 - Enforced SchoolGroup Management Boundary
 

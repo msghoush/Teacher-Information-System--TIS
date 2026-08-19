@@ -38,6 +38,7 @@ class EntitlementRule:
     methods: tuple[str, ...]
     entitlement_key: str
     permission_key: str
+    branch_scoped: bool = False
 
     def matches(self, path: str, method: str) -> bool:
         normalized_method = str(method or "").upper()
@@ -220,12 +221,14 @@ ENTITLEMENT_ROUTE_RULES = (
         ("GET",),
         "feature.advanced_reporting",
         "reports.export",
+        branch_scoped=True,
     ),
     EntitlementRule(
         r"/reports/allocation-plan\.xlsx",
         ("GET",),
         "feature.advanced_reporting",
         "reports.export",
+        branch_scoped=True,
     ),
 )
 
@@ -508,6 +511,16 @@ def enforce_route_permission(
         resolved_user,
         entitlement_rule.entitlement_key,
         entitlement_rule.permission_key,
+        branch_id=(
+            getattr(resolved_user, "scope_branch_id", None)
+            if entitlement_rule.branch_scoped
+            else None
+        ),
+        academic_year_id=(
+            getattr(resolved_user, "scope_academic_year_id", None)
+            if entitlement_rule.branch_scoped
+            else None
+        ),
     ):
         return None
     return build_access_denied_response(

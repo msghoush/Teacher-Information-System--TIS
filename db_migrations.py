@@ -1,7 +1,9 @@
 import logging
+import json
 import unicodedata
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Callable
 
 from sqlalchemy import inspect, text
@@ -5541,6 +5543,203 @@ def _existing_workspace_paid_activation(engine, connection):
             )
 
 
+def _capacity_based_packaging_and_customer_feature_baseline(engine, connection):
+    """Reconcile the common customer baseline without changing capacity."""
+
+    from saas.customer_feature_policy import NORMAL_CUSTOMER_FEATURE_KEYS
+
+    plan_rows = connection.execute(text(
+        """
+        SELECT id FROM subscription_plans
+        WHERE plan_code IN ('starter', 'professional', 'enterprise_ai')
+        """
+    )).all()
+    definition_rows = connection.execute(text(
+        """
+        SELECT id, key FROM entitlement_definitions
+        WHERE active = TRUE
+        """
+    )).all()
+    baseline_definitions = {
+        str(key): int(definition_id)
+        for definition_id, key in definition_rows
+        if str(key) in NORMAL_CUSTOMER_FEATURE_KEYS
+    }
+
+    for (plan_id,) in plan_rows:
+        for definition_id in baseline_definitions.values():
+            existing_id = connection.execute(text(
+                """
+                SELECT id FROM plan_entitlements
+                WHERE subscription_plan_id = :plan_id
+                  AND entitlement_definition_id = :definition_id
+                """
+            ), {"plan_id": plan_id, "definition_id": definition_id}).scalar()
+            params = {
+                "plan_id": plan_id,
+                "definition_id": definition_id,
+                "value": "true",
+                "status": "active",
+            }
+            if existing_id:
+                _execute(
+                    connection,
+                    """
+                    UPDATE plan_entitlements
+                    SET value = :value, status = :status,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :row_id
+                    """,
+                    {**params, "row_id": existing_id},
+                )
+            else:
+                _execute(
+                    connection,
+                    """
+                    INSERT INTO plan_entitlements (
+                        subscription_plan_id, entitlement_definition_id,
+                        value, status, created_at, updated_at
+                    ) VALUES (
+                        :plan_id, :definition_id, :value, :status,
+                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    """,
+                    params,
+                )
+
+    # These legacy flags still affect messages and compatibility paths. Support
+    # level remains separate, so priority_support is deliberately untouched.
+    _execute(
+        connection,
+        """
+        UPDATE subscription_plans
+        SET ai_enabled = TRUE,
+            advanced_reporting_enabled = TRUE,
+            multi_branch_enabled = TRUE,
+            badge_text = CASE
+                WHEN plan_code = 'enterprise_ai' AND badge_text = 'AI Enabled'
+                THEN NULL
+                ELSE badge_text
+            END,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE plan_code IN ('starter', 'professional', 'enterprise_ai')
+        """,
+    )
+
+    promo_entitlement_candidates = connection.execute(text(
+        """
+        SELECT we.id, pg.effective_from, pg.effective_to
+        FROM workspace_entitlements we
+        JOIN promo_grants pg ON pg.id = we.promo_grant_id
+        JOIN school_groups sg ON sg.id = we.school_group_id
+        WHERE we.entitlement_type = 'promo'
+          AND we.status = 'active'
+          AND pg.status = 'active'
+          AND sg.workspace_lifecycle_status = 'active'
+        """
+    )).all()
+    observed_at = datetime.now(timezone.utc)
+
+    def utc_value(value):
+        if isinstance(value, datetime):
+            parsed = value
+        else:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return (
+            parsed.replace(tzinfo=timezone.utc)
+            if parsed.tzinfo is None
+            else parsed.astimezone(timezone.utc)
+        )
+
+    active_promo_entitlements = [
+        int(workspace_entitlement_id)
+        for workspace_entitlement_id, effective_from, effective_to
+        in promo_entitlement_candidates
+        if utc_value(effective_from) <= observed_at < utc_value(effective_to)
+    ]
+    for workspace_entitlement_id in active_promo_entitlements:
+        for definition_id in baseline_definitions.values():
+            existing_id = connection.execute(text(
+                """
+                SELECT id FROM workspace_entitlement_values
+                WHERE workspace_entitlement_id = :workspace_entitlement_id
+                  AND entitlement_definition_id = :definition_id
+                """
+            ), {
+                "workspace_entitlement_id": workspace_entitlement_id,
+                "definition_id": definition_id,
+            }).scalar()
+            params = {
+                "workspace_entitlement_id": workspace_entitlement_id,
+                "definition_id": definition_id,
+                "value": "true",
+                "status": "active",
+            }
+            if existing_id:
+                _execute(
+                    connection,
+                    """
+                    UPDATE workspace_entitlement_values
+                    SET value = :value, status = :status,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = :row_id
+                    """,
+                    {**params, "row_id": existing_id},
+                )
+            else:
+                _execute(
+                    connection,
+                    """
+                    INSERT INTO workspace_entitlement_values (
+                        workspace_entitlement_id, entitlement_definition_id,
+                        value, status, created_at, updated_at
+                    ) VALUES (
+                        :workspace_entitlement_id, :definition_id,
+                        :value, :status, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                    )
+                    """,
+                    params,
+                )
+
+    demo_policies = connection.execute(text(
+        """
+        SELECT dap.id, dap.product_features_json
+        FROM demo_access_policies dap
+        JOIN school_groups sg ON sg.id = dap.school_group_id
+        WHERE sg.workspace_classification = 'customer_demo'
+          AND sg.workspace_lifecycle_status = 'active'
+        """
+    )).all()
+    for policy_id, raw_features in demo_policies:
+        try:
+            stored_features = json.loads(raw_features or "[]")
+        except (TypeError, ValueError):
+            stored_features = []
+        reconciled = sorted(
+            NORMAL_CUSTOMER_FEATURE_KEYS
+            | {
+                str(key).strip().lower()
+                for key in stored_features
+                if str(key).strip()
+            }
+        )
+        _execute(
+            connection,
+            """
+            UPDATE demo_access_policies
+            SET product_features_json = :product_features_json,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = :policy_id
+            """,
+            {
+                "policy_id": policy_id,
+                "product_features_json": json.dumps(
+                    reconciled, separators=(",", ":")
+                ),
+            },
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5751,6 +5950,11 @@ MIGRATIONS = (
         migration_id="20260806_002_existing_workspace_paid_activation",
         description="Add existing-workspace paid activation and checkout contexts",
         apply=_existing_workspace_paid_activation,
+    ),
+    Migration(
+        migration_id="20260819_001_capacity_based_customer_feature_baseline",
+        description="Make normal customer features common across paid, promo, and demo authority",
+        apply=_capacity_based_packaging_and_customer_feature_baseline,
     ),
 )
 

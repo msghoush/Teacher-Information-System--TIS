@@ -577,6 +577,8 @@ def build_shell_context(
             entitlement_key,
             permission_key,
             school_group_id=scoped_school_group_id,
+            branch_id=scoped_branch_id,
+            academic_year_id=scoped_academic_year_id,
         )
 
     can_manage_system_settings = auth.can_manage_system_settings(current_user)

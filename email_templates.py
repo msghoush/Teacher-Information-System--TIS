@@ -391,7 +391,7 @@ def build_second_draft_reminder_email(
         "dashboards and reporting",
     ]
     if include_ai:
-        benefits.append("AI-enabled capabilities included with your selected plan")
+        benefits.append("AI-enabled capabilities as they become available in TIS")
     details = list(_draft_reminder_details(
         organization_name=organization_name,
         progress_text=progress_text,

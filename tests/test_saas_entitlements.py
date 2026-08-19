@@ -3,7 +3,7 @@ import unittest
 import uuid
 from unittest.mock import patch
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from starlette.requests import Request
@@ -11,6 +11,7 @@ from starlette.requests import Request
 import auth
 import authorization
 import db_migrations
+import main
 import models
 import saas.models
 from saas import entitlement_service
@@ -162,7 +163,7 @@ class SaaSEntitlementTests(unittest.TestCase):
         user.scope_academic_year_id = None
         return user
 
-    def test_migration_seeds_normalized_conservative_matrix(self):
+    def test_migration_seeds_common_customer_feature_matrix(self):
         db = self.Session()
         try:
             self.assertEqual(db.query(saas.models.EntitlementDefinition).count(), 11)
@@ -175,10 +176,58 @@ class SaaSEntitlementTests(unittest.TestCase):
             ).all()
             self.assertEqual(
                 {row.status for row in export_rows},
+                {entitlement_service.ACTIVE_ENTITLEMENT_STATUS},
+            )
+            self.assertEqual({row.value for row in export_rows}, {"true"})
+            audit_definition = db.query(saas.models.EntitlementDefinition).filter_by(
+                key="feature.audit_log"
+            ).one()
+            self.assertEqual(
+                {
+                    row.status
+                    for row in db.query(saas.models.PlanEntitlement).filter_by(
+                        entitlement_definition_id=audit_definition.id
+                    )
+                },
                 {entitlement_service.OWNER_APPROVAL_REQUIRED},
+            )
+            self.assertEqual(
+                db.execute(
+                    text(
+                        "SELECT COUNT(*) FROM schema_migrations "
+                        "WHERE migration_id = "
+                        "'20260819_001_capacity_based_customer_feature_baseline'"
+                    )
+                ).scalar_one(),
+                1,
             )
         finally:
             db.close()
+
+    def test_packaging_migration_rolls_back_as_one_transaction(self):
+        with self.engine.begin() as connection:
+            connection.execute(text(
+                "UPDATE plan_entitlements SET value = 'false' "
+                "WHERE entitlement_definition_id IN ("
+                "SELECT id FROM entitlement_definitions "
+                "WHERE key = 'feature.advanced_reporting')"
+            ))
+
+        with self.assertRaises(RuntimeError):
+            with self.engine.begin() as connection:
+                db_migrations._capacity_based_packaging_and_customer_feature_baseline(
+                    self.engine, connection
+                )
+                raise RuntimeError("force transaction rollback")
+
+        with self.engine.connect() as connection:
+            values = connection.execute(text(
+                "SELECT pe.value FROM plan_entitlements pe "
+                "JOIN entitlement_definitions ed "
+                "ON ed.id = pe.entitlement_definition_id "
+                "WHERE ed.key = 'feature.advanced_reporting'"
+            )).scalars().all()
+        self.assertEqual(values, ["false", "false", "false"])
 
     def test_starter_professional_and_enterprise_resolution(self):
         starter = self._create_subscription(plan_code="starter", quantity=2)
@@ -190,12 +239,27 @@ class SaaSEntitlementTests(unittest.TestCase):
             professional_result = entitlement_service.resolve_entitlements(db, professional["group_id"])
             enterprise_result = entitlement_service.resolve_entitlements(db, enterprise["group_id"])
             self.assertEqual(starter_result.plan_code, "starter")
-            self.assertFalse(starter_result.entitlements["feature.advanced_reporting"].granted)
-            self.assertFalse(starter_result.entitlements["module.ai"].granted)
+            self.assertTrue(starter_result.entitlements["feature.advanced_reporting"].granted)
+            self.assertTrue(starter_result.entitlements["module.ai"].granted)
             self.assertTrue(professional_result.entitlements["feature.advanced_reporting"].granted)
-            self.assertFalse(professional_result.entitlements["module.ai"].granted)
+            self.assertTrue(professional_result.entitlements["module.ai"].granted)
             self.assertTrue(enterprise_result.entitlements["feature.advanced_reporting"].granted)
             self.assertTrue(enterprise_result.entitlements["module.ai"].granted)
+            plans = {
+                plan.plan_code: (
+                    plan.max_branches,
+                    plan.max_system_users,
+                    plan.max_teachers,
+                )
+                for plan in db.query(saas.models.SubscriptionPlan).filter(
+                    saas.models.SubscriptionPlan.plan_code.in_(
+                        ("starter", "professional", "enterprise_ai")
+                    )
+                )
+            }
+            self.assertEqual(plans["starter"], (1, 5, 25))
+            self.assertEqual(plans["professional"], (5, 20, 100))
+            self.assertEqual(plans["enterprise_ai"], (25, 100, 500))
         finally:
             db.close()
 
@@ -372,7 +436,7 @@ class SaaSEntitlementTests(unittest.TestCase):
         )
         db = self.Session()
         try:
-            self.assertFalse(entitlement_service.can_use_feature(
+            self.assertTrue(entitlement_service.can_use_feature(
                 db, self._user(db, starter), "feature.advanced_reporting", "reports.export"
             ))
             self.assertTrue(entitlement_service.can_use_feature(
@@ -411,7 +475,7 @@ class SaaSEntitlementTests(unittest.TestCase):
             db.flush()
             for platform_user in platform_users:
                 platform_user.scope_school_group_id = starter["group_id"]
-                self.assertFalse(entitlement_service.can_use_feature(
+                self.assertTrue(entitlement_service.can_use_feature(
                     db, platform_user, "feature.advanced_reporting", "reports.export"
                 ))
                 platform_user.scope_school_group_id = professional["group_id"]
@@ -441,15 +505,68 @@ class SaaSEntitlementTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_require_entitlement_and_module_helper_fail_closed(self):
+    def test_branch_year_and_internal_feature_boundaries_fail_closed(self):
+        first = self._create_subscription(plan_code="starter", quantity=1)
+        second = self._create_subscription(plan_code="enterprise_ai", quantity=1)
+        db = self.Session()
+        try:
+            user = self._user(db, first)
+            first_branch = db.get(models.Branch, user.branch_id)
+            second_branch = db.query(models.Branch).filter_by(
+                school_group_id=second["group_id"]
+            ).one()
+            first_year = models.AcademicYear(
+                school_group_id=first["group_id"], year_name="2026-2027", is_active=True
+            )
+            second_year = models.AcademicYear(
+                school_group_id=second["group_id"], year_name="2026-2027", is_active=True
+            )
+            db.add_all([first_year, second_year])
+            db.flush()
+            self.assertFalse(entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.advanced_reporting",
+                "reports.export",
+                branch_id=second_branch.id,
+                academic_year_id=second_year.id,
+            ))
+            self.assertFalse(entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.advanced_reporting",
+                "reports.export",
+                branch_id=first_branch.id,
+                academic_year_id=second_year.id,
+            ))
+            first_branch.status = False
+            db.flush()
+            self.assertFalse(entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.advanced_reporting",
+                "reports.export",
+                branch_id=first_branch.id,
+                academic_year_id=first_year.id,
+            ))
+            self.assertFalse(entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.audit_log",
+                "reports.export",
+            ))
+        finally:
+            db.close()
+
+    def test_require_entitlement_and_module_helper_use_common_baseline(self):
         starter = self._create_subscription(plan_code="starter", quantity=1)
         enterprise = self._create_subscription(plan_code="enterprise_ai", quantity=1)
         db = self.Session()
         try:
-            with self.assertRaises(entitlement_service.EntitlementRequiredError):
-                entitlement_service.require_entitlement(
-                    db, starter["group_id"], "module.ai"
-                )
+            starter_result = entitlement_service.require_entitlement(
+                db, starter["group_id"], "module.ai"
+            )
+            self.assertTrue(starter_result.resolved)
             result = entitlement_service.require_entitlement(
                 db, enterprise["group_id"], "module.ai"
             )
@@ -479,26 +596,32 @@ class SaaSEntitlementTests(unittest.TestCase):
         finally:
             db.close()
 
-    def test_backend_pilot_enforcement_denies_starter_and_allows_professional(self):
+    def test_backend_allocation_enforcement_allows_all_paid_tiers(self):
         starter = self._create_subscription(plan_code="starter", quantity=1)
         professional = self._create_subscription(plan_code="professional", quantity=1)
-        request = self._request("/reports/allocation-plan.xlsx")
+        enterprise = self._create_subscription(plan_code="enterprise_ai", quantity=1)
         db = self.Session()
         try:
-            denied_marker = object()
-            with patch("authorization.build_access_denied_response", return_value=denied_marker):
-                denied = authorization.enforce_route_permission(
-                    request,
-                    db,
-                    current_user=self._user(db, starter),
-                )
-            self.assertIs(denied, denied_marker)
-            allowed = authorization.enforce_route_permission(
-                request,
-                db,
-                current_user=self._user(db, professional),
-            )
-            self.assertIsNone(allowed)
+            for fixture in (starter, professional, enterprise):
+                for extension in ("xlsx", "pdf"):
+                    request = self._request(
+                        f"/reports/allocation-plan.{extension}"
+                    )
+                    self.assertIsNone(authorization.enforce_route_permission(
+                        request,
+                        db,
+                        current_user=self._user(db, fixture),
+                    ))
+
+            starter_user = self._user(db, starter)
+            for extension, endpoint in (
+                ("xlsx", main.download_report_allocation_plan),
+                ("pdf", main.download_report_allocation_plan_pdf),
+            ):
+                request = self._request(f"/reports/allocation-plan.{extension}")
+                with patch("auth.get_current_user", return_value=starter_user):
+                    response = endpoint(request=request, section="full", db=db)
+                self.assertEqual(response.status_code, 200)
         finally:
             db.close()
 

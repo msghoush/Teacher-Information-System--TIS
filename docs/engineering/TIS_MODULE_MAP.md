@@ -1,11 +1,34 @@
 ---
 title: TIS Module Map
 documentation_version: 3.1
-last_updated: 2026-08-18
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Commercial Feature Packaging Components
+
+- `saas/customer_feature_policy.py`: stable normal-customer and internal-feature
+  classification. It does not decide permission, scope, lifecycle, or capacity.
+- `saas/entitlement_service.py`: centralized source-aware customer feature
+  decision, including permission, commercial state, optional branch/year scope,
+  catalog state, and BranchEntitlement.
+- `saas/ai_consumption_policy.py`: consumption decision separate from commercial
+  AI availability; current demo allowances are preserved without creating a
+  provider billing engine.
+- `saas/demo_feature_registry.py` and `saas/demo_access_service.py`: Standard,
+  Full, and Custom retain the normal baseline; Custom continues to control AI
+  allowances, scope, safety, and experimental configuration.
+- `saas/promo_redemption_service.py`: new promo activation snapshots the common
+  baseline and exact grant capacity.
+- `db_migrations.py`: migration
+  `20260819_001_capacity_based_customer_feature_baseline` reconciles plan, active
+  promo, and active demo operational values idempotently.
+
+The boundary excludes Platform Console, Developer/System Owner controls, global
+audit/support export, promo administration, demo administration, and payment
+administration. Capacity continues through `commercial_authority_service`.
 
 ## SchoolGroup Management Boundary Components
 

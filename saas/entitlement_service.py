@@ -93,6 +93,16 @@ class PlanEntitlementProfile:
     entitlements: dict[str, EntitlementValue]
 
 
+@dataclass(frozen=True)
+class FeatureAccessDecision:
+    allowed: bool
+    reason_code: str
+    school_group_id: int | None
+    feature_key: str
+    commercial_state: str = ""
+    entitlement_type: str = ""
+
+
 class EntitlementRequiredError(PermissionError):
     def __init__(self, entitlement_key: str, resolution: EntitlementResolution):
         super().__init__("The active subscription does not include this capability.")
@@ -507,6 +517,145 @@ def _authorized_school_group_id(db: Session, user, school_group_id: int | None) 
     return int(effective_group_id) if effective_group_id else None
 
 
+def evaluate_feature_access(
+    db: Session,
+    user,
+    feature_key: str,
+    permission_key: str,
+    *,
+    school_group_id: int | None = None,
+    branch_id: int | None = None,
+    academic_year_id: int | None = None,
+) -> FeatureAccessDecision:
+    """Resolve one permission- and source-aware customer feature decision."""
+
+    from saas import (
+        branch_entitlement_service,
+        commercial_state_service,
+        demo_access_service,
+    )
+    from saas.customer_feature_policy import (
+        is_internal_feature,
+        is_normal_customer_feature,
+        normalize_feature_key,
+    )
+
+    key = normalize_feature_key(feature_key)
+    group_id = _authorized_school_group_id(db, user, school_group_id)
+
+    def decision(allowed: bool, reason_code: str, *, commercial=None, entitlement_type=""):
+        return FeatureAccessDecision(
+            allowed=allowed,
+            reason_code=reason_code,
+            school_group_id=group_id,
+            feature_key=key,
+            commercial_state=(
+                str(getattr(commercial, "commercial_state", "") or "")
+                if commercial is not None
+                else ""
+            ),
+            entitlement_type=entitlement_type,
+        )
+
+    if group_id is None:
+        return decision(False, "workspace_access_denied")
+    if not auth.has_permission(db, user, permission_key, school_group_id=group_id):
+        return decision(False, "permission_denied")
+    if branch_id is not None:
+        try:
+            normalized_branch_id = int(branch_id)
+        except (TypeError, ValueError):
+            return decision(False, "invalid_branch_scope")
+        if not auth.can_access_branch(db, user, normalized_branch_id):
+            return decision(False, "invalid_branch_scope")
+        if academic_year_id is not None and not auth.validate_branch_year_scope(
+            db,
+            branch_id=normalized_branch_id,
+            academic_year_id=academic_year_id,
+            current_user=user,
+        ):
+            return decision(False, "invalid_academic_year_scope")
+    elif academic_year_id is not None:
+        return decision(False, "missing_branch_scope")
+
+    commercial = commercial_state_service.resolve_commercial_state(db, group_id)
+    if not commercial.resolved:
+        return decision(False, "commercial_state_unresolved", commercial=commercial)
+    if commercial.commercial_state not in {
+        "internal_sandbox_active",
+        "customer_demo_active",
+        "customer_paid_active",
+        "customer_active",
+    }:
+        return decision(False, "commercial_access_inactive", commercial=commercial)
+    workspace = commercial.workspace_entitlement
+    entitlement_type = str(getattr(workspace, "entitlement_type", "") or "")
+    if workspace is None or not workspace.active:
+        return decision(
+            False,
+            "workspace_entitlement_inactive",
+            commercial=commercial,
+            entitlement_type=entitlement_type,
+        )
+
+    definition = db.query(models.EntitlementDefinition).filter(
+        models.EntitlementDefinition.key == key,
+        models.EntitlementDefinition.active.is_(True),
+    ).one_or_none()
+    if definition is None:
+        return decision(
+            False,
+            "unknown_or_disabled_feature",
+            commercial=commercial,
+            entitlement_type=entitlement_type,
+        )
+    if is_internal_feature(key):
+        return decision(
+            False,
+            "internal_feature_excluded",
+            commercial=commercial,
+            entitlement_type=entitlement_type,
+        )
+
+    if is_normal_customer_feature(key):
+        feature_allowed = True
+    elif entitlement_type == "demo":
+        feature_allowed = demo_access_service.product_feature_allowed(
+            db, group_id, key, branch_id=branch_id
+        )
+    else:
+        value = workspace.entitlements.get(key)
+        feature_allowed = bool(value and value.granted)
+    if not feature_allowed:
+        return decision(
+            False,
+            "feature_not_available",
+            commercial=commercial,
+            entitlement_type=entitlement_type,
+        )
+
+    if branch_id is not None:
+        branch = branch_entitlement_service.resolve_branch_entitlement(
+            db,
+            branch_id,
+            school_group_id=group_id,
+            workspace_resolution=workspace,
+        )
+        if not branch.resolved or branch.effective_status != "active":
+            return decision(
+                False,
+                "branch_entitlement_inactive",
+                commercial=commercial,
+                entitlement_type=entitlement_type,
+            )
+    return decision(
+        True,
+        "customer_feature_allowed",
+        commercial=commercial,
+        entitlement_type=entitlement_type,
+    )
+
+
 def can_use_feature(
     db: Session,
     user,
@@ -514,13 +663,18 @@ def can_use_feature(
     permission_key: str,
     *,
     school_group_id: int | None = None,
+    branch_id: int | None = None,
+    academic_year_id: int | None = None,
 ) -> bool:
-    group_id = _authorized_school_group_id(db, user, school_group_id)
-    if group_id is None:
-        return False
-    if not auth.has_permission(db, user, permission_key, school_group_id=group_id):
-        return False
-    return has_entitlement(db, group_id, feature_key)
+    return evaluate_feature_access(
+        db,
+        user,
+        feature_key,
+        permission_key,
+        school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    ).allowed
 
 
 def can_access_module(
@@ -530,6 +684,8 @@ def can_access_module(
     permission_key: str,
     *,
     school_group_id: int | None = None,
+    branch_id: int | None = None,
+    academic_year_id: int | None = None,
 ) -> bool:
     key = _clean(module_key)
     if not key.startswith("module."):
@@ -540,4 +696,6 @@ def can_access_module(
         key,
         permission_key,
         school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
     )

@@ -1,11 +1,46 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.1
-last_updated: 2026-08-18
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Common Customer Feature Decision Flow
+
+1. Resolve the authenticated operational user and authorized SchoolGroup.
+2. Require the registered user permission; denial ends the decision.
+3. For branch-scoped actions, require accessible tenant branch scope and a
+   matching academic year when supplied.
+4. Resolve one coherent commercial state and active workspace entitlement.
+   Paid, promo, demo, and internal sources remain distinct; inactive,
+   expired, suspended, missing, or ambiguous evidence fails closed.
+5. Require an active catalog definition. Developer-only `feature.audit_log`
+   is explicitly outside the customer baseline.
+6. Resolve normal customer availability from the common policy. Optional,
+   beta, disabled, or custom features continue through their explicit policy.
+7. For branch-scoped work, resolve an active coherent BranchEntitlement.
+8. Apply capacity or consumption separately. Feature availability never grants
+   additional branches, staff users, teachers, or AI provider usage.
+
+Allocation XLSX/PDF use this flow with `feature.advanced_reporting` and
+`reports.export`. Starter, Professional, Enterprise AI, active promo, and active
+demo therefore share availability while permission, scope, branch entitlement,
+and lifecycle continue to win.
+
+## AI Availability And Consumption Flow
+
+1. Resolve enabled AI definition, tenant workspace, `ai.use`, commercial source,
+   and the shared `module.ai` baseline.
+2. Return availability independently of consumption. A globally disabled AI
+   definition remains unavailable.
+3. Resolve consumption policy by entitlement source. Demo Standard retains two
+   successful uses per feature; Full is unrestricted; Custom may set legitimate
+   allowances. Paid and promo currently have no configured provider ceiling
+   because no executable provider-backed AI route exists.
+4. Reserve by operation key, execute outside the entitlement service, and
+   complete successful or failed accounting exactly as before.
 
 ## SchoolGroup Management And Branch Capacity Flow
 

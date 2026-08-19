@@ -1,11 +1,29 @@
 ---
 title: TIS Repository Architecture
 documentation_version: 3.1
-last_updated: 2026-08-06
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS Repository Architecture
+
+## Customer Feature Policy Boundary
+
+`saas/customer_feature_policy.py` classifies the normal organization product
+baseline and explicitly excludes internal audit capability.
+`saas.entitlement_service.evaluate_feature_access` composes existing identity,
+permission, commercial-state, workspace-entitlement, branch-entitlement, and
+scope authorities. Routes and templates consume this one decision rather than
+branching on paid, promo, demo, or plan names.
+
+`saas/ai_entitlement_service.py` consumes that availability decision.
+`saas/ai_consumption_policy.py` separately returns metric context and usage limit,
+preserving reservations and usage accounting. This split is intentionally small
+while no provider-backed AI route exists.
+
+Migration and activation writes remain in `db_migrations.py` and
+`saas/promo_redemption_service.py`; feature policy never owns capacity, payment,
+permission assignment, or immutable promo evidence.
 
 ## SchoolGroup Configuration Boundary
 
