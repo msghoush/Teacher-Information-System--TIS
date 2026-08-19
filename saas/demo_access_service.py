@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 import auth
 import models as operational_models
 from saas import ai_feature_registry, demo_feature_registry, models
+from saas.customer_feature_policy import NORMAL_CUSTOMER_FEATURE_KEYS
 from workspace_classification import WorkspaceClassification
 
 
@@ -118,8 +119,14 @@ def resolve_access(
         school_group_id=group_id,
         branch_id=branch_id,
         source="branch_override" if row.branch_id else "workspace_policy",
-        product_features=_load_list(row.product_features_json),
-        ai_features=_load_list(row.ai_features_json),
+        product_features=frozenset(
+            NORMAL_CUSTOMER_FEATURE_KEYS | _load_list(row.product_features_json)
+        ),
+        ai_features=frozenset(
+            feature.key
+            for feature in ai_feature_registry.list_features()
+            if feature.enabled
+        ) | _load_list(row.ai_features_json),
         ai_allowances=_load_allowances(row.ai_allowances_json),
         unrestricted_ai_features=_load_list(row.unrestricted_ai_features_json),
     )
@@ -178,7 +185,14 @@ def set_access_policy(
         raise DemoAccessError("AI configuration must reference selected features.", reason_code="invalid_ai_configuration")
     if any(value < 0 for value in allowances.values()):
         raise DemoAccessError("AI allowances cannot be negative.", reason_code="invalid_ai_allowance")
-    if cleaned_profile != CUSTOM:
+    if cleaned_profile == CUSTOM:
+        product_keys.update(NORMAL_CUSTOMER_FEATURE_KEYS)
+        ai_keys.update(
+            feature.key
+            for feature in ai_feature_registry.list_features()
+            if feature.enabled
+        )
+    else:
         product_keys, ai_keys, unlimited, allowances = set(), set(), set(), {}
 
     query = db.query(models.DemoAccessPolicy).filter(

@@ -1,11 +1,36 @@
 ---
 title: TIS Database Architecture Overview
 documentation_version: 3.1
-last_updated: 2026-08-18
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## Capacity-Based Packaging Reconciliation
+
+Migration `20260819_001_capacity_based_customer_feature_baseline` is additive and
+idempotent. It upserts the nine normal customer `PlanEntitlement` booleans to
+active/true for Starter, Professional, and Enterprise AI, synchronizes the
+legacy AI, Advanced Reporting, and multi-branch availability flags, and leaves
+`priority_support` separate. It does not update any branch/staff/teacher ceiling
+or Paddle quantity.
+
+For a promo grant that is active at migration time, missing or false normal
+customer `WorkspaceEntitlementValue` rows are inserted or corrected. The derived
+branch quota, staff/teacher grant capacity, PromoGrant, PromoRedemption, branch
+assignments, tenant source, and payment tables are untouched. Expired or
+incoherent promo authority is not reactivated or reconciled.
+
+Active customer-demo policy rows receive the normal baseline while retaining
+stored experimental keys and all AI allowance/unrestricted configuration. Paid
+workspaces need no value backfill because their workspace entitlement resolves
+the current PlanEntitlement matrix. `feature.audit_log` remains
+`owner_approval_required`; the implemented audit export is Developer-only.
+
+AI counters now permit the existing `promo` metric context in addition to paid,
+demo, and internal contexts through the already text-based field. No new AI
+table or provider billing record is introduced.
 
 ## SchoolGroup Creation Provenance Audit
 

@@ -1,11 +1,27 @@
 ---
 title: TIS Master Context
 documentation_version: 3.1
-last_updated: 2026-08-13
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Capacity-Based Commercial Packaging
+
+ADR 0025 establishes one normal customer feature baseline for coherent active
+paid, promo, and customer-demo workspaces. Starter, Professional, and Enterprise
+AI differ by organization capacity and billing context, not by ordinary product
+modules. Their established 1/5/25, 5/20/100, and 25/100/500 branch/staff/teacher
+ceilings remain unchanged; Custom remains contact-only above Enterprise.
+
+Commercial source and lifecycle decide whether the workspace may operate.
+Permissions and tenant/branch/academic-year scope decide what a user may do.
+Normal feature policy is resolved centrally, and branch entitlement is required
+for branch-scoped actions. Platform, Developer, System Owner, global audit,
+promo-admin, and demo-admin capabilities are excluded. AI availability uses the
+common baseline, while AI consumption uses a separate policy boundary and the
+existing durable accounting model.
 
 ## Stage 5 SchoolGroup Management Boundary
 
@@ -181,12 +197,13 @@ bound, and Custom supports registry-controlled workspace and branch policy.
 
 AI access resolves centrally after tenant scope and `ai.use` permission.
 Commercial state remains authoritative: active Internal Sandbox is unlimited,
-active Customer Demo receives two successful uses independently per registered
-feature, expired/restricted demos fail closed, and Customer Paid requires both
-an eligible plan and the existing `module.ai` entitlement. The controlled
-foundation maps AI to Enterprise AI only; it changes no pricing. Usage is
+active Customer Demo receives its configured successful-use allowance per
+registered feature, and expired/restricted demos fail closed. Enabled AI
+availability uses the common customer `module.ai` baseline for paid, promo, and
+active demo authority; globally disabled definitions remain denied. Usage is
 durable, auditable, idempotent by operation key, concurrency-safe, and
-separated into internal, demo, and paid metric contexts. No executable AI tool
+separated into internal, demo, promo, and paid metric contexts. Availability
+and consumption policy are independent. No executable AI tool
 or M8B9 owner override/reset operation exists.
 
 ## M8B7 Demo Customer Journey
@@ -568,7 +585,7 @@ M5: Platform access, permissions, and owner controls
 - Paddle `paid` and `completed` remain separate lifecycle evidence: paid is customer-visible payment receipt while provider processing continues; completed remains required for final reconciliation.
 - Added webhook idempotency, strict provider/local relationship validation, manual-review fail-closed paths, diagnostics, and guarded reconciliation tooling.
 - Unified active subscription capacity review and operational enforcement across branches, tenant operational staff users, and teachers. Required upgrades use the highest capacity dimension, Paddle quantity remains branch-only, and scheduled downgrades/reductions revalidate capacity at their effective boundary.
-- Subscription presentation separates paid branch quantity from the plan's maximum branch ceiling; unused ceiling is never described as prepaid capacity. Customer plan comparison remains limited to approved plan identity, capacity, eligibility, and action information until the commercial feature matrix is approved.
+- Subscription presentation separates paid branch quantity from the plan's maximum branch ceiling; unused ceiling is never described as prepaid capacity. The approved common customer feature baseline keeps plan comparison focused on identity, capacity, eligibility, and actions rather than a feature ladder.
 - Linked operational organization owners and billing-authorized account managers can enter the existing Organization Account subscription page from System Configuration. Tenant/account linkage is revalidated and only an allowlisted internal billing continuation survives SaaS authentication. The public landing customer entry is labelled Organization Sign In and targets centralized SaaS login.
 
 ## Paddle And Payment Architecture Summary

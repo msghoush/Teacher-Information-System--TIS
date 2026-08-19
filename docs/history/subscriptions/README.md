@@ -1,10 +1,20 @@
 ---
 title: Subscription History
 module: subscriptions
-last_updated: 2026-08-13
+last_updated: 2026-08-19
 ---
 
 # Subscription History
+
+## 2026-08-19 - Capacity-Based Packaging
+
+ADR 0025 makes the normal customer feature matrix identical for Starter,
+Professional, and Enterprise AI while preserving 1/5/25, 5/20/100, and
+25/100/500 organization capacity. The source-aware feature resolver accepts
+coherent active paid, promo, and demo authority only after permission and scope.
+Active promo operational feature snapshots are reconciled without modifying
+exact grant capacity, immutable promo evidence, Paddle, or expired authority.
+Priority support remains a separate service-level distinction.
 
 ## 2026-08-06 - Existing Workspace Paid Activation Through Paddle
 

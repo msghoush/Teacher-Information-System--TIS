@@ -1,11 +1,26 @@
 ---
 title: TIS Project State
 documentation_version: 3.1
-last_updated: 2026-08-13
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Capacity-Based Packaging Implemented
+
+ADR 0025 is implemented. Nine normal customer entitlement keys are identical for
+Starter, Professional, and Enterprise AI. Paid, promo, and active demo workspaces
+resolve those features through one source-aware permission/scope/commercial
+decision. Advanced Reporting allocation exports now follow this path. The report
+generators and calculations are unchanged.
+
+Migration `20260819_001_capacity_based_customer_feature_baseline` updates plan
+values and compatible legacy flags, repairs only currently active promo feature
+values, and reconciles active demo baseline policy. It does not change capacity,
+priority support, Paddle/payment evidence, immutable promo records, or expired
+authority. AI availability is common; demo allowances and future provider limits
+resolve through a separate consumption-policy boundary.
 
 ## Stage 5 SchoolGroup Boundary Correction Complete
 

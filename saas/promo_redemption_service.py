@@ -529,6 +529,8 @@ def _scope_snapshot(db: Session, promo) -> dict:
 
 
 def _create_entitlement_values(db: Session, workspace_entitlement, plan, allowed_branches: int) -> None:
+    from saas.customer_feature_policy import NORMAL_CUSTOMER_FEATURE_KEYS
+
     rows = db.query(models.PlanEntitlement, models.EntitlementDefinition).join(
         models.EntitlementDefinition,
         models.EntitlementDefinition.id == models.PlanEntitlement.entitlement_definition_id,
@@ -541,10 +543,17 @@ def _create_entitlement_values(db: Session, workspace_entitlement, plan, allowed
         if definition.key in seen:
             raise PromoActivationError("promo_plan_entitlement_ambiguous")
         seen.add(definition.key)
-        if str(plan_value.status or "") not in {"active", "derived"}:
+        is_customer_baseline = definition.key in NORMAL_CUSTOMER_FEATURE_KEYS
+        if not is_customer_baseline and str(plan_value.status or "") not in {"active", "derived"}:
             continue
         status = "active"
-        value = str(allowed_branches) if definition.key == "quota.active_branches" else plan_value.value
+        value = (
+            str(allowed_branches)
+            if definition.key == "quota.active_branches"
+            else "true"
+            if is_customer_baseline
+            else plan_value.value
+        )
         db.add(models.WorkspaceEntitlementValue(
             workspace_entitlement_id=workspace_entitlement.id,
             entitlement_definition_id=definition.id,

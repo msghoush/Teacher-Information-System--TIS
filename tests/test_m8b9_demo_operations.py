@@ -1,15 +1,22 @@
+import json
 import uuid
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 
 import pytest
+from starlette.requests import Request
 
 import auth
+import authorization
+import db_migrations
+import main
 import models
 import saas.models
 from saas import (
     ai_entitlement_service,
     demo_access_service,
     demo_operations_service,
+    entitlement_service,
 )
 FEATURE = "ai.academic_assistant"
 
@@ -190,6 +197,41 @@ class TestM8B9DemoOperations:
                 db, user=user, school_group_id=group_id, feature_key=FEATURE
             )
             assert full.allowed and full.usage_limit is None
+            user.scope_school_group_id = group_id
+            user.scope_branch_id = branches[0].id
+            assert entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.advanced_reporting",
+                "reports.export",
+                branch_id=branches[0].id,
+            )
+            user.scope_academic_year_id = db.query(models.AcademicYear.id).filter_by(
+                school_group_id=group_id
+            ).scalar()
+            for extension, endpoint in (
+                ("xlsx", main.download_report_allocation_plan),
+                ("pdf", main.download_report_allocation_plan_pdf),
+            ):
+                path = f"/reports/allocation-plan.{extension}"
+                request = Request({
+                    "type": "http",
+                    "method": "GET",
+                    "path": path,
+                    "raw_path": path.encode("ascii"),
+                    "query_string": b"",
+                    "headers": [],
+                    "scheme": "http",
+                    "server": ("testserver", 80),
+                    "client": ("testclient", 50000),
+                    "root_path": "",
+                })
+                assert authorization.enforce_route_permission(
+                    request, db, current_user=user
+                ) is None
+                with patch("auth.get_current_user", return_value=user):
+                    response = endpoint(request=request, section="full", db=db)
+                assert response.status_code == 200
             assert db.get(models.SchoolGroup, group_id).workspace_classification == "customer_demo"
 
             demo_operations_service.change_access_profile(
@@ -217,6 +259,16 @@ class TestM8B9DemoOperations:
                 db, user=user, school_group_id=group_id, feature_key=FEATURE
             )
             assert not blocked.allowed
+            assert ai_entitlement_service.evaluate_ai_availability(
+                db, user=user, school_group_id=group_id, feature_key=FEATURE
+            ).allowed
+            assert entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.advanced_reporting",
+                "reports.export",
+                branch_id=branches[0].id,
+            )
             assert db.query(saas.models.AIFeatureUsageEvent).filter_by(
                 school_group_id=group_id, feature_key=FEATURE, result_status="successful"
             ).count() == 2
@@ -330,8 +382,32 @@ class TestM8B9DemoOperations:
                 feature_key="ai.exam_analysis",
             )
             assert selected.allowed and selected.usage_limit == 3
-            assert not unselected.allowed
-            assert unselected.reason_code == "demo_ai_feature_not_selected"
+            assert unselected.allowed
+            assert unselected.usage_limit == 2
+            policy = db.query(saas.models.DemoAccessPolicy).filter_by(
+                school_group_id=group_id, branch_id=None
+            ).one()
+            policy.product_features_json = "[]"
+            db.flush()
+            db_migrations._capacity_based_packaging_and_customer_feature_baseline(
+                db.get_bind(), db.connection()
+            )
+            db_migrations._capacity_based_packaging_and_customer_feature_baseline(
+                db.get_bind(), db.connection()
+            )
+            db.refresh(policy)
+            assert "feature.advanced_reporting" in json.loads(
+                policy.product_features_json
+            )
+            user.scope_school_group_id = group_id
+            user.scope_branch_id = branches[0].id
+            assert entitlement_service.can_use_feature(
+                db,
+                user,
+                "feature.advanced_reporting",
+                "reports.export",
+                branch_id=branches[0].id,
+            )
 
             demo_operations_service.change_access_profile(
                 db, actor=actor, provisioning_id=provisioning_id,

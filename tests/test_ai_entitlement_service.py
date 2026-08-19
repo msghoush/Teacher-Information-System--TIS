@@ -218,6 +218,15 @@ class TestAIEntitlementService:
         assert third.message == "You have reached the demo limit for this AI feature."
         assert third.cta_label == "Subscribe Now"
         assert third.cta_url == "/saas/subscription"
+        with self.Session() as db:
+            availability = ai_entitlement_service.evaluate_ai_availability(
+                db,
+                user=self._user(db, user_id, group_id),
+                school_group_id=group_id,
+                feature_key=FEATURE,
+            )
+        assert availability.allowed
+        assert availability.reason_code == "ai_feature_available"
 
     def test_demo_limits_are_independent_per_feature_and_tenant(self):
         first_group, first_user = self._workspace()
@@ -285,10 +294,15 @@ class TestAIEntitlementService:
             assert counter.successful_uses == 0
             assert counter.reserved_uses == 2
 
-    def test_paid_enterprise_allowed_and_professional_gets_upgrade(self):
+    def test_paid_enterprise_and_professional_share_ai_availability(self):
+        starter_group, starter_user = self._paid_workspace("starter")
         enterprise_group, enterprise_user = self._paid_workspace("enterprise_ai")
         professional_group, professional_user = self._paid_workspace("professional")
         with self.Session() as db:
+            starter = ai_entitlement_service.evaluate_ai_entitlement(
+                db, user=self._user(db, starter_user, starter_group),
+                school_group_id=starter_group, feature_key=FEATURE,
+            )
             enterprise = ai_entitlement_service.evaluate_ai_entitlement(
                 db, user=self._user(db, enterprise_user, enterprise_group),
                 school_group_id=enterprise_group, feature_key=FEATURE,
@@ -297,10 +311,11 @@ class TestAIEntitlementService:
                 db, user=self._user(db, professional_user, professional_group),
                 school_group_id=professional_group, feature_key=FEATURE,
             )
+        assert starter.allowed and starter.plan_code == "starter"
         assert enterprise.allowed and enterprise.plan_code == "enterprise_ai"
-        assert not professional.allowed
-        assert professional.reason_code == "paid_plan_upgrade_required"
-        assert professional.cta_url == "/saas/subscription"
+        assert professional.allowed
+        assert professional.reason_code == "paid_plan_allowed"
+        assert professional.usage_limit is None
 
     def test_sandbox_payment_environment_never_promotes_demo_ai_access(self):
         group_id, user_id = self._workspace()

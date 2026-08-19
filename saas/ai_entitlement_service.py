@@ -10,9 +10,10 @@ from sqlalchemy.orm import Session
 import auth
 import models as operational_models
 from saas import (
+    ai_consumption_policy,
     ai_feature_registry,
     commercial_state_service,
-    demo_access_service,
+    entitlement_service,
     models,
 )
 from workspace_classification import WorkspaceClassification
@@ -38,6 +39,7 @@ class AIEntitlementDecision:
     cta_label: str = ""
     cta_url: str = ""
     idempotent_replay: bool = False
+    entitlement_type: str = ""
 
 
 def _decision(feature_key: str, *, allowed: bool, reason_code: str, feature=None, **details):
@@ -50,12 +52,8 @@ def _decision(feature_key: str, *, allowed: bool, reason_code: str, feature=None
     )
 
 
-def _metric_context(classification: str) -> str:
-    return {
-        WorkspaceClassification.INTERNAL_SANDBOX.value: "internal_sandbox",
-        WorkspaceClassification.CUSTOMER_DEMO.value: "demo",
-        WorkspaceClassification.CUSTOMER_PAID.value: "paid",
-    }.get(classification, "unknown")
+def _metric_context(entitlement_type: str) -> str:
+    return ai_consumption_policy.metric_context_for_entitlement_type(entitlement_type)
 
 
 def _authorized_workspace(db: Session, user, school_group_id: int):
@@ -92,7 +90,7 @@ def _paid_plan_context(db: Session, commercial):
     return plan, workspace_entitlement
 
 
-def evaluate_ai_entitlement(
+def evaluate_ai_availability(
     db: Session,
     *,
     user,
@@ -109,20 +107,6 @@ def evaluate_ai_entitlement(
             reason_code="workspace_access_denied",
         )
     classification = str(group.workspace_classification or "")
-    if not auth.has_permission(
-        db,
-        user,
-        ai_feature_registry.AI_PERMISSION_KEY,
-        school_group_id=group.id,
-    ):
-        return _decision(
-            cleaned_key,
-            allowed=False,
-            reason_code="ai_permission_denied",
-            workspace_classification=classification,
-            message="You do not have permission to use this AI feature.",
-        )
-
     commercial = commercial_state_service.resolve_commercial_state(db, group.id)
     if not commercial.resolved:
         return _decision(
@@ -160,95 +144,115 @@ def evaluate_ai_entitlement(
             workspace_classification=classification,
             message="This AI feature is not currently available.",
         )
-    if state == "internal_sandbox_active":
-        usage = _usage_count(db, group.id, cleaned_key, "internal_sandbox")
+    feature_access = entitlement_service.evaluate_feature_access(
+        db,
+        user,
+        feature.entitlement_key,
+        feature.permission_key,
+        school_group_id=group.id,
+        branch_id=branch_id,
+        academic_year_id=(
+            getattr(user, "scope_academic_year_id", None)
+            if branch_id is not None
+            else None
+        ),
+    )
+    if not feature_access.allowed:
+        reason = (
+            "ai_permission_denied"
+            if feature_access.reason_code == "permission_denied"
+            else "ai_commercial_access_denied"
+        )
         return _decision(
             cleaned_key,
-            allowed=True,
-            reason_code="internal_sandbox_allowed",
+            allowed=False,
+            reason_code=reason,
             feature=feature,
-            current_usage=usage,
             workspace_classification=classification,
+            entitlement_type=feature_access.entitlement_type,
+            message=(
+                "You do not have permission to use this AI feature."
+                if reason == "ai_permission_denied"
+                else "AI access is unavailable for this workspace."
+            ),
         )
-    if state == "customer_demo_active":
-        usage = _usage_count(db, group.id, cleaned_key, "demo")
-        access = demo_access_service.resolve_access(
-            db, group.id, branch_id=branch_id
-        )
-        if cleaned_key not in access.ai_features:
-            return _decision(
-                cleaned_key,
-                allowed=False,
-                reason_code="demo_ai_feature_not_selected",
-                feature=feature,
-                current_usage=usage,
-                workspace_classification=classification,
-                message="This AI feature is not included in the current demo access configuration.",
-            )
-        if cleaned_key in access.unrestricted_ai_features:
-            return _decision(
-                cleaned_key,
-                allowed=True,
-                reason_code="demo_full_access_allowed",
-                feature=feature,
-                current_usage=usage,
-                usage_limit=None,
-                remaining_usage=None,
-                workspace_classification=classification,
-            )
-        allowance = int(access.ai_allowances.get(cleaned_key, feature.demo_allowance))
-        remaining = max(allowance - usage, 0)
-        allowed = remaining > 0
-        return _decision(
-            cleaned_key,
-            allowed=allowed,
-            reason_code="demo_allowed" if allowed else "demo_feature_limit_exhausted",
-            feature=feature,
-            current_usage=usage,
-            usage_limit=allowance,
-            remaining_usage=remaining,
-            workspace_classification=classification,
-            message="" if allowed else DEMO_LIMIT_MESSAGE,
-            cta_label="" if allowed else SUBSCRIBE_CTA["label"],
-            cta_url="" if allowed else SUBSCRIBE_CTA["url"],
-        )
-    if state == "customer_paid_active":
+
+    entitlement_type = feature_access.entitlement_type
+    plan_code = ""
+    plan_name = ""
+    if entitlement_type == "paid":
         plan, workspace_entitlement = _paid_plan_context(db, commercial)
         plan_code = str(getattr(plan, "plan_code", "") or "")
         plan_name = str(getattr(plan, "plan_name", "") or "")
-        entitlement = (
-            workspace_entitlement.entitlements.get(feature.entitlement_key)
-            if workspace_entitlement
-            else None
-        )
-        allowed = bool(
-            plan
-            and plan_code in feature.eligible_plan_codes
-            and entitlement
-            and entitlement.granted
-        )
-        return _decision(
-            cleaned_key,
-            allowed=allowed,
-            reason_code="paid_plan_allowed" if allowed else "paid_plan_upgrade_required",
-            feature=feature,
-            current_usage=_usage_count(db, group.id, cleaned_key, "paid"),
-            workspace_classification=classification,
-            plan_code=plan_code,
-            plan_name=plan_name,
-            message="" if allowed else "Your current plan does not include this AI feature.",
-            cta_label="" if allowed else "View Subscription",
-            cta_url="" if allowed else SUBSCRIBE_CTA["url"],
-        )
     return _decision(
         cleaned_key,
-        allowed=False,
-        reason_code="commercial_access_restricted",
+        allowed=True,
+        reason_code="ai_feature_available",
         feature=feature,
         workspace_classification=classification,
-        message="A subscription is required to use this AI feature.",
-        cta_label=SUBSCRIBE_CTA["label"],
-        cta_url=SUBSCRIBE_CTA["url"],
+        entitlement_type=entitlement_type,
+        plan_code=plan_code,
+        plan_name=plan_name,
+    )
+
+
+def evaluate_ai_entitlement(
+    db: Session,
+    *,
+    user,
+    school_group_id: int,
+    feature_key: str,
+    branch_id: int | None = None,
+) -> AIEntitlementDecision:
+    availability = evaluate_ai_availability(
+        db,
+        user=user,
+        school_group_id=school_group_id,
+        feature_key=feature_key,
+        branch_id=branch_id,
+    )
+    if not availability.allowed:
+        return availability
+    policy = ai_consumption_policy.resolve_ai_consumption_policy(
+        db,
+        school_group_id=school_group_id,
+        entitlement_type=availability.entitlement_type,
+        feature_key=availability.feature_key,
+        branch_id=branch_id,
+    )
+    usage = _usage_count(
+        db, school_group_id, availability.feature_key, policy.metric_context
+    )
+    remaining = (
+        max(policy.usage_limit - usage, 0)
+        if policy.usage_limit is not None
+        else None
+    )
+    allowed = remaining is None or remaining > 0
+    source_reason = {
+        "internal_sandbox": "internal_sandbox_allowed",
+        "demo": "demo_allowed",
+        "paid": "paid_plan_allowed",
+        "promo": "promo_allowed",
+    }.get(availability.entitlement_type, "ai_feature_allowed")
+    return AIEntitlementDecision(
+        **{
+            **availability.__dict__,
+            "allowed": allowed,
+            "reason_code": (
+                source_reason
+                if allowed
+                else "demo_feature_limit_exhausted"
+                if availability.entitlement_type == "demo"
+                else "ai_consumption_limit_exhausted"
+            ),
+            "current_usage": usage,
+            "usage_limit": policy.usage_limit,
+            "remaining_usage": remaining,
+            "message": "" if allowed else DEMO_LIMIT_MESSAGE,
+            "cta_label": "" if allowed else SUBSCRIBE_CTA["label"],
+            "cta_url": "" if allowed else SUBSCRIBE_CTA["url"],
+        }
     )
 
 
@@ -318,7 +322,7 @@ def reserve_ai_use(
     if not decision.allowed:
         return decision
     feature = ai_feature_registry.get_feature(decision.feature_key)
-    metric_context = _metric_context(decision.workspace_classification)
+    metric_context = _metric_context(decision.entitlement_type)
     cleaned_operation_key = str(operation_key or "").strip()
     if not cleaned_operation_key or len(cleaned_operation_key) > 120:
         raise ValueError("AI operation key must contain 1 to 120 characters.")
@@ -361,14 +365,17 @@ def reserve_ai_use(
     current = int(counter.successful_uses or 0)
     reserved = int(counter.reserved_uses or 0)
     if (
-        metric_context == "demo"
-        and decision.usage_limit is not None
+        decision.usage_limit is not None
         and current + reserved >= decision.usage_limit
     ):
         return _decision(
             decision.feature_key,
             allowed=False,
-            reason_code="demo_feature_limit_exhausted",
+            reason_code=(
+                "demo_feature_limit_exhausted"
+                if decision.entitlement_type == "demo"
+                else "ai_consumption_limit_exhausted"
+            ),
             feature=feature,
             current_usage=current,
             usage_limit=decision.usage_limit,
@@ -422,19 +429,19 @@ def complete_ai_use(
     group = _authorized_workspace(db, user, school_group_id)
     if group is None or feature is None:
         return _decision(cleaned_key, allowed=False, reason_code="workspace_access_denied")
-    metric_context = _metric_context(str(group.workspace_classification or ""))
-    access = (
-        demo_access_service.resolve_access(db, group.id, branch_id=branch_id)
-        if metric_context == "demo"
-        else None
+    commercial = commercial_state_service.resolve_commercial_state(db, group.id)
+    entitlement_type = str(
+        getattr(commercial.workspace_entitlement, "entitlement_type", "") or ""
     )
-    usage_limit = (
-        None
-        if access and cleaned_key in access.unrestricted_ai_features
-        else int(access.ai_allowances.get(cleaned_key, feature.demo_allowance))
-        if access
-        else None
+    policy = ai_consumption_policy.resolve_ai_consumption_policy(
+        db,
+        school_group_id=group.id,
+        entitlement_type=entitlement_type,
+        feature_key=cleaned_key,
+        branch_id=branch_id,
     )
+    metric_context = policy.metric_context
+    usage_limit = policy.usage_limit
     counter = db.query(models.AIFeatureUsageCounter).filter_by(
         school_group_id=group.id,
         feature_key=cleaned_key,

@@ -8,23 +8,28 @@ from unittest.mock import patch
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
+from starlette.requests import Request
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import auth
+import authorization
 import db_migrations
+import main
 import models
 import saas.models
 from dependencies import get_db
 from saas import (
+    ai_entitlement_service,
     branch_entitlement_service,
     commercial_access_service,
     commercial_authority_service,
     promo_code_service,
     promo_redemption_service,
     service,
+    entitlement_service,
 )
 from saas.router import router as saas_router
 
@@ -174,6 +179,152 @@ class PromoRedemptionTests(unittest.TestCase):
         self.db.commit()
         return organization
 
+    @staticmethod
+    def _operational_request(path, user, group, branch, year):
+        with patch.dict(
+            os.environ,
+            {"TIS_SESSION_SECRET": "promo-reporting-test-session-secret-long-enough"},
+        ):
+            session_token = auth.create_session_token(user)
+        cookie = "; ".join((
+            f"{auth.SESSION_COOKIE_KEY}={session_token}",
+            f"school_group_id={group.id}",
+            f"branch_id={branch.id}",
+            f"academic_year_id={year.id}",
+        ))
+        return Request({
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "path": path,
+            "raw_path": path.encode("ascii"),
+            "query_string": b"",
+            "headers": [(b"cookie", cookie.encode("ascii"))],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "app": main.app,
+        })
+
+    @patch.dict(
+        os.environ,
+        {"TIS_SESSION_SECRET": "promo-reporting-test-session-secret-long-enough"},
+    )
+    @patch("saas.promo_redemption_service.audit.write_audit_event")
+    def test_promo_reporting_routes_for_tenant_admin_and_platform_support(self, _audit):
+        developer = models.User(
+            user_id="9900000002",
+            username="promo.test.developer",
+            email="promo.test.developer@example.com",
+            email_normalized="promo.test.developer@example.com",
+            password="unused",
+            role="Developer",
+            user_type=auth.USER_TYPE_PLATFORM,
+            platform_role=auth.PLATFORM_ROLE_DEVELOPER,
+            access_scope=auth.ACCESS_SCOPE_GLOBAL,
+            is_active=True,
+        )
+        self.db.add(developer)
+        self.db.commit()
+
+        for plan_code in ("starter", "professional", "enterprise_ai"):
+            with self.subTest(plan_code=plan_code):
+                account = self._account()
+                organization = self._pending(
+                    account,
+                    branch_count=1,
+                    staff=1,
+                    teachers=1,
+                )
+                created = self._promo(plan_code)
+                review = promo_redemption_service.start_activation(
+                    self.db,
+                    account=account,
+                    raw_code=created.raw_code,
+                    pending_organization=organization,
+                    idempotency_key=f"reporting-start-{plan_code}",
+                )
+                activated = promo_redemption_service.activate_promo(
+                    self.db,
+                    activation_uuid=review.session.activation_uuid,
+                    account=account,
+                    idempotency_key=f"reporting-activate-{plan_code}",
+                )
+                self.db.commit()
+
+                group = activated.school_group
+                branch = self.db.get(models.Branch, activated.tenant_link.primary_branch_id)
+                year = self.db.query(models.AcademicYear).filter_by(
+                    school_group_id=group.id
+                ).one()
+                tenant_admin = self.db.get(
+                    models.User, activated.tenant_link.owner_operational_user_id
+                )
+                identities = [("tenant_admin", tenant_admin)]
+                if plan_code == "professional":
+                    identities.extend((
+                        ("platform_owner", self.actor),
+                        ("platform_developer", developer),
+                    ))
+
+                for identity_name, identity in identities:
+                    with self.subTest(identity=identity_name):
+                        dashboard_request = self._operational_request(
+                            "/dashboard", identity, group, branch, year
+                        )
+                        scoped_user = auth.get_current_user(
+                            dashboard_request, self.db
+                        )
+                        self.assertIsNotNone(scoped_user)
+                        self.assertEqual(scoped_user.scope_school_group_id, group.id)
+                        self.assertEqual(scoped_user.scope_branch_id, branch.id)
+                        self.assertEqual(scoped_user.scope_academic_year_id, year.id)
+                        self.assertTrue(auth.has_permission(
+                            self.db,
+                            scoped_user,
+                            "reports.export",
+                            school_group_id=group.id,
+                        ))
+                        self.assertTrue(entitlement_service.can_use_feature(
+                            self.db,
+                            scoped_user,
+                            "feature.advanced_reporting",
+                            "reports.export",
+                            branch_id=branch.id,
+                            academic_year_id=year.id,
+                        ))
+                        dashboard_response = main.dashboard(
+                            request=dashboard_request,
+                            db=self.db,
+                        )
+                        self.assertEqual(dashboard_response.status_code, 200)
+                        self.assertIn(
+                            "Export Report",
+                            bytes(dashboard_response.body).decode("utf-8"),
+                        )
+
+                        for extension, endpoint in (
+                            ("xlsx", main.download_report_allocation_plan),
+                            ("pdf", main.download_report_allocation_plan_pdf),
+                        ):
+                            path = f"/reports/allocation-plan.{extension}"
+                            request = self._operational_request(
+                                path, identity, group, branch, year
+                            )
+                            route_user = auth.get_current_user(request, self.db)
+                            self.assertIsNone(authorization.enforce_route_permission(
+                                request,
+                                self.db,
+                                current_user=route_user,
+                            ))
+                            response = endpoint(
+                                request=request,
+                                section="full",
+                                db=self.db,
+                            )
+                            self.assertEqual(response.status_code, 200)
+
     @patch("saas.promo_redemption_service.audit.write_audit_event")
     def test_onboarding_activation_creates_immutable_promo_authority(self, _audit):
         account = self._account()
@@ -208,6 +359,49 @@ class PromoRedemptionTests(unittest.TestCase):
         self.assertTrue(authority.access_allowed)
         self.assertEqual(authority.source, "promo_grant")
         self.assertEqual(authority.plan_code, "professional")
+        owner = self.db.get(
+            models.User, result.tenant_link.owner_operational_user_id
+        )
+        owner.scope_school_group_id = result.school_group.id
+        owner.scope_branch_id = result.tenant_link.primary_branch_id
+        owner.scope_academic_year_id = self.db.query(models.AcademicYear.id).filter_by(
+            school_group_id=result.school_group.id
+        ).scalar()
+        self.assertTrue(entitlement_service.can_use_feature(
+            self.db,
+            owner,
+            "feature.advanced_reporting",
+            "reports.export",
+            branch_id=owner.scope_branch_id,
+            academic_year_id=owner.scope_academic_year_id,
+        ))
+        ai = ai_entitlement_service.evaluate_ai_entitlement(
+            self.db,
+            user=owner,
+            school_group_id=result.school_group.id,
+            feature_key="ai.academic_assistant",
+            branch_id=owner.scope_branch_id,
+        )
+        self.assertTrue(ai.allowed)
+        self.assertEqual(ai.reason_code, "promo_allowed")
+        self.assertEqual(ai.usage_limit, None)
+        request = Request({
+            "type": "http",
+            "method": "GET",
+            "path": "/reports/allocation-plan.xlsx",
+            "raw_path": b"/reports/allocation-plan.xlsx",
+            "query_string": b"",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+        })
+        self.assertIsNone(
+            authorization.enforce_route_permission(
+                request, self.db, current_user=owner
+            )
+        )
 
     @patch("saas.promo_redemption_service.audit.write_audit_event")
     def test_existing_aligned_organization_activates_without_pending_record(self, _audit):
@@ -300,6 +494,61 @@ class PromoRedemptionTests(unittest.TestCase):
 
         self.assertEqual(self.db.query(models.SchoolGroup).filter_by(name=organization.organization_name).count(), 0)
         self.assertEqual(self.db.query(saas.models.PromoGrant).count(), 0)
+
+    @patch("saas.promo_redemption_service.audit.write_audit_event")
+    def test_all_promo_tiers_snapshot_the_same_customer_baseline(self, _audit):
+        expected_keys = {
+            "module.teacher_management",
+            "module.branch_management",
+            "module.observation",
+            "module.hiring",
+            "module.reporting",
+            "module.ai",
+            "feature.advanced_reporting",
+            "feature.export",
+            "feature.cross_branch_reporting",
+        }
+        for plan_code in ("starter", "professional", "enterprise_ai"):
+            with self.subTest(plan_code=plan_code):
+                account = self._account()
+                organization = self._pending(
+                    account, branch_count=1, staff=2, teachers=10
+                )
+                created = self._promo(plan_code)
+                review = promo_redemption_service.start_activation(
+                    self.db,
+                    account=account,
+                    raw_code=created.raw_code,
+                    pending_organization=organization,
+                    idempotency_key=f"baseline-{plan_code}-start",
+                )
+                activated = promo_redemption_service.activate_promo(
+                    self.db,
+                    activation_uuid=review.session.activation_uuid,
+                    account=account,
+                    idempotency_key=f"baseline-{plan_code}-activate",
+                )
+                rows = self.db.query(
+                    saas.models.WorkspaceEntitlementValue,
+                    saas.models.EntitlementDefinition,
+                ).join(
+                    saas.models.EntitlementDefinition,
+                    saas.models.EntitlementDefinition.id
+                    == saas.models.WorkspaceEntitlementValue.entitlement_definition_id,
+                ).filter(
+                    saas.models.WorkspaceEntitlementValue.workspace_entitlement_id
+                    == activated.workspace_entitlement.id
+                ).all()
+                values = {definition.key: value for value, definition in rows}
+                self.assertTrue(expected_keys.issubset(values))
+                self.assertTrue(
+                    all(values[key].value == "true" for key in expected_keys)
+                )
+                self.assertEqual(
+                    values["quota.active_branches"].value,
+                    str(created.promo.max_branches),
+                )
+                self.db.commit()
 
     @patch("saas.promo_redemption_service.audit.write_audit_event")
     def test_branch_selection_preserves_unselected_operational_branch(self, _audit):
@@ -631,6 +880,29 @@ class PromoRedemptionTests(unittest.TestCase):
         authority = commercial_authority_service.resolve_commercial_authority(self.db, group.id)
         self.assertFalse(authority.access_allowed)
         self.assertEqual(auth.get_accessible_branch_query(self.db, user).count(), 0)
+        user.scope_school_group_id = group.id
+        self.assertFalse(entitlement_service.can_use_feature(
+            self.db,
+            user,
+            "feature.advanced_reporting",
+            "reports.export",
+            branch_id=branches[0].id,
+            academic_year_id=year.id,
+        ))
+        advanced = self.db.query(saas.models.WorkspaceEntitlementValue).filter_by(
+            workspace_entitlement_id=activated.workspace_entitlement.id,
+            entitlement_definition_id=self.db.query(
+                saas.models.EntitlementDefinition.id
+            ).filter_by(key="feature.advanced_reporting").scalar(),
+        ).one()
+        advanced.value = "false"
+        self.db.commit()
+        with self.engine.begin() as connection:
+            db_migrations._capacity_based_packaging_and_customer_feature_baseline(
+                self.engine, connection
+            )
+        self.db.expire_all()
+        self.assertEqual(advanced.value, "false")
 
     def test_migration_is_registered_idempotent_and_source_constraint_is_exclusive(self):
         tables = set(inspect(self.engine).get_table_names())
@@ -667,6 +939,92 @@ class PromoRedemptionTests(unittest.TestCase):
         with self.assertRaises(IntegrityError):
             self.db.commit()
         self.db.rollback()
+
+    @patch("saas.promo_redemption_service.audit.write_audit_event")
+    def test_packaging_reconciliation_repairs_active_promo_features_only(self, _audit):
+        account = self._account()
+        organization = self._pending(account, branch_count=1, staff=2, teachers=10)
+        created = self._promo("starter")
+        review = promo_redemption_service.start_activation(
+            self.db,
+            account=account,
+            raw_code=created.raw_code,
+            pending_organization=organization,
+            idempotency_key="packaging-reconcile-start",
+        )
+        activated = promo_redemption_service.activate_promo(
+            self.db,
+            activation_uuid=review.session.activation_uuid,
+            account=account,
+            idempotency_key="packaging-reconcile-activate",
+        )
+        definitions = {
+            row.key: row
+            for row in self.db.query(saas.models.EntitlementDefinition).all()
+        }
+        advanced = self.db.query(saas.models.WorkspaceEntitlementValue).filter_by(
+            workspace_entitlement_id=activated.workspace_entitlement.id,
+            entitlement_definition_id=definitions["feature.advanced_reporting"].id,
+        ).one()
+        advanced.value = "false"
+        self.db.query(saas.models.WorkspaceEntitlementValue).filter_by(
+            workspace_entitlement_id=activated.workspace_entitlement.id,
+            entitlement_definition_id=definitions["module.ai"].id,
+        ).delete(synchronize_session=False)
+        quota = self.db.query(saas.models.WorkspaceEntitlementValue).filter_by(
+            workspace_entitlement_id=activated.workspace_entitlement.id,
+            entitlement_definition_id=definitions["quota.active_branches"].id,
+        ).one()
+        original_quota = quota.value
+        immutable_evidence = (
+            activated.redemption.immutable_snapshot_hash,
+            activated.grant.immutable_snapshot_hash,
+            activated.grant.capacity_snapshot_json,
+            activated.grant.allowed_branches,
+            activated.grant.allowed_staff_users,
+            activated.grant.allowed_teachers,
+        )
+        payment_count = self.db.query(saas.models.PaymentSubscription).count()
+        self.db.commit()
+
+        for _ in range(2):
+            with self.engine.begin() as connection:
+                db_migrations._capacity_based_packaging_and_customer_feature_baseline(
+                    self.engine, connection
+                )
+        self.db.expire_all()
+
+        repaired = {
+            definition.key: value
+            for value, definition in self.db.query(
+                saas.models.WorkspaceEntitlementValue,
+                saas.models.EntitlementDefinition,
+            ).join(
+                saas.models.EntitlementDefinition,
+                saas.models.EntitlementDefinition.id
+                == saas.models.WorkspaceEntitlementValue.entitlement_definition_id,
+            ).filter(
+                saas.models.WorkspaceEntitlementValue.workspace_entitlement_id
+                == activated.workspace_entitlement.id
+            )
+        }
+        self.assertEqual(repaired["feature.advanced_reporting"].value, "true")
+        self.assertEqual(repaired["module.ai"].value, "true")
+        self.assertEqual(repaired["quota.active_branches"].value, original_quota)
+        self.assertEqual(
+            (
+                activated.redemption.immutable_snapshot_hash,
+                activated.grant.immutable_snapshot_hash,
+                activated.grant.capacity_snapshot_json,
+                activated.grant.allowed_branches,
+                activated.grant.allowed_staff_users,
+                activated.grant.allowed_teachers,
+            ),
+            immutable_evidence,
+        )
+        self.assertEqual(
+            self.db.query(saas.models.PaymentSubscription).count(), payment_count
+        )
 
 
 @unittest.skipUnless(

@@ -1,10 +1,17 @@
 ---
 title: Landing Page History
 module: landing-page
-last_updated: 2026-07-29
+last_updated: 2026-08-19
 ---
 
 # Landing Page History
+
+## 2026-08-19 - Capacity-Based Feature Copy
+
+The official Next.js pricing cards remain capacity-only. The AI disclaimer no
+longer implies subscription-tier availability and instead identifies permissions,
+workspace scope, configured usage allowances, and release stage. Plan names,
+prices, capacities, layout, and actions are unchanged.
 
 ## 2026-07-29 - Safe Pricing Subscription Entry
 

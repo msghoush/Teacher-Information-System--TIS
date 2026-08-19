@@ -1,11 +1,16 @@
 ---
 title: TIS Landing Page Source of Truth
 documentation_version: 3.1
-last_updated: 2026-07-29
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
 # Landing Page Source of Truth
+
+Starter, Professional, and Enterprise AI pricing presentation is capacity-based.
+Normal customer feature availability is common across the three plans; AI
+consumption allowances may be configured separately. Public copy must not imply
+that ordinary modules or enabled AI availability require a higher plan.
 
 The public header and relevant conversion areas expose Request a Demo,
 Subscribe, Sign In, and Open TIS App. All app links are constructed here from

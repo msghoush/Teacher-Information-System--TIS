@@ -219,7 +219,7 @@ def build_reminder_email(db: Session, account, eligibility: ReminderEligibility)
     if stage == "second":
         return email_templates.build_second_draft_reminder_email(
             **common,
-            include_ai=bool(getattr(plan, "ai_enabled", False)),
+            include_ai=True,
         )
     seconds_remaining = max(
         0,

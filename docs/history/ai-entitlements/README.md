@@ -1,10 +1,19 @@
 ---
 title: AI Entitlements History
 module: ai-entitlements
-last_updated: 2026-07-27
+last_updated: 2026-08-19
 ---
 
 # AI Entitlements History
+
+## 2026-08-19 - Availability Separated From Consumption
+
+ADR 0025 supersedes the temporary Enterprise-AI-only availability mapping.
+Every enabled registered AI feature is commercially available to coherent paid,
+promo, and active demo workspaces with `ai.use`; globally disabled definitions
+remain denied. A separate consumption-policy boundary preserves Standard demo
+allowances, Full/Custom policy, reservations, idempotency, counters, and durable
+events without inventing a provider billing engine.
 
 ## 2026-07-27 - M8B8 AI Entitlements And Commercial Foundation
 
