@@ -230,6 +230,7 @@ def _authority_fingerprint_from_snapshot(
             "planning_fingerprint": snapshot.planning_fingerprint,
             "period_configuration_fingerprint": snapshot.period_configuration_fingerprint,
             "constraint_fingerprint": snapshot.constraint_fingerprint,
+            "lock_fingerprint": snapshot.lock_fingerprint,
         }
     )
 
@@ -397,6 +398,19 @@ def mutate_draft_placement(
         db.delete(existing)
         result = None
     else:
+        from timetable_logic import get_timetable_settings_payload
+
+        projection = get_timetable_settings_payload(
+            db, int(version.branch_id), int(version.academic_year_id)
+        )["slot_projection"]
+        slot = projection["slot_map"].get(
+            (str(day_key).strip().lower(), int(period_index))
+        )
+        if slot is None or not slot.get("schedulable"):
+            raise TimetableVersionError(
+                "slot_not_schedulable",
+                "This timetable slot is unavailable or has invalid configuration.",
+            )
         teacher = db.query(models.Teacher).filter(
             models.Teacher.id == teacher_id,
             models.Teacher.branch_id == version.branch_id,

@@ -447,6 +447,11 @@ into deterministic schema-versioned canonical JSON and SHA-256 component/full
 fingerprints without teacher display names or other unnecessary personal data.
 It is a reusable foundation, not a readiness checker or solver.
 
+`timetable_slot_service.py` derives the canonical fixed-period projection used by
+snapshots and operational consumers. `timetable_readiness_service.py` performs a
+read-only exact-scope completeness evaluation using Planning, HRT, teacher capacity,
+slots, locks, and existing fingerprints. Neither service executes a solver.
+
 ### `permission_registry.py`
 
 Responsibility:

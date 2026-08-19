@@ -716,9 +716,9 @@ def _write_overview_sheet(
     metrics = [
         ("Sections", summary.get("section_count", 0), "Planning sections"),
         ("Teachers", summary.get("teacher_count", 0), "Active teachers"),
-        ("Required", f"{summary.get('required_hours', 0)}h", "Total required periods"),
-        ("Scheduled", f"{summary.get('scheduled_hours', 0)}h", "Placed periods"),
-        ("Remaining", f"{summary.get('remaining_hours', 0)}h", "Still unplaced"),
+        ("Required Periods", str(summary.get('required_hours', 0)), "Total required periods"),
+        ("Scheduled Periods", str(summary.get('scheduled_hours', 0)), "Placed periods"),
+        ("Remaining Periods", str(summary.get('remaining_hours', 0)), "Still unplaced"),
         ("Teaching Slots", summary.get("teaching_slot_count", 0), "Configured grid slots"),
         ("Blocked Slots", summary.get("blocked_slot_count", 0), "Non-teaching slots"),
         ("Working Days", len(workspace_payload.get("days", [])), "Days in week"),
@@ -844,14 +844,14 @@ def _write_entity_timetable_sheet(
         if entity_kind == "section":
             meta = (
                 f"Class Status: {entity.get('class_status', '')} | "
-                f"Scheduled {entity.get('scheduled_hours', 0)}/{entity.get('total_required_hours', 0)}h | "
-                f"Remaining {entity.get('remaining_hours', 0)}h"
+                f"Scheduled {entity.get('scheduled_hours', 0)}/{entity.get('total_required_hours', 0)} periods | "
+                f"Remaining {entity.get('remaining_hours', 0)} periods"
             )
         else:
             meta = (
                 f"Teacher ID: {entity.get('teacher_id', '')} | "
-                f"Scheduled {entity.get('scheduled_hours', 0)}/{entity.get('required_hours', 0)}h | "
-                f"Capacity {entity.get('capacity_hours', 0)}h"
+                f"Scheduled {entity.get('scheduled_hours', 0)}/{entity.get('required_hours', 0)} periods | "
+                f"Period capacity {entity.get('capacity_hours', 0)}"
             )
         sheet.merge_cells(start_row=row, start_column=1, end_row=row, end_column=total_columns)
         meta_cell = sheet.cell(row=row, column=1, value=meta)
@@ -961,14 +961,14 @@ def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
         "Subject Code",
         "Subject Name",
         "Teacher",
-        "Weekly Hours",
+        "Weekly Periods",
         "Scheduled",
         "Remaining",
         "Status",
     ]
     row = _prepare_excel_sheet(
         sheet,
-        title="Subject Remaining Hours",
+        title="Subject Remaining Periods",
         subtitle="Per-section subject requirements after the latest timetable assignments.",
         total_columns=len(headers),
     )
@@ -1373,9 +1373,9 @@ def _draw_pdf_metric_cards(pdf: _TimetablePdf, workspace_payload: dict):
     metrics = [
         ("Sections", summary.get("section_count", 0)),
         ("Teachers", summary.get("teacher_count", 0)),
-        ("Required", f"{summary.get('required_hours', 0)}h"),
-        ("Scheduled", f"{summary.get('scheduled_hours', 0)}h"),
-        ("Remaining", f"{summary.get('remaining_hours', 0)}h"),
+        ("Required Periods", str(summary.get('required_hours', 0))),
+        ("Scheduled Periods", str(summary.get('scheduled_hours', 0))),
+        ("Remaining Periods", str(summary.get('remaining_hours', 0))),
     ]
     card_width = 145
     card_height = 42
@@ -1804,7 +1804,7 @@ async def assign_timetable_slot(
         weekly_hours = int(option_payload.get("weekly_hours") or 0)
         if scheduled_count >= weekly_hours:
             return _json_error(
-                f"{subject_code} already reached its required {weekly_hours} hour"
+                f"{subject_code} already reached its required {weekly_hours} period"
                 + ("" if weekly_hours == 1 else "s")
                 + f" for {section_payload['section_label']}."
             )

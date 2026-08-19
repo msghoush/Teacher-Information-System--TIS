@@ -22,7 +22,7 @@ The existing live timetable is imported exactly once per populated scope with `o
 
 Until explicit version UI and publication arrive, the legacy assignment route uses copy-on-write: its first edit copies the active version to a mutable working draft, preserving locks and provenance; subsequent edits reuse that draft. Reads and exports use the operational version, preferring that compatibility draft after an edit while the imported active pointer continues to preserve the historical baseline.
 
-Input snapshots use schema-versioned canonical JSON and SHA-256 component/full fingerprints. They record resolved Planning demand, HRT fallback decisions, timetable settings, constraints, and locks without unnecessary personal data. Display-only timetable blocks remain presentation/configuration evidence and are not automatically promoted into solver constraints.
+Input snapshots use schema-versioned canonical JSON and SHA-256 component/full fingerprints. They record resolved Planning demand, HRT fallback decisions, timetable settings, canonical slot projection, constraints, and locks without unnecessary personal data. Stage 3 makes fixed teaching/non-teaching/invalid slot semantics authoritative: full-period blocks disable slots, between-period blocks consume no period, partial overlaps are invalid, and blocks never shift teaching-period times.
 
 Locks persist on placements with actor and timestamp. A copied draft retains the intended locks. Later regeneration must treat locked placements as fixed decisions, but Stage 2 executes no regeneration.
 
@@ -47,7 +47,7 @@ Exports are version-aware and preserve their current presentation. Future availa
 
 - Existing placements remain operational and historically preserved.
 - Version numbering and active selection have database-enforced scope guarantees, with service validation for source/snapshot operations.
-- Stage 3 may build readiness and constraint capture on stable snapshots without changing the current timetable UI.
+- Stage 3 implements canonical slot projection and structural readiness on stable snapshots, with a focused readiness area on the existing timetable UI.
 - Stage 4 may add generation, version comparison, and truthful publication workflows without mutating active history.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
 

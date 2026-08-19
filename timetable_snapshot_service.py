@@ -11,7 +11,7 @@ import models
 from homeroom_defaults import is_default_homeroom_subject
 
 
-SNAPSHOT_SCHEMA_VERSION = 1
+SNAPSHOT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -152,41 +152,22 @@ def _build_period_configuration_component(
     branch_id: int,
     academic_year_id: int,
 ) -> dict:
-    setting = db.query(models.TimetableSetting).filter(
-        models.TimetableSetting.branch_id == branch_id,
-        models.TimetableSetting.academic_year_id == academic_year_id,
-    ).first()
-    if setting is None:
-        return {"saved": False, "settings": None, "blocks": []}
-    blocks = db.query(models.TimetableNonTeachingBlock).filter(
-        models.TimetableNonTeachingBlock.timetable_setting_id == setting.id
-    ).order_by(models.TimetableNonTeachingBlock.id.asc()).all()
+    from timetable_logic import get_timetable_settings_payload
+
+    payload = get_timetable_settings_payload(db, branch_id, academic_year_id)
     return {
-        "saved": True,
+        "saved": bool(payload["is_saved"]),
         "settings": {
-            "working_days": [
-                item.strip().lower()
-                for item in str(setting.working_days_csv or "").split(",")
-                if item.strip()
-            ],
-            "periods_per_day": int(setting.periods_per_day or 0),
-            "period_duration_minutes": int(setting.period_duration_minutes or 0),
-            "school_start_time": str(setting.school_start_time or ""),
-            "school_end_time": str(setting.school_end_time or ""),
+            "working_days": payload["working_day_keys"],
+            "periods_per_day": int(payload["periods_per_day"] or 0),
+            "period_duration_minutes": int(payload["period_duration_minutes"] or 0),
+            "school_start_time": str(payload["school_start_time"] or ""),
+            "school_end_time": str(payload["school_end_time"] or ""),
         },
-        "blocks": [
-            {
-                "id": int(block.id),
-                "block_type": str(block.block_type or "").strip().lower(),
-                "label": str(block.label or "").strip(),
-                "day_key": str(block.day_key or "").strip().lower(),
-                "start_time": str(block.start_time or ""),
-                "end_time": str(block.end_time or ""),
-                "start_period": int(block.start_period or 0),
-                "end_period": int(block.end_period or 0),
-            }
-            for block in blocks
-        ],
+        "blocks": payload["blocks"],
+        "canonical_slot_projection": json.loads(
+            payload["slot_projection"]["canonical_json"]
+        ),
     }
 
 
@@ -262,6 +243,7 @@ def build_current_snapshot_data(
             "planning_fingerprint": planning_hash,
             "period_configuration_fingerprint": period_hash,
             "constraint_fingerprint": constraint_hash,
+            "lock_fingerprint": lock_hash,
         }
     )
     return TimetableSnapshotData(

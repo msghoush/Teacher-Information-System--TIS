@@ -701,6 +701,8 @@ Main files/folders:
 - `timetable_logic.py`
 - `timetable_version_service.py`
 - `timetable_snapshot_service.py`
+- `timetable_slot_service.py`
+- `timetable_readiness_service.py`
 - `templates/timetable.html`
 - `templates/system_configuration_timetable.html`
 
@@ -716,8 +718,8 @@ Risks/guardrails:
 - Planning remains demand/assignment/HRT authority. Placements are version-owned;
   the exact-scope active pointer is separate, active/superseded history is
   immutable, and legacy editing uses a copy-on-write working draft.
-- Stage 2 contains schema/lifecycle foundations only; it has no solver, worker,
-  availability, room/resource, or generation UI responsibility.
+- Stage 3 owns canonical fixed-period slots and exact-scope structural readiness.
+  It has no solver, worker, availability, room/resource, or Generate UI.
 
 ## Academic Calendar
 

@@ -122,10 +122,10 @@ accounting. No AI business feature or M8B9 operational control is included.
 
 ### Smart Timetable Foundation
 
-Stage 2 is complete: durable timetable versions, snapshots/fingerprints, exact-scope
+Stages 2 and 3 are complete: durable timetable versions, snapshots/fingerprints, exact-scope
 active selection, locks, generation-run schema, imported-current migration, and
-copy-on-write compatibility for current edits and exports. Stage 3 should define
-structural readiness and approved constraint capture. Stage 4 may then introduce
+copy-on-write compatibility for current edits and exports, canonical fixed-period
+slots, and structural readiness. Stage 4 may then introduce
 branch-scoped solver execution, candidate comparison, and publication using the
 version foundation. No solver or generation UI exists yet.
 

@@ -7,6 +7,18 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Smart Timetable Stage 3
+
+`timetable_slot_service.py` is the single fixed-period authority for teaching,
+non-teaching, and invalid slots. Full coverage disables a slot; a block wholly
+between periods removes no slot; partial overlap is invalid; all-day and every-day
+rules expand deterministically. Blocks never shift or shorten teaching periods.
+
+`TimetableReadinessService` is read-only, solver-independent, and exact-scope. It
+combines configuration, Planning demand, explicit/HRT teacher resolution, existing
+teacher capacity, slot sanity, locks, and Stage 2 fingerprints. Generation-ready
+means only that a future solve may be attempted, never that feasibility is proven.
+
 ## Capacity-Based Packaging And Common Customer Features
 
 Starter, Professional, and Enterprise AI now represent organization scale, not
