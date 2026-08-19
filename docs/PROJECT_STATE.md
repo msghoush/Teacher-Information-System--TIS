@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## Smart Timetable Stage 3 Readiness Implemented
+
+Stage 3 adds one deterministic canonical projection for fixed teaching periods,
+full-period unavailability, between-period display blocks, and invalid partial
+overlaps. The projection drives UI availability, assignment validation, snapshots,
+exports, and the future solver boundary without shifting period times.
+
+`TimetableReadinessService` evaluates one explicit organization/branch/year scope
+against configuration, Planning demand/allocation, HRT, authoritative teacher
+capacity, slot sanity, locks, and staleness. Only `generation_ready` is ready, and
+it means inputs are coherent enough to attempt solving—not that a feasible global
+timetable is guaranteed. No solver or Generate endpoint exists.
+
 ## Smart Timetable Stage 2 Version Foundation Implemented
 
 ADR 0026 Stage 2 is implemented. Timetable placements now belong to durable,

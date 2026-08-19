@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-19 - Added Smart Timetable Stage 3 Readiness And Slot Semantics
+
+Added canonical fixed-period teaching/unavailable/invalid slots, server-side
+assignment protection, stale-placement preservation, snapshot integration, and an
+exact-scope read-only readiness service with customer-safe page status. No schema,
+solver, worker, Generate endpoint, commit, push, deployment, or production action
+was added.
+
 ## 2026-08-19 - Added Smart Timetable Stage 2 Version Foundation
 
 Accepted ADR 0026 and added durable timetable versions, deterministic authority

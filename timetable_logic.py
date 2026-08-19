@@ -186,51 +186,11 @@ def build_time_slots(
     if start_minutes is None:
         start_minutes = 7 * 60
 
-    def merge_intervals(intervals: list[tuple[int, int]]) -> list[tuple[int, int]]:
-        if not intervals:
-            return []
-        sorted_intervals = sorted(intervals, key=lambda item: (item[0], item[1]))
-        merged = [sorted_intervals[0]]
-        for interval_start, interval_end in sorted_intervals[1:]:
-            prev_start, prev_end = merged[-1]
-            if interval_start <= prev_end:
-                merged[-1] = (prev_start, max(prev_end, interval_end))
-            else:
-                merged.append((interval_start, interval_end))
-        return merged
-
-    # All-day blocks alter the shared period timeline and shift following periods.
-    block_intervals = []
-    for block in non_teaching_blocks or []:
-        if normalize_day_key(block.get("day_key")) != ALL_DAY_KEY:
-            continue
-        block_start = parse_time_value(block.get("start_time"))
-        block_end = parse_time_value(block.get("end_time"))
-        if block_start is None or block_end is None or block_start >= block_end:
-            continue
-        block_intervals.append((block_start, block_end))
-    merged_block_intervals = merge_intervals(block_intervals)
-
     slots = []
     current_minutes = start_minutes
     for period_index in range(1, safe_periods + 1):
-        # If a period starts inside a non-teaching block, push it to the block end.
-        while True:
-            overlapping_block = next(
-                (
-                    (block_start, block_end)
-                    for block_start, block_end in merged_block_intervals
-                    if block_start <= current_minutes < block_end
-                ),
-                None,
-            )
-            if not overlapping_block:
-                break
-            current_minutes = overlapping_block[1]
-
-        # Teaching period runs for exactly its configured duration from the
-        # (possibly shifted) start.  Non-teaching blocks are independent rows in
-        # the grid – they are NOT merged into or stretched across period windows.
+        # Period numbering and times stay fixed. The canonical projection
+        # classifies blocks without shifting, shortening, or renumbering them.
         end_minutes = current_minutes + safe_duration
         slots.append(
             {
@@ -352,10 +312,32 @@ def build_non_teaching_slot_map(
     working_day_keys: list[str],
     time_slots: list[dict],
 ) -> dict[tuple[str, int], dict]:
-    # Non-teaching blocks are independent grid rows — they are never mapped onto
-    # teaching period slots.  Returning an empty dict ensures no period cell is
-    # rendered as a blocked slot and blocks appear only once, as their own rows.
-    return {}
+    # Compatibility wrapper: all consumers share the canonical projection.
+    from timetable_slot_service import build_canonical_slot_projection
+
+    durations = [
+        parse_time_value(slot.get("end_time")) - parse_time_value(slot.get("start_time"))
+        for slot in time_slots or []
+        if parse_time_value(slot.get("start_time")) is not None
+        and parse_time_value(slot.get("end_time")) is not None
+    ]
+    projection = build_canonical_slot_projection(
+        school_group_id=None,
+        branch_id=None,
+        academic_year_id=None,
+        working_day_keys=working_day_keys,
+        periods_per_day=len(time_slots or []),
+        period_duration_minutes=max(durations) if durations else 0,
+        school_start_time=str((time_slots or [{}])[0].get("start_time") or ""),
+        school_end_time=str((time_slots or [{}])[-1].get("end_time") or ""),
+        time_slots=time_slots,
+        blocks=blocks,
+    )
+    return {
+        key: value
+        for key, value in projection["slot_map"].items()
+        if not value.get("schedulable")
+    }
 
 
 def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
@@ -372,22 +354,14 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
     else:
         working_day_keys = normalize_day_keys(
             str(getattr(setting_row, "working_days_csv", "") or "").split(",")
-        ) or list(defaults["working_day_keys"])
-        periods_per_day = int(
-            getattr(setting_row, "periods_per_day", defaults["periods_per_day"])
-            or defaults["periods_per_day"]
         )
+        periods_per_day = int(getattr(setting_row, "periods_per_day", 0) or 0)
         period_duration_minutes = int(
-            getattr(
-                setting_row,
-                "period_duration_minutes",
-                defaults["period_duration_minutes"],
-            )
-            or defaults["period_duration_minutes"]
+            getattr(setting_row, "period_duration_minutes", 0) or 0
         )
         school_start_time = str(
             getattr(setting_row, "school_start_time", defaults["school_start_time"])
-            or defaults["school_start_time"]
+            or ""
         ).strip()
         school_end_time = str(
             getattr(setting_row, "school_end_time", "") or ""
@@ -412,17 +386,29 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         periods_per_day,
         period_duration_minutes,
         school_start_time,
-        non_teaching_blocks=blocks,
     )
-    block_slot_map = build_non_teaching_slot_map(
-        blocks,
-        working_day_keys,
-        time_slots,
-    )
+    from timetable_slot_service import build_canonical_slot_projection
 
-    if time_slots:
-        school_end_time = str(time_slots[-1].get("end_time") or school_end_time).strip()
-    blocked_slot_count = len(block_slot_map)
+    slot_projection = build_canonical_slot_projection(
+        school_group_id=None,
+        branch_id=None,
+        academic_year_id=None,
+        working_day_keys=working_day_keys,
+        periods_per_day=periods_per_day,
+        period_duration_minutes=period_duration_minutes,
+        school_start_time=school_start_time,
+        school_end_time=school_end_time,
+        time_slots=time_slots,
+        blocks=blocks,
+    )
+    block_slot_map = {
+        key: value for key, value in slot_projection["slot_map"].items()
+        if not value.get("schedulable")
+    }
+    blocked_slot_count = (
+        slot_projection["counts"]["blocked_slots"]
+        + slot_projection["counts"]["invalid_slots"]
+    )
     total_slot_count = len(working_day_keys) * len(time_slots)
 
     return {
@@ -437,9 +423,12 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         "time_slots": time_slots,
         "blocks": blocks,
         "block_slot_map": block_slot_map,
+        "slot_projection": slot_projection,
+        "slot_projection_fingerprint": slot_projection["fingerprint"],
+        "configuration_issues": slot_projection["issues"],
         "blocked_slot_count": blocked_slot_count,
         "total_slot_count": total_slot_count,
-        "teaching_slot_count": max(total_slot_count - blocked_slot_count, 0),
+        "teaching_slot_count": slot_projection["counts"]["teaching_slots"],
     }
 
 
@@ -1043,7 +1032,6 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
             continue
         capacity_hours = get_teacher_international_capacity_hours(
             teacher,
-            default_max_hours=24,
         )
         required_hours = teacher_required_hours.get(teacher_id, 0)
         scheduled_hours = teacher_scheduled_hours.get(teacher_id, 0)
@@ -1122,6 +1110,14 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
             f"{total_stale_entries} saved timetable slot(s) no longer match the current planning assignments or timetable settings and should be reviewed."
         )
 
+    from timetable_readiness_service import TimetableReadinessService
+    from timetable_slot_service import public_slot_projection
+
+    readiness = TimetableReadinessService(db).evaluate(
+        school_group_id if 'school_group_id' in locals() else None,
+        branch_id,
+        academic_year_id,
+    )
     return {
         "version": (
             {
@@ -1139,14 +1135,19 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
         "settings": {
             key: value
             for key, value in settings_payload.items()
-            if key != "block_slot_map"
+            if key not in {"block_slot_map", "slot_projection"}
         },
+        "slot_projection": public_slot_projection(settings_payload["slot_projection"]),
+        "readiness": readiness,
         "working_day_keys": working_day_keys,
         "days": settings_payload["working_days"],
         "time_slots": settings_payload["time_slots"],
         "blocked_slots": [
             {
-                **slot_payload,
+                **(slot_payload.get("block") or {}),
+                "status": slot_payload.get("status"),
+                "reason_code": slot_payload.get("reason_code"),
+                "label": (slot_payload.get("block") or {}).get("label") or "Unavailable",
                 "day_label": get_day_label(day_key),
                 "period_index": period_index,
             }

@@ -809,6 +809,13 @@ Default workflow for approved implementation tasks:
 
 ## Smart Timetable Versioning Boundary
 
+Stage 3 makes the fixed-period slot projection authoritative across the page,
+assignment service, exports, readiness, and snapshots. Full-period blocks are
+unavailable, between-period blocks consume no period number, partial overlaps are
+invalid, and blocks never move period times. Readiness is an exact-scope, read-only
+structural gate; `generation_ready` permits only a future attempt and does not
+guarantee feasibility. Existing versions and stale placements remain preserved.
+
 The operational timetable uses a versioned aggregate scoped by SchoolGroup,
 Branch, and Academic Year. `TimetableVersion` owns placements and lifecycle;
 `TimetableActiveVersion` separately selects at most one exact-scope operational

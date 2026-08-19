@@ -245,6 +245,18 @@
         line-height: 1.45;
     }
 
+    .readiness-shell { margin-top: 18px; padding: 20px; border: 1px solid var(--tt-border); border-radius: 18px; background: #fff; }
+    .readiness-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; }
+    .readiness-title { margin:0; color:var(--tt-ink); font-size:18px; }
+    .readiness-status { display:inline-flex; padding:7px 11px; border-radius:999px; background:#fff1f0; color:#9f2d1f; font-weight:800; }
+    .readiness-status.is-ready { background:#e9f8f2; color:#08745a; }
+    .readiness-metrics { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:10px; margin-top:16px; }
+    .readiness-metric { padding:12px; border-radius:12px; background:var(--tt-surface-soft); }
+    .readiness-metric span { display:block; color:var(--tt-subtle); font-size:11px; }
+    .readiness-metric strong { display:block; margin-top:4px; font-size:18px; }
+    .readiness-blockers { margin:14px 0 0; padding-left:20px; color:#7f2b20; }
+    .readiness-links { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }
+
     .toolbar-shell {
         display: grid;
         gap: 12px;
@@ -1457,6 +1469,23 @@
                 <small>Required periods still waiting for a timetable slot.</small>
             </article>
         </div>
+        <section class="readiness-shell" aria-labelledby="readinessTitle">
+            <div class="readiness-head">
+                <div>
+                    <h3 class="readiness-title" id="readinessTitle">Timetable Readiness</h3>
+                    <p id="readinessSupport"></p>
+                    <small id="readinessCaveat"></small>
+                </div>
+                <span class="readiness-status" id="readinessStatus">Not Ready to Generate</span>
+            </div>
+            <div class="readiness-metrics" id="readinessMetrics"></div>
+            <ul class="readiness-blockers" id="readinessBlockers"></ul>
+            <div class="readiness-links">
+                <a href="/planning/">Review Planning</a>
+                <a href="/teachers/">Review Teachers</a>
+                {% if can("timetable.manage_settings") %}<a href="/system-configuration/timetable-settings">Timetable Configuration</a>{% endif %}
+            </div>
+        </section>
     </section>
 
     <section class="toolbar-shell">
@@ -1609,6 +1638,11 @@
         const summaryTeacherCount = document.getElementById("summaryTeacherCount");
         const summaryScheduledHours = document.getElementById("summaryScheduledHours");
         const summaryRemainingHours = document.getElementById("summaryRemainingHours");
+        const readinessStatus = document.getElementById("readinessStatus");
+        const readinessSupport = document.getElementById("readinessSupport");
+        const readinessCaveat = document.getElementById("readinessCaveat");
+        const readinessMetrics = document.getElementById("readinessMetrics");
+        const readinessBlockers = document.getElementById("readinessBlockers");
 
         const normalizeInt = (value) => {
             const parsedValue = Number.parseInt(String(value ?? "").trim(), 10);
@@ -1977,6 +2011,27 @@
             summaryRemainingHours.textContent = String(normalizeInt(summary.remaining_hours));
         };
 
+        const renderReadiness = () => {
+            const readiness = state.payload.readiness || {};
+            const counts = readiness.counts || {};
+            const ready = Boolean(readiness.ready);
+            readinessStatus.textContent = ready ? "Ready to Generate" : "Not Ready to Generate";
+            readinessStatus.classList.toggle("is-ready", ready);
+            readinessSupport.textContent = ready
+                ? "All required teaching periods are covered and the timetable configuration is complete."
+                : "Resolve the items below before automatic timetable generation can be attempted.";
+            readinessCaveat.textContent = "A valid automatic timetable is not guaranteed until the scheduling engine checks all constraints.";
+            readinessMetrics.innerHTML = [
+                ["Coverage", `${normalizeInt(counts.coverage_percent)}%`],
+                ["Required Periods", normalizeInt(counts.required_periods)],
+                ["Covered Periods", normalizeInt(counts.covered_periods)],
+                ["Teaching Slots / week", normalizeInt(counts.available_teaching_slots_per_section)],
+                ["Blockers", normalizeInt(counts.blockers)],
+            ].map(([label, value]) => `<div class="readiness-metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
+            readinessBlockers.innerHTML = (readiness.blockers || []).slice(0, 6)
+                .map((item) => `<li>${escapeHtml(item.message || "Timetable input needs review.")}</li>`).join("");
+        };
+
         const renderWeekLegend = () => {
             weekLegend.innerHTML = "";
             getDays().forEach((day) => {
@@ -2091,7 +2146,7 @@
                     <div class="lane-card-head">
                         <div>
                             <strong>${isSectionView ? item.section_label : item.teacher_name}</strong>
-                            <small>${isSectionView ? `${item.class_status} class` : `${item.teacher_id || "No ID"}${item.capacity_hours ? ` • Capacity ${item.capacity_hours}h` : ""}`}</small>
+                            <small>${isSectionView ? `${item.class_status} class` : `${item.teacher_id || "No ID"}${item.capacity_hours ? ` • Period capacity ${item.capacity_hours}` : ""}`}</small>
                         </div>
                         <span class="mini-pill">${scheduledHours}/${requiredHours || 0}h</span>
                     </div>
@@ -2172,17 +2227,17 @@
                 boardTitle.textContent = entity.section_label;
                 boardSubtitle.textContent = `Class status: ${entity.class_status}. Click a teaching slot to open the assignment panel.`;
                 boardBadges.innerHTML = `
-                    <span class="mini-pill">${normalizeInt(entity.scheduled_hours)}/${normalizeInt(entity.total_required_hours)}h scheduled</span>
-                    <span class="mini-pill">${normalizeInt(entity.ready_to_schedule_hours)}h ready to place</span>
+                    <span class="mini-pill">${normalizeInt(entity.scheduled_hours)}/${normalizeInt(entity.total_required_hours)} periods scheduled</span>
+                    <span class="mini-pill">${normalizeInt(entity.ready_to_schedule_hours)} periods ready to place</span>
                     <span class="mini-pill">${normalizeInt(entity.missing_teacher_subjects)} subject gaps</span>
                 `;
             } else {
                 boardTitle.textContent = entity.teacher_name;
-                boardSubtitle.textContent = `Required load ${normalizeInt(entity.required_hours)}h of ${normalizeInt(entity.capacity_hours)}h capacity in the current scope.`;
+                boardSubtitle.textContent = `Required load ${normalizeInt(entity.required_hours)} periods of ${normalizeInt(entity.capacity_hours)} period capacity in the current scope.`;
                 boardBadges.innerHTML = `
-                    <span class="mini-pill">${normalizeInt(entity.scheduled_hours)}h scheduled</span>
-                    <span class="mini-pill">${normalizeInt(entity.required_hours)}h required</span>
-                    <span class="mini-pill">${normalizeInt(entity.capacity_hours)}h capacity</span>
+                    <span class="mini-pill">${normalizeInt(entity.scheduled_hours)} periods scheduled</span>
+                    <span class="mini-pill">${normalizeInt(entity.required_hours)} periods required</span>
+                    <span class="mini-pill">${normalizeInt(entity.capacity_hours)} period capacity</span>
                 `;
             }
 
@@ -2522,11 +2577,11 @@
                                 <strong>${escapeHtml(option.subject_name || "Unnamed Subject")}</strong>
                                 <span>${escapeHtml(option.subject_code)}</span>
                             </div>
-                            <span class="mini-pill is-hours">${option.remainingHours}h left</span>
+                            <span class="mini-pill is-hours">${option.remainingHours} periods left</span>
                         </div>
                         <div class="assignment-option-meta">
                             <span>${escapeHtml(option.teacher_name || "No teacher assigned")}</span>
-                            <span>${normalizeInt(option.scheduled_count)}/${normalizeInt(option.weekly_hours)}h scheduled</span>
+                            <span>${normalizeInt(option.scheduled_count)}/${normalizeInt(option.weekly_hours)} periods scheduled</span>
                         </div>
                         <div class="assignment-option-status">${escapeHtml(getOptionStateLabel(option))}</div>
                     </button>
@@ -2701,7 +2756,7 @@
                                         <span class="mini-pill">${option.remainingHours}h left</span>
                                     </div>
                                     <div class="option-copy">
-                                        <span>${normalizeInt(option.weekly_hours)}h weekly requirement • ${normalizeInt(option.scheduled_count)}h already scheduled</span>
+                                        <span>${normalizeInt(option.weekly_hours)} weekly periods • ${normalizeInt(option.scheduled_count)} already scheduled</span>
                                         <span>${option.teacherConflict ? `${option.teacher_name} is already busy with ${option.teacherConflict.section_label}.` : option.is_schedulable ? "Ready to assign in this slot." : "Planning assignment required before scheduling."}</span>
                                     </div>
                                 `;
@@ -2835,6 +2890,7 @@
         };
 
         const renderAll = () => {
+            renderReadiness();
             ensureSelection();
             renderSummary();
             renderWeekLegend();

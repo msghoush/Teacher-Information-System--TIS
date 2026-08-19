@@ -1,9 +1,8 @@
 knowledge_impact: yes
-summary: Add the Stage 2 durable timetable versioning, snapshot, active-pointer, lock, and generation-run foundation.
+summary: Add Stage 3 canonical timetable slot semantics and solver-independent readiness evaluation and presentation.
 affected_areas:
   - timetable
   - planning
-  - database-architecture
   - tenant-isolation
   - operational-workflows
 kms_files_updated:
@@ -12,13 +11,11 @@ kms_files_updated:
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
   - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
-  - docs/adr/README.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/REPOSITORY_ARCHITECTURE.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/history/workforce-planning/README.md
-  - docs/history/workforce-planning/2026-08-19-smart-timetable-stage-2-version-foundation.md
+  - docs/history/workforce-planning/2026-08-19-smart-timetable-stage-3-readiness-and-slot-semantics.md
 no_impact_reason:
 major_change_override: no
