@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Project State
 
+## Smart Timetable Stage 2 Version Foundation Implemented
+
+ADR 0026 Stage 2 is implemented. Timetable placements now belong to durable,
+SchoolGroup/Branch/Academic-Year-scoped versions with deterministic input
+snapshots, a separate exact-scope active pointer, lock metadata, version-scoped
+collision guarantees, and a future generation-run record. Migration
+`20260819_002_smart_timetable_stage2_version_foundation` imports each populated
+legacy timetable exactly, creates one compatibility active version, records safe
+staleness evidence without repairing placements, and skips empty settings-only
+scopes.
+
+The legacy assignment route remains usable through copy-on-write: its first edit
+creates a mutable working draft from the immutable active version. Current views
+and XLSX/PDF exports resolve the operational version. Stage 2 adds no solver,
+worker, Generate/Regenerate endpoint, generation UI, room/resource authority,
+availability rules, or new teacher-capacity authority. Structural readiness and
+solver execution remain later stages.
+
 ## Capacity-Based Packaging Implemented
 
 ADR 0025 is implemented. Nine normal customer entitlement keys are identical for

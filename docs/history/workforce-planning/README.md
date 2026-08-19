@@ -15,3 +15,7 @@ Related files:
 - `routers/timetable.py`
 - `teacher_capacity.py`
 - `timetable_logic.py`
+
+History entries:
+
+- `2026-08-19-smart-timetable-stage-2-version-foundation.md` — durable timetable versions, snapshots, active pointer, locks, migration, and legacy edit/export compatibility.

@@ -699,6 +699,8 @@ Place planned lessons into weekly timetable grids and exports.
 Main files/folders:
 - `routers/timetable.py`
 - `timetable_logic.py`
+- `timetable_version_service.py`
+- `timetable_snapshot_service.py`
 - `templates/timetable.html`
 - `templates/system_configuration_timetable.html`
 
@@ -707,9 +709,15 @@ Implemented and evolving.
 
 Related docs/ADRs:
 - `docs/history/workforce-planning/`
+- `docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md`
 
 Risks/guardrails:
 - Timetable rules interact with planning, sections, subjects, and teacher capacity.
+- Planning remains demand/assignment/HRT authority. Placements are version-owned;
+  the exact-scope active pointer is separate, active/superseded history is
+  immutable, and legacy editing uses a copy-on-write working draft.
+- Stage 2 contains schema/lifecycle foundations only; it has no solver, worker,
+  availability, room/resource, or generation UI responsibility.
 
 ## Academic Calendar
 

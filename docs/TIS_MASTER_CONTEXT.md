@@ -807,6 +807,28 @@ Default workflow for approved implementation tasks:
 10. Run reasonable implementation validation.
 11. Report code changes, docs changes, KIA, validation, assumptions, and known issues.
 
+## Smart Timetable Versioning Boundary
+
+The operational timetable uses a versioned aggregate scoped by SchoolGroup,
+Branch, and Academic Year. `TimetableVersion` owns placements and lifecycle;
+`TimetableActiveVersion` separately selects at most one exact-scope operational
+baseline. `TimetableInputSnapshot` preserves deterministic Planning/settings/lock
+authority and component fingerprints. `TimetableGenerationRun` is durable schema
+for a later worker/solver stage only.
+
+Planning remains authoritative for section-subject demand, teacher assignments,
+and HRT fallback. A timetable placement is one teaching period and current
+`Subject.weekly_hours` is the compatibility required-period value. Existing live
+placements migrate without normalization into an imported active compatibility
+version. The current edit route uses a working draft copied from active history;
+current views and exports resolve that operational draft after edits. Active,
+superseded, and archived versions cannot be edited in place.
+
+ADR 0026 defines future readiness, hard/soft constraints, CP-SAT recommendation,
+background execution, validation, regeneration diversity, publication, and
+availability/room/cross-campus boundaries. None of those executable generation
+features is part of Stage 2.
+
 ## Knowledge Impact Assessment Rule
 
 Every approved implementation must:

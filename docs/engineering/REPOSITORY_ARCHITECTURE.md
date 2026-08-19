@@ -435,6 +435,18 @@ Do not change casually:
 - destructive schema operations,
 - production-sensitive repair behavior.
 
+### Timetable Version And Snapshot Services
+
+`timetable_version_service.py` owns exact-scope version resolution, draft
+creation/copying, mutable-state enforcement, placement mutation, lock metadata,
+archival foundation, next-number allocation, and imported active-pointer setup.
+It does not own Planning demand rules.
+
+`timetable_snapshot_service.py` converts current Planning/settings/lock authority
+into deterministic schema-versioned canonical JSON and SHA-256 component/full
+fingerprints without teacher display names or other unnecessary personal data.
+It is a reusable foundation, not a readiness checker or solver.
+
 ### `permission_registry.py`
 
 Responsibility:

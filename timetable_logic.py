@@ -728,6 +728,12 @@ def _build_subject_theme_payload(subject_code: str, subject_name: str, stored_co
 
 
 def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int) -> dict:
+    from timetable_version_service import (
+        TimetableVersionError,
+        resolve_operational_version,
+        resolve_scope_school_group_id,
+    )
+
     settings_payload = get_timetable_settings_payload(db, branch_id, academic_year_id)
     working_day_keys = list(settings_payload["working_day_keys"])
     periods_per_day = int(settings_payload["periods_per_day"] or 0)
@@ -903,10 +909,35 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
         section_payloads.append(section_payload)
         section_lookup[section_id] = section_payload
 
-    entry_rows = db.query(models.TimetableEntry).filter(
+    operational_version = None
+    try:
+        school_group_id = resolve_scope_school_group_id(
+            db,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        operational_version = resolve_operational_version(
+            db,
+            school_group_id=school_group_id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+    except TimetableVersionError:
+        # The existing read-only empty-state behavior remains available while
+        # the user is still selecting a complete tenant scope.
+        operational_version = None
+
+    entry_query = db.query(models.TimetableEntry).filter(
         models.TimetableEntry.branch_id == branch_id,
         models.TimetableEntry.academic_year_id == academic_year_id,
-    ).order_by(
+    )
+    if operational_version is None:
+        entry_query = entry_query.filter(models.TimetableEntry.id == -1)
+    else:
+        entry_query = entry_query.filter(
+            models.TimetableEntry.timetable_version_id == operational_version.id
+        )
+    entry_rows = entry_query.order_by(
         models.TimetableEntry.day_key.asc(),
         models.TimetableEntry.period_index.asc(),
         models.TimetableEntry.id.asc(),
@@ -1092,6 +1123,19 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
         )
 
     return {
+        "version": (
+            {
+                "id": operational_version.id,
+                "public_id": operational_version.public_id,
+                "version_number": operational_version.version_number,
+                "lifecycle_status": operational_version.lifecycle_status,
+                "origin": operational_version.origin,
+                "is_stale": bool(operational_version.is_stale),
+                "edit_revision": int(operational_version.edit_revision or 0),
+            }
+            if operational_version is not None
+            else None
+        ),
         "settings": {
             key: value
             for key, value in settings_payload.items()

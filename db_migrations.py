@@ -5740,6 +5740,241 @@ def _capacity_based_packaging_and_customer_feature_baseline(engine, connection):
         )
 
 
+def _smart_timetable_stage2_version_foundation(engine, connection):
+    """Import the live timetable into one immutable active version per populated scope."""
+    from sqlalchemy.orm import Session
+
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+    from timetable_snapshot_service import build_current_snapshot_data
+    from timetable_version_service import (
+        create_manual_draft,
+        set_imported_active_pointer,
+    )
+
+    for table_name in (
+        "timetable_input_snapshots",
+        "timetable_versions",
+        "timetable_generation_runs",
+        "timetable_active_versions",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+    # Some historical migration-unit fixtures intentionally contain only the
+    # original tenant tables. Normal application startup runs metadata
+    # create_all first; when the placement table truly does not exist there is
+    # no live timetable to import or alter.
+    if not _table_exists(connection, "timetable_entries"):
+        return
+
+    _add_column_if_missing(
+        connection, connection, "timetable_entries", "timetable_version_id",
+        "timetable_version_id INTEGER",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_entries", "is_locked",
+        "is_locked BOOLEAN",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_entries", "locked_at",
+        "locked_at TIMESTAMP",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_entries", "locked_by_user_id",
+        "locked_by_user_id VARCHAR(10)",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_entries", "created_at",
+        "created_at TIMESTAMP",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_entries", "updated_at",
+        "updated_at TIMESTAMP",
+    )
+
+    _execute(
+        connection,
+        """
+        UPDATE timetable_entries
+        SET is_locked = COALESCE(is_locked, FALSE),
+            created_at = COALESCE(created_at, CURRENT_TIMESTAMP),
+            updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)
+        """,
+    )
+
+    session = Session(bind=connection)
+    try:
+        populated_scopes = session.query(
+            models.TimetableEntry.branch_id,
+            models.TimetableEntry.academic_year_id,
+        ).filter(
+            models.TimetableEntry.timetable_version_id.is_(None)
+        ).distinct().order_by(
+            models.TimetableEntry.branch_id.asc(),
+            models.TimetableEntry.academic_year_id.asc(),
+        ).all()
+
+        for branch_id, academic_year_id in populated_scopes:
+            branch = session.query(models.Branch).filter(
+                models.Branch.id == branch_id
+            ).one_or_none()
+            year = session.query(models.AcademicYear).filter(
+                models.AcademicYear.id == academic_year_id
+            ).one_or_none()
+            branch_group_id = int(getattr(branch, "school_group_id", 0) or 0)
+            year_group_id = int(getattr(year, "school_group_id", 0) or 0)
+            if not branch_group_id or branch_group_id != year_group_id:
+                raise RuntimeError(
+                    "Timetable migration refused a branch/year scope whose SchoolGroup ownership does not match: "
+                    f"branch_id={branch_id}, academic_year_id={academic_year_id}."
+                )
+
+            snapshot_data = build_current_snapshot_data(
+                session,
+                school_group_id=branch_group_id,
+                branch_id=int(branch_id),
+                academic_year_id=int(academic_year_id),
+            )
+            snapshot_payload = json.loads(snapshot_data.canonical_json)
+            demand_by_key = {
+                (int(item["section_id"]), str(item["subject_code"]).upper()): item
+                for item in snapshot_payload["planning"]["demands"]
+            }
+            section_ids = {
+                int(item["id"])
+                for item in snapshot_payload["planning"]["sections"]
+            }
+            setting_payload = snapshot_payload["period_configuration"]
+            working_days = set(
+                (setting_payload.get("settings") or {}).get("working_days") or []
+            )
+            periods_per_day = int(
+                (setting_payload.get("settings") or {}).get("periods_per_day") or 0
+            )
+            teacher_ids = {
+                int(row[0])
+                for row in session.query(models.Teacher.id).filter(
+                    models.Teacher.branch_id == branch_id,
+                    models.Teacher.academic_year_id == academic_year_id,
+                ).all()
+            }
+            stale_codes = set()
+            entries = session.query(models.TimetableEntry).filter(
+                models.TimetableEntry.branch_id == branch_id,
+                models.TimetableEntry.academic_year_id == academic_year_id,
+                models.TimetableEntry.timetable_version_id.is_(None),
+            ).order_by(models.TimetableEntry.id.asc()).all()
+            for entry in entries:
+                key = (
+                    int(entry.planning_section_id),
+                    str(entry.subject_code or "").strip().upper(),
+                )
+                demand = demand_by_key.get(key)
+                if int(entry.planning_section_id) not in section_ids:
+                    stale_codes.add("section_missing_or_out_of_scope")
+                elif int(entry.teacher_id or 0) not in teacher_ids:
+                    stale_codes.add("teacher_missing_or_out_of_scope")
+                elif demand is None:
+                    stale_codes.add("subject_not_in_current_plan")
+                elif int(demand.get("assigned_teacher_id") or 0) != int(entry.teacher_id or 0):
+                    stale_codes.add("teacher_assignment_changed_or_missing")
+                if setting_payload.get("saved") and (
+                    str(entry.day_key or "").strip().lower() not in working_days
+                    or int(entry.period_index or 0) < 1
+                    or int(entry.period_index or 0) > periods_per_day
+                ):
+                    stale_codes.add("slot_outside_current_period_configuration")
+
+            imported_version = create_manual_draft(
+                session,
+                school_group_id=branch_group_id,
+                branch_id=int(branch_id),
+                academic_year_id=int(academic_year_id),
+                origin="imported",
+                is_stale=bool(stale_codes),
+                stale_reason_json=json.dumps(sorted(stale_codes), separators=(",", ":")),
+            )
+            imported_version.lifecycle_status = "publication_ready"
+            for entry in entries:
+                entry.timetable_version_id = imported_version.id
+            session.flush()
+            set_imported_active_pointer(session, version=imported_version)
+        session.flush()
+    finally:
+        session.close()
+
+    remaining = connection.execute(text(
+        "SELECT COUNT(*) FROM timetable_entries WHERE timetable_version_id IS NULL"
+    )).scalar_one()
+    if int(remaining or 0):
+        raise RuntimeError("Timetable migration left placements without a version.")
+
+    if engine.dialect.name == "sqlite":
+        # Rebuilding installs required columns, version-scoped uniqueness, and
+        # exact-scope foreign keys from current metadata in one atomic migration.
+        entry_columns = {
+            item["name"]: item for item in inspect(connection).get_columns("timetable_entries")
+        }
+        unique_column_sets = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("timetable_entries")
+        }
+        expected_unique_sets = {
+            ("timetable_version_id", "planning_section_id", "day_key", "period_index"),
+            ("timetable_version_id", "teacher_id", "day_key", "period_index"),
+        }
+        requires_rebuild = (
+            bool(entry_columns["timetable_version_id"].get("nullable"))
+            or bool(entry_columns["is_locked"].get("nullable"))
+            or bool(entry_columns["created_at"].get("nullable"))
+            or bool(entry_columns["updated_at"].get("nullable"))
+            or not expected_unique_sets.issubset(unique_column_sets)
+        )
+        if requires_rebuild:
+            _sqlite_rebuild_from_current_metadata(connection, "timetable_entries")
+    elif engine.dialect.name == "postgresql":
+        unique_constraints = {
+            item.get("name") for item in inspect(connection).get_unique_constraints("timetable_entries")
+        }
+        for constraint_name in (
+            "uq_timetable_entries_section_slot",
+            "uq_timetable_entries_teacher_slot",
+        ):
+            if constraint_name in unique_constraints:
+                _execute(connection, f"ALTER TABLE timetable_entries DROP CONSTRAINT {constraint_name}")
+        _execute(connection, "ALTER TABLE timetable_entries ALTER COLUMN timetable_version_id SET NOT NULL")
+        _execute(connection, "ALTER TABLE timetable_entries ALTER COLUMN is_locked SET NOT NULL")
+        _execute(connection, "ALTER TABLE timetable_entries ALTER COLUMN created_at SET NOT NULL")
+        _execute(connection, "ALTER TABLE timetable_entries ALTER COLUMN updated_at SET NOT NULL")
+        _execute(
+            connection,
+            "ALTER TABLE timetable_entries ADD CONSTRAINT uq_timetable_entries_section_slot "
+            "UNIQUE (timetable_version_id, planning_section_id, day_key, period_index)",
+        )
+        _execute(
+            connection,
+            "ALTER TABLE timetable_entries ADD CONSTRAINT uq_timetable_entries_teacher_slot "
+            "UNIQUE (timetable_version_id, teacher_id, day_key, period_index)",
+        )
+        foreign_key_column_sets = {
+            tuple(item.get("constrained_columns") or [])
+            for item in inspect(connection).get_foreign_keys("timetable_entries")
+        }
+        if ("timetable_version_id", "branch_id", "academic_year_id") not in foreign_key_column_sets:
+            _execute(
+                connection,
+                "ALTER TABLE timetable_entries ADD CONSTRAINT fk_timetable_entries_version_scope "
+                "FOREIGN KEY (timetable_version_id, branch_id, academic_year_id) "
+                "REFERENCES timetable_versions (id, branch_id, academic_year_id)",
+            )
+        if ("locked_by_user_id",) not in foreign_key_column_sets:
+            _execute(
+                connection,
+                "ALTER TABLE timetable_entries ADD CONSTRAINT fk_timetable_entries_locked_by_user "
+                "FOREIGN KEY (locked_by_user_id) REFERENCES users (user_id)",
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -5955,6 +6190,11 @@ MIGRATIONS = (
         migration_id="20260819_001_capacity_based_customer_feature_baseline",
         description="Make normal customer features common across paid, promo, and demo authority",
         apply=_capacity_based_packaging_and_customer_feature_baseline,
+    ),
+    Migration(
+        migration_id="20260819_002_smart_timetable_stage2_version_foundation",
+        description="Version existing timetable placements and add snapshot, lock, active-pointer, and generation-run foundations",
+        apply=_smart_timetable_stage2_version_foundation,
     ),
 )
 
