@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-19 - Restricted Compact Descriptions To Intentional UI Components
+
+Changed the shared compact-description enhancer from broad tag and class-name
+inference to explicit `data-compact-description` opt-in plus the maintained
+allowlist of approved compact components. Ordinary operational status, helper,
+note, subtitle, and supporting text now remains visible inline. Existing
+keyboard/focus tooltip behavior and unrelated native accessible titles remain
+unchanged.
+
 ## 2026-08-19 - Capacity-Based Packaging And Common Customer Feature Baseline
 
 Accepted ADR 0025 and replaced the temporary plan-feature ladder with one normal

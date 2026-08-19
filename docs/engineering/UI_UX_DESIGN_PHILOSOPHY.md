@@ -1,7 +1,7 @@
 ---
 title: TIS UI UX Design Philosophy
 documentation_version: 3.0
-last_updated: 2026-06-26
+last_updated: 2026-08-19
 source_of_truth: true
 ---
 
@@ -166,6 +166,21 @@ Future design system should support:
 - consistent icon and label patterns,
 - role-aware navigation,
 - responsive behavior without losing operational density.
+
+## Compact Descriptions And Tooltips
+
+Compact-description tooltips are an explicit progressive-disclosure treatment,
+not a default for ordinary text. Shared JavaScript may enhance elements marked
+with `data-compact-description` and the maintained allowlist of approved compact
+components. It must not infer tooltip behavior from generic `p` or `small` tags,
+or from broad class fragments such as description, subtitle, note, lede, helper,
+or supporting.
+
+Operational status, helper, validation, and record text remains visible inline.
+Intentional tooltips must retain keyboard focus behavior, Escape dismissal, and
+an accessible relationship between their trigger surface and tooltip content.
+Native titles and accessible names on unrelated controls and visualizations are
+not removed by compact-description processing.
 
 ## Tone And Copy
 
