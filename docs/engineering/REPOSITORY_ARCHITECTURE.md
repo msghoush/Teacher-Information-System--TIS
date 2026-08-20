@@ -452,6 +452,11 @@ snapshots and operational consumers. `timetable_readiness_service.py` performs a
 read-only exact-scope completeness evaluation using Planning, HRT, teacher capacity,
 slots, locks, and existing fingerprints. Neither service executes a solver.
 
+`timetable_publication_service.py` owns version-specific hard validation,
+same-scope comparison, and atomic active-pointer publication. Routes enforce
+permissions and explicit scope; the service enforces lifecycle, revisions,
+freshness, hard validity, and transaction invariants. It never generates placements.
+
 ### `permission_registry.py`
 
 Responsibility:

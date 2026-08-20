@@ -809,6 +809,19 @@ Default workflow for approved implementation tasks:
 
 ## Smart Timetable Versioning Boundary
 
+Stage 4 makes the existing lifecycle operational. Version review is explicit and
+does not move the active pointer. Active, superseded, and archived versions are
+read-only and may be reused only through an explicit copied draft. Draft validation
+checks current fingerprint, complete demand, canonical slots, Planning teacher
+authority, collisions, stale placements, and locks; it is distinct from generation
+readiness. Publication requires a fresh `publication_ready` draft and atomically
+swaps the revisioned active pointer while superseding prior active history.
+
+Placement actions use separate create/edit/delete permissions. Locks use
+`timetable.lock_lessons`, publication uses `timetable.publish`, archive uses
+`timetable.archive_versions`, and explicit selected-version export uses
+`timetable.export`. Every operation remains branch/year/SchoolGroup scoped.
+
 Stage 3 makes the fixed-period slot projection authoritative across the page,
 assignment service, exports, readiness, and snapshots. Full-period blocks are
 unavailable, between-period blocks consume no period number, partial overlaps are

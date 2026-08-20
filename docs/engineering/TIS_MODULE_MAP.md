@@ -703,6 +703,7 @@ Main files/folders:
 - `timetable_snapshot_service.py`
 - `timetable_slot_service.py`
 - `timetable_readiness_service.py`
+- `timetable_publication_service.py`
 - `templates/timetable.html`
 - `templates/system_configuration_timetable.html`
 
@@ -720,6 +721,8 @@ Risks/guardrails:
   immutable, and legacy editing uses a copy-on-write working draft.
 - Stage 3 owns canonical fixed-period slots and exact-scope structural readiness.
   It has no solver, worker, availability, room/resource, or Generate UI.
+- Stage 4 owns draft validation, publication transactions, same-scope comparison,
+  lifecycle presentation, explicit version exports, archive, and draft lock actions.
 
 ## Academic Calendar
 

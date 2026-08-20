@@ -112,6 +112,8 @@ PERMISSION_GROUPS = (
             ("timetable.manage_blocks", "Manage non-teaching blocks"),
             ("timetable.manage_settings", "Manage timetable settings"),
             ("timetable.publish", "Publish timetable"),
+            ("timetable.lock_lessons", "Lock and unlock timetable lessons"),
+            ("timetable.archive_versions", "Archive timetable versions"),
             ("timetable.export", "Export timetable"),
         ),
     },

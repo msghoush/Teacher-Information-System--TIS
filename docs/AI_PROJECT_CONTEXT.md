@@ -7,6 +7,22 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Smart Timetable Stage 4
+
+The timetable page now exposes exact-scope version history and distinguishes Draft,
+Publication Ready, Active/Published, Superseded, and Archived views. Opening a
+historical version never changes the active pointer. Operational default resolution
+remains: newest mutable draft derived from active, otherwise active, otherwise newest
+mutable scope draft. Immutable versions require an explicit copied draft.
+
+Draft lesson locks are explicit future-regeneration commitments. Placement and lock
+edits use `edit_revision`; lock edits refresh the version snapshot/fingerprint.
+Solver-independent draft validation is separate from Stage 3 generation readiness.
+Atomic publication revalidates freshness/completeness, locks the selected version and
+active pointer, checks pointer revision, supersedes the old active version, and makes
+the selected version immutable through the active pointer. Stage 4 adds no solver,
+worker, generation endpoint, availability, rooms/resources, or schema migration.
+
 ## Smart Timetable Stage 3
 
 `timetable_slot_service.py` is the single fixed-period authority for teaching,

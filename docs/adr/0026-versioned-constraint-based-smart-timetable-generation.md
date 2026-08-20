@@ -26,6 +26,23 @@ Input snapshots use schema-versioned canonical JSON and SHA-256 component/full f
 
 Locks persist on placements with actor and timestamp. A copied draft retains the intended locks. Later regeneration must treat locked placements as fixed decisions, but Stage 2 executes no regeneration.
 
+Stage 4 exposes locks only on mutable drafts. Lock edits increment `edit_revision`,
+return publication-ready drafts to draft, and refresh the immutable input snapshot
+and authority fingerprint. Invalid locks remain visible and block validation.
+
+Version review is selection-only. The compatibility operational order is the newest
+mutable draft derived from active, otherwise active, otherwise the newest scoped
+mutable draft; archived and superseded versions are never arbitrary defaults. An
+explicit copy is required before editing immutable history.
+
+Draft validation checks freshness, complete demand, Planning teacher authority,
+canonical slots, collisions, placement integrity, and locks without a solver.
+Successful validation transitions a draft to `publication_ready`; any later placement
+or lock mutation returns it to `draft`. Publication locks the version and exact-scope
+active pointer, checks edit/pointer revisions, reruns validation, supersedes the
+previous active version, updates the pointer, and records actor/time atomically.
+Active status remains derived from the pointer rather than duplicated on the version.
+
 `TimetableGenerationRun` reserves durable scope, requester, Generate/Regenerate mode, source version and revision, snapshot, solver/seed/diversity metadata, timing, lease/heartbeat, safe failure, result, and idempotency fields. Its statuses distinguish queued, running, validating, succeeded, infeasible, timed out, stale input, cancellation, internal error, and concurrent-run rejection.
 
 Generate will create a new candidate from current authoritative input. Regenerate will create a new candidate from an explicit source/version context and must never overwrite the active timetable. Later regeneration should support controlled diversity through recorded seeds/preferences. Structural readiness is a deterministic prerequisite check; it is not proof of solver feasibility. Solver-independent validation must verify every candidate before it may become publication-ready. Hard constraints define validity; soft constraints affect quality only.
@@ -48,7 +65,7 @@ Exports are version-aware and preserve their current presentation. Future availa
 - Existing placements remain operational and historically preserved.
 - Version numbering and active selection have database-enforced scope guarantees, with service validation for source/snapshot operations.
 - Stage 3 implements canonical slot projection and structural readiness on stable snapshots, with a focused readiness area on the existing timetable UI.
-- Stage 4 may add generation, version comparison, and truthful publication workflows without mutating active history.
+- Stage 4 implements version comparison and truthful publication without mutating active history. A later stage may add generation on this boundary.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
 
 ## Related Files

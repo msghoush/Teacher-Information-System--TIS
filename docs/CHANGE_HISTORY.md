@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-21 - Added Smart Timetable Stage 4 Version Publication
+
+Made timetable lifecycle visible through scoped history selection, immutable-version
+draft copies, draft lesson locks, explicit validation, same-scope comparison,
+selected-version exports, archive controls, and transactional publication. Publication
+revalidates authority and hard validity, checks edit/pointer revisions, supersedes the
+previous active version, and preserves history. No schema, solver, worker, generation
+endpoint, commit, push, deployment, or production action was included.
+
 ## 2026-08-19 - Added Smart Timetable Stage 3 Readiness And Slot Semantics
 
 Added canonical fixed-period teaching/unavailable/invalid slots, server-side

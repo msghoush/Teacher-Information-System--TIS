@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## Smart Timetable Stage 4 Version Publication Implemented
+
+Administrators can review scoped version history, explicitly open historical
+versions, copy immutable versions to drafts, lock/unlock draft lessons, validate a
+specific draft, compare two same-scope versions, archive drafts/superseded history,
+export the selected version, and publish a complete fresh publication-ready draft.
+
+Publication is one transaction using version row locking, `edit_revision`, active
+pointer locking/revision, current fingerprint revalidation, and full
+solver-independent validation. The former active version becomes superseded and
+remains reviewable/exportable; the new active version is immutable. Stage 3 Ready to
+Generate remains a separate input-readiness concept. No solver exists.
+
 ## Smart Timetable Stage 3 Readiness Implemented
 
 Stage 3 adds one deterministic canonical projection for fixed teaching periods,
