@@ -716,14 +716,25 @@ def _build_subject_theme_payload(subject_code: str, subject_name: str, stored_co
     }
 
 
-def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int) -> dict:
+def build_timetable_workspace_payload(
+    db,
+    branch_id: int,
+    academic_year_id: int,
+    *,
+    version_id: int | None = None,
+    include_validation: bool = True,
+) -> dict:
     from timetable_version_service import (
         TimetableVersionError,
         resolve_operational_version,
         resolve_scope_school_group_id,
+        resolve_version,
+        resolve_active_version,
     )
 
     settings_payload = get_timetable_settings_payload(db, branch_id, academic_year_id)
+    branch_row = db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+    year_row = db.query(models.AcademicYear).filter(models.AcademicYear.id == academic_year_id).first()
     working_day_keys = list(settings_payload["working_day_keys"])
     periods_per_day = int(settings_payload["periods_per_day"] or 0)
     block_slot_map = settings_payload["block_slot_map"]
@@ -899,6 +910,10 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
         section_lookup[section_id] = section_payload
 
     operational_version = None
+    selected_version = None
+    active_version = None
+    version_history = []
+    active_pointer_revision = 0
     try:
         school_group_id = resolve_scope_school_group_id(
             db,
@@ -911,20 +926,70 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
             branch_id=branch_id,
             academic_year_id=academic_year_id,
         )
+        active_version = resolve_active_version(
+            db,
+            school_group_id=school_group_id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        if version_id is not None:
+            selected_version = resolve_version(
+                db,
+                version_id=int(version_id),
+                school_group_id=school_group_id,
+                branch_id=branch_id,
+                academic_year_id=academic_year_id,
+            )
+            if selected_version is None:
+                raise TimetableVersionError(
+                    "version_not_found",
+                    "The selected timetable version is outside the current scope.",
+                )
+        else:
+            selected_version = operational_version
+        pointer = db.query(models.TimetableActiveVersion).filter(
+            models.TimetableActiveVersion.school_group_id == school_group_id,
+            models.TimetableActiveVersion.branch_id == branch_id,
+            models.TimetableActiveVersion.academic_year_id == academic_year_id,
+        ).first()
+        active_pointer_revision = int(getattr(pointer, "revision", 0) or 0)
+        versions = db.query(models.TimetableVersion).filter(
+            models.TimetableVersion.school_group_id == school_group_id,
+            models.TimetableVersion.branch_id == branch_id,
+            models.TimetableVersion.academic_year_id == academic_year_id,
+        ).order_by(models.TimetableVersion.version_number.desc()).all()
+        version_history = [
+            {
+                "public_id": row.public_id,
+                "version_number": int(row.version_number),
+                "lifecycle_status": row.lifecycle_status,
+                "display_status": "active" if active_version and int(active_version.id) == int(row.id) else row.lifecycle_status,
+                "origin": row.origin,
+                "created_at": row.created_at.isoformat() if row.created_at else "",
+                "quality_score": row.quality_score,
+                "is_active": bool(active_version and int(active_version.id) == int(row.id)),
+                "is_stale": bool(row.is_stale),
+                "has_manual_changes": bool(row.has_manual_changes),
+                "source_version_number": next((int(source.version_number) for source in versions if row.source_version_id and int(source.id) == int(row.source_version_id)), None),
+                "edit_revision": int(row.edit_revision or 0),
+            }
+            for row in versions
+        ]
     except TimetableVersionError:
         # The existing read-only empty-state behavior remains available while
         # the user is still selecting a complete tenant scope.
         operational_version = None
+        selected_version = None
 
     entry_query = db.query(models.TimetableEntry).filter(
         models.TimetableEntry.branch_id == branch_id,
         models.TimetableEntry.academic_year_id == academic_year_id,
     )
-    if operational_version is None:
+    if selected_version is None:
         entry_query = entry_query.filter(models.TimetableEntry.id == -1)
     else:
         entry_query = entry_query.filter(
-            models.TimetableEntry.timetable_version_id == operational_version.id
+            models.TimetableEntry.timetable_version_id == selected_version.id
         )
     entry_rows = entry_query.order_by(
         models.TimetableEntry.day_key.asc(),
@@ -996,6 +1061,7 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
             "period_index": period_index,
             "status": status,
             "stale_reason": stale_reason,
+            "is_locked": bool(getattr(entry_row, "is_locked", False)),
             **subject_theme,
         }
         entries.append(entry_payload)
@@ -1118,20 +1184,66 @@ def build_timetable_workspace_payload(db, branch_id: int, academic_year_id: int)
         branch_id,
         academic_year_id,
     )
+    current_authority_fingerprint = readiness.get("authority_fingerprint", "")
+    if selected_version is not None:
+        from timetable_snapshot_service import build_current_snapshot_data
+        selected_locks = [
+            {
+                "section_id": row.planning_section_id,
+                "subject_code": row.subject_code,
+                "teacher_id": row.teacher_id,
+                "day_key": row.day_key,
+                "period_index": row.period_index,
+            }
+            for row in entry_rows
+            if row.is_locked
+        ]
+        current_authority_fingerprint = build_current_snapshot_data(
+            db,
+            school_group_id=school_group_id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+            locks=selected_locks,
+        ).authority_fingerprint
+    selected_is_stale = bool(
+        selected_version
+        and (
+            selected_version.is_stale
+            or str(selected_version.authority_fingerprint or "") != current_authority_fingerprint
+        )
+    )
+    validation = None
+    if include_validation and selected_version and selected_version.lifecycle_status in {"draft", "publication_ready"}:
+        from timetable_publication_service import TimetableDraftValidationService
+        validation = TimetableDraftValidationService(db).validate(version=selected_version)
     return {
+        "scope": {
+            "branch_name": str(getattr(branch_row, "name", "") or "Selected Branch"),
+            "academic_year_name": str(getattr(year_row, "year_name", "") or "Selected Academic Year"),
+        },
         "version": (
             {
-                "id": operational_version.id,
-                "public_id": operational_version.public_id,
-                "version_number": operational_version.version_number,
-                "lifecycle_status": operational_version.lifecycle_status,
-                "origin": operational_version.origin,
-                "is_stale": bool(operational_version.is_stale),
-                "edit_revision": int(operational_version.edit_revision or 0),
+                "id": selected_version.id,
+                "public_id": selected_version.public_id,
+                "version_number": selected_version.version_number,
+                "lifecycle_status": selected_version.lifecycle_status,
+                "display_status": "active" if active_version and int(active_version.id) == int(selected_version.id) else selected_version.lifecycle_status,
+                "origin": selected_version.origin,
+                "is_stale": selected_is_stale,
+                "is_active": bool(active_version and int(active_version.id) == int(selected_version.id)),
+                "is_mutable": selected_version.lifecycle_status in {"draft", "publication_ready"} and not (active_version and int(active_version.id) == int(selected_version.id)),
+                "has_manual_changes": bool(selected_version.has_manual_changes),
+                "manual_change_count": int(selected_version.manual_change_count or 0),
+                "created_at": selected_version.created_at.isoformat() if selected_version.created_at else "",
+                "published_at": selected_version.published_at.isoformat() if selected_version.published_at else "",
+                "edit_revision": int(selected_version.edit_revision or 0),
             }
-            if operational_version is not None
+            if selected_version is not None
             else None
         ),
+        "versions": version_history,
+        "active_pointer_revision": active_pointer_revision,
+        "validation": validation,
         "settings": {
             key: value
             for key, value in settings_payload.items()

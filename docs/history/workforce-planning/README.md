@@ -18,6 +18,8 @@ Related files:
 
 History entries:
 
+- `2026-08-21-smart-timetable-stage-4-version-publication.md` — visible version history, draft locks/validation, comparison, explicit export, archive, and atomic publication.
+
 - `2026-08-19-smart-timetable-stage-3-readiness-and-slot-semantics.md` — canonical fixed-period slot semantics, assignment protection, and solver-independent readiness.
 
 - `2026-08-19-smart-timetable-stage-2-version-foundation.md` — durable timetable versions, snapshots, active pointer, locks, migration, and legacy edit/export compatibility.

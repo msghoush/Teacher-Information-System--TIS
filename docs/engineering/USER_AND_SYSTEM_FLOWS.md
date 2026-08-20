@@ -860,6 +860,21 @@ HRT), checks allocation/capacity/locks/staleness, and returns stable readiness
 blockers and warnings for one exact scope. Ready to Generate means only that inputs
 can be submitted to a future solver; no generation action runs.
 
+Stage 4 version/publication flow:
+
+1. Default read resolves an active-derived mutable draft, otherwise active, otherwise
+   the newest scoped mutable draft; explicit history selection changes only the view.
+2. Immutable history may be copied to a new draft with placements, valid locks, and
+   source provenance preserved.
+3. Draft placements and locks use exact permissions plus `edit_revision`; locks update
+   snapshot authority and any edit returns publication-ready state to draft.
+4. Validate Draft checks freshness, demand completion, collisions, canonical slots,
+   Planning teacher authority, stale placements, and locks without a solver.
+5. Publish rechecks scope, permission, revisions, fingerprint, and validation; locks
+   the pointer; supersedes prior active history; and activates atomically.
+6. Historical versions remain reviewable, comparable, safely archivable, and
+   explicitly exportable. Viewing or exporting never publishes.
+
 ## Human / AI Developer Onboarding Flow
 
 Flow:

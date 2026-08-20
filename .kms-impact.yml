@@ -1,10 +1,11 @@
 knowledge_impact: yes
-summary: Add Stage 3 canonical timetable slot semantics and solver-independent readiness evaluation and presentation.
+summary: Add Stage 4 visible timetable version review, lock, validation, comparison, archive, explicit export, and atomic publication workflows.
 affected_areas:
   - timetable
   - planning
   - tenant-isolation
   - operational-workflows
+  - permissions
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
@@ -16,6 +17,6 @@ kms_files_updated:
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/history/workforce-planning/README.md
-  - docs/history/workforce-planning/2026-08-19-smart-timetable-stage-3-readiness-and-slot-semantics.md
+  - docs/history/workforce-planning/2026-08-21-smart-timetable-stage-4-version-publication.md
 no_impact_reason:
 major_change_override: no

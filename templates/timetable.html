@@ -256,6 +256,20 @@
     .readiness-metric strong { display:block; margin-top:4px; font-size:18px; }
     .readiness-blockers { margin:14px 0 0; padding-left:20px; color:#7f2b20; }
     .readiness-links { display:flex; flex-wrap:wrap; gap:12px; margin-top:14px; }
+    .version-bar { margin-top:16px; padding:14px 16px; border:1px solid var(--tt-border); border-radius:16px; background:var(--tt-surface-soft); }
+    .version-bar-main, .version-actions { display:flex; align-items:center; flex-wrap:wrap; gap:10px; }
+    .version-bar-main { justify-content:space-between; }
+    .version-identity { display:flex; align-items:center; flex-wrap:wrap; gap:8px; font-weight:800; color:var(--tt-ink); }
+    .version-badge { padding:5px 9px; border-radius:999px; background:#e8f1fc; color:#0a4ea3; font-size:12px; }
+    .version-badge.is-warning { background:#fff1e1; color:#8a4f00; }
+    .version-badge.is-active { background:#e9f8f2; color:#08745a; }
+    .version-actions { margin-top:12px; }
+    .version-select { min-width:240px; padding:9px 11px; border:1px solid var(--tt-border-strong); border-radius:10px; background:#fff; }
+    .version-notice { margin-top:10px; color:var(--tt-subtle); font-size:12px; }
+    .version-notice.is-stale { padding:10px; border-radius:10px; background:#fff1f0; color:#8b2f24; font-weight:700; }
+    .comparison-panel { display:none; margin-top:12px; padding:14px; border:1px solid var(--tt-border); border-radius:12px; background:#fff; }
+    .comparison-panel.is-visible { display:block; }
+    .comparison-results { margin-top:10px; font-size:12px; }
 
     .toolbar-shell {
         display: grid;
@@ -1447,6 +1461,26 @@
             </div>
         </div>
 
+        <section class="version-bar" aria-labelledby="versionStatusTitle">
+            <div class="version-bar-main">
+                <div>
+                    <div class="version-identity" id="versionStatusTitle">No timetable version selected</div>
+                    <div class="version-notice" id="versionNotice"></div>
+                </div>
+                <select class="version-select" id="versionSelector" aria-label="Review timetable version"></select>
+            </div>
+            <div class="version-actions" id="versionActions"></div>
+            <div class="comparison-panel" id="comparisonPanel">
+                <strong>Compare Versions</strong>
+                <div class="version-actions">
+                    <select class="version-select" id="compareLeft"></select>
+                    <select class="version-select" id="compareRight"></select>
+                    <button type="button" class="hero-btn is-secondary" id="runComparisonBtn">Compare</button>
+                </div>
+                <div class="comparison-results" id="comparisonResults"></div>
+            </div>
+        </section>
+
         <div class="summary-grid tis-kpi-grid">
             <article class="summary-card tis-kpi-card tis-kpi-card--teal">
                 <span>{{ icon("planning", "icon") }} Sections</span>
@@ -1589,7 +1623,14 @@
 <script>
     (function () {
         const canEdit = {{ can_edit_timetable | tojson }};
+        const canCreateTimetable = {{ can_create_timetable | tojson }};
+        const canModifyTimetable = {{ can_modify_timetable | tojson }};
+        const canDeleteTimetable = {{ can_delete_timetable | tojson }};
         const canManageSettings = {{ can_manage_system_settings | tojson }};
+        const canLockLessons = {{ can_lock_lessons | tojson }};
+        const canPublishTimetable = {{ can_publish_timetable | tojson }};
+        const canArchiveVersions = {{ can_archive_versions | tojson }};
+        const canExportTimetable = {{ can_export_timetable | tojson }};
         const state = {
             payload: {{ timetable_payload | tojson }},
             activeView: "section",
@@ -1643,6 +1684,15 @@
         const readinessCaveat = document.getElementById("readinessCaveat");
         const readinessMetrics = document.getElementById("readinessMetrics");
         const readinessBlockers = document.getElementById("readinessBlockers");
+        const versionStatusTitle = document.getElementById("versionStatusTitle");
+        const versionNotice = document.getElementById("versionNotice");
+        const versionSelector = document.getElementById("versionSelector");
+        const versionActions = document.getElementById("versionActions");
+        const comparisonPanel = document.getElementById("comparisonPanel");
+        const compareLeft = document.getElementById("compareLeft");
+        const compareRight = document.getElementById("compareRight");
+        const runComparisonBtn = document.getElementById("runComparisonBtn");
+        const comparisonResults = document.getElementById("comparisonResults");
 
         const normalizeInt = (value) => {
             const parsedValue = Number.parseInt(String(value ?? "").trim(), 10);
@@ -1657,6 +1707,10 @@
         const getWarnings = () => Array.isArray(state.payload.warnings) ? state.payload.warnings : [];
         const getBlockedSlots = () => Array.isArray(state.payload.blocked_slots) ? state.payload.blocked_slots : [];
         const getBlocks = () => Array.isArray(state.payload?.settings?.blocks) ? state.payload.settings.blocks : [];
+        const canEditSelected = () => Boolean(canEdit && state.payload?.version?.is_mutable);
+        const canCreateSelected = () => Boolean(canCreateTimetable && state.payload?.version?.is_mutable);
+        const canModifySelected = () => Boolean(canModifyTimetable && state.payload?.version?.is_mutable);
+        const canDeleteSelected = () => Boolean(canDeleteTimetable && state.payload?.version?.is_mutable);
 
         const parseTimeMinutes = (value) => {
             const text = String(value || "").trim();
@@ -2032,6 +2086,94 @@
                 .map((item) => `<li>${escapeHtml(item.message || "Timetable input needs review.")}</li>`).join("");
         };
 
+        const callVersionAction = async (action, body = {}) => {
+            const version = state.payload.version || {};
+            if (!version.public_id) return;
+            setBusy(true);
+            try {
+                const response = await fetch(`/timetable/api/versions/${encodeURIComponent(version.public_id)}/${action}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        edit_revision: normalizeInt(version.edit_revision),
+                        pointer_revision: normalizeInt(state.payload.active_pointer_revision),
+                        ...body,
+                    }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    setFlash(result.message || "Unable to update this timetable version.", "error");
+                    return;
+                }
+                state.payload = result.payload;
+                const selected = state.payload.version || {};
+                if (selected.public_id) history.replaceState({}, "", `/timetable?version=${encodeURIComponent(selected.public_id)}`);
+                ensureSelection();
+                setFlash(result.message || "Timetable version updated.", "success");
+                renderAll();
+            } catch (error) {
+                setFlash("Unable to reach the timetable version service right now.", "error");
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const versionLabel = (item) => {
+            const status = String(item.display_status || item.lifecycle_status || "").replaceAll("_", " ");
+            return `Version ${normalizeInt(item.version_number)} · ${status.replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase())}${item.is_stale ? " · Stale" : ""}`;
+        };
+
+        const renderVersionStatus = () => {
+            const version = state.payload.version || null;
+            const versions = Array.isArray(state.payload.versions) ? state.payload.versions : [];
+            if (!version) {
+                versionStatusTitle.textContent = "No timetable version yet";
+                versionNotice.textContent = "Create the first manual placement to begin a draft.";
+                versionSelector.innerHTML = `<option>No versions available</option>`;
+                versionActions.innerHTML = "";
+                return;
+            }
+            const displayStatus = String(version.display_status || version.lifecycle_status || "draft").replaceAll("_", " ");
+            versionStatusTitle.innerHTML = `
+                <span>Version ${normalizeInt(version.version_number)}</span>
+                <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(displayStatus.replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span>
+                <span class="version-badge">${escapeHtml(String(version.origin || "manual").replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span>
+                <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Stale" : "Fresh"}</span>
+                ${version.has_manual_changes ? `<span class="version-badge">Manual changes</span>` : ""}
+            `;
+            versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
+            versionNotice.textContent = version.is_stale
+                ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
+                : (!version.is_mutable ? "Published and historical timetables are read-only. Create a draft to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`);
+            versionSelector.innerHTML = versions.map((item) => `<option value="${escapeHtml(item.public_id)}" ${item.public_id === version.public_id ? "selected" : ""}>${escapeHtml(versionLabel(item))}</option>`).join("");
+            versionActions.innerHTML = "";
+            const addButton = (label, handler, primary = false) => {
+                const button = document.createElement("button");
+                button.type = "button"; button.className = `hero-btn ${primary ? "is-primary" : "is-secondary"}`;
+                button.textContent = label; button.disabled = state.busy; button.addEventListener("click", handler); versionActions.appendChild(button);
+            };
+            if (!version.is_mutable && canCreateTimetable) addButton("Create Draft from This Version", () => callVersionAction("copy"), true);
+            if (version.is_mutable && canModifyTimetable) addButton("Validate Draft", () => callVersionAction("validate"), true);
+            const validation = state.payload.validation || {};
+            if (canPublishTimetable && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
+                addButton("Publish Timetable", () => {
+                    const scope = state.payload.scope || {};
+                    const prompt = `Publish Version ${version.version_number} as the active timetable for ${scope.branch_name || "this branch"} · ${scope.academic_year_name || "this academic year"}?\n\nThe current active timetable will be preserved in version history as Superseded.`;
+                    if (window.confirm(prompt)) callVersionAction("publish");
+                }, true);
+            }
+            if (canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Version", () => { if (window.confirm(`Archive Version ${version.version_number}?`)) callVersionAction("archive"); });
+            addButton("Compare Versions", () => comparisonPanel.classList.toggle("is-visible"));
+            if (canExportTimetable) {
+                const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
+                const pdf = document.createElement("a"); pdf.className = "hero-btn is-secondary"; pdf.textContent = "Export This Version (PDF)"; pdf.target = "_blank"; pdf.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.pdf`; versionActions.appendChild(pdf);
+            }
+            const compareOptions = versions.map((item) => `<option value="${escapeHtml(item.public_id)}">${escapeHtml(versionLabel(item))}</option>`).join("");
+            compareLeft.innerHTML = compareOptions; compareRight.innerHTML = compareOptions;
+            compareLeft.value = version.public_id;
+            if (versions.length > 1) compareRight.value = versions.find((item) => item.public_id !== version.public_id).public_id;
+        };
+
         const renderWeekLegend = () => {
             weekLegend.innerHTML = "";
             getDays().forEach((day) => {
@@ -2329,7 +2471,7 @@
                             dayKey: day.key,
                             periodIndex: slot.period_index,
                         };
-                        if (isSectionView && canEdit && !blockedSlot) {
+                        if (isSectionView && canEditSelected() && !blockedSlot) {
                             openAssignmentPanel(entity.id, day.key, slot.period_index);
                         } else {
                             closeAssignmentPanel();
@@ -2370,13 +2512,14 @@
                                     <span class="lesson-title-line">
                                         <span class="lesson-name">${escapeHtml(entry.subject_name)}</span>
                                         <span class="lesson-code-label">${escapeHtml(entry.subject_code)}</span>
+                                        ${entry.is_locked ? `<span class="version-badge" title="Locked lesson">Locked</span>` : ""}
                                     </span>
                                     <span class="lesson-meta">
                                         <span class="lesson-teacher">${escapeHtml(isSectionView ? entry.teacher_name : entry.section_label)}</span>
                                         <span class="lesson-time">${escapeHtml(slot.time_range)}</span>
                                     </span>
                                 </span>
-                                ${isSectionView && canEdit && entry.status !== "stale"
+                                ${isSectionView && canDeleteSelected() && entry.status !== "stale" && !entry.is_locked
                                     ? `<span role="button" tabindex="0" class="lesson-remove-btn" data-cell-clear="true" title="Remove lesson" aria-label="Remove lesson">${iconLibrary.clear}</span>`
                                     : ""
                                 }
@@ -2390,7 +2533,7 @@
                                 <span class="cell-code">${escapeHtml(slot.short_label)}</span>
                                 <span class="cell-time">${escapeHtml(slot.time_range)}</span>
                             </div>
-                            <div class="cell-empty-text">${isSectionView && canEdit ? "Click to assign" : "Open slot"}</div>
+                            <div class="cell-empty-text">${isSectionView && canCreateSelected() ? "Click to assign" : "Open slot"}</div>
                         `;
                         button.addEventListener("click", handleCellSelection);
                     }
@@ -2434,6 +2577,8 @@
                 const disabled = !option.is_schedulable
                     || remainingHours <= 0
                     || Boolean(teacherConflict)
+                    || Boolean(existingEntry?.is_locked)
+                    || (existingEntry ? !canModifySelected() : !canCreateSelected())
                     || state.busy;
                 return {
                     ...option,
@@ -2466,6 +2611,8 @@
                         day_key: selectedSlot.dayKey,
                         period_index: selectedSlot.periodIndex,
                         subject_code: subjectCode || "",
+                        version_public_id: state.payload?.version?.public_id || "",
+                        edit_revision: normalizeInt(state.payload?.version?.edit_revision),
                     }),
                 });
                 const result = await response.json();
@@ -2485,6 +2632,22 @@
             } finally {
                 setBusy(false);
             }
+        };
+
+        const toggleEntryLock = async (entry) => {
+            const version = state.payload.version || {};
+            if (!version.public_id || !entry) return;
+            setBusy(true);
+            try {
+                const response = await fetch(`/timetable/api/versions/${encodeURIComponent(version.public_id)}/lock`, {
+                    method: "POST", headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ entry_id: entry.id, is_locked: !entry.is_locked, edit_revision: normalizeInt(version.edit_revision) }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) { setFlash(result.message || "Unable to change the lesson lock.", "error"); return; }
+                state.payload = result.payload; ensureSelection(); setFlash(result.message, "success"); renderAll();
+            } catch (error) { setFlash("Unable to reach the lesson lock service.", "error"); }
+            finally { setBusy(false); }
         };
 
         const getOptionStateLabel = (option) => {
@@ -2542,7 +2705,7 @@
                                 <h4>Current Assignment</h4>
                                 <small>${timeSlot.time_range}</small>
                             </div>
-                            <button id="panelUnassignBtn" type="button" class="mini-icon-btn" title="Remove assignment" aria-label="Remove assignment">${iconLibrary.clear}</button>
+                            <button id="panelUnassignBtn" type="button" class="mini-icon-btn" title="Remove assignment" aria-label="Remove assignment" ${existingEntry.is_locked ? "disabled" : ""}>${iconLibrary.clear}</button>
                         </div>
                         <div class="current-assignment-row">
                             ${renderSubjectTileIcon(existingEntry.subject_code, existingEntry.subject_name)}
@@ -2696,7 +2859,7 @@
                         slotCard.innerHTML += `
                             <div class="inspector-note">
                                 ${existingEntry.status === "stale"
-                                    ? `This slot needs review: ${existingEntry.stale_reason}`
+                                    ? `${existingEntry.is_locked ? "This locked lesson no longer matches the current timetable authority. " : "This slot needs review: "}${existingEntry.stale_reason}`
                                     : `Currently scheduled: ${existingEntry.subject_code} - ${existingEntry.subject_name} with ${existingEntry.teacher_name}.`}
                             </div>
                         `;
@@ -2704,7 +2867,7 @@
                         slotCard.innerHTML += `<div class="inspector-note">This teaching slot is empty and ready for manual assignment.</div>`;
                     }
 
-                    if (!canEdit) {
+                    if (!canEditSelected()) {
                         slotCard.innerHTML += `<div class="empty-state">Your role can review timetable placements, but only editing roles can assign or clear slots.</div>`;
                         inspectorContent.appendChild(slotCard);
                     } else {
@@ -2715,11 +2878,20 @@
                             clearButton.type = "button";
                             clearButton.className = "inspector-btn is-secondary";
                             clearButton.innerHTML = `${iconLibrary.clear} Clear Slot`;
-                            clearButton.disabled = state.busy;
+                            clearButton.disabled = state.busy || existingEntry.is_locked || !canDeleteSelected();
                             clearButton.addEventListener("click", () => {
                                 assignSlot(section.id, selectedSlot, "");
                             });
                             actions.appendChild(clearButton);
+                            if (canLockLessons) {
+                                const lockButton = document.createElement("button");
+                                lockButton.type = "button";
+                                lockButton.className = "inspector-btn is-secondary";
+                                lockButton.textContent = existingEntry.is_locked ? "Unlock Lesson" : "Lock Lesson";
+                                lockButton.disabled = state.busy;
+                                lockButton.addEventListener("click", () => toggleEntryLock(existingEntry));
+                                actions.appendChild(lockButton);
+                            }
                         }
                         slotCard.appendChild(actions);
 
@@ -2890,6 +3062,7 @@
         };
 
         const renderAll = () => {
+            renderVersionStatus();
             renderReadiness();
             ensureSelection();
             renderSummary();
@@ -3006,6 +3179,29 @@
         teacherSelector.addEventListener("change", () => {
             state.activeTeacherId = normalizeInt(teacherSelector.value);
             renderAll();
+        });
+
+        versionSelector.addEventListener("change", () => {
+            if (versionSelector.value) window.location.assign(`/timetable?version=${encodeURIComponent(versionSelector.value)}`);
+        });
+
+        runComparisonBtn.addEventListener("click", async () => {
+            if (!compareLeft.value || !compareRight.value) return;
+            comparisonResults.textContent = "Comparing versions...";
+            try {
+                const response = await fetch(`/timetable/api/versions/compare?left=${encodeURIComponent(compareLeft.value)}&right=${encodeURIComponent(compareRight.value)}`);
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    comparisonResults.textContent = result.message || "Unable to compare these versions.";
+                    return;
+                }
+                const comparison = result.comparison || {};
+                const counts = comparison.counts || {};
+                const rows = (comparison.differences || []).slice(0, 30).map((item) => `<li><strong>${escapeHtml(item.change)}</strong> · ${escapeHtml(item.section_label || "Section")} · ${escapeHtml(item.subject_code || "Lesson")} · ${item.from ? `${escapeHtml(item.from.day_key)} P${normalizeInt(item.from.period_index)}` : "Unscheduled"} → ${item.to ? `${escapeHtml(item.to.day_key)} P${normalizeInt(item.to.period_index)}` : "Unscheduled"}</li>`).join("");
+                comparisonResults.innerHTML = `<p>${normalizeInt(comparison.unchanged_lessons)} unchanged · ${normalizeInt(counts.moved)} moved · ${normalizeInt(counts.added)} added · ${normalizeInt(counts.removed)} removed</p>${rows ? `<ul>${rows}</ul>` : `<p>No placement differences.</p>`}`;
+            } catch (error) {
+                comparisonResults.textContent = "Unable to reach the comparison service right now.";
+            }
         });
 
         ensureSelection();

@@ -120,14 +120,14 @@ accounting. No AI business feature or M8B9 operational control is included.
 
 ## Current
 
-### Smart Timetable Foundation
+### Smart Timetable Version And Publication Foundation
 
-Stages 2 and 3 are complete: durable timetable versions, snapshots/fingerprints, exact-scope
+Stages 2, 3, and 4 are complete: durable timetable versions, snapshots/fingerprints, exact-scope
 active selection, locks, generation-run schema, imported-current migration, and
-copy-on-write compatibility for current edits and exports, canonical fixed-period
-slots, and structural readiness. Stage 4 may then introduce
-branch-scoped solver execution, candidate comparison, and publication using the
-version foundation. No solver or generation UI exists yet.
+copy-on-write compatibility, canonical fixed-period slots, structural readiness,
+visible history, locks, draft validation, same-scope comparison, explicit version
+export, archive, and atomic publication. The next approved stage may introduce
+branch-scoped solver execution. No solver or generation UI exists yet.
 
 ### KMS Enforcement Review
 

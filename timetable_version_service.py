@@ -301,7 +301,7 @@ def copy_version_to_draft(
     return draft
 
 
-def _is_active_version(db: Session, version: models.TimetableVersion) -> bool:
+def is_active_version(db: Session, version: models.TimetableVersion) -> bool:
     return db.query(models.TimetableActiveVersion.id).filter(
         models.TimetableActiveVersion.school_group_id == version.school_group_id,
         models.TimetableActiveVersion.branch_id == version.branch_id,
@@ -310,13 +310,85 @@ def _is_active_version(db: Session, version: models.TimetableVersion) -> bool:
     ).first() is not None
 
 
+def lock_scoped_version(
+    db: Session,
+    *,
+    version_id: int,
+    school_group_id: int,
+    branch_id: int,
+    academic_year_id: int,
+) -> models.TimetableVersion:
+    """Lock and refresh one exact-scope version before a state change.
+
+    PostgreSQL uses the row lock to serialize publication and draft mutation.
+    SQLite ignores ``FOR UPDATE`` but retains the same validation behavior for
+    local/test compatibility.
+    """
+    with db.no_autoflush:
+        resolved_group_id = resolve_scope_school_group_id(
+            db,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        if int(resolved_group_id) != int(school_group_id):
+            raise TimetableVersionError(
+                "scope_mismatch",
+                "The timetable version scope does not match the selected organization.",
+            )
+        version = db.query(models.TimetableVersion).filter(
+            models.TimetableVersion.id == version_id,
+            models.TimetableVersion.school_group_id == school_group_id,
+            models.TimetableVersion.branch_id == branch_id,
+            models.TimetableVersion.academic_year_id == academic_year_id,
+        ).populate_existing().with_for_update().first()
+    if version is None:
+        raise TimetableVersionError(
+            "version_not_found",
+            "The selected timetable version is outside the current scope.",
+        )
+    return version
+
+
+def lock_mutable_version(
+    db: Session,
+    *,
+    version: models.TimetableVersion,
+    expected_edit_revision: int | None = None,
+    revision_message: str = "This draft changed in another browser. Refresh before editing it.",
+) -> models.TimetableVersion:
+    """Lock first, then re-evaluate pointer authority, lifecycle, and revision."""
+    locked = lock_scoped_version(
+        db,
+        version_id=int(version.id),
+        school_group_id=int(version.school_group_id),
+        branch_id=int(version.branch_id),
+        academic_year_id=int(version.academic_year_id),
+    )
+    if is_active_version(db, locked):
+        raise TimetableVersionError(
+            "immutable_active_version",
+            "The active timetable cannot be edited in place; create a draft copy first.",
+        )
+    if locked.lifecycle_status not in MUTABLE_LIFECYCLE_STATUSES:
+        raise TimetableVersionError(
+            "immutable_version",
+            "Published, superseded, or archived timetable versions cannot be edited in place.",
+        )
+    if (
+        expected_edit_revision is not None
+        and int(locked.edit_revision or 0) != int(expected_edit_revision)
+    ):
+        raise TimetableVersionError("edit_revision_conflict", revision_message)
+    return locked
+
+
 def assert_version_mutable(db: Session, version: models.TimetableVersion) -> None:
     if version.lifecycle_status not in MUTABLE_LIFECYCLE_STATUSES:
         raise TimetableVersionError(
             "immutable_version",
             "Published, superseded, or archived timetable versions cannot be edited in place.",
         )
-    if _is_active_version(db, version):
+    if is_active_version(db, version):
         raise TimetableVersionError(
             "immutable_active_version",
             "The active timetable cannot be edited in place; create a draft copy first.",
@@ -368,8 +440,13 @@ def mutate_draft_placement(
     period_index: int,
     subject_code: str | None,
     teacher_id: int | None,
+    expected_edit_revision: int | None = None,
 ) -> models.TimetableEntry | None:
-    assert_version_mutable(db, version)
+    version = lock_mutable_version(
+        db,
+        version=version,
+        expected_edit_revision=expected_edit_revision,
+    )
     section = db.query(models.PlanningSection).filter(
         models.PlanningSection.id == planning_section_id,
         models.PlanningSection.branch_id == version.branch_id,
@@ -463,9 +540,21 @@ def set_entry_lock(
     entry: models.TimetableEntry,
     is_locked: bool,
     actor_user_id: str | None,
+    expected_edit_revision: int | None = None,
 ) -> None:
-    assert_version_mutable(db, version)
-    if int(entry.timetable_version_id or 0) != int(version.id or 0):
+    entry_id = int(entry.id or 0)
+    version = lock_mutable_version(
+        db,
+        version=version,
+        expected_edit_revision=expected_edit_revision,
+        revision_message="This draft changed in another browser. Refresh before changing lesson locks.",
+    )
+    with db.no_autoflush:
+        entry = db.query(models.TimetableEntry).filter(
+            models.TimetableEntry.id == entry_id,
+            models.TimetableEntry.timetable_version_id == version.id,
+        ).populate_existing().first()
+    if entry is None:
         raise TimetableVersionError(
             "entry_version_mismatch",
             "The lesson does not belong to the selected timetable version.",
@@ -479,7 +568,37 @@ def set_entry_lock(
     version.manual_change_count = int(version.manual_change_count or 0) + 1
     version.edit_revision = int(version.edit_revision or 0) + 1
     version.updated_at = datetime.utcnow()
+    _refresh_version_authority(db, version)
     db.flush()
+
+
+def _refresh_version_authority(db: Session, version: models.TimetableVersion) -> None:
+    locks = [
+        {
+            "section_id": row.planning_section_id,
+            "subject_code": row.subject_code,
+            "teacher_id": row.teacher_id,
+            "day_key": row.day_key,
+            "period_index": row.period_index,
+        }
+        for row in db.query(models.TimetableEntry).filter(
+            models.TimetableEntry.timetable_version_id == version.id,
+            models.TimetableEntry.is_locked.is_(True),
+        ).order_by(models.TimetableEntry.id.asc()).all()
+    ]
+    snapshot = create_current_input_snapshot(
+        db,
+        school_group_id=int(version.school_group_id),
+        branch_id=int(version.branch_id),
+        academic_year_id=int(version.academic_year_id),
+        created_by_user_id=version.created_by_user_id,
+        provenance="lock_edit",
+        locks=locks,
+    )
+    version.input_snapshot_id = snapshot.id
+    version.authority_fingerprint = _authority_fingerprint_from_snapshot(snapshot)
+    version.is_stale = False
+    version.stale_reason_json = "[]"
 
 
 def set_imported_active_pointer(
@@ -523,10 +642,22 @@ def archive_version(
     version: models.TimetableVersion,
     actor_user_id: str | None,
 ) -> None:
-    if _is_active_version(db, version):
+    version = lock_scoped_version(
+        db,
+        version_id=int(version.id),
+        school_group_id=int(version.school_group_id),
+        branch_id=int(version.branch_id),
+        academic_year_id=int(version.academic_year_id),
+    )
+    if is_active_version(db, version):
         raise TimetableVersionError(
             "active_version_archive_forbidden",
             "The active timetable cannot be archived.",
+        )
+    if version.lifecycle_status not in {"draft", "superseded"}:
+        raise TimetableVersionError(
+            "archive_status_invalid",
+            "Only a draft or superseded timetable can be archived.",
         )
     version.lifecycle_status = "archived"
     version.archived_at = datetime.utcnow()
