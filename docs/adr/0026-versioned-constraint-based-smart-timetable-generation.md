@@ -1,7 +1,7 @@
 ---
 title: Versioned, Constraint-Based Smart Timetable Generation
-documentation_version: 3.2
-last_updated: 2026-08-21
+documentation_version: 3.3
+last_updated: 2026-08-22
 status: accepted
 module: workforce-planning
 ---
@@ -43,11 +43,29 @@ active pointer, checks edit/pointer revisions, reruns validation, supersedes the
 previous active version, updates the pointer, and records actor/time atomically.
 Active status remains derived from the pointer rather than duplicated on the version.
 
-`TimetableGenerationRun` reserves durable scope, requester, Generate/Regenerate mode, source version and revision, snapshot, solver/seed/diversity metadata, timing, lease/heartbeat, safe failure, result, and idempotency fields. Its statuses distinguish queued, running, validating, succeeded, infeasible, timed out, stale input, cancellation, internal error, and concurrent-run rejection.
+`TimetableGenerationRun` is the durable PostgreSQL queue and reserves scope,
+requester, Generate/Regenerate mode, source version/revision, snapshot,
+solver/seed/diversity metadata, progress, attempts, lease/heartbeat, cancellation
+audit, safe failure, result, and idempotency. A partial unique index permits only
+one queued/running/validating/cancel-requested run per exact scope. Workers claim
+with row locking and `SKIP LOCKED`, heartbeat leases, recover expired work only up
+to the configured attempt bound, and reject save attempts after lease loss.
 
-Generate will create a new candidate from current authoritative input. Regenerate will create a new candidate from an explicit source/version context and must never overwrite the active timetable. Later regeneration should support controlled diversity through recorded seeds/preferences. Structural readiness is a deterministic prerequisite check; it is not proof of solver feasibility. Solver-independent validation must verify every candidate before it may become publication-ready. Hard constraints define validity; soft constraints affect quality only.
+Stage 5.1 uses Google OR-Tools CP-SAT 9.15.6755 from a worker-specific dependency
+file; no normally loaded web module imports OR-Tools. Schema-v3 immutable snapshots
+are the sole solve input. CP-SAT enforces exact demand, section and teacher slot
+exclusivity, canonical teaching slots, fixed locks, and regeneration diversity.
+Planning/HRT resolution happens before capture and remains subject-specific.
 
-The initial future generator is branch-scoped. CP-SAT is the recommended solver approach, but no solver dependency is introduced by this decision's Stage 2 implementation. Long-running generation belongs in a future durable background-worker design with idempotency, leasing, heartbeat, cancellation, concurrency control, and safe failure reporting.
+Generate creates a separate generated candidate. Regenerate leaves its source
+unchanged, fixes locked lessons, excludes the exact source arrangement, and requires
+`0` changes for no unlocked lessons (therefore unavailable), `1` for one unlocked
+lesson, otherwise `min(10, max(2, ceil(0.05 * U)))`. Seed is recorded only as a
+secondary reproducibility input. A solver-independent validator checks scope,
+authority, exact demand, collisions, slots, locks, fingerprints, source revision,
+and diversity. A final current-input rebuild gates one atomic transaction that
+creates a publication-ready unpublished version and entries and completes the run.
+Generation never changes `TimetableActiveVersion` or published history.
 
 Exports are version-aware and preserve their current presentation. Future availability, rooms/resources, cross-campus coordination, normalized teaching/non-teaching slots, rule authoring, and generation preferences require separately approved stages and snapshot-schema evolution.
 
@@ -65,8 +83,9 @@ Exports are version-aware and preserve their current presentation. Future availa
 - Existing placements remain operational and historically preserved.
 - Version numbering and active selection have database-enforced scope guarantees, with service validation for source/snapshot operations.
 - Stage 3/3.5 implements composed canonical slot projection and structural readiness on stable snapshots; valid inserted blocks do not consume teaching-period indexes.
-- Stage 4 implements version comparison and truthful publication without mutating active history. A later stage may add generation on this boundary.
+- Stage 4 implements version comparison and truthful publication without mutating active history. Stage 5.1 adds generation on this boundary without changing publication authority.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
+- Stage 5.1 adds a durable worker process, real phase polling, and independent validation; availability, rooms/resources, preferences, quality scoring, and Stage 5.2 UX remain later decisions.
 
 ## Related Files
 
@@ -74,5 +93,10 @@ Exports are version-aware and preserve their current presentation. Future availa
 - `db_migrations.py`
 - `timetable_snapshot_service.py`
 - `timetable_version_service.py`
+- `timetable_problem_builder.py`
+- `timetable_cp_sat_solver.py`
+- `timetable_solution_validator.py`
+- `timetable_generation_service.py`
+- `timetable_generation_worker.py`
 - `timetable_logic.py`
 - `routers/timetable.py`

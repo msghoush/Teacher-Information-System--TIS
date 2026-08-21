@@ -41,6 +41,13 @@ from timetable_logic import (
     get_scope_ids,
     normalize_day_key,
 )
+from timetable_generation_service import (
+    TimetableGenerationError,
+    build_generation_state,
+    enqueue_generation,
+    generation_run_payload,
+    request_cancellation,
+)
 from ui_shell import build_shell_context, get_school_logo_slots
 
 
@@ -1653,6 +1660,23 @@ def timetable_page(
         academic_year_id,
         version_id=selected_version_id,
     )
+    try:
+        school_group_id = resolve_scope_school_group_id(
+            db, branch_id=branch_id, academic_year_id=academic_year_id
+        )
+        workspace_payload["generation"] = build_generation_state(
+            db,
+            school_group_id=school_group_id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+    except TimetableVersionError:
+        workspace_payload["generation"] = {
+            "active_run": None,
+            "latest_run": None,
+            "working_candidate": None,
+            "primary_action": "generate",
+        }
 
     return templates.TemplateResponse(
         request,
@@ -1677,6 +1701,7 @@ def timetable_page(
             "can_delete_timetable": auth.has_permission(db, current_user, "timetable.delete"),
             "can_lock_lessons": auth.has_permission(db, current_user, "timetable.lock_lessons"),
             "can_publish_timetable": auth.has_permission(db, current_user, "timetable.publish"),
+            "can_generate_timetable": auth.has_permission(db, current_user, "timetable.generate"),
             "can_archive_versions": auth.has_permission(db, current_user, "timetable.archive_versions"),
             "can_export_timetable": auth.has_permission(db, current_user, "timetable.export"),
             **build_shell_context(
@@ -1795,6 +1820,108 @@ def export_timetable_version_pdf(public_id: str, request: Request, db: Session =
     if redirect: return redirect
     try: return _version_export_response(request, db, current_user, public_id, "pdf")
     except TimetableVersionError as exc: return _json_error(str(exc), 404)
+
+
+@router.post("/api/generation-runs")
+async def create_generation_run(request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.generate"):
+        return _json_error("You do not have permission to generate timetables.", 403)
+    try:
+        body = await request.json()
+    except Exception:
+        return _json_error("Unable to read the generation request.")
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(
+            db, branch_id=branch_id, academic_year_id=year_id
+        )
+        run = enqueue_generation(
+            db,
+            school_group_id=group_id,
+            branch_id=branch_id,
+            academic_year_id=year_id,
+            requested_by_user_id=str(current_user.user_id or "") or None,
+            request_mode=str(body.get("request_mode") or "generate"),
+            idempotency_key=str(body.get("idempotency_key") or "").strip(),
+            source_public_id=str(body.get("source_version_public_id") or "").strip() or None,
+        )
+        db.commit()
+        return JSONResponse(
+            status_code=202,
+            content={"ok": True, "run": generation_run_payload(run)},
+        )
+    except (TimetableGenerationError, TimetableVersionError) as exc:
+        db.rollback()
+        return _json_error(str(exc), getattr(exc, "status_code", 400))
+
+
+@router.get("/api/generation-runs/{public_id}")
+def get_generation_run(public_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.generate"):
+        return _json_error("You do not have permission to view timetable generation.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(
+            db, branch_id=branch_id, academic_year_id=year_id
+        )
+    except TimetableVersionError as exc:
+        return _json_error(str(exc), 400)
+    run = db.query(models.TimetableGenerationRun).filter(
+        models.TimetableGenerationRun.public_id == public_id,
+        models.TimetableGenerationRun.school_group_id == group_id,
+        models.TimetableGenerationRun.branch_id == branch_id,
+        models.TimetableGenerationRun.academic_year_id == year_id,
+    ).first()
+    if run is None:
+        return _json_error("Generation run not found in the selected scope.", 404)
+    payload = generation_run_payload(run)
+    if run.status == "succeeded" and run.result_version_id:
+        version = db.query(models.TimetableVersion).filter(
+            models.TimetableVersion.id == run.result_version_id,
+            models.TimetableVersion.school_group_id == group_id,
+            models.TimetableVersion.branch_id == branch_id,
+            models.TimetableVersion.academic_year_id == year_id,
+        ).first()
+        payload["result_version_public_id"] = version.public_id if version else None
+    return JSONResponse({"ok": True, "run": payload})
+
+
+@router.post("/api/generation-runs/{public_id}/cancel")
+def cancel_generation_run(public_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.generate"):
+        return _json_error("You do not have permission to cancel timetable generation.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(
+            db, branch_id=branch_id, academic_year_id=year_id
+        )
+        run = db.query(models.TimetableGenerationRun).filter(
+            models.TimetableGenerationRun.public_id == public_id,
+            models.TimetableGenerationRun.school_group_id == group_id,
+            models.TimetableGenerationRun.branch_id == branch_id,
+            models.TimetableGenerationRun.academic_year_id == year_id,
+        ).first()
+        if run is None:
+            return _json_error("Generation run not found in the selected scope.", 404)
+        request_cancellation(
+            db,
+            run=run,
+            actor_user_id=str(current_user.user_id or "") or None,
+        )
+        db.commit()
+        return JSONResponse({"ok": True, "run": generation_run_payload(run)})
+    except (TimetableGenerationError, TimetableVersionError) as exc:
+        db.rollback()
+        return _json_error(str(exc), getattr(exc, "status_code", 400))
 
 
 @router.post("/api/versions/{public_id}/copy")

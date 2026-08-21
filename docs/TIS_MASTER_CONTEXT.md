@@ -1,11 +1,25 @@
 ---
 title: TIS Master Context
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Smart Timetable Generation Authority
+
+Stage 5.1 makes Planning-resolved section/subject/teacher demand, including
+subject-specific Grades 1-2 HRT fallback, the only lesson authority for automatic
+generation. Schema-v3 snapshots freeze exact SchoolGroup/Branch/Academic-Year
+scope, canonical composed teaching slots, demands, locks, source revision and
+regeneration arrangement. OR-Tools is worker-only; web processes enqueue and poll.
+
+Hard-valid candidates must pass an independent validator and a current-input check
+before atomic persistence as unpublished generated/regenerated publication-ready
+versions. Generation never changes `TimetableActiveVersion`. Regeneration preserves
+locks and requires a calculated minimum difference; random seed alone is not
+diversity authority. Publishing remains a separate permission and transaction.
 
 ## Capacity-Based Commercial Packaging
 
@@ -814,7 +828,7 @@ duration plus inserted non-teaching durations produces one per-day ordered timel
 and a calculated end. `after_period` blocks shift later teaching periods; preserved
 `fixed_time` blocks must begin on a live timeline boundary or configuration fails
 closed. The projection is shared by preview, operational grid, readiness,
-assignments, snapshots, future solver slots, and exports. Existing `break`, `prayer`,
+assignments, snapshots, solver slots, and exports. Existing `break`, `prayer`,
 and `non_teaching` keys remain valid and the controlled catalog also includes recess,
 lunch, assembly, whole-school event, advisory, intervention, transition, dismissal
 preparation, and other. This stage does not generate a timetable.
@@ -836,15 +850,16 @@ Stage 3.5 makes the composed per-day slot projection authoritative across the pa
 assignment service, exports, readiness, and snapshots. Inserted blocks consume no
 teaching-period number and shift later clock times; ambiguous fixed-time placement is
 invalid. Readiness is an exact-scope, read-only
-structural gate; `generation_ready` permits only a future attempt and does not
+structural gate; `generation_ready` permits a Stage 5.1 solve attempt and does not
 guarantee feasibility. Existing versions and stale placements remain preserved.
 
 The operational timetable uses a versioned aggregate scoped by SchoolGroup,
 Branch, and Academic Year. `TimetableVersion` owns placements and lifecycle;
 `TimetableActiveVersion` separately selects at most one exact-scope operational
 baseline. `TimetableInputSnapshot` preserves deterministic Planning/settings/lock
-authority and component fingerprints. `TimetableGenerationRun` is durable schema
-for a later worker/solver stage only.
+authority and component fingerprints. `TimetableGenerationRun` is the Stage 5.1
+durable PostgreSQL work queue with progress, attempts, lease/heartbeat, cancellation,
+safe terminal status, and result linkage.
 
 Planning remains authoritative for section-subject demand, teacher assignments,
 and HRT fallback. A timetable placement is one teaching period and current
@@ -854,10 +869,10 @@ version. The current edit route uses a working draft copied from active history;
 current views and exports resolve that operational draft after edits. Active,
 superseded, and archived versions cannot be edited in place.
 
-ADR 0026 defines future readiness, hard/soft constraints, CP-SAT recommendation,
-background execution, validation, regeneration diversity, publication, and
-availability/room/cross-campus boundaries. None of those executable generation
-features is part of Stage 2.
+ADR 0026 defines readiness, hard/soft constraint separation, CP-SAT execution,
+independent validation, regeneration diversity, and publication boundaries. Stage
+5.1 implements the hard-constraint generation slice; availability, rooms/resources,
+cross-campus coordination, preferences, and quality scoring remain unimplemented.
 
 ## Knowledge Impact Assessment Rule
 

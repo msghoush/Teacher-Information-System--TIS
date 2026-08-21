@@ -1,11 +1,26 @@
 ---
 title: TIS Repository Architecture
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS Repository Architecture
+
+## Smart Timetable Generation Boundary
+
+`routers/timetable.py` and `timetable_generation_service.py` are the web-safe
+enqueue/status/cancel boundary and never import OR-Tools. `timetable_problem_builder.py`
+builds solely from captured snapshot JSON. `timetable_cp_sat_solver.py` is imported
+only by `timetable_generation_worker.py`, whose deployment command is
+`python -m timetable_generation_worker` and whose dependencies are in
+`requirements-worker.txt`.
+
+The worker claims durable `TimetableGenerationRun` rows, maintains leases and
+heartbeats, solves, and asks `timetable_solution_validator.py` to validate without
+solver trust. Persistence rechecks current authoritative input and source revision,
+then creates the version, entries, linkage, and successful status in one transaction.
+The web process only polls recorded phases; it never owns solver execution.
 
 ## Customer Feature Policy Boundary
 

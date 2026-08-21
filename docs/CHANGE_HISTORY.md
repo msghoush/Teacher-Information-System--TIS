@@ -1,11 +1,21 @@
 ---
 title: TIS Change History
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-22 - Implemented Smart Timetable Stage 5.1 Generation
+
+Added worker-isolated OR-Tools CP-SAT generation, schema-v3 immutable problem
+snapshots, an independent candidate validator, and durable PostgreSQL queue leasing,
+heartbeat, bounded recovery, cancellation, progress, and active-scope protection.
+Generate and Regenerate now create separate validated unpublished versions without
+changing published history; regeneration preserves locks and enforces an explicit
+minimum difference. Added `timetable.generate`, polling UI, additive migration
+`20260822_001_smart_timetable_stage51_generator`, and solver/lifecycle coverage.
 
 ## 2026-08-21 - Corrected Timetable Configuration With A Composed Day Timeline
 

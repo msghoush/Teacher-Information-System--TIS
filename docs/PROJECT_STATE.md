@@ -1,11 +1,27 @@
 ---
 title: TIS Project State
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Smart Timetable Stage 5.1 Generator Implemented
+
+Authorized administrators can queue Generate or Regenerate from a
+`generation_ready` timetable. A separate OR-Tools CP-SAT worker uses immutable
+schema-v3 input, durable lease/heartbeat/recovery state, exact demand and collision
+constraints, Planning/HRT teacher authority, canonical teaching slots, and fixed
+locks. A solver-independent validator and final fingerprint/source-revision check
+gate atomic creation of one unpublished `publication_ready` version. Regeneration
+keeps its source unchanged and enforces the approved unlocked-lesson difference.
+The active/published pointer is never changed by generation.
+
+Migration `20260822_001_smart_timetable_stage51_generator` adds progress, attempts,
+cancellation audit, worker-claim indexing, and one-active-run-per-scope enforcement.
+The page polls real phases and recovers active work after reload. Stage 5.2 UX and
+teacher visibility work remain unimplemented.
 
 ## Smart Timetable Stage 3.5 Composed Timeline Implemented
 
@@ -15,8 +31,8 @@ are first-class; boundary-aligned legacy fixed times remain compatible and ambig
 overlaps block readiness/assignment. Calculated end time, previews, timetable rows,
 snapshots, staleness fingerprints, and exports share the same projection. Migration
 `20260821_001_smart_timetable_stage35_composed_timeline` adds placement mode,
-after-period boundary, and duration metadata without rewriting legacy times. No
-solver, OR-Tools, Generate/Regenerate route, availability, or room/resource model exists.
+after-period boundary, and duration metadata without rewriting legacy times. The
+timeline is now consumed by Stage 5.1; availability and room/resource models remain absent.
 
 ## Smart Timetable Stage 4 Version Publication Implemented
 
@@ -29,7 +45,7 @@ Publication is one transaction using version row locking, `edit_revision`, activ
 pointer locking/revision, current fingerprint revalidation, and full
 solver-independent validation. The former active version becomes superseded and
 remains reviewable/exportable; the new active version is immutable. Stage 3 Ready to
-Generate remains a separate input-readiness concept. No solver exists.
+Generate remains a separate input-readiness concept. Stage 5.1 now supplies the solver.
 
 ## Smart Timetable Stage 3 Readiness Implemented
 

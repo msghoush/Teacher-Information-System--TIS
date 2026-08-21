@@ -1,7 +1,7 @@
 ---
 title: TIS Product Roadmap
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
@@ -122,12 +122,14 @@ accounting. No AI business feature or M8B9 operational control is included.
 
 ### Smart Timetable Version And Publication Foundation
 
-Stages 2, 3, 3.5, and 4 are complete: durable timetable versions, snapshots/fingerprints, exact-scope
+Stages 2, 3, 3.5, 4, and 5.1 are complete: durable timetable versions, snapshots/fingerprints, exact-scope
 active selection, locks, generation-run schema, imported-current migration, and
 copy-on-write compatibility, canonical composed day timelines, structural readiness,
 visible history, locks, draft validation, same-scope comparison, explicit version
-export, archive, and atomic publication. The next approved stage may introduce
-branch-scoped solver execution. No solver or generation UI exists yet.
+export, archive, atomic publication, and worker-isolated CP-SAT generation/regeneration.
+Generated results remain unpublished until the separate publication flow. Stage 5.2
+may simplify customer terminology/history and add Delete Working Timetable and
+published-only teacher My Timetable visibility.
 
 ### KMS Enforcement Review
 
@@ -178,12 +180,11 @@ Continue production validation, renewal/payment-failure handling, reconciliation
 
 ### Constraint-Based Smart Timetable Generation
 
-Build structural readiness separately from solver feasibility, then add
-solver-independent candidate validation and a durable background execution model.
-CP-SAT remains the recommended approach. Regeneration must create diverse new
-candidates without overwriting the active version. Availability, rooms/resources,
-cross-campus coordination, normalized slot semantics, and rule/preferences UI each
-remain separately approved future boundaries.
+Stage 5.1 delivered structural-readiness-gated CP-SAT generation, independent
+candidate validation, durable background execution, lock preservation, explicit
+regeneration diversity, and unpublished version persistence. Future solver work may
+add only separately approved availability, rooms/resources, cross-campus coordination,
+additional normalized slot semantics, preferences, or quality objectives.
 
 ### AI Academic Assistant
 

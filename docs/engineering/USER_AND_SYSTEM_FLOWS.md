@@ -1,11 +1,32 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Generate And Regenerate Timetable Flow
+
+1. Require `timetable.generate`, exact tenant branch/year scope,
+   `generation_ready`, and no active run.
+2. Select Generate when no generated working candidate exists; otherwise select
+   Regenerate and freeze the source revision, arrangement, and locks.
+3. Capture schema-v3 canonical input and fingerprint, then enqueue one durable run.
+4. A worker claims and leases the run, builds from only the snapshot, solves with
+   CP-SAT, and records Building, Solving, Checking, and Saving phases.
+5. The independent validator checks exact demand, scope, Planning/HRT authority,
+   canonical slots, collisions, locks, fingerprint/source revision, and diversity.
+6. Rebuild current authoritative input. Changed inputs end as `stale_input` and
+   create no version.
+7. Atomically create one unpublished generated/regenerated publication-ready version,
+   its entries, links, and succeeded run state. Do not change the active pointer.
+8. Polling selects the result for review. Validation and Publish remain separate.
+
+Cancellation ends queued work immediately or requests cooperative cancellation of
+leased work. Reload resolves the active durable run. Infeasibility and timeout create
+no version. Regeneration is unavailable when all source lessons are locked.
 
 ## Common Customer Feature Decision Flow
 
