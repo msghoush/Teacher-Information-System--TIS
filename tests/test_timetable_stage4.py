@@ -116,7 +116,7 @@ def test_incomplete_stale_and_blocked_drafts_fail_validation(db):
 
     blocked = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100)
     setting = db.query(models.TimetableSetting).filter_by(id=5000).one()
-    db.add(models.TimetableNonTeachingBlock(timetable_setting_id=setting.id, block_type="assembly", label="Assembly", day_key="monday", start_time="08:00", end_time="08:45", start_period=1, end_period=1))
+    db.add(models.TimetableNonTeachingBlock(timetable_setting_id=setting.id, block_type="assembly", label="Assembly", day_key="monday", start_time="08:10", end_time="08:25", start_period=1, end_period=1))
     db.add(models.TimetableEntry(timetable_version_id=blocked.id, branch_id=10, academic_year_id=100, planning_section_id=2000, subject_code="MAT", teacher_id=1000, day_key="monday", period_index=1, is_locked=True))
     db.flush()
     result = TimetableDraftValidationService(db).validate(version=blocked)

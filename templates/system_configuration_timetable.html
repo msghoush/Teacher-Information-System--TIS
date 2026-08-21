@@ -520,7 +520,7 @@
         <div class="module-head">
             <div class="module-copy">
                 <h2>Timetable Settings</h2>
-                <p>Define the school week, timetable grid, and blocked slots for this scope.</p>
+                <p>Define the school week and let TIS compose teaching periods with inserted non-teaching blocks.</p>
             </div>
             <div class="pill-row">
                 <span class="status-pill {% if timetable_settings.is_saved %}{% else %}is-warning{% endif %}">
@@ -568,12 +568,12 @@
                         <input id="school_start_time" type="time" name="school_start_time" value="{{ timetable_settings.school_start_time }}" required>
                     </div>
                     <div class="field">
-                        <label for="school_end_time">School End Time</label>
-                        <input id="school_end_time" type="time" name="school_end_time" value="{{ timetable_settings.school_end_time }}" required>
+                        <label for="school_end_time">Calculated School End</label>
+                        <input id="school_end_time" type="time" name="school_end_time" value="{{ timetable_settings.school_end_time }}" readonly aria-readonly="true">
                     </div>
                 </div>
 
-                <div class="field-note">Set start time, periods, and duration. End time recalculates automatically; blocks map to overlapping slots.</div>
+                <div class="field-note">The end time is calculated from teaching minutes plus inserted blocks; it is not a separate scheduling authority.</div>
 
                 <div class="action-row">
                     {% if can("timetable.manage_settings") %}
@@ -602,26 +602,21 @@
                     </div>
 
                     <div class="preview-card">
-                        <h3>Period Timeline</h3>
-                        {% if timetable_settings.time_slots %}
+                        <h3>Composed Day Timelines</h3>
+                        {% if timetable_settings.timelines %}
                         <div class="timeline-list">
-                            {% for slot in timetable_settings.time_slots %}
+                            {% for day_timeline in timetable_settings.timelines %}
                             <div class="timeline-row">
                                 <div class="timeline-meta">
-                                    <strong>{{ slot.short_label }}</strong>
-                                    <span>{{ slot.time_range }}</span>
+                                    <strong>{{ day_timeline.day_key|title }}</strong>
+                                    <span>{{ day_timeline.start_time }}–{{ day_timeline.end_time }}</span>
+                                    <small>{{ day_timeline.teaching_minutes }} teaching min · {{ day_timeline.block_minutes }} block min · {{ day_timeline.shift_minutes }} total min</small>
                                 </div>
                                 <div class="timeline-days">
-                                    {% for day in timetable_settings.working_days %}
-                                    {% set block = timetable_settings.block_slot_map.get((day.key, slot.period_index)) %}
-                                    <span
-                                        class="timeline-day-chip {% if block %}is-blocked{% endif %}"
-                                        {% if block %}
-                                        style="--block-accent: {{ block.accent }}; --block-soft: {{ block.soft }}; --block-border: {{ block.border }}; --block-text: {{ block.text }};"
-                                        {% endif %}
-                                    >
-                                        <strong>{{ day.short_label }}</strong>
-                                        <span>{{ block.label if block else "Teaching" }}</span>
+                                    {% for item in day_timeline.items %}
+                                    <span class="timeline-day-chip {% if item.type == 'non_teaching' %}is-blocked{% endif %}">
+                                        <strong>{{ ('P' ~ item.period_index) if item.type == 'teaching' else item.label }}</strong>
+                                        <span>{{ item.start_time }}–{{ item.end_time }}</span>
                                     </span>
                                     {% endfor %}
                                 </div>
@@ -641,7 +636,7 @@
         <div class="module-head">
             <div class="module-copy">
                 <h2>Non-Teaching Blocks</h2>
-                <p>Add breaks, prayer periods, or other blocks. Overlapping teaching slots update automatically.</p>
+                <p>Insert blocks after a teaching period, or preserve a boundary-aligned legacy fixed time.</p>
             </div>
             <div class="pill-row">
                 <span class="usage-pill">{{ timetable_settings.blocks|length }} configured</span>
@@ -674,12 +669,27 @@
                 </select>
             </div>
             <div class="field">
-                <label for="block_start_time">Start Time</label>
-                <input id="block_start_time" type="time" name="start_time" required>
+                <label for="block_placement_mode">Placement</label>
+                <select id="block_placement_mode" name="placement_mode" required>
+                    <option value="after_period">After Period</option>
+                    <option value="fixed_time">Fixed Time</option>
+                </select>
             </div>
-            <div class="field">
+            <div class="field" data-after-period-fields>
+                <label for="block_insert_after_period">Insert After Period</label>
+                <input id="block_insert_after_period" type="number" name="insert_after_period" min="1" max="{{ timetable_settings.periods_per_day }}" value="1">
+            </div>
+            <div class="field" data-after-period-fields>
+                <label for="block_duration_minutes">Duration (minutes)</label>
+                <input id="block_duration_minutes" type="number" name="duration_minutes" min="1" value="20">
+            </div>
+            <div class="field" data-fixed-time-fields hidden>
+                <label for="block_start_time">Start Time</label>
+                <input id="block_start_time" type="time" name="start_time">
+            </div>
+            <div class="field" data-fixed-time-fields hidden>
                 <label for="block_end_time">End Time</label>
-                <input id="block_end_time" type="time" name="end_time" required>
+                <input id="block_end_time" type="time" name="end_time">
             </div>
             <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add Block</button>
         </form>
@@ -735,15 +745,25 @@
                             </div>
                         </td>
                         <td>
-                            <div class="block-read">{{ block.time_range }}</div>
-                            <div class="block-edit" style="display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px;">
+                            <div class="block-read"><strong>{{ block.placement_mode_label }}</strong><br>{{ ('After P' ~ block.insert_after_period ~ ' · ' ~ block.duration_minutes ~ ' min') if block.placement_mode == 'after_period' else block.time_range }}</div>
+                            <div class="block-edit" style="display:grid; gap: 6px;">
+                                <select name="placement_mode" form="block_update_form_{{ block.id }}" data-placement-select data-initial="{{ block.placement_mode }}">
+                                    <option value="after_period" {% if block.placement_mode == 'after_period' %}selected{% endif %}>After Period</option>
+                                    <option value="fixed_time" {% if block.placement_mode == 'fixed_time' %}selected{% endif %}>Fixed Time</option>
+                                </select>
+                                <div data-after-period-fields>
+                                    <input type="number" name="insert_after_period" min="1" max="{{ timetable_settings.periods_per_day }}" value="{{ block.insert_after_period or 1 }}" data-initial="{{ block.insert_after_period or 1 }}" form="block_update_form_{{ block.id }}" aria-label="Insert after period">
+                                    <input type="number" name="duration_minutes" min="1" value="{{ block.duration_minutes or 20 }}" data-initial="{{ block.duration_minutes or 20 }}" form="block_update_form_{{ block.id }}" aria-label="Duration minutes">
+                                </div>
+                                <div data-fixed-time-fields>
                                 <div>
                                     <label class="sr-only" for="block_start_{{ block.id }}">Start Time</label>
-                                    <input id="block_start_{{ block.id }}" type="time" name="start_time" value="{{ block.start_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_time }}" required {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
+                                    <input id="block_start_{{ block.id }}" type="time" name="start_time" value="{{ block.start_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.start_time }}" {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
                                 </div>
                                 <div>
                                     <label class="sr-only" for="block_end_{{ block.id }}">End Time</label>
-                                    <input id="block_end_{{ block.id }}" type="time" name="end_time" value="{{ block.end_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_time }}" required {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
+                                    <input id="block_end_{{ block.id }}" type="time" name="end_time" value="{{ block.end_time }}" form="block_update_form_{{ block.id }}" data-initial="{{ block.end_time }}" {% if not can("timetable.manage_blocks") %}disabled{% endif %}>
+                                </div>
                                 </div>
                             </div>
                         </td>
@@ -781,6 +801,7 @@
         var periodDurationInput = document.getElementById("period_duration_minutes");
         var schoolStartInput = document.getElementById("school_start_time");
         var schoolEndInput = document.getElementById("school_end_time");
+        var maximumBlockMinutes = {{ (timetable_settings.timelines|map(attribute='block_minutes')|max) if timetable_settings.timelines else 0 }};
 
         function parseMinutes(value) {
             if (!value || !/^\d{2}:\d{2}$/.test(value)) {
@@ -812,9 +833,21 @@
             if (!Number.isFinite(periods) || periods <= 0 || !Number.isFinite(duration) || duration <= 0 || startMinutes === null) {
                 return;
             }
-            var endMinutes = startMinutes + (periods * duration);
+            var endMinutes = startMinutes + (periods * duration) + maximumBlockMinutes;
             schoolEndInput.value = formatMinutes(endMinutes);
         }
+
+        function syncPlacement(container) {
+            var select = container.querySelector("[name='placement_mode']");
+            if (!select) return;
+            var after = select.value === "after_period";
+            container.querySelectorAll("[data-after-period-fields]").forEach(function (field) { field.hidden = !after; });
+            container.querySelectorAll("[data-fixed-time-fields]").forEach(function (field) { field.hidden = after; });
+        }
+        document.querySelectorAll(".block-form, [data-block-row-id]").forEach(function (container) {
+            var select = container.querySelector("[name='placement_mode']");
+            if (select) { syncPlacement(container); select.addEventListener("change", function () { syncPlacement(container); }); }
+        });
 
         if (periodsPerDayInput && periodDurationInput && schoolStartInput && schoolEndInput) {
             periodsPerDayInput.addEventListener("input", recalcEndTimeFromDuration);
@@ -851,6 +884,7 @@
             row.querySelectorAll(".block-edit [data-initial]").forEach(function (field) {
                 field.value = field.getAttribute("data-initial") || "";
             });
+            syncPlacement(row);
             row.classList.remove("is-editing");
         }
 

@@ -5975,6 +5975,19 @@ def _smart_timetable_stage2_version_foundation(engine, connection):
             )
 
 
+def _smart_timetable_stage35_composed_timeline(engine, connection):
+    _add_column_if_missing(
+        connection, connection, "timetable_non_teaching_blocks", "placement_mode",
+        "placement_mode VARCHAR(24) NOT NULL DEFAULT 'fixed_time'",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_non_teaching_blocks", "insert_after_period", "insert_after_period INTEGER",
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_non_teaching_blocks", "duration_minutes", "duration_minutes INTEGER",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6195,6 +6208,11 @@ MIGRATIONS = (
         migration_id="20260819_002_smart_timetable_stage2_version_foundation",
         description="Version existing timetable placements and add snapshot, lock, active-pointer, and generation-run foundations",
         apply=_smart_timetable_stage2_version_foundation,
+    ),
+    Migration(
+        migration_id="20260821_001_smart_timetable_stage35_composed_timeline",
+        description="Add explicit placement metadata for composed timetable non-teaching blocks",
+        apply=_smart_timetable_stage35_composed_timeline,
     ),
 )
 

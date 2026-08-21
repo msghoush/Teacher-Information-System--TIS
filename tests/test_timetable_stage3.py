@@ -29,19 +29,19 @@ def _block(day="monday", start="08:00", end="08:45", label="Assembly"):
             "day_key": day, "start_time": start, "end_time": end}
 
 
-def test_canonical_slot_semantics_are_fixed_and_deterministic():
+def test_canonical_slot_semantics_are_composed_and_deterministic():
     normal = _project()
     assert normal["slot_map"][("monday", 1)]["schedulable"] is True
     full = _project([_block()])
-    assert full["slot_map"][("monday", 1)]["status"] == "non_teaching"
+    assert full["slot_map"][("monday", 1)]["start_time"] == "08:45"
     assert full["slot_map"][("tuesday", 1)]["status"] == "teaching"
     every_day = _project([_block(day="all")])
-    assert all(not every_day["slot_map"][(day, 1)]["schedulable"] for day in ("monday", "tuesday"))
+    assert all(every_day["slot_map"][(day, 1)]["start_time"] == "08:45" for day in ("monday", "tuesday"))
     partial = _project([_block(start="08:15", end="08:30")])
-    assert partial["slot_map"][("monday", 1)]["status"] == "invalid_configuration"
+    assert partial["valid"] is False
     assert {issue["code"] for issue in partial["issues"]} == {"invalid_non_teaching_block"}
     assert _project([_block()])["fingerprint"] == full["fingerprint"]
-    assert full["periods"] == normal["periods"]
+    assert full["periods"] != normal["periods"]
 
 
 def test_between_period_block_and_all_day_closure():
@@ -50,11 +50,10 @@ def test_between_period_block_and_all_day_closure():
         {"period_index": 2, "label": "Period 2", "start_time": "09:00", "end_time": "09:45"},
     ]
     between = _project([_block(start="08:45", end="09:00", label="Break")], slots=slots)
-    assert between["blocks"][0]["classification"] == "between_periods"
+    assert between["blocks"][0]["start_time"] == "08:45"
     assert between["counts"]["teaching_slots"] == 4
     closure = _project([_block(start="07:00", end="12:00", label="Closure")], days=["monday"])
-    assert closure["counts"]["teaching_slots"] == 0
-    assert closure["counts"]["blocked_slots"] == 2
+    assert closure["valid"] is False
 
 
 def test_readiness_reports_uncovered_then_generation_ready(db):
@@ -163,7 +162,7 @@ def test_blocked_assignment_is_rejected_and_existing_placement_is_preserved_stal
     setting = db.query(models.TimetableSetting).filter_by(id=5000).one()
     db.add(models.TimetableNonTeachingBlock(
         timetable_setting_id=setting.id, block_type="assembly", label="Assembly",
-        day_key="monday", start_time="08:00", end_time="08:45",
+        day_key="monday", start_time="08:10", end_time="08:25",
         start_period=1, end_period=1,
     ))
     db.flush()
@@ -190,7 +189,7 @@ def test_crafted_route_request_cannot_assign_blocked_slot(db, monkeypatch):
     setting = db.query(models.TimetableSetting).filter_by(id=5000).one()
     db.add(models.TimetableNonTeachingBlock(
         timetable_setting_id=setting.id, block_type="assembly", label="Assembly",
-        day_key="monday", start_time="08:00", end_time="08:45",
+        day_key="monday", start_time="08:10", end_time="08:25",
         start_period=1, end_period=1,
     ))
     db.commit()

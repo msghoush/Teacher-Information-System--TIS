@@ -2317,6 +2317,18 @@
         };
 
         const getBoardRows = () => {
+            const composedRows = Array.isArray(state.payload.timeline_rows) ? state.payload.timeline_rows : [];
+            if (composedRows.length) {
+                return composedRows.map((row, index) => {
+                    const dayItems = row.items_by_day || {};
+                    const reference = Object.values(dayItems)[0] || {};
+                    return {
+                        rowType: row.type === "non_teaching" ? "block" : "period",
+                        block: reference, slot: reference, dayItems,
+                        key: `timeline-${index}`,
+                    };
+                });
+            }
             const periodRows = getTimeSlots().map((slot) => ({
                 rowType: "period",
                 sortTime: parseTimeMinutes(slot.start_time) ?? (normalizeInt(slot.period_index) * 1000),
@@ -2400,9 +2412,10 @@
                     row.appendChild(periodCell);
 
                     days.forEach((day) => {
-                        const appliesToDay = Array.isArray(block.expanded_day_keys)
+                        const dayBlock = (rowItem.dayItems || {})[day.key] || null;
+                        const appliesToDay = Boolean(dayBlock) || (Array.isArray(block.expanded_day_keys)
                             ? block.expanded_day_keys.includes(day.key)
-                            : String(block.day_key || "") === String(day.key || "");
+                            : String(block.day_key || "") === String(day.key || ""));
                         const gridCell = document.createElement("td");
                         gridCell.className = "grid-cell";
                         const button = document.createElement("button");
@@ -2410,6 +2423,7 @@
                         button.className = "grid-button is-static is-non-teaching-row";
 
                         if (appliesToDay) {
+                            const renderedBlock = dayBlock || block;
                             button.classList.add("is-blocked");
                             button.style.setProperty("--cell-accent", block.accent || "#475569");
                             button.style.setProperty("--cell-soft", block.soft || "#f3f6f9");
@@ -2417,8 +2431,8 @@
                             button.style.setProperty("--cell-text", block.text || "#334155");
                             button.innerHTML = `
                                 <div class="cell-slot-meta">
-                                    <span class="cell-code">${escapeHtml(block.block_type_label || "Non-Teaching")}</span>
-                                    <span class="cell-time">${escapeHtml(block.time_range || "")}</span>
+                                    <span class="cell-code">${escapeHtml(renderedBlock.block_type_label || "Non-Teaching")}</span>
+                                    <span class="cell-time">${escapeHtml(renderedBlock.time_range || "")}</span>
                                 </div>
                                 <div class="cell-title">${escapeHtml(block.label || "Blocked")}</div>
                             `;
@@ -2444,10 +2458,11 @@
 
                 const periodCell = document.createElement("td");
                 periodCell.className = "period-cell";
-                periodCell.innerHTML = `<strong>${slot.short_label}</strong><span>${slot.time_range}</span>`;
+                periodCell.innerHTML = `<strong>${slot.short_label || `P${slot.period_index}`}</strong><span>Composed per day</span>`;
                 row.appendChild(periodCell);
 
                 days.forEach((day) => {
+                    const daySlot = (rowItem.dayItems || {})[day.key] || slot;
                     const gridCell = document.createElement("td");
                     gridCell.className = "grid-cell";
                     const blockedSlot = getBlockedSlot(day.key, slot.period_index);
@@ -2516,7 +2531,7 @@
                                     </span>
                                     <span class="lesson-meta">
                                         <span class="lesson-teacher">${escapeHtml(isSectionView ? entry.teacher_name : entry.section_label)}</span>
-                                        <span class="lesson-time">${escapeHtml(slot.time_range)}</span>
+                                        <span class="lesson-time">${escapeHtml(daySlot.time_range)}</span>
                                     </span>
                                 </span>
                                 ${isSectionView && canDeleteSelected() && entry.status !== "stale" && !entry.is_locked
@@ -2531,7 +2546,7 @@
                         button.innerHTML = `
                             <div class="cell-slot-meta">
                                 <span class="cell-code">${escapeHtml(slot.short_label)}</span>
-                                <span class="cell-time">${escapeHtml(slot.time_range)}</span>
+                                <span class="cell-time">${escapeHtml(daySlot.time_range)}</span>
                             </div>
                             <div class="cell-empty-text">${isSectionView && canCreateSelected() ? "Click to assign" : "Open slot"}</div>
                         `;

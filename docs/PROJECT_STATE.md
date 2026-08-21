@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Project State
 
+## Smart Timetable Stage 3.5 Composed Timeline Implemented
+
+The timetable now derives every day from one canonical composer: shift start,
+teaching-period count/duration, and applicable inserted blocks. After-period blocks
+are first-class; boundary-aligned legacy fixed times remain compatible and ambiguous
+overlaps block readiness/assignment. Calculated end time, previews, timetable rows,
+snapshots, staleness fingerprints, and exports share the same projection. Migration
+`20260821_001_smart_timetable_stage35_composed_timeline` adds placement mode,
+after-period boundary, and duration metadata without rewriting legacy times. No
+solver, OR-Tools, Generate/Regenerate route, availability, or room/resource model exists.
+
 ## Smart Timetable Stage 4 Version Publication Implemented
 
 Administrators can review scoped version history, explicitly open historical
