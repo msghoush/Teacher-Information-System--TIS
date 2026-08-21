@@ -1,11 +1,26 @@
 ---
 title: TIS Database Architecture Overview
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## Smart Timetable Stage 5.1 Queue Migration
+
+Migration `20260822_001_smart_timetable_stage51_generator` is additive and
+idempotent. It extends the existing `timetable_generation_runs` table with
+`progress_phase`, non-negative `attempt_count`, `cancel_requested_at`, and a
+nullable cancellation actor foreign key. It adds a `(status, lease_expires_at,
+queued_at)` worker-claim index and a partial unique exact-scope index for active
+statuses. Duplicate active scopes fail migration preflight instead of being guessed
+or rewritten. PostgreSQL receives named progress/attempt checks and the actor FK.
+
+No parallel queue table, lesson-instance column, room/resource table, quality score,
+or active-pointer mutation is introduced. Successful persistence inserts one
+`TimetableVersion`, all `TimetableEntry` rows, snapshot/run linkage, and terminal
+run state in one transaction; failure rolls the candidate back.
 
 ## Capacity-Based Packaging Reconciliation
 

@@ -924,6 +924,14 @@ class TimetableGenerationRun(Base):
             "status IN ('queued','running','validating','succeeded','infeasible','timed_out','stale_input','cancel_requested','cancelled','internal_error','concurrent_run_rejected')",
             name="ck_timetable_generation_runs_status",
         ),
+        CheckConstraint(
+            "progress_phase IN ('queued','building','solving','checking','saving','complete','failed','cancelled')",
+            name="ck_timetable_generation_runs_progress_phase",
+        ),
+        CheckConstraint(
+            "attempt_count >= 0",
+            name="ck_timetable_generation_runs_attempt_count",
+        ),
         Index(
             "ix_timetable_generation_runs_scope_status",
             "school_group_id",
@@ -932,6 +940,25 @@ class TimetableGenerationRun(Base):
             "status",
         ),
         Index("ix_timetable_generation_runs_snapshot", "input_snapshot_id"),
+        Index(
+            "ix_timetable_generation_runs_worker_claim",
+            "status",
+            "lease_expires_at",
+            "queued_at",
+        ),
+        Index(
+            "uq_timetable_generation_runs_active_scope",
+            "school_group_id",
+            "branch_id",
+            "academic_year_id",
+            unique=True,
+            sqlite_where=text(
+                "status IN ('queued','running','validating','cancel_requested')"
+            ),
+            postgresql_where=text(
+                "status IN ('queued','running','validating','cancel_requested')"
+            ),
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -949,6 +976,8 @@ class TimetableGenerationRun(Base):
         nullable=False,
     )
     status = Column(String(32), nullable=False, default="queued")
+    progress_phase = Column(String(24), nullable=False, default="queued")
+    attempt_count = Column(Integer, nullable=False, default=0)
     solver_name = Column(String(80), nullable=True)
     solver_version = Column(String(40), nullable=True)
     solver_configuration_json = Column(Text, nullable=True)
@@ -963,6 +992,12 @@ class TimetableGenerationRun(Base):
     heartbeat_at = Column(DateTime, nullable=True)
     failure_category = Column(String(80), nullable=True)
     safe_failure_details = Column(Text, nullable=True)
+    cancel_requested_at = Column(DateTime, nullable=True)
+    cancel_requested_by_user_id = Column(
+        String(10),
+        ForeignKey("users.user_id"),
+        nullable=True,
+    )
     result_version_id = Column(Integer, ForeignKey("timetable_versions.id"), nullable=True)
     idempotency_key = Column(String(120), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

@@ -5988,6 +5988,106 @@ def _smart_timetable_stage35_composed_timeline(engine, connection):
     )
 
 
+def _smart_timetable_stage51_generator(engine, connection):
+    """Add durable worker progress, recovery, cancellation, and queue guards."""
+    table_name = "timetable_generation_runs"
+    if not _table_exists(connection, table_name):
+        from database import Base
+        import models  # noqa: F401 - register operational metadata
+
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+        return
+
+    _add_column_if_missing(
+        connection,
+        connection,
+        table_name,
+        "progress_phase",
+        "progress_phase VARCHAR(24) NOT NULL DEFAULT 'queued'",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        table_name,
+        "attempt_count",
+        "attempt_count INTEGER NOT NULL DEFAULT 0",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        table_name,
+        "cancel_requested_at",
+        "cancel_requested_at TIMESTAMP",
+    )
+    _add_column_if_missing(
+        connection,
+        connection,
+        table_name,
+        "cancel_requested_by_user_id",
+        "cancel_requested_by_user_id VARCHAR(10)",
+    )
+    _execute(
+        connection,
+        "UPDATE timetable_generation_runs "
+        "SET progress_phase = COALESCE(NULLIF(progress_phase, ''), 'queued'), "
+        "attempt_count = COALESCE(attempt_count, 0)",
+    )
+
+    duplicate = connection.execute(text(
+        "SELECT school_group_id, branch_id, academic_year_id "
+        "FROM timetable_generation_runs "
+        "WHERE status IN ('queued','running','validating','cancel_requested') "
+        "GROUP BY school_group_id, branch_id, academic_year_id HAVING COUNT(*) > 1"
+    )).first()
+    if duplicate is not None:
+        raise RuntimeError(
+            "Stage 5.1 migration found duplicate active timetable generation runs; "
+            "resolve them before applying the active-scope guard."
+        )
+
+    if not _index_exists(connection, table_name, "ix_timetable_generation_runs_worker_claim"):
+        _execute(
+            connection,
+            "CREATE INDEX ix_timetable_generation_runs_worker_claim "
+            "ON timetable_generation_runs (status, lease_expires_at, queued_at)",
+        )
+    if not _index_exists(connection, table_name, "uq_timetable_generation_runs_active_scope"):
+        _execute(
+            connection,
+            "CREATE UNIQUE INDEX uq_timetable_generation_runs_active_scope "
+            "ON timetable_generation_runs (school_group_id, branch_id, academic_year_id) "
+            "WHERE status IN ('queued','running','validating','cancel_requested')",
+        )
+
+    if engine.dialect.name == "postgresql":
+        for constraint_name, expression in (
+            (
+                "ck_timetable_generation_runs_progress_phase",
+                "progress_phase IN ('queued','building','solving','checking','saving','complete','failed','cancelled')",
+            ),
+            (
+                "ck_timetable_generation_runs_attempt_count",
+                "attempt_count >= 0",
+            ),
+        ):
+            if not _check_constraint_exists(connection, table_name, constraint_name):
+                _execute(
+                    connection,
+                    f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} CHECK ({expression})",
+                )
+        foreign_keys = {
+            tuple(item.get("constrained_columns") or [])
+            for item in inspect(connection).get_foreign_keys(table_name)
+        }
+        if ("cancel_requested_by_user_id",) not in foreign_keys:
+            _execute(
+                connection,
+                "ALTER TABLE timetable_generation_runs "
+                "ADD CONSTRAINT fk_timetable_generation_runs_cancel_user "
+                "FOREIGN KEY (cancel_requested_by_user_id) REFERENCES users (user_id)",
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6213,6 +6313,11 @@ MIGRATIONS = (
         migration_id="20260821_001_smart_timetable_stage35_composed_timeline",
         description="Add explicit placement metadata for composed timetable non-teaching blocks",
         apply=_smart_timetable_stage35_composed_timeline,
+    ),
+    Migration(
+        migration_id="20260822_001_smart_timetable_stage51_generator",
+        description="Add durable smart timetable worker progress, recovery, cancellation, and active-scope queue guards",
+        apply=_smart_timetable_stage51_generator,
     ),
 )
 

@@ -1,11 +1,26 @@
 ---
 title: TIS Module Map
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Smart Timetable Stage 5.1 Components
+
+- `timetable_generation_service.py`: exact-scope enqueue/idempotency, generation
+  state, claims, leases, heartbeat, recovery, cancellation, staleness recheck, and
+  atomic version persistence; contains no OR-Tools import.
+- `timetable_problem_builder.py`: schema-v3 immutable snapshot normalization,
+  deterministic lesson IDs, canonical slots, Planning/HRT demand, locks, and
+  regeneration source contract.
+- `timetable_cp_sat_solver.py`: worker-only CP-SAT model and solve result.
+- `timetable_solution_validator.py`: solver-independent hard validation.
+- `timetable_generation_worker.py`: `python -m` worker loop and real progress phases.
+- `routers/timetable.py` and `templates/timetable.html`: permissioned enqueue,
+  scoped status/cancel, polling, generated review selection, and regeneration action.
+- `requirements-worker.txt`: base web requirements plus pinned OR-Tools 9.15.6755.
 
 ## Commercial Feature Packaging Components
 

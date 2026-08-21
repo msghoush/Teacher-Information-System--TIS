@@ -11,7 +11,7 @@ import models
 from homeroom_defaults import is_default_homeroom_subject
 
 
-SNAPSHOT_SCHEMA_VERSION = 2
+SNAPSHOT_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -63,6 +63,13 @@ def _build_planning_component(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id,
     ).order_by(models.Subject.id.asc()).all()
+    teacher_ids = [
+        int(row[0])
+        for row in db.query(models.Teacher.id).filter(
+            models.Teacher.branch_id == branch_id,
+            models.Teacher.academic_year_id == academic_year_id,
+        ).order_by(models.Teacher.id.asc()).all()
+    ]
     section_ids = [int(section.id) for section in sections]
     assignments = (
         db.query(models.TeacherSectionAssignment).filter(
@@ -134,6 +141,7 @@ def _build_planning_component(
             )
 
     return {
+        "valid_teacher_ids": teacher_ids,
         "sections": section_payloads,
         "demands": sorted(
             demand_payloads,
@@ -266,6 +274,7 @@ def create_current_input_snapshot(
     created_by_user_id: str | None = None,
     provenance: str = "manual",
     locks: Iterable[dict] | None = None,
+    constraint_configuration: dict | None = None,
 ) -> models.TimetableInputSnapshot:
     data = build_current_snapshot_data(
         db,
@@ -273,6 +282,7 @@ def create_current_input_snapshot(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
         locks=locks,
+        constraint_configuration=constraint_configuration,
     )
     snapshot = models.TimetableInputSnapshot(
         school_group_id=school_group_id,

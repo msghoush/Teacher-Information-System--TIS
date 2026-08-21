@@ -1,11 +1,27 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-22
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Smart Timetable Stage 5.1
+
+Stage 5.1 implements automatic branch/year timetable generation with Google
+OR-Tools CP-SAT 9.15.6755 in a dedicated worker dependency environment. HTTP
+requests only capture schema-v3 immutable inputs and enqueue durable PostgreSQL
+`TimetableGenerationRun` rows. The worker claims with `SKIP LOCKED`, leases and
+heartbeats work, supports bounded recovery/cancellation, solves hard constraints,
+and submits candidates to an OR-Tools-independent validator.
+
+Generate creates a new unpublished `publication_ready` generated version only in
+one atomic transaction after current-fingerprint revalidation. Regenerate preserves
+locked placements, excludes the exact source, and requires the approved minimum
+difference among unlocked lessons. Neither flow changes published history or the
+active pointer. `timetable.generate` is independent of publish authority. Stage 5.2
+UX simplification, Delete Working Timetable, and teacher My Timetable remain deferred.
 
 ## Smart Timetable Stage 3.5
 
@@ -16,8 +32,9 @@ blocks are the default and shift every later period; legacy fixed-time blocks ar
 inserted only at a valid live boundary and otherwise surface a correction blocker.
 The calculated end, settings preview, timetable grid, readiness, assignment
 validation, snapshots/fingerprints, and XLSX/PDF exports consume this projection.
-The additive placement columns preserve existing blocks as `fixed_time`. No solver,
-OR-Tools dependency, generation endpoint, availability, or resources were added.
+The additive placement columns preserve existing blocks as `fixed_time`. Stage 3.5
+itself added no solver, generation endpoint, availability, or resources; Stage 5.1
+now consumes that canonical timeline.
 
 ## Smart Timetable Stage 4
 
@@ -32,8 +49,8 @@ edits use `edit_revision`; lock edits refresh the version snapshot/fingerprint.
 Solver-independent draft validation is separate from Stage 3 generation readiness.
 Atomic publication revalidates freshness/completeness, locks the selected version and
 active pointer, checks pointer revision, supersedes the old active version, and makes
-the selected version immutable through the active pointer. Stage 4 adds no solver,
-worker, generation endpoint, availability, rooms/resources, or schema migration.
+the selected version immutable through the active pointer. Stage 4 itself added no
+solver or worker; Stage 5.1 now builds generation on this boundary.
 
 ## Smart Timetable Stage 3
 
@@ -801,15 +818,14 @@ weekly-period authority. Timetables are durable SchoolGroup/Branch/Academic-Year
 versions. Active selection is a separate unique exact-scope pointer, not a version
 Boolean. Active, superseded, and archived history is immutable; drafts are mutable.
 
-Stages 2–4 provide models, migrations, snapshots/fingerprints, lock persistence,
-version services, readiness, comparison, validation/publication, future generation-run
-evidence, and version-aware views/exports. Stage 3.5 supplies one composed per-day
-timeline and solver-ready teaching slots. Existing placements are imported unchanged;
-configuration changes can mark versions stale without rewriting their placements.
-
-No automatic generator, CP-SAT/OR-Tools dependency, worker, generation endpoint,
-availability/room/rule model, or generation UI exists. Solver execution and its
-generation workflow require a later approved stage.
+Stages 2–5.1 provide models, migrations, snapshots/fingerprints, lock persistence,
+version services, readiness, comparison, validation/publication, durable generation,
+and version-aware views/exports. Stage 3.5 supplies one composed per-day timeline and
+solver-ready teaching slots. Stage 5.1 adds worker-isolated CP-SAT, independent
+candidate validation, Generate/Regenerate actions, and atomic unpublished results.
+Existing and published placements remain unchanged unless the separate publication
+flow is used. Availability, room/resource, preferences, quality scoring, and broader
+Stage 5.2 UX remain future work.
 
 ## Critical Rules
 

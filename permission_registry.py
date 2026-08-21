@@ -111,6 +111,7 @@ PERMISSION_GROUPS = (
             ("timetable.delete", "Delete timetable entries"),
             ("timetable.manage_blocks", "Manage non-teaching blocks"),
             ("timetable.manage_settings", "Manage timetable settings"),
+            ("timetable.generate", "Generate and regenerate timetables"),
             ("timetable.publish", "Publish timetable"),
             ("timetable.lock_lessons", "Lock and unlock timetable lessons"),
             ("timetable.archive_versions", "Archive timetable versions"),
