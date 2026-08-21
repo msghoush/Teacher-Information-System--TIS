@@ -855,7 +855,19 @@ Guardrails:
 - Planning remains authority for real section-subject demand and HRT fallback.
 - Stage 2 executes no generation and treats no display-only block as a solver rule.
 
-Stage 3 derives canonical fixed slots, resolves positive Planning demand (including
+Stage 3.5 configuration flow:
+
+1. The administrator selects working days, teaching-period count/duration, and shift start.
+2. A block is placed after a teaching period with a duration, or retained as fixed time.
+3. One composer walks each day, inserts blocks at deterministic boundaries, shifts later
+   teaching periods, and calculates day/end metrics.
+4. Settings preview, timetable grid, readiness, assignments, snapshots, and exports consume
+   that projection. A valid inserted block is not a readiness blocker; an ambiguous fixed
+   time, invalid duration/day/boundary, or conflicting block is.
+5. Configuration fingerprint changes make existing versions stale without deleting their
+   placements or mutating published history.
+
+Stage 3 derives canonical slots, resolves positive Planning demand (including
 HRT), checks allocation/capacity/locks/staleness, and returns stable readiness
 blockers and warnings for one exact scope. Ready to Generate means only that inputs
 can be submitted to a future solver; no generation action runs.

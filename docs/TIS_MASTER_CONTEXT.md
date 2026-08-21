@@ -809,6 +809,16 @@ Default workflow for approved implementation tasks:
 
 ## Smart Timetable Versioning Boundary
 
+Stage 3.5 corrects school-day timing. Start time plus teaching-period count and
+duration plus inserted non-teaching durations produces one per-day ordered timeline
+and a calculated end. `after_period` blocks shift later teaching periods; preserved
+`fixed_time` blocks must begin on a live timeline boundary or configuration fails
+closed. The projection is shared by preview, operational grid, readiness,
+assignments, snapshots, future solver slots, and exports. Existing `break`, `prayer`,
+and `non_teaching` keys remain valid and the controlled catalog also includes recess,
+lunch, assembly, whole-school event, advisory, intervention, transition, dismissal
+preparation, and other. This stage does not generate a timetable.
+
 Stage 4 makes the existing lifecycle operational. Version review is explicit and
 does not move the active pointer. Active, superseded, and archived versions are
 read-only and may be reused only through an explicit copied draft. Draft validation
@@ -822,10 +832,10 @@ Placement actions use separate create/edit/delete permissions. Locks use
 `timetable.archive_versions`, and explicit selected-version export uses
 `timetable.export`. Every operation remains branch/year/SchoolGroup scoped.
 
-Stage 3 makes the fixed-period slot projection authoritative across the page,
-assignment service, exports, readiness, and snapshots. Full-period blocks are
-unavailable, between-period blocks consume no period number, partial overlaps are
-invalid, and blocks never move period times. Readiness is an exact-scope, read-only
+Stage 3.5 makes the composed per-day slot projection authoritative across the page,
+assignment service, exports, readiness, and snapshots. Inserted blocks consume no
+teaching-period number and shift later clock times; ambiguous fixed-time placement is
+invalid. Readiness is an exact-scope, read-only
 structural gate; `generation_ready` permits only a future attempt and does not
 guarantee feasibility. Existing versions and stale placements remain preserved.
 

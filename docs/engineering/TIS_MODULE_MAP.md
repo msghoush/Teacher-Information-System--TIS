@@ -719,7 +719,9 @@ Risks/guardrails:
 - Planning remains demand/assignment/HRT authority. Placements are version-owned;
   the exact-scope active pointer is separate, active/superseded history is
   immutable, and legacy editing uses a copy-on-write working draft.
-- Stage 3 owns canonical fixed-period slots and exact-scope structural readiness.
+- Stage 3.5 owns the canonical composed per-day timeline and exact-scope structural readiness.
+  The composer outputs ordered teaching/block items and valid teaching slots; after-period
+  blocks shift later clocks while invalid fixed-time placement fails closed.
   It has no solver, worker, availability, room/resource, or Generate UI.
 - Stage 4 owns draft validation, publication transactions, same-scope comparison,
   lifecycle presentation, explicit version exports, archive, and draft lock actions.

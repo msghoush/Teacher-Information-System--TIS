@@ -111,6 +111,7 @@ from timetable_logic import (
     normalize_timetable_settings_values,
     validate_non_teaching_block_overlap,
 )
+from timetable_slot_service import build_canonical_slot_projection
 
 # ---------------------------------------
 # App Initialization
@@ -12212,6 +12213,18 @@ def _build_school_logo_module_context(
     }
 
 
+def _composed_timeline_errors(settings: dict, blocks: list[dict]) -> list[str]:
+    projection = build_canonical_slot_projection(
+        school_group_id=None, branch_id=None, academic_year_id=None,
+        working_day_keys=settings["working_day_keys"],
+        periods_per_day=settings["periods_per_day"],
+        period_duration_minutes=settings["period_duration_minutes"],
+        school_start_time=settings["school_start_time"],
+        blocks=blocks,
+    )
+    return [str(issue.get("message") or "Invalid timetable timeline.") for issue in projection["issues"]]
+
+
 def _ensure_timetable_setting_scope_row(
     db: Session,
     branch_id: int,
@@ -13461,6 +13474,9 @@ def save_timetable_settings(
             periods_per_day=normalized_settings["periods_per_day"],
             working_day_keys=normalized_settings["working_day_keys"],
             time_slots=updated_time_slots,
+            placement_mode=block.get("placement_mode", "fixed_time"),
+            insert_after_period=block.get("insert_after_period"),
+            duration_minutes=block.get("duration_minutes"),
         )
         if normalized_existing_block.get("errors"):
             invalid_existing_blocks.append(
@@ -13473,6 +13489,11 @@ def save_timetable_settings(
             "Update or delete the affected non-teaching blocks first: "
             + " ".join(invalid_existing_blocks),
         )
+    timeline_errors = _composed_timeline_errors(
+        normalized_settings, existing_settings.get("blocks", [])
+    )
+    if timeline_errors:
+        return _redirect_with_error(safe_return_to, " ".join(timeline_errors))
 
     timetable_setting_row = get_timetable_setting_row(
         db,
@@ -13493,6 +13514,9 @@ def save_timetable_settings(
     timetable_setting_row.period_duration_minutes = normalized_settings["period_duration_minutes"]
     timetable_setting_row.school_start_time = normalized_settings["school_start_time"]
     timetable_setting_row.school_end_time = normalized_settings["school_end_time"]
+    db.flush()
+    refreshed_settings = get_timetable_settings_payload(db, branch_id, academic_year_id)
+    timetable_setting_row.school_end_time = refreshed_settings["school_end_time"]
     db.commit()
 
     return _redirect_with_notice(
@@ -13551,8 +13575,11 @@ def create_timetable_block(
     block_type: str = Form(...),
     label: str = Form(...),
     day_key: str = Form(ALL_DAY_KEY),
-    start_time: str = Form(...),
-    end_time: str = Form(...),
+    placement_mode: str = Form("after_period"),
+    insert_after_period: str = Form(""),
+    duration_minutes: str = Form(""),
+    start_time: str = Form(""),
+    end_time: str = Form(""),
     return_to: str = Form("/system-configuration/timetable-settings"),
     db: Session = Depends(get_db),
 ):
@@ -13596,6 +13623,9 @@ def create_timetable_block(
         periods_per_day=timetable_settings["periods_per_day"],
         working_day_keys=timetable_settings["working_day_keys"],
         time_slots=timetable_settings["time_slots"],
+        placement_mode=placement_mode,
+        insert_after_period=insert_after_period,
+        duration_minutes=duration_minutes,
     )
     block_errors = list(normalized_block["errors"])
     block_errors.extend(
@@ -13604,14 +13634,17 @@ def create_timetable_block(
             normalized_block,
         )
     )
+    block_errors.extend(_composed_timeline_errors(
+        timetable_settings,
+        [*timetable_settings.get("blocks", []), normalized_block],
+    ))
     if block_errors:
         return _redirect_with_error(
             safe_return_to,
             " ".join(block_errors),
         )
 
-    db.add(
-        models.TimetableNonTeachingBlock(
+    block_row = models.TimetableNonTeachingBlock(
             timetable_setting_id=timetable_setting_row.id,
             block_type=normalized_block["block_type"],
             label=normalized_block["label"],
@@ -13620,8 +13653,13 @@ def create_timetable_block(
             end_time=normalized_block["end_time"],
             start_period=normalized_block["start_period"],
             end_period=normalized_block["end_period"],
+            placement_mode=normalized_block["placement_mode"],
+            insert_after_period=normalized_block["insert_after_period"],
+            duration_minutes=normalized_block["duration_minutes"],
         )
-    )
+    db.add(block_row)
+    db.flush()
+    timetable_setting_row.school_end_time = get_timetable_settings_payload(db, branch_id, academic_year_id)["school_end_time"]
     db.commit()
 
     return _redirect_with_notice(
@@ -13637,8 +13675,11 @@ def update_timetable_block(
     block_type: str = Form(...),
     label: str = Form(...),
     day_key: str = Form(ALL_DAY_KEY),
-    start_time: str = Form(...),
-    end_time: str = Form(...),
+    placement_mode: str = Form("after_period"),
+    insert_after_period: str = Form(""),
+    duration_minutes: str = Form(""),
+    start_time: str = Form(""),
+    end_time: str = Form(""),
     return_to: str = Form("/system-configuration/timetable-settings"),
     db: Session = Depends(get_db),
 ):
@@ -13692,6 +13733,9 @@ def update_timetable_block(
         periods_per_day=timetable_settings["periods_per_day"],
         working_day_keys=timetable_settings["working_day_keys"],
         time_slots=timetable_settings["time_slots"],
+        placement_mode=placement_mode,
+        insert_after_period=insert_after_period,
+        duration_minutes=duration_minutes,
     )
     block_errors = list(normalized_block["errors"])
     block_errors.extend(
@@ -13701,6 +13745,12 @@ def update_timetable_block(
             ignore_block_id=block_id,
         )
     )
+    candidate_blocks = [
+        block for block in timetable_settings.get("blocks", [])
+        if int(block.get("id") or 0) != block_id
+    ]
+    candidate_blocks.append(normalized_block)
+    block_errors.extend(_composed_timeline_errors(timetable_settings, candidate_blocks))
     if block_errors:
         return _redirect_with_error(
             safe_return_to,
@@ -13714,6 +13764,11 @@ def update_timetable_block(
     block_row.end_time = normalized_block["end_time"]
     block_row.start_period = normalized_block["start_period"]
     block_row.end_period = normalized_block["end_period"]
+    block_row.placement_mode = normalized_block["placement_mode"]
+    block_row.insert_after_period = normalized_block["insert_after_period"]
+    block_row.duration_minutes = normalized_block["duration_minutes"]
+    db.flush()
+    timetable_setting_row.school_end_time = get_timetable_settings_payload(db, branch_id, academic_year_id)["school_end_time"]
     db.commit()
 
     return _redirect_with_notice(
@@ -13765,6 +13820,8 @@ def delete_timetable_block(
 
     block_label = str(block_row.label or "Timetable block").strip() or "Timetable block"
     db.delete(block_row)
+    db.flush()
+    timetable_setting_row.school_end_time = get_timetable_settings_payload(db, branch_id, academic_year_id)["school_end_time"]
     db.commit()
 
     return _redirect_with_notice(

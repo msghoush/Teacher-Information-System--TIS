@@ -32,8 +32,17 @@ DEFAULT_WORKING_DAY_KEYS = [
 ]
 BLOCK_TYPE_OPTIONS = (
     {"key": "break", "label": "Break"},
+    {"key": "recess", "label": "Recess"},
+    {"key": "lunch", "label": "Lunch"},
     {"key": "prayer", "label": "Prayer"},
+    {"key": "assembly", "label": "Assembly"},
+    {"key": "whole_school_event", "label": "Whole-School Event"},
+    {"key": "advisory", "label": "Advisory / Homeroom"},
+    {"key": "intervention", "label": "Intervention / Support"},
+    {"key": "transition", "label": "Transition"},
+    {"key": "dismissal_preparation", "label": "Dismissal Preparation"},
     {"key": "non_teaching", "label": "Non-Teaching"},
+    {"key": "other", "label": "Other"},
 )
 BLOCK_TYPE_LABELS = {
     item["key"]: item["label"]
@@ -269,11 +278,14 @@ def serialize_timetable_block(block_row, working_day_keys, time_slots: list[dict
     end_slot = period_lookup.get(end_period)
     start_time = str(getattr(block_row, "start_time", "") or "").strip()
     end_time = str(getattr(block_row, "end_time", "") or "").strip()
-    if not start_time and start_slot:
+    placement_mode = str(getattr(block_row, "placement_mode", "") or "fixed_time").strip()
+    insert_after_period = int(getattr(block_row, "insert_after_period", 0) or 0) or None
+    duration_minutes = int(getattr(block_row, "duration_minutes", 0) or 0) or None
+    if placement_mode == "fixed_time" and not start_time and start_slot:
         start_time = str(start_slot.get("start_time") or "").strip()
-    if not end_time and end_slot:
+    if placement_mode == "fixed_time" and not end_time and end_slot:
         end_time = str(end_slot.get("end_time") or "").strip()
-    if not end_time and start_slot:
+    if placement_mode == "fixed_time" and not end_time and start_slot:
         end_time = str(start_slot.get("end_time") or "").strip()
     start_minutes = parse_time_value(start_time)
     end_minutes = parse_time_value(end_time)
@@ -291,6 +303,10 @@ def serialize_timetable_block(block_row, working_day_keys, time_slots: list[dict
         ],
         "start_period": start_period,
         "end_period": end_period,
+        "placement_mode": placement_mode,
+        "placement_mode_label": "After Period" if placement_mode == "after_period" else "Fixed Time",
+        "insert_after_period": insert_after_period,
+        "duration_minutes": duration_minutes,
         "start_time": start_time,
         "end_time": end_time,
         "start_minutes": start_minutes,
@@ -401,15 +417,14 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         time_slots=time_slots,
         blocks=blocks,
     )
-    block_slot_map = {
-        key: value for key, value in slot_projection["slot_map"].items()
-        if not value.get("schedulable")
-    }
+    block_slot_map = {}
     blocked_slot_count = (
         slot_projection["counts"]["blocked_slots"]
         + slot_projection["counts"]["invalid_slots"]
     )
-    total_slot_count = len(working_day_keys) * len(time_slots)
+    total_slot_count = len(working_day_keys) * periods_per_day
+    school_end_time = slot_projection["calculated_school_end_time"]
+    time_slots = slot_projection["periods"]
 
     return {
         "id": setting_id,
@@ -422,8 +437,12 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         "school_end_time": school_end_time,
         "time_slots": time_slots,
         "blocks": blocks,
+        "composed_blocks": slot_projection["blocks"],
         "block_slot_map": block_slot_map,
         "slot_projection": slot_projection,
+        "timelines": slot_projection["timelines"],
+        "timeline_rows": slot_projection["timeline_rows"],
+        "teaching_slots": slot_projection["teaching_slots"],
         "slot_projection_fingerprint": slot_projection["fingerprint"],
         "configuration_issues": slot_projection["issues"],
         "blocked_slot_count": blocked_slot_count,
@@ -516,6 +535,9 @@ def normalize_non_teaching_block_values(
     periods_per_day,
     working_day_keys,
     time_slots,
+    placement_mode="fixed_time",
+    insert_after_period=None,
+    duration_minutes=None,
 ):
     errors = []
     normalized_block_type = normalize_block_type(block_type)
@@ -532,6 +554,9 @@ def normalize_non_teaching_block_values(
     elif normalized_day_key != ALL_DAY_KEY and normalized_day_key not in working_day_keys:
         errors.append("Selected day is not part of the configured working week.")
 
+    normalized_placement_mode = str(placement_mode or "fixed_time").strip().lower()
+    if normalized_placement_mode not in {"after_period", "fixed_time"}:
+        errors.append("Select a valid block placement mode.")
     normalized_start_time = str(start_time or "").strip()
     normalized_end_time = str(end_time or "").strip()
     parsed_start_minutes = parse_time_value(normalized_start_time)
@@ -541,22 +566,34 @@ def normalize_non_teaching_block_values(
     parsed_end_period = _parse_int(end_period)
     safe_periods_per_day = int(periods_per_day or 0)
     period_lookup = _time_slots_by_period(time_slots)
+    parsed_insert_after_period = _parse_int(insert_after_period)
+    parsed_duration_minutes = _parse_int(duration_minutes)
 
     # Backward compatibility for rows created before explicit block times were introduced.
-    if parsed_start_minutes is None and parsed_start_period in period_lookup:
+    if normalized_placement_mode == "fixed_time" and parsed_start_minutes is None and parsed_start_period in period_lookup:
         parsed_start_minutes = parse_time_value(period_lookup[parsed_start_period].get("start_time"))
         normalized_start_time = str(period_lookup[parsed_start_period].get("start_time") or "").strip()
-    if parsed_end_minutes is None and parsed_end_period in period_lookup:
+    if normalized_placement_mode == "fixed_time" and parsed_end_minutes is None and parsed_end_period in period_lookup:
         parsed_end_minutes = parse_time_value(period_lookup[parsed_end_period].get("end_time"))
         normalized_end_time = str(period_lookup[parsed_end_period].get("end_time") or "").strip()
 
-    if parsed_start_minutes is None or parsed_end_minutes is None:
+    if normalized_placement_mode == "after_period":
+        normalized_start_time = normalized_end_time = ""
+        parsed_start_minutes = parsed_end_minutes = None
+        if parsed_insert_after_period is None or not 1 <= parsed_insert_after_period <= safe_periods_per_day:
+            errors.append("Insert After Period must identify an existing teaching period.")
+        if parsed_duration_minutes is None or parsed_duration_minutes <= 0:
+            errors.append("Block duration must be a positive whole number of minutes.")
+        parsed_start_period = parsed_end_period = parsed_insert_after_period
+    elif parsed_start_minutes is None or parsed_end_minutes is None:
         errors.append("Block start and end times must use HH:MM format.")
     elif parsed_start_minutes >= parsed_end_minutes:
         errors.append("Block end time must be after the block start time.")
+    else:
+        parsed_duration_minutes = parsed_end_minutes - parsed_start_minutes
 
     overlapping_period_indexes = []
-    if not errors:
+    if normalized_placement_mode == "fixed_time" and not errors:
         for slot in time_slots or []:
             period_index = int(slot.get("period_index") or 0)
             slot_start = parse_time_value(slot.get("start_time"))
@@ -616,6 +653,10 @@ def normalize_non_teaching_block_values(
             if overlapping_period_indexes
             else parsed_end_period
         ),
+        "placement_mode": normalized_placement_mode,
+        "placement_mode_label": "After Period" if normalized_placement_mode == "after_period" else "Fixed Time",
+        "insert_after_period": parsed_insert_after_period,
+        "duration_minutes": parsed_duration_minutes,
         "accent": theme["accent"],
         "soft": theme["soft"],
         "border": theme["border"],
@@ -643,6 +684,8 @@ def validate_non_teaching_block_overlap(
             candidate_block.get("expanded_day_keys") or []
         )
         if not shared_days:
+            continue
+        if block.get("placement_mode", "fixed_time") != "fixed_time" or candidate_block.get("placement_mode") != "fixed_time":
             continue
 
         left_start = parse_time_value(block.get("start_time"))
@@ -1013,6 +1056,8 @@ def build_timetable_workspace_payload(
         option_payload = section_subject_option_map.get((section_id, subject_code))
 
         is_slot_valid = (
+            not settings_payload.get("configuration_issues")
+            and
             day_key in working_day_keys
             and 1 <= period_index <= periods_per_day
             and (day_key, period_index) not in block_slot_map
@@ -1254,6 +1299,8 @@ def build_timetable_workspace_payload(
         "working_day_keys": working_day_keys,
         "days": settings_payload["working_days"],
         "time_slots": settings_payload["time_slots"],
+        "timeline_rows": settings_payload["timeline_rows"],
+        "teaching_slots": settings_payload["teaching_slots"],
         "blocked_slots": [
             {
                 **(slot_payload.get("block") or {}),

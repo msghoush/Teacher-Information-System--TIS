@@ -480,6 +480,11 @@ def mutate_draft_placement(
         projection = get_timetable_settings_payload(
             db, int(version.branch_id), int(version.academic_year_id)
         )["slot_projection"]
+        if not projection.get("valid"):
+            raise TimetableVersionError(
+                "slot_not_schedulable",
+                "Correct the timetable timeline configuration before assigning lessons.",
+            )
         slot = projection["slot_map"].get(
             (str(day_key).strip().lower(), int(period_index))
         )

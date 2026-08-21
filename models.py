@@ -766,6 +766,9 @@ class TimetableNonTeachingBlock(Base):
     end_time = Column(String(5), nullable=True)
     start_period = Column(Integer, nullable=False)
     end_period = Column(Integer, nullable=False)
+    placement_mode = Column(String(24), nullable=False, default="fixed_time")
+    insert_after_period = Column(Integer, nullable=True)
+    duration_minutes = Column(Integer, nullable=True)
 
 
 class TimetableInputSnapshot(Base):

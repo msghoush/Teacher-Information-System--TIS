@@ -1,7 +1,7 @@
 ---
 title: Versioned, Constraint-Based Smart Timetable Generation
-documentation_version: 3.1
-last_updated: 2026-08-19
+documentation_version: 3.2
+last_updated: 2026-08-21
 status: accepted
 module: workforce-planning
 ---
@@ -22,7 +22,7 @@ The existing live timetable is imported exactly once per populated scope with `o
 
 Until explicit version UI and publication arrive, the legacy assignment route uses copy-on-write: its first edit copies the active version to a mutable working draft, preserving locks and provenance; subsequent edits reuse that draft. Reads and exports use the operational version, preferring that compatibility draft after an edit while the imported active pointer continues to preserve the historical baseline.
 
-Input snapshots use schema-versioned canonical JSON and SHA-256 component/full fingerprints. They record resolved Planning demand, HRT fallback decisions, timetable settings, canonical slot projection, constraints, and locks without unnecessary personal data. Stage 3 makes fixed teaching/non-teaching/invalid slot semantics authoritative: full-period blocks disable slots, between-period blocks consume no period, partial overlaps are invalid, and blocks never shift teaching-period times.
+Input snapshots use schema-versioned canonical JSON and SHA-256 component/full fingerprints. They record resolved Planning demand, HRT fallback decisions, timetable settings, canonical slot projection, constraints, and locks without unnecessary personal data. Stage 3.5 makes one composed timeline authoritative: each day starts at the configured shift time, retains the configured number and duration of teaching periods, inserts applicable non-teaching blocks, shifts later periods, and calculates the end. `after_period` is the preferred placement mode. Existing fixed-time blocks remain stored and compose only when their start is a current timeline boundary; ambiguous overlap fails closed without guessing or rewriting the row.
 
 Locks persist on placements with actor and timestamp. A copied draft retains the intended locks. Later regeneration must treat locked placements as fixed decisions, but Stage 2 executes no regeneration.
 
@@ -58,13 +58,13 @@ Exports are version-aware and preserve their current presentation. Future availa
 - Editing active or superseded versions in place: it makes publication evidence unreliable.
 - Treating readiness as proof of solver feasibility: structurally complete input may still be mathematically infeasible.
 - Running generation without explicit SchoolGroup, Branch, and Academic Year scope: it violates tenant safety.
-- Treating existing display-only timetable blocks as solver constraints: their current semantics were not designed as generation authority.
+- Maintaining separate preview, readiness, export, and future-solver clock calculations: competing time authority causes overlaps and stale fingerprints.
 
 ## Consequences
 
 - Existing placements remain operational and historically preserved.
 - Version numbering and active selection have database-enforced scope guarantees, with service validation for source/snapshot operations.
-- Stage 3 implements canonical slot projection and structural readiness on stable snapshots, with a focused readiness area on the existing timetable UI.
+- Stage 3/3.5 implements composed canonical slot projection and structural readiness on stable snapshots; valid inserted blocks do not consume teaching-period indexes.
 - Stage 4 implements version comparison and truthful publication without mutating active history. A later stage may add generation on this boundary.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
 

@@ -544,6 +544,10 @@ Represents:
 Weekly lesson placement, timetable settings, durable versions, immutable input
 snapshots, one active-version pointer per scope, placement locks, and future
 generation-run evidence.
+`TimetableNonTeachingBlock` retains legacy start/end and period columns and adds
+`placement_mode`, `insert_after_period`, and `duration_minutes`. The additive migration
+defaults existing rows to `fixed_time`; compatibility composition does not rewrite their
+stored clock values. After-period metadata is authoritative for newly inserted blocks.
 
 Ownership boundary:
 Timetable data depends on planning, teacher, subject, section, branch, and year context.

@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-21 - Corrected Timetable Configuration With A Composed Day Timeline
+
+Replaced fixed teaching-period clocks plus overlap classification with one per-day
+timeline composer. Blocks may be inserted after a period or preserved as fixed time
+when boundary-aligned; later periods and calculated end times shift automatically.
+Readiness, assignment validation, snapshots/fingerprints, timetable UI, and exports
+now share the projection. Added explicit additive placement metadata and expanded
+the controlled school block catalog. No automatic generation was introduced.
+
 ## 2026-08-21 - Added Smart Timetable Stage 4 Version Publication
 
 Made timetable lifecycle visible through scoped history selection, immutable-version

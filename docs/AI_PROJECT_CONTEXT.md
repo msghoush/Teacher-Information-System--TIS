@@ -7,6 +7,18 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Smart Timetable Stage 3.5
+
+`timetable_slot_service.py` is the single clock-time authority. For every working
+day it composes the configured shift start, teaching-period count/duration, and
+applicable non-teaching blocks into ordered teaching/block items. After-period
+blocks are the default and shift every later period; legacy fixed-time blocks are
+inserted only at a valid live boundary and otherwise surface a correction blocker.
+The calculated end, settings preview, timetable grid, readiness, assignment
+validation, snapshots/fingerprints, and XLSX/PDF exports consume this projection.
+The additive placement columns preserve existing blocks as `fixed_time`. No solver,
+OR-Tools dependency, generation endpoint, availability, or resources were added.
+
 ## Smart Timetable Stage 4
 
 The timetable page now exposes exact-scope version history and distinguishes Draft,
@@ -25,7 +37,7 @@ worker, generation endpoint, availability, rooms/resources, or schema migration.
 
 ## Smart Timetable Stage 3
 
-`timetable_slot_service.py` is the single fixed-period authority for teaching,
+`timetable_slot_service.py` is the single composed-timeline authority for teaching,
 non-teaching, and invalid slots. Full coverage disables a slot; a block wholly
 between periods removes no slot; partial overlap is invalid; all-day and every-day
 rules expand deterministically. Blocks never shift or shorten teaching periods.
@@ -789,15 +801,15 @@ weekly-period authority. Timetables are durable SchoolGroup/Branch/Academic-Year
 versions. Active selection is a separate unique exact-scope pointer, not a version
 Boolean. Active, superseded, and archived history is immutable; drafts are mutable.
 
-Stage 2 provides models, migration, snapshots/fingerprints, lock persistence,
-version services, future generation-run evidence, and version-aware current
-views/exports. Existing placements are imported unchanged. The legacy assignment
-route creates/reuses a copy-on-write working draft rather than editing active
-history. Do not infer that an imported active version passed future publication.
+Stages 2–4 provide models, migrations, snapshots/fingerprints, lock persistence,
+version services, readiness, comparison, validation/publication, future generation-run
+evidence, and version-aware views/exports. Stage 3.5 supplies one composed per-day
+timeline and solver-ready teaching slots. Existing placements are imported unchanged;
+configuration changes can mark versions stale without rewriting their placements.
 
 No automatic generator, CP-SAT/OR-Tools dependency, worker, generation endpoint,
-availability/room/rule model, or generation UI exists. Readiness, constraints,
-solver execution, comparison, and publication require later approved stages.
+availability/room/rule model, or generation UI exists. Solver execution and its
+generation workflow require a later approved stage.
 
 ## Critical Rules
 

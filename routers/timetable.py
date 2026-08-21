@@ -629,6 +629,18 @@ def _get_export_blocks(workspace_payload: dict) -> list[dict]:
 
 
 def _build_export_board_rows(workspace_payload: dict) -> list[dict]:
+    composed_rows = workspace_payload.get("timeline_rows", [])
+    if composed_rows:
+        rows = []
+        for index, row in enumerate(composed_rows):
+            day_items = row.get("items_by_day", {})
+            reference = next(iter(day_items.values()), {})
+            rows.append({
+                "row_type": "block" if row.get("type") == "non_teaching" else "period",
+                "sort_time": index, "sort_tie": index,
+                "block": reference, "slot": reference, "items_by_day": day_items,
+            })
+        return rows
     period_rows = []
     for slot in workspace_payload.get("time_slots", []):
         period_index = int(slot.get("period_index") or 0)
@@ -912,14 +924,16 @@ def _write_entity_timetable_sheet(
 
                 for day_offset, day in enumerate(days, start=3):
                     day_key = str(day.get("key") or "")
+                    day_block = row_item.get("items_by_day", {}).get(day_key)
                     cell = sheet.cell(row=row, column=day_offset)
-                    if _block_applies_to_day(block, day_key):
+                    if day_block or _block_applies_to_day(block, day_key):
+                        rendered_block = day_block or block
                         cell.value = "\n".join(
                             part
                             for part in [
-                                block.get("label") or "Blocked",
-                                block.get("block_type_label") or "",
-                                block.get("time_range") or "",
+                                rendered_block.get("label") or "Blocked",
+                                rendered_block.get("block_type_label") or "",
+                                rendered_block.get("time_range") or "",
                             ]
                             if part
                         )
@@ -950,6 +964,7 @@ def _write_entity_timetable_sheet(
             sheet.cell(row=row, column=2).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             for day_offset, day in enumerate(days, start=3):
                 day_key = str(day.get("key") or "")
+                day_slot = row_item.get("items_by_day", {}).get(day_key, slot)
                 blocked_slot = blocked_lookup.get((day_key, period_index))
                 cell = sheet.cell(row=row, column=day_offset)
                 if blocked_slot:
@@ -959,7 +974,10 @@ def _write_entity_timetable_sheet(
                     cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
                 else:
                     entry = entry_lookup.get((entity_id, day_key, period_index))
-                    cell.value = _format_timetable_entry_for_excel(entry, entity_kind)
+                    cell.value = "\n".join(part for part in [
+                        day_slot.get("time_range") or "",
+                        _format_timetable_entry_for_excel(entry, entity_kind),
+                    ] if part)
                     if entry:
                         _add_excel_subject_icon(sheet, cell, entry)
                         cell.fill = PatternFill(
@@ -1470,11 +1488,13 @@ def _draw_pdf_timetable_grid(
             x = pdf.margin + period_width
             for day in days:
                 day_key = str(day.get("key") or "")
-                applies_to_day = _block_applies_to_day(block, day_key)
+                day_block = row_item.get("items_by_day", {}).get(day_key)
+                rendered_block = day_block or block
+                applies_to_day = bool(day_block) or _block_applies_to_day(block, day_key)
                 if applies_to_day:
                     fill_color = f"#{_safe_excel_hex(block.get('soft'), 'F3F6F9')}"
-                    top_line = block.get("label") or "Blocked"
-                    bottom_line = block.get("time_range") or block.get("block_type_label") or ""
+                    top_line = rendered_block.get("label") or "Blocked"
+                    bottom_line = rendered_block.get("time_range") or rendered_block.get("block_type_label") or ""
                     text_color = f"#{_safe_excel_hex(block.get('text'), '475569')}"
                 else:
                     fill_color = "#FFFFFF"
@@ -1501,6 +1521,7 @@ def _draw_pdf_timetable_grid(
         x = pdf.margin + period_width
         for day in days:
             day_key = str(day.get("key") or "")
+            day_slot = row_item.get("items_by_day", {}).get(day_key, slot)
             blocked_slot = blocked_lookup.get((day_key, period_index))
             entry = entry_lookup.get((entity_id, day_key, period_index))
             if blocked_slot:
@@ -1511,14 +1532,15 @@ def _draw_pdf_timetable_grid(
             elif entry:
                 fill_color = f"#{_safe_excel_hex(entry.get('subject_color_soft'), 'F4F8FF')}"
                 top_line = f"{entry.get('subject_code', '')} {entry.get('subject_name', '')}".strip()
-                bottom_line = entry.get("teacher_name") if entity_kind == "section" else entry.get("section_label")
+                bottom_line = (entry.get("teacher_name") if entity_kind == "section" else entry.get("section_label"))
+                bottom_line = f"{day_slot.get('time_range', '')} {bottom_line or ''}".strip()
                 if entry.get("status") == "stale":
                     bottom_line = "Needs review"
                 text_color = f"#{_safe_excel_hex(entry.get('subject_color_text'), EXCEL_TEXT)}"
             else:
                 fill_color = "#FFFFFF"
                 top_line = ""
-                bottom_line = ""
+                bottom_line = day_slot.get("time_range", "")
                 text_color = "#60728C"
             pdf.rect(x, y, day_width, row_height, fill_color)
             pdf.line(x, y, x + day_width, y, "#D8E5F4", 0.35)
@@ -1927,6 +1949,8 @@ async def assign_timetable_slot(
         or period_index > int(settings_payload.get("periods_per_day") or 0)
     ):
         return _json_error("Selected timetable period is outside the configured school day.")
+    if settings_payload.get("configuration_issues"):
+        return _json_error("Correct the timetable timeline configuration before assigning lessons.")
     if any(
         str(block_slot.get("day_key") or "") == day_key
         and int(block_slot.get("period_index") or 0) == period_index
