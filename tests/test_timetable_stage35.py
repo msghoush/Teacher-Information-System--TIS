@@ -4,11 +4,15 @@ import io
 import pytest
 from sqlalchemy import create_engine, inspect, text
 from openpyxl import load_workbook
+from starlette.requests import Request
 
 import db_migrations
+import main
+import models
 from routers import timetable as timetable_router
 from timetable_logic import BLOCK_TYPE_OPTIONS, normalize_block_type
 from timetable_slot_service import build_canonical_slot_projection
+from test_timetable_versioning import db  # noqa: F401 - shared route-render fixture
 
 
 def compose(*, days=("monday",), blocks=(), periods=8, duration=45, start="07:15"):
@@ -85,8 +89,69 @@ def test_fingerprint_changes_and_templates_consume_composed_timeline():
     assert compose()["fingerprint"] != compose(blocks=[after(3, 25)])["fingerprint"]
     config = pathlib.Path("templates/system_configuration_timetable.html").read_text(encoding="utf-8")
     board = pathlib.Path("templates/timetable.html").read_text(encoding="utf-8")
-    assert "Calculated School End" in config and "day_timeline.items" in config
+    assert "Calculated School End" in config and 'day_timeline["items"]' in config
     assert "timeline_rows" in board and "daySlot.time_range" in board
+
+
+def test_timetable_settings_and_main_routes_render_composed_timeline(db, monkeypatch):
+    setting = db.query(models.TimetableSetting).filter_by(id=5000).one()
+    setting.periods_per_day = 8
+    setting.period_duration_minutes = 45
+    setting.school_start_time = "07:15"
+    setting.school_end_time = "13:40"
+    db.add(models.TimetableNonTeachingBlock(
+        timetable_setting_id=setting.id,
+        block_type="break",
+        label="Morning Break",
+        day_key="all",
+        start_time="",
+        end_time="",
+        start_period=3,
+        end_period=3,
+        placement_mode="after_period",
+        insert_after_period=3,
+        duration_minutes=25,
+    ))
+    db.commit()
+
+    user = db.query(models.User).filter_by(user_id="U1").one()
+    user.scope_school_group_id = 1
+    user.scope_branch_id = 10
+    user.scope_academic_year_id = 100
+    monkeypatch.setattr(main, "_get_configuration_access", lambda request, session: (user, None))
+    monkeypatch.setattr(main.auth, "has_permission", lambda *args, **kwargs: True)
+    monkeypatch.setattr(main.auth, "has_any_permission", lambda *args, **kwargs: True)
+    monkeypatch.setattr(main.auth, "is_platform_user", lambda *args, **kwargs: False)
+    monkeypatch.setattr(timetable_router, "_get_current_user_or_redirect", lambda request, session: (user, None))
+
+    def request(path):
+        return Request({
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "path": path,
+            "raw_path": path.encode("utf-8"),
+            "query_string": b"",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "app": main.app,
+        })
+
+    settings_response = main.system_configuration_timetable_settings(
+        request("/system-configuration/timetable-settings"), db
+    )
+    settings_html = settings_response.body.decode("utf-8")
+    assert settings_response.status_code == 200
+    assert "P1" in settings_html and "07:15–08:00" in settings_html
+    assert "Morning Break" in settings_html and "09:30–09:55" in settings_html
+    assert "P4" in settings_html and "09:55–10:40" in settings_html
+
+    timetable_response = timetable_router.timetable_page(request("/timetable/"), db=db)
+    assert timetable_response.status_code == 200
+    assert "Timetable Grid" in timetable_response.body.decode("utf-8")
 
 
 def test_stage35_migration_is_additive_idempotent_and_preserves_legacy_row(tmp_path):

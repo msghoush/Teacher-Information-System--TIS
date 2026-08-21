@@ -613,7 +613,7 @@
                                     <small>{{ day_timeline.teaching_minutes }} teaching min · {{ day_timeline.block_minutes }} block min · {{ day_timeline.shift_minutes }} total min</small>
                                 </div>
                                 <div class="timeline-days">
-                                    {% for item in day_timeline.items %}
+                                    {% for item in day_timeline["items"] %}
                                     <span class="timeline-day-chip {% if item.type == 'non_teaching' %}is-blocked{% endif %}">
                                         <strong>{{ ('P' ~ item.period_index) if item.type == 'teaching' else item.label }}</strong>
                                         <span>{{ item.start_time }}–{{ item.end_time }}</span>

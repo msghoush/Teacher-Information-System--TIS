@@ -1,24 +1,9 @@
-knowledge_impact: yes
-summary: Make the Stage 3.5 composed school-day timeline the single timetable slot authority, with explicit after-period and fixed-time block placement.
+knowledge_impact: no
+summary: Correct the Stage 3.5 timetable settings Jinja dictionary-key lookup and add route-render regression coverage.
 affected_areas:
   - timetable
-  - planning
-  - tenant-isolation
-  - operational-workflows
-  - permissions
-  - database-schema
+  - configuration-ui
+  - tests
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
-  - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
-  - docs/engineering/TIS_MODULE_MAP.md
-  - docs/engineering/REPOSITORY_ARCHITECTURE.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/engineering/PRODUCT_ROADMAP.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
-  - docs/history/workforce-planning/README.md
-  - docs/history/workforce-planning/2026-08-21-smart-timetable-stage-35-composed-timeline.md
-no_impact_reason:
-major_change_override: no
+no_impact_reason: This fixes only a Jinja dictionary-key collision and adds rendering coverage; timeline behavior and documented architecture are unchanged.
+major_change_override: yes
