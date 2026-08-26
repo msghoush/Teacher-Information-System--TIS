@@ -7,6 +7,20 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Smart Timetable Stage 5.2
+
+Stage 5.2 presents Configure, Ready, Generate, Review, Regenerate or Delete Working
+Timetable, and Publish while retaining the Stage 2–5.1 version and solver internals.
+The primary workspace resolves one mutable unpublished Working Timetable and uses
+Check Timetable, Ready to Publish, Published, and Timetable History language.
+
+Delete Working Timetable is an exact-scope archive operation. It preserves entries,
+snapshots, runs, audit metadata, and the active pointer and refuses active generation.
+`timetable_visibility_service.py` resolves official reads strictly through
+`TimetableActiveVersion`. `/my-timetable` matches scoped `User.user_id` to
+`Teacher.teacher_id` and shows only that teacher's published lessons. View-only users
+are redirected away from management drafts and history.
+
 ## Smart Timetable Stage 5.1
 
 Stage 5.1 implements automatic branch/year timetable generation with Google

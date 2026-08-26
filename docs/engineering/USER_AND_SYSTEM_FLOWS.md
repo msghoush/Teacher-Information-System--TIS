@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Simplified Timetable And Official Visibility
+
+1. A manager configures inputs until Ready to Generate, then generates a Working Timetable.
+2. Regenerate retains Stage 5.1 locks and concurrency; Check Timetable runs the existing validator.
+3. Delete Working Timetable archives only the current mutable candidate and preserves publication/history.
+4. Publish Timetable atomically makes the candidate official and retains the prior publication in history.
+5. `/my-timetable` resolves exact-scope teacher identity, reads only the active pointer,
+   and filters to that teacher. View-only non-teachers use the general published page.
+
 ## Generate And Regenerate Timetable Flow
 
 1. Require `timetable.generate`, exact tenant branch/year scope,

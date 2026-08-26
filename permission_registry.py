@@ -115,6 +115,7 @@ PERMISSION_GROUPS = (
             ("timetable.publish", "Publish timetable"),
             ("timetable.lock_lessons", "Lock and unlock timetable lessons"),
             ("timetable.archive_versions", "Archive timetable versions"),
+            ("timetable.delete_working", "Delete working timetable"),
             ("timetable.export", "Export timetable"),
         ),
     },

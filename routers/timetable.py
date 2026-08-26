@@ -26,10 +26,16 @@ from timetable_version_service import (
     TimetableVersionError,
     archive_version,
     copy_version_to_draft,
+    discard_working_version,
     ensure_compatibility_editable_version,
     mutate_draft_placement,
     resolve_scope_school_group_id,
     set_entry_lock,
+)
+from timetable_visibility_service import (
+    PublishedTimetableAccessError,
+    build_published_timetable_payload,
+    resolve_scoped_teacher,
 )
 from timetable_publication_service import (
     TimetableDraftValidationService,
@@ -52,6 +58,7 @@ from ui_shell import build_shell_context, get_school_logo_slots
 
 
 router = APIRouter(prefix="/timetable", tags=["Timetable"])
+published_router = APIRouter(tags=["Published Timetable"])
 templates = Jinja2Templates(directory="templates")
 PLATFORM_EXPORT_LOGO_ASSET = {
     "path": branding_storage.tis_logo_absolute_path(
@@ -1638,15 +1645,31 @@ def _build_timetable_pdf_bytes(
 def timetable_page(
     request: Request,
     version: str | None = None,
+    history: bool = False,
     db: Session = Depends(get_db),
 ):
     current_user, redirect_response = _get_current_user_or_redirect(request, db)
     if redirect_response:
         return redirect_response
 
+    manager_permissions = (
+        "timetable.create", "timetable.edit", "timetable.delete",
+        "timetable.generate", "timetable.publish", "timetable.lock_lessons",
+        "timetable.archive_versions", "timetable.delete_working",
+    )
+    if not auth.has_any_permission(db, current_user, *manager_permissions):
+        branch_id, academic_year_id = get_scope_ids(current_user)
+        teacher = resolve_scoped_teacher(
+            db, user=current_user, branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        return RedirectResponse(
+            url="/my-timetable" if teacher else "/published-timetable", status_code=303
+        )
+
     branch_id, academic_year_id = get_scope_ids(current_user)
     selected_version_id = None
-    if version:
+    if version and history:
         try:
             school_group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=academic_year_id)
             selected_version_id = _resolve_scoped_version_public(
@@ -1703,7 +1726,9 @@ def timetable_page(
             "can_publish_timetable": auth.has_permission(db, current_user, "timetable.publish"),
             "can_generate_timetable": auth.has_permission(db, current_user, "timetable.generate"),
             "can_archive_versions": auth.has_permission(db, current_user, "timetable.archive_versions"),
+            "can_delete_working": auth.has_permission(db, current_user, "timetable.delete_working"),
             "can_export_timetable": auth.has_permission(db, current_user, "timetable.export"),
+            "history_mode": bool(history),
             **build_shell_context(
                 request,
                 db,
@@ -1718,6 +1743,51 @@ def timetable_page(
             ),
         },
     )
+
+
+def _published_page(request: Request, db: Session, *, teacher_only: bool):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return redirect
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        teacher = resolve_scoped_teacher(
+            db, user=current_user, branch_id=branch_id, academic_year_id=year_id
+        ) if teacher_only else None
+        if teacher_only and teacher is None:
+            payload = None
+            identity_missing = True
+        else:
+            payload = build_published_timetable_payload(
+                db, school_group_id=group_id, branch_id=branch_id,
+                academic_year_id=year_id,
+                teacher_id=int(teacher.id) if teacher else None,
+            )
+            identity_missing = False
+    except (TimetableVersionError, PublishedTimetableAccessError):
+        payload = None
+        identity_missing = teacher_only
+    return templates.TemplateResponse(
+        request, "published_timetable.html",
+        {"request": request, "payload": payload, "identity_missing": identity_missing,
+         "teacher_only": teacher_only, **build_shell_context(
+             request, db, current_user, page_key="timetable",
+             title="My Timetable" if teacher_only else "Published Timetable",
+             intro="Your official published lessons." if teacher_only else "The official timetable for the selected branch and academic year.",
+             icon="timetable")},
+        status_code=403 if identity_missing else 200,
+    )
+
+
+@published_router.get("/my-timetable")
+def my_timetable_page(request: Request, db: Session = Depends(get_db)):
+    return _published_page(request, db, teacher_only=True)
+
+
+@published_router.get("/published-timetable")
+def published_timetable_page(request: Request, db: Session = Depends(get_db)):
+    return _published_page(request, db, teacher_only=False)
 
 
 @router.get("/export.xlsx")
@@ -1937,7 +2007,7 @@ async def copy_timetable_version(public_id: str, request: Request, db: Session =
             raise TimetableVersionError("copy_source_mutable", "This timetable is already an editable draft.")
         draft = copy_version_to_draft(db, source_version=source, actor_user_id=str(current_user.user_id or "") or None)
         db.commit()
-        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=draft.id), message=f"Draft Version {draft.version_number} created from Version {source.version_number}.")
+        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=draft.id), message="Working timetable created from the selected historical timetable.")
     except (TimetableVersionError, IntegrityError) as exc:
         db.rollback(); return _json_error(str(exc))
 
@@ -1977,7 +2047,7 @@ async def validate_timetable_version(public_id: str, request: Request, db: Sessi
         db.commit()
         payload = build_timetable_workspace_payload(db, branch_id, year_id, version_id=version.id)
         payload["validation"] = validation
-        return _json_success(payload, message="Draft is ready to publish." if validation["valid"] else "Draft validation found blockers.")
+        return _json_success(payload, message="Ready to Publish." if validation["valid"] else "Timetable check found issues.")
     except TimetableVersionError as exc:
         db.rollback(); return _json_error(str(exc))
 
@@ -1997,7 +2067,7 @@ async def publish_timetable_version(public_id: str, request: Request, db: Sessio
         selected = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
         published = TimetablePublicationService(db).publish(version_id=selected.id, school_group_id=group_id, branch_id=branch_id, academic_year_id=year_id, actor_user_id=str(current_user.user_id or "") or None, expected_edit_revision=edit_revision, expected_pointer_revision=pointer_revision)
         db.commit()
-        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=published.id), message=f"Version {published.version_number} is now the active timetable.")
+        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=published.id), message="This is now the official published timetable.")
     except TimetableVersionError as exc:
         db.rollback(); return _json_error(str(exc))
 
@@ -2028,6 +2098,32 @@ def compare_versions(request: Request, left: str, right: str, db: Session = Depe
         result = compare_timetable_versions(db, left=_resolve_scoped_version_public(db, left, group_id, branch_id, year_id), right=_resolve_scoped_version_public(db, right, group_id, branch_id, year_id))
         return JSONResponse({"ok": True, "comparison": result})
     except TimetableVersionError as exc: return _json_error(str(exc))
+
+
+@router.post("/api/versions/{public_id}/delete-working")
+def delete_working_timetable(public_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.delete_working"):
+        return _json_error("You do not have permission to delete the working timetable.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        version = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
+        discard_working_version(
+            db, version_id=version.id, school_group_id=group_id,
+            branch_id=branch_id, academic_year_id=year_id,
+            actor_user_id=str(current_user.user_id or "") or None,
+        )
+        db.commit()
+        return _json_success(
+            build_timetable_workspace_payload(db, branch_id, year_id),
+            message="Working timetable deleted. You can generate a new timetable.",
+        )
+    except TimetableVersionError as exc:
+        db.rollback()
+        return _json_error(str(exc))
 
 
 @router.post("/api/assign")

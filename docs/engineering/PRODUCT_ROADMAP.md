@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+### Simplified Timetable Workflow And Published Visibility
+
+Stage 5.2 is implemented with one Working Timetable, safe archive-based deletion,
+customer validation/publication language, secondary history, strict active-pointer
+official reads, and scoped My Timetable. Stage 5.1 solver constraints and concurrency
+are unchanged. Availability, rooms/resources, preferences, and student identities
+remain future separately approved work.
+
 ## M3 Promo Redemption And Organization Activation
 
 Completed secure customer lookup, resume-safe activation sessions, capacity

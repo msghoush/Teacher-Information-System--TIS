@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-26 - Implemented Smart Timetable Stage 5.2 Simplified Workflow
+
+- Simplified management around one Working Timetable and secondary Timetable History.
+- Added permissioned Delete Working Timetable archive semantics that preserve history
+  and never change the official active pointer.
+- Added active-pointer-only official resolution, teacher `/my-timetable`, a general
+  published view, and view-only redirection away from drafts.
+- Added scoped visibility, deletion, wording, permission, and Stage 4/5.1 regressions.
+
 ## 2026-08-22 - Implemented Smart Timetable Stage 5.1 Generation
 
 Added worker-isolated OR-Tools CP-SAT generation, schema-v3 immutable problem

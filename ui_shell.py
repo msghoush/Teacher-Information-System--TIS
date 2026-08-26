@@ -315,6 +315,7 @@ def _build_nav_items(
     can_any,
     new_notification_count: int = 0,
     new_demo_request_count: int = 0,
+    has_teacher_identity: bool = False,
 ):
     def is_active(target: str) -> bool:
         if target == "/dashboard":
@@ -358,6 +359,13 @@ def _build_nav_items(
             "href": "/timetable/",
             "icon": "timetable",
             "permission_keys": ("timetable.view",),
+        },
+        {
+            "label": "My Timetable",
+            "href": "/my-timetable",
+            "icon": "timetable",
+            "permission_keys": ("timetable.view",),
+            "teacher_only": True,
         },
         {
             "label": "Academic Calendar",
@@ -404,6 +412,8 @@ def _build_nav_items(
             "permission_mode": "any",
         },
     ):
+        if item.get("teacher_only") and not has_teacher_identity:
+            continue
         permission_mode = item.get("permission_mode", "all")
         permission_keys = tuple(item.get("permission_keys", ()))
         if permission_mode == "any":
@@ -416,7 +426,7 @@ def _build_nav_items(
             {
                 key: value
                 for key, value in item.items()
-                if key not in {"permission_keys", "permission_mode"}
+                if key not in {"permission_keys", "permission_mode", "teacher_only"}
             }
             | {"active": is_active(item["href"].rstrip("/")) if item["href"] != "/dashboard" else is_active("/dashboard")}
         )
@@ -561,6 +571,13 @@ def build_shell_context(
         )
     )
     current_user.permission_keys = permission_keys
+    has_teacher_identity = bool(
+        scoped_branch_id and scoped_academic_year_id and db.query(models.Teacher.id).filter(
+            models.Teacher.teacher_id == str(current_user.user_id or ""),
+            models.Teacher.branch_id == scoped_branch_id,
+            models.Teacher.academic_year_id == scoped_academic_year_id,
+        ).first()
+    )
 
     def can(permission_key: str) -> bool:
         return str(permission_key or "").strip() in permission_keys
@@ -695,6 +712,7 @@ def build_shell_context(
                 can_any=can_any,
                 new_notification_count=new_notification_count,
                 new_demo_request_count=new_demo_request_count,
+                has_teacher_identity=has_teacher_identity,
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,

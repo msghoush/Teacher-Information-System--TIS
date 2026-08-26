@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Smart Timetable Customer And Published-Visibility Boundary
+
+Stage 5.2 keeps internal versions but presents Configure → Ready → Generate → Review
+→ Regenerate/Delete Working Timetable → Publish. One newest mutable non-active
+version is the Working Timetable; technical selection, comparison, historical
+exports, and archive actions live in Timetable History.
+
+Publishing remains the atomic exact-scope active-pointer swap. Deleting a working
+timetable archives it without deleting placements, snapshots, runs, or published
+history. Official non-management reads use `timetable_visibility_service.py`, which
+accepts only `TimetableActiveVersion`. Teacher identity follows the existing scoped
+`User.user_id == Teacher.teacher_id` convention.
+
 ## Smart Timetable Generation Authority
 
 Stage 5.1 makes Planning-resolved section/subject/teacher demand, including
