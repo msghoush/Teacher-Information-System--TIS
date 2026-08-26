@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Project State
 
+## Smart Timetable Stage 5.2 Simplified Workflow Implemented
+
+The manager workspace now emphasizes Working Timetable, readiness, Generate or
+Regenerate, Check Timetable, Delete Working Timetable, and Publish Timetable.
+Technical lifecycle controls are secondary Timetable History features. The
+`timetable.delete_working` action archives safely without moving the active pointer.
+
+Published-only `/my-timetable` and `/published-timetable` views resolve exclusively
+from `TimetableActiveVersion`. My Timetable fails closed without exact-scope teacher
+identity and filters to that teacher. `timetable.view`-only users are redirected away
+from management. No solver constraint, schema, migration, or production data changed.
+
 ## Smart Timetable Stage 5.1 Generator Implemented
 
 Authorized administrators can queue Generate or Regenerate from a

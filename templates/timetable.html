@@ -1463,6 +1463,7 @@
                 {% endif %}
                 <a class="hero-btn is-secondary" href="/planning/">{{ icon("planning", "icon") }} Planning</a>
                 <a class="hero-btn is-secondary" href="/teachers/">{{ icon("teachers", "icon") }} Teachers</a>
+                <a class="hero-btn is-secondary" href="/timetable?history=1">Timetable History</a>
             </div>
         </div>
 
@@ -1472,7 +1473,7 @@
                     <div class="version-identity" id="versionStatusTitle">No timetable version selected</div>
                     <div class="version-notice" id="versionNotice"></div>
                 </div>
-                <select class="version-select" id="versionSelector" aria-label="Review timetable version"></select>
+                <select class="version-select{% if not history_mode %} is-hidden{% endif %}" id="versionSelector" aria-label="Timetable History"></select>
             </div>
             <div class="version-actions" id="versionActions"></div>
             <div class="comparison-panel" id="comparisonPanel">
@@ -1646,7 +1647,9 @@
         const canPublishTimetable = {{ can_publish_timetable | tojson }};
         const canGenerateTimetable = {{ can_generate_timetable | tojson }};
         const canArchiveVersions = {{ can_archive_versions | tojson }};
+        const canDeleteWorking = {{ can_delete_working | tojson }};
         const canExportTimetable = {{ can_export_timetable | tojson }};
+        const historyMode = {{ history_mode | tojson }};
         const state = {
             payload: {{ timetable_payload | tojson }},
             activeView: "section",
@@ -2260,24 +2263,23 @@
             const version = state.payload.version || null;
             const versions = Array.isArray(state.payload.versions) ? state.payload.versions : [];
             if (!version) {
-                versionStatusTitle.textContent = "No timetable version yet";
-                versionNotice.textContent = "Create the first manual placement to begin a draft.";
+                versionStatusTitle.textContent = "No Working Timetable";
+                versionNotice.textContent = "Configure the timetable, then generate a working timetable.";
                 versionSelector.innerHTML = `<option>No versions available</option>`;
                 versionActions.innerHTML = "";
                 return;
             }
-            const displayStatus = String(version.display_status || version.lifecycle_status || "draft").replaceAll("_", " ");
+            const displayStatus = version.is_active ? "Published" : (version.lifecycle_status === "publication_ready" ? "Ready to Publish" : "Working Timetable");
             versionStatusTitle.innerHTML = `
-                <span>Version ${normalizeInt(version.version_number)}</span>
+                <span>${version.is_active ? "Published Timetable" : "Working Timetable"}</span>
                 <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(displayStatus.replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span>
-                <span class="version-badge">${escapeHtml(String(version.origin || "manual").replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span>
-                <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Stale" : "Fresh"}</span>
+                <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Needs Review" : "Current"}</span>
                 ${version.has_manual_changes ? `<span class="version-badge">Manual changes</span>` : ""}
             `;
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
-                : (!version.is_mutable ? "Published and historical timetables are read-only. Create a draft to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`);
+                : (!version.is_mutable ? "Published and historical timetables are read-only. Make a working copy to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`);
             versionSelector.innerHTML = versions.map((item) => `<option value="${escapeHtml(item.public_id)}" ${item.public_id === version.public_id ? "selected" : ""}>${escapeHtml(versionLabel(item))}</option>`).join("");
             versionActions.innerHTML = "";
             const addButton = (label, handler, primary = false) => {
@@ -2285,19 +2287,20 @@
                 button.type = "button"; button.className = `hero-btn ${primary ? "is-primary" : "is-secondary"}`;
                 button.textContent = label; button.disabled = state.busy; button.addEventListener("click", handler); versionActions.appendChild(button);
             };
-            if (!version.is_mutable && canCreateTimetable) addButton("Create Draft from This Version", () => callVersionAction("copy"), true);
-            if (version.is_mutable && canModifyTimetable) addButton("Validate Draft", () => callVersionAction("validate"), true);
+            if (!version.is_mutable && canCreateTimetable) addButton("Make Working Copy", () => callVersionAction("copy"), true);
+            if (version.is_mutable && canModifyTimetable) addButton("Check Timetable", () => callVersionAction("validate"), true);
             const validation = state.payload.validation || {};
             if (canPublishTimetable && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
                 addButton("Publish Timetable", () => {
                     const scope = state.payload.scope || {};
-                    const prompt = `Publish Version ${version.version_number} as the active timetable for ${scope.branch_name || "this branch"} · ${scope.academic_year_name || "this academic year"}?\n\nThe current active timetable will be preserved in version history as Superseded.`;
+                    const prompt = `Publish this timetable as the official timetable for ${scope.branch_name || "this branch"} · ${scope.academic_year_name || "this academic year"}?\n\nThe previous published timetable will remain in Timetable History.`;
                     if (window.confirm(prompt)) callVersionAction("publish");
                 }, true);
             }
-            if (canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Version", () => { if (window.confirm(`Archive Version ${version.version_number}?`)) callVersionAction("archive"); });
-            addButton("Compare Versions", () => comparisonPanel.classList.toggle("is-visible"));
-            if (canExportTimetable) {
+            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => { if (window.confirm("Delete Working Timetable? Published timetable history will not be changed.")) callVersionAction("delete-working"); });
+            if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
+            if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
+            if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
                 const pdf = document.createElement("a"); pdf.className = "hero-btn is-secondary"; pdf.textContent = "Export This Version (PDF)"; pdf.target = "_blank"; pdf.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.pdf`; versionActions.appendChild(pdf);
             }

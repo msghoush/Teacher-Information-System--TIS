@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Smart Timetable Stage 5.2 Components
+
+- `timetable_visibility_service.py`: active-pointer-only reads and scoped teacher identity.
+- `routers/timetable.py`: simplified workflow, working deletion, and published routes.
+- `templates/timetable.html`: Working Timetable workflow and secondary history.
+- `templates/published_timetable.html`: control-free official lesson view.
+- `timetable_version_service.py`: working resolution and safe archive/discard.
+
 ## Smart Timetable Stage 5.1 Components
 
 - `timetable_generation_service.py`: exact-scope enqueue/idempotency, generation

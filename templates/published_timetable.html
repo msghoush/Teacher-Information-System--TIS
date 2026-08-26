@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}{{ "My Timetable" if teacher_only else "Published Timetable" }}{% endblock %}
+{% block content %}
+<section class="page-shell">
+  <div class="page-header"><div><span class="eyebrow">Published</span>
+    <h2>{{ "My Timetable" if teacher_only else "Published Timetable" }}</h2>
+    {% if payload %}<p>{{ payload.branch_name }} · {{ payload.academic_year_name }}</p>{% endif %}
+  </div></div>
+  {% if identity_missing %}
+    <div class="empty-state">Your account is not linked to a teacher in the selected branch and academic year.</div>
+  {% elif not payload or not payload.published %}
+    <div class="empty-state">No published timetable is available yet.</div>
+  {% elif not payload.entries %}
+    <div class="empty-state">No lessons are assigned to you in the published timetable.</div>
+  {% else %}
+    <div class="table-wrap"><table class="data-table"><thead><tr><th>Day</th><th>Period</th><th>Time</th><th>Subject</th><th>Section / Class</th></tr></thead>
+    <tbody>{% for lesson in payload.entries %}<tr><td>{{ lesson.day }}</td><td>{{ lesson.period }}</td><td>{{ lesson.time }}</td><td>{{ lesson.subject }}{% if lesson.subject_code %} ({{ lesson.subject_code }}){% endif %}</td><td>{{ lesson.section }}</td></tr>{% endfor %}</tbody></table></div>
+  {% endif %}
+</section>
+{% endblock %}

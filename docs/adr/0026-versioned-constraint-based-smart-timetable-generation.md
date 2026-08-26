@@ -67,6 +67,17 @@ and diversity. A final current-input rebuild gates one atomic transaction that
 creates a publication-ready unpublished version and entries and completes the run.
 Generation never changes `TimetableActiveVersion` or published history.
 
+Stage 5.2 preserves these internals but makes the newest mutable non-active version
+the customer Working Timetable. Delete Working Timetable archives that candidate
+under exact-scope locks, preserves entries, snapshots, runs, and history, rejects an
+active generation, and never changes the active pointer. Technical version controls
+remain in secondary Timetable History.
+
+Official non-management consumption is separate from operational resolution.
+`timetable_visibility_service.py` resolves strictly through `TimetableActiveVersion`.
+`/my-timetable` additionally requires exact-scope `User.user_id == Teacher.teacher_id`
+identity and filters to that teacher; view-only users cannot consume mutable history.
+
 Exports are version-aware and preserve their current presentation. Future availability, rooms/resources, cross-campus coordination, normalized teaching/non-teaching slots, rule authoring, and generation preferences require separately approved stages and snapshot-schema evolution.
 
 ## Rejected Alternatives
@@ -85,7 +96,7 @@ Exports are version-aware and preserve their current presentation. Future availa
 - Stage 3/3.5 implements composed canonical slot projection and structural readiness on stable snapshots; valid inserted blocks do not consume teaching-period indexes.
 - Stage 4 implements version comparison and truthful publication without mutating active history. Stage 5.1 adds generation on this boundary without changing publication authority.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
-- Stage 5.1 adds a durable worker process, real phase polling, and independent validation; availability, rooms/resources, preferences, quality scoring, and Stage 5.2 UX remain later decisions.
+- Stage 5.1 adds a durable worker process, real phase polling, and independent validation. Stage 5.2 adds simplified workflow and published-only visibility without changing the solver. Availability, rooms/resources, preferences, and quality scoring remain later decisions.
 
 ## Related Files
 
@@ -98,5 +109,6 @@ Exports are version-aware and preserve their current presentation. Future availa
 - `timetable_solution_validator.py`
 - `timetable_generation_service.py`
 - `timetable_generation_worker.py`
+- `timetable_visibility_service.py`
 - `timetable_logic.py`
 - `routers/timetable.py`

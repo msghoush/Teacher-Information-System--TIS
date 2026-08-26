@@ -189,8 +189,8 @@ def test_archive_allows_draft_and_superseded_but_not_active(db):
 def test_stage4_ui_and_permissions_are_declared():
     template = open("templates/timetable.html", encoding="utf-8").read()
     permissions = open("permission_registry.py", encoding="utf-8").read()
-    assert "Create Draft from This Version" in template
-    assert "Validate Draft" in template
+    assert "Make Working Copy" in template
+    assert "Check Timetable" in template
     assert "Publish Timetable" in template
     assert "Export This Version" in template
     assert "Timetable Readiness" in template

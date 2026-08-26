@@ -126,6 +126,31 @@ def resolve_operational_version(
     ).first()
 
 
+def resolve_working_version(
+    db: Session,
+    *,
+    school_group_id: int,
+    branch_id: int,
+    academic_year_id: int,
+) -> models.TimetableVersion | None:
+    """Return the single newest mutable, unpublished customer working copy."""
+    active = resolve_active_version(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    active_id = int(active.id) if active else 0
+    return db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.school_group_id == school_group_id,
+        models.TimetableVersion.branch_id == branch_id,
+        models.TimetableVersion.academic_year_id == academic_year_id,
+        models.TimetableVersion.lifecycle_status.in_(MUTABLE_LIFECYCLE_STATUSES),
+        models.TimetableVersion.id != active_id,
+    ).order_by(
+        models.TimetableVersion.version_number.desc(),
+        models.TimetableVersion.id.desc(),
+    ).first()
+
+
 def _allocate_next_version_number(
     db: Session,
     *,
@@ -669,3 +694,54 @@ def archive_version(
     version.archived_by_user_id = actor_user_id
     version.updated_at = datetime.utcnow()
     db.flush()
+
+
+def discard_working_version(
+    db: Session,
+    *,
+    version_id: int,
+    school_group_id: int,
+    branch_id: int,
+    academic_year_id: int,
+    actor_user_id: str | None,
+) -> models.TimetableVersion:
+    """Archive the current working copy while preserving every historical row."""
+    db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).with_for_update().one()
+    version = lock_scoped_version(
+        db, version_id=version_id, school_group_id=school_group_id,
+        branch_id=branch_id, academic_year_id=academic_year_id,
+    )
+    current = resolve_working_version(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    if current is None or int(current.id) != int(version.id):
+        raise TimetableVersionError(
+            "working_version_changed",
+            "The working timetable changed. Refresh before deleting it.",
+        )
+    if is_active_version(db, version):
+        raise TimetableVersionError(
+            "published_delete_forbidden", "The published timetable cannot be deleted."
+        )
+    active_run = db.query(models.TimetableGenerationRun.id).filter(
+        models.TimetableGenerationRun.school_group_id == school_group_id,
+        models.TimetableGenerationRun.branch_id == branch_id,
+        models.TimetableGenerationRun.academic_year_id == academic_year_id,
+        models.TimetableGenerationRun.status.in_(
+            ("queued", "running", "validating", "cancel_requested")
+        ),
+    ).first()
+    if active_run:
+        raise TimetableVersionError(
+            "generation_in_progress",
+            "Wait for timetable generation to finish before deleting the working timetable.",
+        )
+    version.lifecycle_status = "archived"
+    version.archived_at = datetime.utcnow()
+    version.archived_by_user_id = actor_user_id
+    version.updated_at = datetime.utcnow()
+    db.flush()
+    return version

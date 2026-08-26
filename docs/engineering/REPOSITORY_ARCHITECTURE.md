@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Repository Architecture
 
+## Published Timetable Consumption Boundary
+
+`timetable_visibility_service.py` validates exact scope and resolves official data
+only through `TimetableActiveVersion`; it never uses operational draft resolution.
+`routers/timetable.py` retains management workflow, while separately mounted
+`/my-timetable` and `/published-timetable` routes expose filtered published payloads.
+`timetable_version_service.py` owns locked, history-preserving working discard.
+
 ## Smart Timetable Generation Boundary
 
 `routers/timetable.py` and `timetable_generation_service.py` are the web-safe
