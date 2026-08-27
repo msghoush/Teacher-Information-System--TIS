@@ -1465,7 +1465,7 @@
             <div class="hero-copy">
                 <span class="hero-kicker">{{ icon("timetable", "icon") }} Weekly Scheduling Workspace</span>
                 <h2>Weekly Timetable</h2>
-                <p>Schedule lessons using current planning data, teacher assignments, and timetable settings.</p>
+                <p>Configure → Generate Draft → Review/Edit Draft → Publish to Users</p>
             </div>
             <div class="hero-actions">
                 {% if can("timetable.export") %}
@@ -2186,7 +2186,7 @@
             generationActionBtn.disabled = state.busy;
             generationCancelBtn.disabled = state.busy;
             generationActionBtn.textContent = generation.primary_action === "regenerate"
-                ? "Regenerate Timetable" : "Generate Timetable";
+                ? "Regenerate Draft" : "Generate Draft";
             if (activeRun) {
                 generationTitle.textContent = activeRun.phase_label || "Generating Timetable";
                 generationMessage.textContent = activeRun.message || "You can leave this page; progress is saved.";
@@ -2195,7 +2195,7 @@
                 generationTitle.textContent = latestRun.phase_label || "Generation Failed";
                 generationMessage.textContent = latestRun.message || "Review the timetable inputs and try again.";
             } else if (generation.primary_action === "regenerate") {
-                generationTitle.textContent = "Working timetable ready";
+                generationTitle.textContent = "Draft timetable ready";
                 generationMessage.textContent = "Create a meaningfully different valid timetable while preserving locked lessons.";
             } else {
                 generationTitle.textContent = "Ready to generate";
@@ -2310,7 +2310,7 @@
             if (item.was_published) return "Previously Published";
             if (item.lifecycle_status === "publication_ready") return "Ready to Publish";
             if (item.lifecycle_status === "archived") return "Archived";
-            return "Working Timetable";
+            return "Draft Timetable";
         };
 
         const deleteHistoryVersion = async (item) => {
@@ -2355,8 +2355,8 @@
             const version = state.payload.version || null;
             const versions = Array.isArray(state.payload.versions) ? state.payload.versions : [];
             if (!version) {
-                versionStatusTitle.textContent = "No Working Timetable";
-                versionNotice.textContent = "Configure the timetable, then generate a working timetable.";
+                versionStatusTitle.textContent = "No Draft Timetable";
+                versionNotice.textContent = "Configure the timetable, then generate a draft timetable.";
                 versionActions.innerHTML = "";
                 renderHistoryVersions(versions, null);
                 return;
@@ -2366,11 +2366,11 @@
                 <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(friendlyVersionStatus(version))}</span>
                 <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Needs Review" : "Current"}</span>
                 ${version.has_manual_changes ? `<span class="version-badge">Manual changes</span>` : ""}
-            ` : `<span>${version.is_active ? "Published Timetable" : "Working Timetable"}</span>`;
+            ` : `<span>${version.is_active ? "Published Timetable" : "Draft Timetable"}</span>`;
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
-                : (version.is_active ? "Official timetable currently visible to authorized users." : (!version.is_mutable ? "This historical timetable is read-only. Make a working copy to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`));
+                : (version.is_active ? "Published to Users · Official timetable currently visible to authorized users." : (!version.is_mutable ? "This historical timetable is read-only. Create a draft copy to make changes." : "Not Published Yet"));
             renderHistoryVersions(versions, version);
             versionActions.innerHTML = "";
             const addButton = (label, handler, primary = false) => {
@@ -2378,23 +2378,25 @@
                 button.type = "button"; button.className = `hero-btn ${primary ? "is-primary" : "is-secondary"}`;
                 button.textContent = label; button.disabled = state.busy; button.addEventListener("click", handler); versionActions.appendChild(button);
             };
-            if (!version.is_mutable && canCreateTimetable) addButton("Make Working Copy", () => callVersionAction("copy"), true);
+            const submitDraftAction = (path) => { const form = document.createElement("form"); form.method = "POST"; form.action = path; document.body.appendChild(form); form.submit(); };
+            if (version.is_active && canCreateTimetable) {
+                addButton("Edit This Timetable", () => submitDraftAction("/timetable/drafts/edit-published"), true);
+                addButton("Create New Timetable", () => submitDraftAction("/timetable/drafts/new"));
+            } else if (!version.is_mutable && canCreateTimetable) addButton("Create Draft Copy", () => callVersionAction("copy"), true);
             if (version.is_mutable && canModifyTimetable) addButton("Check Timetable", () => callVersionAction("validate"), true);
             const validation = state.payload.validation || {};
-            if (canPublishTimetable && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
+            if (canPublishTimetable && !version.is_active && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
                 addButton("Publish Timetable", () => {
                     const replacing = versions.some((item) => item.is_active && item.public_id !== version.public_id);
                     openConfirmation({
                         title: replacing ? "Replace the published timetable?" : "Publish this timetable?",
-                        message: replacing
-                            ? "Publishing this timetable will make it the official timetable visible to authorized users. The currently published timetable will move to Timetable History."
-                            : "This timetable will become the official timetable for this branch and academic year. Authorized teachers and users will be able to see it.",
+                        message: "This draft will become the official timetable for this branch and academic year. Authorized teachers and users will be able to see it.",
                         actionLabel: replacing ? "Replace & Publish to Users" : "Publish to Users",
                         onConfirm: () => callVersionAction("publish"),
                     });
                 }, true);
             }
-            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete-working") }));
+            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Draft Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete-working") }));
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {

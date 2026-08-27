@@ -26,12 +26,14 @@ from timetable_version_service import (
     TimetableVersionError,
     archive_version,
     copy_version_to_draft,
+    create_manual_draft,
     delete_unused_timetable_version,
     discard_working_version,
     ensure_compatibility_editable_version,
     mutate_draft_placement,
     move_or_swap_timetable_entry,
     resolve_scope_school_group_id,
+    resolve_active_version,
     set_entry_lock,
 )
 from timetable_visibility_service import (
@@ -1790,7 +1792,9 @@ def _published_page(request: Request, db: Session, *, teacher_only: bool):
     return templates.TemplateResponse(
         request, "published_timetable.html",
         {"request": request, "payload": payload, "identity_missing": identity_missing,
-         "teacher_only": teacher_only, **build_shell_context(
+         "teacher_only": teacher_only,
+         "can_create_timetable": bool(not teacher_only and auth.has_permission(db, current_user, "timetable.create")),
+         **build_shell_context(
              request, db, current_user, page_key="timetable",
              title="My Timetable" if teacher_only else "Published Timetable",
              intro="Your official published lessons." if teacher_only else "The official timetable for the selected branch and academic year.",
@@ -2041,7 +2045,42 @@ async def copy_timetable_version(public_id: str, request: Request, db: Session =
             raise TimetableVersionError("copy_source_mutable", "This timetable is already an editable draft.")
         draft = copy_version_to_draft(db, source_version=source, actor_user_id=str(current_user.user_id or "") or None)
         db.commit()
-        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=draft.id), message="Working timetable created from the selected historical timetable.")
+        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=draft.id), message="Draft timetable created from the selected timetable.")
+    except (TimetableVersionError, IntegrityError) as exc:
+        db.rollback(); return _json_error(str(exc))
+
+
+@router.post("/drafts/edit-published")
+def edit_published_timetable(request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect: return redirect
+    if not auth.has_permission(db, current_user, "timetable.create"):
+        return _json_error("You do not have permission to create timetable drafts.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        published = resolve_active_version(db, school_group_id=group_id, branch_id=branch_id, academic_year_id=year_id)
+        if published is None:
+            raise TimetableVersionError("published_version_missing", "No published timetable is available to edit.")
+        draft = copy_version_to_draft(db, source_version=published, actor_user_id=str(current_user.user_id or "") or None)
+        db.commit()
+        return RedirectResponse(url=f"/timetable?version={draft.public_id}", status_code=303)
+    except (TimetableVersionError, IntegrityError) as exc:
+        db.rollback(); return _json_error(str(exc))
+
+
+@router.post("/drafts/new")
+def create_new_timetable_draft(request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect: return redirect
+    if not auth.has_permission(db, current_user, "timetable.create"):
+        return _json_error("You do not have permission to create timetable drafts.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        draft = create_manual_draft(db, school_group_id=group_id, branch_id=branch_id, academic_year_id=year_id, actor_user_id=str(current_user.user_id or "") or None)
+        db.commit()
+        return RedirectResponse(url=f"/timetable?version={draft.public_id}", status_code=303)
     except (TimetableVersionError, IntegrityError) as exc:
         db.rollback(); return _json_error(str(exc))
 
@@ -2153,7 +2192,7 @@ def delete_working_timetable(public_id: str, request: Request, db: Session = Dep
         db.commit()
         return _json_success(
             build_timetable_workspace_payload(db, branch_id, year_id),
-            message="Working timetable deleted. You can generate a new timetable.",
+            message="Timetable deleted successfully.",
         )
     except TimetableVersionError as exc:
         db.rollback()
@@ -2171,14 +2210,17 @@ def delete_timetable_version(public_id: str, request: Request, db: Session = Dep
     try:
         group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
         version = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
+        deleted_version_id = int(version.id)
         delete_unused_timetable_version(
             db, version_id=version.id, school_group_id=group_id,
             branch_id=branch_id, academic_year_id=year_id,
         )
         db.commit()
+        if db.query(models.TimetableVersion.id).filter(models.TimetableVersion.id == deleted_version_id).first():
+            return _json_error("The timetable could not be deleted. Refresh and try again.", 500)
         return _json_success(
             build_timetable_workspace_payload(db, branch_id, year_id),
-            message="Timetable deleted",
+            message="Timetable deleted successfully.",
         )
     except TimetableVersionError as exc:
         db.rollback()
