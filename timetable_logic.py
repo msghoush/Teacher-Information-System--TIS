@@ -7,6 +7,7 @@ import models
 from homeroom_defaults import is_default_homeroom_subject
 from subject_colors import build_subject_theme, resolve_subject_color
 from teacher_capacity import get_teacher_international_capacity_hours
+from timetable_slot_service import format_time_range
 
 
 WORKING_DAY_OPTIONS = (
@@ -208,9 +209,8 @@ def build_time_slots(
                 "short_label": f"P{period_index}",
                 "start_time": format_minutes_as_time(current_minutes),
                 "end_time": format_minutes_as_time(end_minutes),
-                "time_range": (
-                    f"{format_minutes_as_time(current_minutes)} - "
-                    f"{format_minutes_as_time(end_minutes)}"
+                "time_range": format_time_range(
+                    format_minutes_as_time(current_minutes), format_minutes_as_time(end_minutes)
                 ),
             }
         )
@@ -311,11 +311,7 @@ def serialize_timetable_block(block_row, working_day_keys, time_slots: list[dict
         "end_time": end_time,
         "start_minutes": start_minutes,
         "end_minutes": end_minutes,
-        "time_range": (
-            f"{start_time} - {end_time}"
-            if start_time and end_time
-            else ""
-        ),
+        "time_range": format_time_range(start_time, end_time),
         "accent": theme["accent"],
         "soft": theme["soft"],
         "border": theme["border"],
@@ -638,11 +634,7 @@ def normalize_non_teaching_block_values(
         "end_time": normalized_end_time,
         "start_minutes": parsed_start_minutes,
         "end_minutes": parsed_end_minutes,
-        "time_range": (
-            f"{normalized_start_time} - {normalized_end_time}"
-            if normalized_start_time and normalized_end_time
-            else ""
-        ),
+        "time_range": format_time_range(normalized_start_time, normalized_end_time),
         "start_period": (
             min(overlapping_period_indexes)
             if overlapping_period_indexes
@@ -1264,6 +1256,7 @@ def build_timetable_workspace_payload(
         validation = TimetableDraftValidationService(db).validate(version=selected_version)
     return {
         "scope": {
+            "school_name": str(getattr(db.get(models.SchoolGroup, school_group_id), "name", "") or "School") if 'school_group_id' in locals() else "School",
             "branch_name": str(getattr(branch_row, "name", "") or "Selected Branch"),
             "academic_year_name": str(getattr(year_row, "year_name", "") or "Selected Academic Year"),
         },

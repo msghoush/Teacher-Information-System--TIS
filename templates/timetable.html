@@ -191,6 +191,12 @@
         background: linear-gradient(135deg, #0a4ea3, #073a7d);
     }
 
+    .inspector-btn.is-danger {
+        color: #ffffff;
+        background: linear-gradient(135deg, #c53030, #8f1d1d);
+        border-color: #8f1d1d;
+    }
+
     .hero-btn.is-secondary,
     .inspector-btn.is-secondary,
     .option-btn {
@@ -2277,10 +2283,11 @@
             }
         };
 
-        const openConfirmation = ({ title, message, actionLabel, onConfirm }) => {
+        const openConfirmation = ({ title, message, actionLabel, onConfirm, destructive = false }) => {
             publishDialogTitle.textContent = title;
             publishDialogCopy.textContent = message;
             publishConfirmBtn.textContent = actionLabel;
+            publishConfirmBtn.className = `inspector-btn ${destructive ? "is-danger" : "is-primary"}`;
             pendingConfirmationAction = onConfirm;
             publishDialog.showModal();
         };
@@ -2334,9 +2341,9 @@
                     });
                 }, true);
             }
-            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => openConfirmation({ title: "Delete Working Timetable?", message: "The current working timetable will be removed. Published timetable history will not be changed.", actionLabel: "Delete Working Timetable", onConfirm: () => callVersionAction("delete-working") }));
+            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete-working") }));
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
-            if (historyMode && canArchiveVersions && !version.is_active && !version.was_published && version.lifecycle_status !== "superseded") addButton("Delete Timetable", () => openConfirmation({ title: "Delete Timetable?", message: "Permanently delete this unused timetable and its scheduled lessons? This cannot be undone.", actionLabel: "Delete Timetable", onConfirm: () => callVersionAction("delete") }), true);
+            if (historyMode && canArchiveVersions && !version.is_active && !version.was_published && version.lifecycle_status !== "superseded") addButton("Delete Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }), true);
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);

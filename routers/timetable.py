@@ -758,6 +758,7 @@ def _write_overview_sheet(
     sheet = workbook.active
     sheet.title = "Overview"
     version = workspace_payload.get("version") or {}
+    scope = workspace_payload.get("scope") or {}
     source_label = "Published Timetable" if version.get("is_active") else "Working Timetable"
     version_note = (
         f" | {source_label} | Version {version.get('version_number')}"
@@ -867,6 +868,7 @@ def _write_entity_timetable_sheet(
     title: str,
     sheet_name: str,
     entity_kind: str,
+    export_subtitle: str = "",
 ):
     days = workspace_payload.get("days", [])
     board_rows = _build_export_board_rows(workspace_payload)
@@ -883,11 +885,11 @@ def _write_entity_timetable_sheet(
     row = _prepare_excel_sheet(
         sheet,
         title=title,
-        subtitle="Each cell shows the saved subject placement from the live timetable workspace.",
+        subtitle=export_subtitle or "Each cell shows the saved subject placement from the live timetable workspace.",
         total_columns=total_columns,
     )
     for column_index in range(1, total_columns + 1):
-        sheet.column_dimensions[get_column_letter(column_index)].width = 16 if column_index <= 2 else 24
+        sheet.column_dimensions[get_column_letter(column_index)].width = 16 if column_index <= 2 else 28
 
     if not entities:
         sheet.cell(row=row, column=1, value=f"No {sheet_name.lower()} are available.")
@@ -995,11 +997,10 @@ def _write_entity_timetable_sheet(
                 else:
                     entry = entry_lookup.get((entity_id, day_key, period_index))
                     cell.value = "\n".join(part for part in [
-                        day_slot.get("time_range") or "",
                         _format_timetable_entry_for_excel(entry, entity_kind),
+                        day_slot.get("time_range") or "",
                     ] if part)
                     if entry:
-                        _add_excel_subject_icon(sheet, cell, entry)
                         cell.fill = PatternFill(
                             start_color=_safe_excel_hex(entry.get("subject_color_soft"), "F4F8FF"),
                             end_color=_safe_excel_hex(entry.get("subject_color_soft"), "F4F8FF"),
@@ -1015,7 +1016,7 @@ def _write_entity_timetable_sheet(
                         cell.fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
                         cell.font = Font(color=EXCEL_MUTED, size=9)
                         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            sheet.row_dimensions[row].height = 42
+            sheet.row_dimensions[row].height = 54
             row += 1
         _style_excel_table_area(sheet, table_start, row - 1, total_columns)
         row += 2
@@ -1025,7 +1026,6 @@ def _write_entity_timetable_sheet(
 def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
     sheet = workbook.create_sheet("Subject Remaining")
     headers = [
-        "Icon",
         "Section",
         "Grade",
         "Subject Code",
@@ -1058,7 +1058,6 @@ def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
                 else "Needs scheduling"
             )
             values = [
-                "",
                 section.get("section_label", ""),
                 section.get("grade_label", ""),
                 option.get("subject_code", ""),
@@ -1071,15 +1070,14 @@ def _write_subject_remaining_sheet(workbook: Workbook, workspace_payload: dict):
             ]
             for column_index, value in enumerate(values, start=1):
                 sheet.cell(row=row, column=column_index, value=value)
-            icon_cell = sheet.cell(row=row, column=1)
-            _add_excel_subject_icon(sheet, icon_cell, option, display_size=16)
-            icon_cell.alignment = Alignment(horizontal="center", vertical="center")
-            sheet.row_dimensions[row].height = 22
+            for cell in sheet[row]:
+                cell.alignment = Alignment(vertical="center", wrap_text=True)
+            sheet.row_dimensions[row].height = 28
             fill_color = "DCFCE7" if status == "Complete" else "FEE2E2" if status == "Teacher missing" else "FFF4E6"
+            sheet.cell(row=row, column=8).fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
             sheet.cell(row=row, column=9).fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
-            sheet.cell(row=row, column=10).fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type="solid")
     _style_excel_table_area(sheet, table_start, row, len(headers))
-    for column_index, width in enumerate([8, 24, 10, 14, 30, 28, 14, 12, 12, 18], start=1):
+    for column_index, width in enumerate([24, 10, 14, 30, 32, 14, 12, 12, 18], start=1):
         sheet.column_dimensions[get_column_letter(column_index)].width = width
     sheet.freeze_panes = "A5"
     sheet.auto_filter.ref = f"A{table_start}:{get_column_letter(len(headers))}{row}"
@@ -1093,6 +1091,14 @@ def _build_timetable_xlsx_bytes(
 ) -> bytes:
     generated_at = datetime.now()
     workbook = Workbook()
+    version = workspace_payload.get("version") or {}
+    scope = workspace_payload.get("scope") or {}
+    source_label = "Published Timetable" if version.get("is_active") else "Working Timetable"
+    export_subtitle = (
+        f"School: {scope.get('school_name') or 'School'} | Branch: {branch_name} | "
+        f"Academic Year: {academic_year_name} | {source_label} | "
+        f"Version {version.get('version_number')} | Exported {generated_at.strftime('%Y-%m-%d %H:%M')}"
+    )
     _write_overview_sheet(
         workbook,
         workspace_payload,
@@ -1107,13 +1113,16 @@ def _build_timetable_xlsx_bytes(
         title="Timetable By Section",
         sheet_name="By Section",
         entity_kind="section",
+        export_subtitle=export_subtitle,
     )
+    workbook.move_sheet("By Section", offset=-1)
     _write_entity_timetable_sheet(
         workbook,
         workspace_payload,
         title="Timetable By Teacher",
         sheet_name="By Teacher",
         entity_kind="teacher",
+        export_subtitle=export_subtitle,
     )
     _write_subject_remaining_sheet(workbook, workspace_payload)
 
@@ -1544,6 +1553,7 @@ def _draw_pdf_timetable_grid(
             day_slot = row_item.get("items_by_day", {}).get(day_key, slot)
             blocked_slot = blocked_lookup.get((day_key, period_index))
             entry = entry_lookup.get((entity_id, day_key, period_index))
+            time_line = ""
             if blocked_slot:
                 fill_color = "#F3F6F9"
                 top_line = blocked_slot.get("label", "Blocked")
@@ -1553,7 +1563,7 @@ def _draw_pdf_timetable_grid(
                 fill_color = f"#{_safe_excel_hex(entry.get('subject_color_soft'), 'F4F8FF')}"
                 top_line = f"{entry.get('subject_code', '')} {entry.get('subject_name', '')}".strip()
                 bottom_line = (entry.get("teacher_name") if entity_kind == "section" else entry.get("section_label"))
-                bottom_line = f"{day_slot.get('time_range', '')} {bottom_line or ''}".strip()
+                time_line = day_slot.get("time_range", "")
                 if entry.get("status") == "stale":
                     bottom_line = "Needs review"
                 text_color = f"#{_safe_excel_hex(entry.get('subject_color_text'), EXCEL_TEXT)}"
@@ -1568,21 +1578,11 @@ def _draw_pdf_timetable_grid(
             if top_line:
                 text_x = x + 4
                 max_chars = max(10, int(day_width / 4.5))
-                if entry:
-                    icon_size = 10
-                    icon_y = y + row_height - 17
-                    pdf.image(
-                        pdf.subject_icon_name(entry, display_size=icon_size),
-                        x + 4,
-                        icon_y,
-                        icon_size,
-                        icon_size,
-                    )
-                    text_x = x + 17
-                    max_chars = max(8, int((day_width - 17) / 4.5))
                 pdf.text(text_x, y + row_height - 13, _pdf_truncate(top_line, max_chars), size=6.4, color=text_color, bold=True)
             if bottom_line:
-                pdf.text(x + 4, y + 8, _pdf_truncate(bottom_line, max(10, int(day_width / 4.5))), size=5.8, color="#60728C")
+                pdf.text(x + 4, y + 14, _pdf_truncate(bottom_line, max(10, int(day_width / 4.5))), size=5.8, color="#60728C")
+            if time_line:
+                pdf.text(x + 4, y + 5, _pdf_truncate(time_line, 16), size=5.6, color="#60728C")
             x += day_width
         pdf.line(pdf.margin, y, pdf.margin + grid_width, y, "#D8E5F4", 0.35)
     pdf.y = y - 12
@@ -1596,6 +1596,7 @@ def _build_timetable_pdf_bytes(
 ) -> bytes:
     generated_at = datetime.now()
     version = workspace_payload.get("version") or {}
+    scope = workspace_payload.get("scope") or {}
     source_label = "Published Timetable" if version.get("is_active") else "Working Timetable"
     version_note = (
         f" | {source_label} | Version {version.get('version_number')}"
@@ -1605,7 +1606,7 @@ def _build_timetable_pdf_bytes(
         version_note += " | STALE"
     pdf = _TimetablePdf(
         "Weekly Timetable",
-        f"{branch_name} | Academic Year {academic_year_name} | Generated {generated_at.strftime('%Y-%m-%d %H:%M')}{version_note}",
+        f"School: {scope.get('school_name') or 'School'} | Branch: {branch_name} | Academic Year {academic_year_name} | Generated {generated_at.strftime('%Y-%m-%d %H:%M')}{version_note}",
         logo_assets=logo_assets,
     )
     pdf.paragraph(
