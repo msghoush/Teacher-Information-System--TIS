@@ -1177,6 +1177,10 @@
         box-shadow: 0 24px 54px rgba(18, 37, 60, 0.22);
     }
 
+    dialog.assignment-panel:not([open]) { display: none; }
+    #publishDialog { width: min(560px, calc(100% - 32px)); min-height: 0; grid-template-rows: auto auto; padding: 0; }
+    #publishDialog::backdrop { background: rgba(18, 37, 60, 0.5); backdrop-filter: blur(2px); }
+
     .assignment-panel-header,
     .assignment-panel-footer {
         display: flex;
@@ -1409,6 +1413,8 @@
             border-radius: 0;
         }
 
+        #publishDialog { width: calc(100% - 24px); min-height: 0; border-radius: 16px; }
+
         .assignment-option-grid {
             grid-template-columns: 1fr;
         }
@@ -1453,8 +1459,8 @@
                 <details class="timetable-export-menu">
                     <summary class="hero-btn is-primary">{{ icon("download", "icon") }} Export Timetable</summary>
                     <div class="timetable-export-menu-panel">
-                        <a href="/timetable/export.xlsx">{{ icon("spreadsheet", "icon") }} Excel Workbook</a>
-                        <a href="/timetable/export.pdf" target="_blank" rel="noopener">{{ icon("report", "icon") }} Printable PDF</a>
+                        <a id="workspaceExportXlsx" href="/timetable/export.xlsx">{{ icon("spreadsheet", "icon") }} XLSX</a>
+                        <a id="workspaceExportPdf" href="/timetable/export.pdf" target="_blank" rel="noopener">{{ icon("report", "icon") }} PDF</a>
                     </div>
                 </details>
                 {% endif %}
@@ -1634,11 +1640,11 @@
     </div>
     <dialog id="publishDialog" class="assignment-panel">
         <header class="assignment-panel-header">
-            <div class="assignment-panel-title"><h4 id="publishDialogTitle"></h4><p id="publishDialogCopy"></p></div>
+            <div class="assignment-panel-title"><h4 id="publishDialogTitle">Confirm timetable action</h4><p id="publishDialogCopy">Review this action before continuing.</p></div>
         </header>
         <footer class="assignment-panel-footer">
             <button type="button" class="inspector-btn is-secondary" id="publishCancelBtn">Cancel</button>
-            <button type="button" class="inspector-btn is-primary" id="publishConfirmBtn"></button>
+            <button type="button" class="inspector-btn is-primary" id="publishConfirmBtn">Continue</button>
         </footer>
     </dialog>
 </section>
@@ -1732,6 +1738,9 @@
         const publishDialogCopy = document.getElementById("publishDialogCopy");
         const publishCancelBtn = document.getElementById("publishCancelBtn");
         const publishConfirmBtn = document.getElementById("publishConfirmBtn");
+        const workspaceExportXlsx = document.getElementById("workspaceExportXlsx");
+        const workspaceExportPdf = document.getElementById("workspaceExportPdf");
+        let pendingConfirmationAction = null;
 
         const normalizeInt = (value) => {
             const parsedValue = Number.parseInt(String(value ?? "").trim(), 10);
@@ -2268,6 +2277,14 @@
             }
         };
 
+        const openConfirmation = ({ title, message, actionLabel, onConfirm }) => {
+            publishDialogTitle.textContent = title;
+            publishDialogCopy.textContent = message;
+            publishConfirmBtn.textContent = actionLabel;
+            pendingConfirmationAction = onConfirm;
+            publishDialog.showModal();
+        };
+
         const versionLabel = (item) => {
             const status = String(item.display_status || item.lifecycle_status || "").replaceAll("_", " ");
             return `Version ${normalizeInt(item.version_number)} · ${status.replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase())}${item.is_stale ? " · Stale" : ""}`;
@@ -2307,17 +2324,19 @@
             if (canPublishTimetable && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
                 addButton("Publish Timetable", () => {
                     const replacing = versions.some((item) => item.is_active && item.public_id !== version.public_id);
-                    publishDialogTitle.textContent = replacing ? "Replace the published timetable?" : "Publish this timetable?";
-                    publishDialogCopy.textContent = replacing
-                        ? "Publishing this timetable will make it the official timetable visible to authorized users. The currently published timetable will move to Timetable History."
-                        : "This timetable will become the official timetable for this branch and academic year. Authorized teachers and users will be able to see it.";
-                    publishConfirmBtn.textContent = replacing ? "Replace & Publish to Users" : "Publish to Users";
-                    publishDialog.showModal();
+                    openConfirmation({
+                        title: replacing ? "Replace the published timetable?" : "Publish this timetable?",
+                        message: replacing
+                            ? "Publishing this timetable will make it the official timetable visible to authorized users. The currently published timetable will move to Timetable History."
+                            : "This timetable will become the official timetable for this branch and academic year. Authorized teachers and users will be able to see it.",
+                        actionLabel: replacing ? "Replace & Publish to Users" : "Publish to Users",
+                        onConfirm: () => callVersionAction("publish"),
+                    });
                 }, true);
             }
-            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => { if (window.confirm("Delete Working Timetable? Published timetable history will not be changed.")) callVersionAction("delete-working"); });
+            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => openConfirmation({ title: "Delete Working Timetable?", message: "The current working timetable will be removed. Published timetable history will not be changed.", actionLabel: "Delete Working Timetable", onConfirm: () => callVersionAction("delete-working") }));
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
-            if (historyMode && canArchiveVersions && !version.is_active && !version.was_published && version.lifecycle_status !== "superseded") addButton("Delete Timetable", () => { if (window.confirm("Delete Timetable permanently? This cannot be undone.")) callVersionAction("delete"); });
+            if (historyMode && canArchiveVersions && !version.is_active && !version.was_published && version.lifecycle_status !== "superseded") addButton("Delete Timetable", () => openConfirmation({ title: "Delete Timetable?", message: "Permanently delete this unused timetable and its scheduled lessons? This cannot be undone.", actionLabel: "Delete Timetable", onConfirm: () => callVersionAction("delete") }), true);
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
@@ -2327,6 +2346,8 @@
             compareLeft.innerHTML = compareOptions; compareRight.innerHTML = compareOptions;
             compareLeft.value = version.public_id;
             if (versions.length > 1) compareRight.value = versions.find((item) => item.public_id !== version.public_id).public_id;
+            if (workspaceExportXlsx) workspaceExportXlsx.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`;
+            if (workspaceExportPdf) workspaceExportPdf.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.pdf`;
         };
 
         const renderWeekLegend = () => {
@@ -3428,10 +3449,12 @@
 
         generationActionBtn.addEventListener("click", startGeneration);
         generationCancelBtn.addEventListener("click", cancelGeneration);
-        publishCancelBtn.addEventListener("click", () => publishDialog.close());
+        publishCancelBtn.addEventListener("click", () => { pendingConfirmationAction = null; publishDialog.close(); });
         publishConfirmBtn.addEventListener("click", () => {
+            const action = pendingConfirmationAction;
+            pendingConfirmationAction = null;
             publishDialog.close();
-            callVersionAction("publish");
+            if (action) action();
         });
 
         ensureSelection();

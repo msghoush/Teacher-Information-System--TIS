@@ -62,6 +62,7 @@ def test_existing_workspace_and_exports_resolve_operational_version(db):
     )
     assert xlsx[:2] == b"PK"
     assert pdf[:4] == b"%PDF"
+    assert b"Published Timetable" in pdf
 
 
 def test_existing_assignment_route_uses_copy_on_write_draft(db, monkeypatch):

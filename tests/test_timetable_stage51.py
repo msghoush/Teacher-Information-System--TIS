@@ -1,4 +1,5 @@
 import json
+import io
 import os
 import subprocess
 import sys
@@ -9,10 +10,12 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
+from openpyxl import load_workbook
 from sqlalchemy import create_engine, event as sa_event, inspect, text
 from sqlalchemy.orm import sessionmaker
 
 import models
+from routers import timetable as timetable_router
 from db_migrations import _smart_timetable_stage51_generator
 from timetable_generation_service import (
     TimetableGenerationError,
@@ -734,6 +737,27 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
         )
         assert payload["summary"]["scheduled_hours"] == 240
         assert payload["summary"]["remaining_hours"] == 0
+        assert payload["version"]["id"] == generated_id
+        assert payload["version"]["origin"] == "generated"
+        assert payload["version"]["is_active"] is False
+        xlsx = timetable_router._build_timetable_xlsx_bytes(
+            payload, "Main", "2026", logo_assets=[]
+        )
+        workbook = load_workbook(io.BytesIO(xlsx), data_only=True)
+        overview_values = [
+            str(cell.value) for row in workbook["Overview"].iter_rows() for cell in row
+            if cell.value is not None
+        ]
+        assert "Scheduled Periods" in overview_values
+        assert "240" in overview_values
+        assert "Remaining Periods" in overview_values
+        assert "0" in overview_values
+        assert any("Working Timetable | Version" in value for value in overview_values)
+        pdf = timetable_router._build_timetable_pdf_bytes(
+            payload, "Main", "2026", logo_assets=[]
+        )
+        assert pdf.startswith(b"%PDF")
+        assert b"Working Timetable" in pdf
         assert len(payload["sections"]) == 6
         assert all(section["scheduled_hours"] == 40 for section in payload["sections"])
         assert all(section["remaining_hours"] == 0 for section in payload["sections"])
