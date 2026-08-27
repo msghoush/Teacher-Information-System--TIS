@@ -195,7 +195,7 @@ def test_stage4_ui_and_permissions_are_declared():
     assert "Export This Version" in template
     assert "Timetable Readiness" in template
     # Stage 5.1 now builds Generate/Regenerate on the Stage 4 publication boundary.
-    assert "Generate Draft" in template
+    assert "Generate Timetable" in template
     assert "timetable.lock_lessons" in permissions
     assert "timetable.archive_versions" in permissions
 

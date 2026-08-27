@@ -1247,7 +1247,14 @@ def build_timetable_workspace_payload(
         selected_version
         and (
             selected_version.is_stale
-            or str(selected_version.authority_fingerprint or "") != current_authority_fingerprint
+            or (
+                not (
+                    selected_version.origin == "manual"
+                    and selected_version.source_version_id is None
+                    and not entry_rows
+                )
+                and str(selected_version.authority_fingerprint or "") != current_authority_fingerprint
+            )
         )
     )
     validation = None

@@ -1550,7 +1550,7 @@
                     <small id="generationMessage"></small>
                 </div>
                 <div class="generation-actions">
-                    <button class="hero-btn is-primary" id="generationActionBtn" type="button"></button>
+                    <button class="hero-btn is-primary" id="generationActionBtn" type="button">Generate Timetable</button>
                     <button class="hero-btn is-secondary" id="generationCancelBtn" type="button">Cancel Generation</button>
                 </div>
             </div>
@@ -2186,7 +2186,7 @@
             generationActionBtn.disabled = state.busy;
             generationCancelBtn.disabled = state.busy;
             generationActionBtn.textContent = generation.primary_action === "regenerate"
-                ? "Regenerate Draft" : "Generate Draft";
+                ? "Regenerate Timetable" : "Generate Timetable";
             if (activeRun) {
                 generationTitle.textContent = activeRun.phase_label || "Generating Timetable";
                 generationMessage.textContent = activeRun.message || "You can leave this page; progress is saved.";
