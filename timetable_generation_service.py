@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import logging
 import math
 import os
 import secrets
@@ -51,6 +52,7 @@ FAILURE_LABELS = {
     "internal_error": "Generation Failed",
     "concurrent_run_rejected": "Generation Already Running",
 }
+logger = logging.getLogger("tis.timetable_generation_service")
 
 
 class TimetableGenerationError(ValueError):
@@ -713,6 +715,37 @@ def persist_generated_result(
         )
         raise TimetableGenerationError("validator_rejected", first["message"], 500)
 
+    expected_required_periods = sum(
+        int(item.get("required_weekly_periods") or 0)
+        for item in problem.get("demands") or []
+    )
+    solver_placements = len(solver_result.get("placements") or [])
+    validated_placements = int((validation.get("counts") or {}).get("placements") or 0)
+    if not (
+        expected_required_periods
+        == solver_placements
+        == validated_placements
+        == len(placements)
+    ):
+        logger.error(
+            "Generation run %s count invariant failed before persistence: expected=%s solver=%s validated=%s candidate=%s",
+            run.id,
+            expected_required_periods,
+            solver_placements,
+            validated_placements,
+            len(placements),
+        )
+        mark_run_terminal(
+            db, run_id=run.id, lease_owner=lease_owner, status="internal_error",
+            failure_category="placement_count_mismatch",
+            safe_message="Generated result failed completeness verification.",
+        )
+        raise TimetableGenerationError(
+            "placement_count_mismatch",
+            "Generated placement counts do not match required demand.",
+            500,
+        )
+
     base_authority = build_current_snapshot_data(
         db,
         school_group_id=int(run.school_group_id),
@@ -776,6 +809,44 @@ def persist_generated_result(
             locked_by_user_id=source_lock.locked_by_user_id if source_lock else None,
         ))
     db.flush()
+    persisted_placements = db.query(models.TimetableEntry).filter(
+        models.TimetableEntry.timetable_version_id == version.id,
+    ).count()
+    db.expire_all()
+    reloaded_placements = len(db.query(models.TimetableEntry).filter(
+        models.TimetableEntry.timetable_version_id == version.id,
+    ).all())
+    if not (
+        expected_required_periods
+        == solver_placements
+        == validated_placements
+        == persisted_placements
+        == reloaded_placements
+    ):
+        logger.error(
+            "Generation run %s count invariant failed after persistence: expected=%s solver=%s validated=%s persisted=%s reloaded=%s",
+            run.id,
+            expected_required_periods,
+            solver_placements,
+            validated_placements,
+            persisted_placements,
+            reloaded_placements,
+        )
+        db.query(models.TimetableEntry).filter(
+            models.TimetableEntry.timetable_version_id == version.id,
+        ).delete(synchronize_session=False)
+        db.delete(version)
+        db.flush()
+        mark_run_terminal(
+            db, run_id=run.id, lease_owner=lease_owner, status="internal_error",
+            failure_category="placement_count_mismatch",
+            safe_message="Generated result failed completeness verification.",
+        )
+        raise TimetableGenerationError(
+            "placement_count_mismatch",
+            "Persisted placement counts do not match required demand.",
+            500,
+        )
     run.result_version_id = version.id
     run.status = "succeeded"
     run.progress_phase = "complete"

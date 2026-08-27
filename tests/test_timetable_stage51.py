@@ -33,7 +33,12 @@ from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemE
 from timetable_snapshot_service import build_current_snapshot_data
 from timetable_solution_validator import TimetableSolutionValidator
 from permission_registry import get_default_permissions_for_role
-from timetable_version_service import set_entry_lock
+from timetable_logic import build_timetable_workspace_payload
+from timetable_version_service import (
+    create_manual_draft,
+    set_entry_lock,
+    set_imported_active_pointer,
+)
 from test_timetable_versioning import db  # noqa: F401 - shared isolated database
 
 
@@ -593,6 +598,29 @@ def test_validator_rejection_and_persistence_exception_leave_no_partial_version(
     db.commit()
     assert db.query(models.TimetableVersion).count() == 0
 
+
+def test_nonzero_demand_rejects_zero_placements(db):
+    _make_ready(db)
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="zero-placement-reject",
+    )
+    db.commit()
+    run = claim_next_run(db, lease_seconds=90, max_attempts=2, lease_owner="worker-zero")
+    db.commit()
+    snapshot = db.get(models.TimetableInputSnapshot, run.input_snapshot_id)
+    problem = TimetableProblemBuilder().build(snapshot.canonical_snapshot_json)
+    set_run_progress(db, run_id=run.id, lease_owner="worker-zero", phase="saving")
+    with pytest.raises(TimetableGenerationError) as exc:
+        persist_generated_result(
+            db, run_id=run.id, lease_owner="worker-zero", problem=problem,
+            placements=[], solver_result={"placements": []},
+        )
+    assert exc.value.code == "validator_rejected"
+    db.commit()
+    assert db.query(models.TimetableVersion).count() == 0
+
     # A database failure after the candidate version is allocated must roll back all rows.
     failed = enqueue_generation(
         db, school_group_id=1, branch_id=10, academic_year_id=100,
@@ -621,7 +649,111 @@ def test_validator_rejection_and_persistence_exception_leave_no_partial_version(
     finally:
         sa_event.remove(models.TimetableEntry, "before_insert", reject_entry)
     assert db.query(models.TimetableVersion).count() == 0
+    assert db.query(models.TimetableEntry).count() == 0
 
+
+def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
+    pytest.importorskip("ortools")
+    db.query(models.TeacherSectionAssignment).delete()
+    subject = db.get(models.Subject, 3000)
+    subject.weekly_hours = 40
+    setting = db.get(models.TimetableSetting, 5000)
+    setting.working_days_csv = "monday,tuesday,wednesday,thursday,friday"
+    setting.periods_per_day = 8
+    setting.school_end_time = "14:00"
+    db.get(models.Teacher, 1000).max_hours = 40
+    db.get(models.Teacher, 1001).max_hours = 40
+    for index in range(2, 6):
+        db.add(models.Teacher(
+            id=1000 + index, teacher_id=f"T{index + 1}", first_name="Generated",
+            last_name=f"Teacher {index + 1}", branch_id=10, academic_year_id=100,
+            max_hours=40,
+        ))
+        db.add(models.PlanningSection(
+            id=2000 + index, grade_level="1", section_name=chr(65 + index),
+            class_status="Current", branch_id=10, academic_year_id=100,
+        ))
+    db.flush()
+    for index in range(6):
+        db.add(models.TeacherSectionAssignment(
+            teacher_id=1000 + index,
+            planning_section_id=2000 + index,
+            subject_code="MAT",
+        ))
+    db.flush()
+    published = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100, origin="imported"
+    )
+    published.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=published)
+    db.commit()
+
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="exact-240",
+    )
+    db.commit()
+    run = claim_next_run(db, lease_seconds=90, max_attempts=2, lease_owner="worker-240")
+    db.commit()
+    snapshot = db.get(models.TimetableInputSnapshot, run.input_snapshot_id)
+    problem = TimetableProblemBuilder().build(snapshot.canonical_snapshot_json)
+    expected_required_periods = sum(
+        item["required_weekly_periods"] for item in problem["demands"]
+    )
+    result = _solve(problem, seed=240, timeout=30)
+    validation = TimetableSolutionValidator().validate(
+        problem=problem,
+        placements=result["placements"],
+        expected_fingerprint=snapshot.full_input_fingerprint,
+        current_fingerprint=snapshot.full_input_fingerprint,
+        expected_scope=problem["scope"],
+        current_scope=problem["scope"],
+    )
+    assert expected_required_periods == 240
+    assert len(result["placements"]) == 240
+    assert validation["valid"] is True
+    assert validation["counts"]["placements"] == 240
+    set_run_progress(db, run_id=run.id, lease_owner="worker-240", phase="checking")
+    set_run_progress(db, run_id=run.id, lease_owner="worker-240", phase="saving")
+    generated = persist_generated_result(
+        db, run_id=run.id, lease_owner="worker-240", problem=problem,
+        placements=result["placements"], solver_result=result,
+    )
+    generated_id = generated.id
+    db.commit()
+
+    FreshSession = sessionmaker(bind=db.get_bind())
+    fresh = FreshSession()
+    try:
+        assert fresh.query(models.TimetableEntry).filter_by(
+            timetable_version_id=generated_id
+        ).count() == 240
+        payload = build_timetable_workspace_payload(
+            fresh, branch_id=10, academic_year_id=100, version_id=generated_id
+        )
+        assert payload["summary"]["scheduled_hours"] == 240
+        assert payload["summary"]["remaining_hours"] == 0
+        assert len(payload["sections"]) == 6
+        assert all(section["scheduled_hours"] == 40 for section in payload["sections"])
+        assert all(section["remaining_hours"] == 0 for section in payload["sections"])
+        pointer = fresh.query(models.TimetableActiveVersion).one()
+        assert pointer.timetable_version_id == published.id
+        assert fresh.query(models.TimetableVersion).filter_by(
+            generation_run_id=run.id
+        ).count() == 1
+        assert claim_run_by_public_id(
+            fresh,
+            public_id=run.public_id,
+            lease_seconds=90,
+            lease_owner="duplicate-workflow",
+        ) is None
+        fresh.commit()
+        assert fresh.query(models.TimetableVersion).filter_by(
+            generation_run_id=run.id
+        ).count() == 1
+    finally:
+        fresh.close()
 
 def test_representative_school_sized_cp_sat_problem():
     slots = [

@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -63,3 +64,11 @@ def test_workflow_task_has_no_render_retries(monkeypatch):
     result = workflow.generate_timetable.func(None, "run-public-id")
     assert result == {"generation_run_public_id": "run-public-id", "executed": False}
     assert calls == ["run-public-id"]
+
+
+def test_generated_version_redirect_is_honored_without_history_mode():
+    route_source = (
+        Path(__file__).resolve().parents[1] / "routers" / "timetable.py"
+    ).read_text(encoding="utf-8")
+    assert "if version:\n" in route_source
+    assert "if version and history:" not in route_source
