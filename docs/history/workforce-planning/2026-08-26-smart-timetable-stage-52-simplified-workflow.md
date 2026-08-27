@@ -7,12 +7,12 @@ knowledge_impact: yes
 
 # Smart Timetable Stage 5.2 Simplified Workflow And Published Visibility
 
-Stage 5.2 simplified the school workflow to Configure, Ready, Generate, Review,
-Regenerate or Delete Working Timetable, and Publish while preserving all Stage 2–5.1
+Stage 5.2 simplified the school workflow to Configure, Generate Draft, Review/Edit
+Draft, and Publish to Users while preserving all Stage 2–5.1
 version and solver internals. Customer language replaces technical lifecycle state on
 the main page; version selection, comparison, exports, and archive remain in History.
 
-Delete Working Timetable archives the current mutable unpublished candidate under
+Delete Draft Timetable archives the current mutable unpublished candidate under
 scope locks. It preserves placements, snapshots, runs, audit fields, official
 publication, and history. `timetable.delete_working` controls the action separately.
 
@@ -23,7 +23,7 @@ snapshots, generation runs, and audit records, and refuses candidates referenced
 later generation work. The dedicated assignable `timetable.delete_versions` permission
 controls this action and is included in the Administrator defaults.
 
-Authorized users may drag an unlocked lesson within a mutable Working Timetable to a
+Authorized users may drag an unlocked lesson within a mutable Draft Timetable to a
 canonical teaching slot. Empty destinations produce an immediate move; occupied
 destinations attempt one atomic swap. Non-teaching periods, active publication,
 locked lessons, class collisions, and teacher collisions fail without a partial edit.
@@ -31,6 +31,11 @@ Successful edits increment the existing revision and return the candidate to the
 normal re-check workflow. Publishing now requires explicit first-publication or
 replacement confirmation and presents Published to Users instead of technical active
 version language; publication permissions and transaction semantics are unchanged.
+
+The Published Timetable management view offers Edit This Timetable, which copies the
+official timetable into an editable draft, and Create New Timetable, which creates a
+fresh empty draft from current Planning/configuration authority. Both preserve the
+official timetable and active pointer until the draft is explicitly published.
 
 The published-only service resolves strictly from `TimetableActiveVersion`.
 `/my-timetable` uses exact-scope teacher identity and exposes only that teacher's

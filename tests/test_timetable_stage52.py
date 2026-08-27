@@ -106,7 +106,7 @@ def test_stage52_customer_language_and_permissions():
     template = open("templates/timetable.html", encoding="utf-8").read()
     published = open("templates/published_timetable.html", encoding="utf-8").read()
     permissions = open("permission_registry.py", encoding="utf-8").read()
-    for label in ("Check Timetable", "Working Timetable", "Ready to Publish", "Published", "Timetable History", "Delete Working Timetable"):
+    for label in ("Check Timetable", "Draft Timetable", "Ready to Publish", "Published", "Timetable History", "Delete Draft Timetable"):
         assert label in template or label in published
     assert "Validate Draft" not in template
     assert "timetable.delete_working" in permissions

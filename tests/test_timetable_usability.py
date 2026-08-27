@@ -258,4 +258,50 @@ def test_archived_never_published_admin_can_delete_but_unauthorized_user_cannot(
     monkeypatch.setattr(timetable_router.auth, "has_permission", lambda *args, **kwargs: True)
     allowed = timetable_router.delete_timetable_version(archived.public_id, SimpleNamespace(), db)
     assert allowed.status_code == 200
+    assert "Timetable deleted successfully." in allowed.body.decode("utf-8")
     assert db.get(models.TimetableVersion, archived.id) is None
+
+
+def test_edit_published_and_create_new_make_drafts_without_changing_active(db, monkeypatch):
+    published = _version(db, origin="imported")
+    published.lifecycle_status = "publication_ready"
+    published_entry = _entry(db, published)
+    set_imported_active_pointer(db, version=published)
+    db.flush()
+    user = SimpleNamespace(user_id="U1")
+    monkeypatch.setattr(timetable_router, "_get_current_user_or_redirect", lambda request, session: (user, None))
+    monkeypatch.setattr(timetable_router, "get_scope_ids", lambda current: (10, 100))
+    monkeypatch.setattr(timetable_router.auth, "has_permission", lambda *args, **kwargs: True)
+
+    edited = timetable_router.edit_published_timetable(SimpleNamespace(), db)
+    assert edited.status_code == 303
+    edited_draft = db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.source_version_id == published.id
+    ).order_by(models.TimetableVersion.id.desc()).first()
+    assert edited_draft is not None and edited_draft.lifecycle_status == "draft"
+    copied = db.query(models.TimetableEntry).filter_by(timetable_version_id=edited_draft.id).one()
+    assert copied.subject_code == published_entry.subject_code
+    assert db.query(models.TimetableActiveVersion).one().timetable_version_id == published.id
+
+    fresh_response = timetable_router.create_new_timetable_draft(SimpleNamespace(), db)
+    assert fresh_response.status_code == 303
+    fresh = db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.id != published.id,
+        models.TimetableVersion.source_version_id.is_(None),
+    ).order_by(models.TimetableVersion.id.desc()).first()
+    assert fresh is not None and fresh.lifecycle_status == "draft"
+    assert db.query(models.TimetableEntry).filter_by(timetable_version_id=fresh.id).count() == 0
+    assert db.query(models.TimetableActiveVersion).one().timetable_version_id == published.id
+
+
+def test_draft_published_language_and_actions_are_explicit():
+    workspace = open("templates/timetable.html", encoding="utf-8").read()
+    published = open("templates/published_timetable.html", encoding="utf-8").read()
+    assert "Working Timetable" not in workspace
+    for label in ("Draft Timetable", "Not Published Yet", "Publish Timetable", "Publish to Users"):
+        assert label in workspace
+    assert "This draft will become the official timetable for this branch and academic year." in workspace
+    for label in ("Published Timetable", "Published to Users", "Edit This Timetable", "Create New Timetable"):
+        assert label in published
+    assert 'action="/timetable/drafts/edit-published"' in published
+    assert 'action="/timetable/drafts/new"' in published
