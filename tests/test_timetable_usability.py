@@ -1,8 +1,12 @@
 from datetime import datetime
+from types import SimpleNamespace
 
 import pytest
 
 import models
+import auth
+import permission_registry
+from routers import timetable as timetable_router
 from timetable_version_service import (
     TimetableVersionError,
     create_manual_draft,
@@ -70,6 +74,17 @@ def test_active_and_previously_published_history_cannot_be_deleted(db):
             academic_year_id=100,
         )
     assert prior.value.code == "published_history_delete_forbidden"
+
+
+def test_publication_ready_never_published_version_is_deletable(db):
+    candidate = _version(db, origin="regenerated")
+    candidate.lifecycle_status = "publication_ready"
+    candidate_id = candidate.id
+    delete_unused_timetable_version(
+        db, version_id=candidate.id, school_group_id=1, branch_id=10,
+        academic_year_id=100,
+    )
+    assert db.get(models.TimetableVersion, candidate_id) is None
 
 
 def test_move_to_empty_valid_slot_increments_revision(db):
@@ -169,6 +184,7 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     assert 'version-select{% if not history_mode %} is-hidden{% endif %}' in template
     assert 'href="/timetable?history=1">Timetable History' in template
     assert 'historyMode && canArchiveVersions' in template
+    assert 'historyMode && canDeleteVersions && !version.is_active && !version.was_published' in template
     assert 'addButton("Delete Timetable"' in template
     assert '!version.is_active && !version.was_published' in template
     assert 'dialog.assignment-panel:not([open]) { display: none; }' in template
@@ -192,3 +208,35 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
         assert text in template
     assert 'publishDialog.showModal()' in template
     assert 'publishConfirmBtn.addEventListener("click"' in template
+
+
+def test_delete_versions_permission_is_admin_default_and_role_assignable():
+    key = "timetable.delete_versions"
+    assert key in permission_registry.get_default_permissions_for_role(auth.ROLE_ADMINISTRATOR)
+    assert key not in permission_registry.get_default_permissions_for_role(auth.ROLE_EDITOR)
+    payload = permission_registry.build_role_permission_payload(auth.ROLE_EDITOR, {key})
+    item = next(
+        permission for group in payload["groups"] for permission in group["permissions"]
+        if permission["key"] == key
+    )
+    assert item["assignable"] is True
+    assert item["allowed"] is True
+
+
+def test_archived_never_published_admin_can_delete_but_unauthorized_user_cannot(db, monkeypatch):
+    archived = _version(db, origin="imported")
+    archived.lifecycle_status = "archived"
+    db.flush()
+    user = SimpleNamespace(user_id="U1")
+    monkeypatch.setattr(timetable_router, "_get_current_user_or_redirect", lambda request, session: (user, None))
+    monkeypatch.setattr(timetable_router, "get_scope_ids", lambda current: (10, 100))
+
+    monkeypatch.setattr(timetable_router.auth, "has_permission", lambda *args, **kwargs: False)
+    denied = timetable_router.delete_timetable_version(archived.public_id, SimpleNamespace(), db)
+    assert denied.status_code == 403
+    assert db.get(models.TimetableVersion, archived.id) is not None
+
+    monkeypatch.setattr(timetable_router.auth, "has_permission", lambda *args, **kwargs: True)
+    allowed = timetable_router.delete_timetable_version(archived.public_id, SimpleNamespace(), db)
+    assert allowed.status_code == 200
+    assert db.get(models.TimetableVersion, archived.id) is None

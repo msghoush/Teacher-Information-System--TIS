@@ -1001,6 +1001,7 @@ def _write_entity_timetable_sheet(
                         day_slot.get("time_range") or "",
                     ] if part)
                     if entry:
+                        _add_excel_subject_icon(sheet, cell, entry, display_size=14)
                         cell.fill = PatternFill(
                             start_color=_safe_excel_hex(entry.get("subject_color_soft"), "F4F8FF"),
                             end_color=_safe_excel_hex(entry.get("subject_color_soft"), "F4F8FF"),
@@ -1578,6 +1579,17 @@ def _draw_pdf_timetable_grid(
             if top_line:
                 text_x = x + 4
                 max_chars = max(10, int(day_width / 4.5))
+                if entry:
+                    icon_size = 9
+                    pdf.image(
+                        pdf.subject_icon_name(entry, display_size=icon_size),
+                        x + 4,
+                        y + row_height - 18,
+                        icon_size,
+                        icon_size,
+                    )
+                    text_x = x + 16
+                    max_chars = max(8, int((day_width - 20) / 4.5))
                 pdf.text(text_x, y + row_height - 13, _pdf_truncate(top_line, max_chars), size=6.4, color=text_color, bold=True)
             if bottom_line:
                 pdf.text(x + 4, y + 14, _pdf_truncate(bottom_line, max(10, int(day_width / 4.5))), size=5.8, color="#60728C")
@@ -1661,7 +1673,7 @@ def timetable_page(
     manager_permissions = (
         "timetable.create", "timetable.edit", "timetable.delete",
         "timetable.generate", "timetable.publish", "timetable.lock_lessons",
-        "timetable.archive_versions", "timetable.delete_working",
+        "timetable.archive_versions", "timetable.delete_versions", "timetable.delete_working",
     )
     if not auth.has_any_permission(db, current_user, *manager_permissions):
         branch_id, academic_year_id = get_scope_ids(current_user)
@@ -1732,6 +1744,7 @@ def timetable_page(
             "can_publish_timetable": auth.has_permission(db, current_user, "timetable.publish"),
             "can_generate_timetable": auth.has_permission(db, current_user, "timetable.generate"),
             "can_archive_versions": auth.has_permission(db, current_user, "timetable.archive_versions"),
+            "can_delete_versions": auth.has_permission(db, current_user, "timetable.delete_versions"),
             "can_delete_working": auth.has_permission(db, current_user, "timetable.delete_working"),
             "can_export_timetable": auth.has_permission(db, current_user, "timetable.export"),
             "history_mode": bool(history),
@@ -2152,7 +2165,7 @@ def delete_timetable_version(public_id: str, request: Request, db: Session = Dep
     current_user, redirect = _get_current_user_or_redirect(request, db)
     if redirect:
         return _json_error("Please sign in again to continue.", 401)
-    if not auth.has_permission(db, current_user, "timetable.archive_versions"):
+    if not auth.has_permission(db, current_user, "timetable.delete_versions"):
         return _json_error("You do not have permission to delete timetable history.", 403)
     branch_id, year_id = get_scope_ids(current_user)
     try:
