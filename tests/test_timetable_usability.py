@@ -7,6 +7,7 @@ import models
 import auth
 import permission_registry
 from routers import timetable as timetable_router
+from timetable_logic import build_timetable_workspace_payload
 from timetable_version_service import (
     TimetableVersionError,
     create_manual_draft,
@@ -85,6 +86,19 @@ def test_publication_ready_never_published_version_is_deletable(db):
         academic_year_id=100,
     )
     assert db.get(models.TimetableVersion, candidate_id) is None
+
+
+def test_history_view_payload_opens_exact_version_without_changing_active_pointer(db):
+    active = _version(db, origin="imported")
+    active.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=active)
+    historical = _version(db, origin="generated")
+    _entry(db, historical, day="tuesday", period=2)
+    db.flush()
+    payload = build_timetable_workspace_payload(db, 10, 100, version_id=historical.id)
+    assert payload["version"]["id"] == historical.id
+    assert [(entry["day_key"], entry["period_index"]) for entry in payload["entries"]] == [("tuesday", 2)]
+    assert db.query(models.TimetableActiveVersion).one().timetable_version_id == active.id
 
 
 def test_move_to_empty_valid_slot_increments_revision(db):
@@ -181,12 +195,17 @@ def test_valid_swap_succeeds_and_invalid_swap_changes_neither_lesson(db):
 
 def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     template = open("templates/timetable.html", encoding="utf-8").read()
-    assert 'version-select{% if not history_mode %} is-hidden{% endif %}' in template
+    assert 'id="versionSelector"' not in template
+    assert '{% if history_mode %}<div class="history-version-list"' in template
     assert 'href="/timetable?history=1">Timetable History' in template
     assert 'historyMode && canArchiveVersions' in template
-    assert 'historyMode && canDeleteVersions && !version.is_active && !version.was_published' in template
-    assert 'addButton("Delete Timetable"' in template
-    assert '!version.is_active && !version.was_published' in template
+    assert 'if (canDeleteVersions && !item.is_active && !item.was_published)' in template
+    assert 'view.textContent = "View"' in template
+    assert '/timetable?history=1&version=${encodeURIComponent(item.public_id)}' in template
+    assert 'Viewing Version ${normalizeInt(version.version_number)}' in template
+    for value in ("Source:", "Created", "Published history", "Previously Published"):
+        assert value in template
+    assert 'remove.textContent = "Delete Timetable"' in template
     assert 'dialog.assignment-panel:not([open]) { display: none; }' in template
     assert '<h4 id="publishDialogTitle">Confirm timetable action</h4>' in template
     assert 'id="publishConfirmBtn">Continue</button>' in template
@@ -203,7 +222,7 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     for text in (
         "Publish this timetable?", "Replace the published timetable?",
         "Publish to Users", "Replace & Publish to Users",
-        "Published to Users", "Official timetable currently visible to authorized users.",
+        "Published Timetable", "Official timetable currently visible to authorized users.",
     ):
         assert text in template
     assert 'publishDialog.showModal()' in template
