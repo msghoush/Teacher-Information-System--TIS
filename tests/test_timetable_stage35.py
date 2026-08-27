@@ -1,5 +1,6 @@
 import pathlib
 import io
+import re
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -194,3 +195,10 @@ def test_export_rows_keep_day_specific_composed_times():
     values = [str(cell.value or "") for row in sheet.iter_rows() for cell in row]
     assert any("09:05" in value for value in values)
     assert any("08:45" in value for value in values)
+    assert any("Monday Break" in value for value in values)
+    assert any(" - " in value for value in values)
+    assert all("?" not in value for value in values)
+    pdf = timetable_router._build_timetable_pdf_bytes(workspace, "Branch", "2026-2027", logo_assets=[])
+    pdf_text = b"\n".join(re.findall(rb"\((.*?)\) Tj", pdf)).decode("latin-1")
+    assert "Monday Break" in pdf_text
+    assert "?" not in pdf_text

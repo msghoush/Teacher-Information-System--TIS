@@ -20,7 +20,8 @@ Timetable History also permits permanent deletion of an unused candidate only wh
 is not active and has never been published. The operation removes the candidate's
 entries and version, preserves the active pointer and published history, retains shared
 snapshots, generation runs, and audit records, and refuses candidates referenced by
-later generation work.
+later generation work. The dedicated assignable `timetable.delete_versions` permission
+controls this action and is included in the Administrator defaults.
 
 Authorized users may drag an unlocked lesson within a mutable Working Timetable to a
 canonical teaching slot. Empty destinations produce an immediate move; occupied

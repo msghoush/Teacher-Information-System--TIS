@@ -18,7 +18,8 @@ Delete Working Timetable is an exact-scope archive operation. It preserves entri
 snapshots, runs, audit metadata, and the active pointer and refuses active generation.
 Timetable History may permanently delete only a never-published, non-active, unused
 candidate; its entries are removed while shared snapshots, generation runs, and audit
-history are preserved. Mutable working lessons may be moved or atomically swapped
+history are preserved. The assignable `timetable.delete_versions` permission controls
+this History action and is granted to Administrators by default. Mutable working lessons may be moved or atomically swapped
 between canonical teaching slots, with lock, class, and teacher conflicts failing the
 whole operation. Publication uses explicit first-publish or replacement confirmation
 and customer-facing Published to Users language.

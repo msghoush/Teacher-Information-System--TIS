@@ -747,7 +747,9 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
         workbook = load_workbook(io.BytesIO(xlsx), data_only=True)
         assert workbook.sheetnames[0] == "By Section"
         by_section = workbook["By Section"]
-        assert len(by_section._images) == 0
+        assert len(by_section._images) == 240
+        assert all(image.anchor.ext.cx <= 14 * 9525 and image.anchor.ext.cy <= 14 * 9525 for image in by_section._images)
+        assert all(image.anchor._from.col >= 2 and image.anchor._from.row >= 4 for image in by_section._images)
         assert by_section.column_dimensions["C"].width >= 28
         assert any((dimension.height or 0) >= 54 for dimension in by_section.row_dimensions.values())
         assert any(cell.alignment.wrap_text for row in by_section.iter_rows() for cell in row)
@@ -773,6 +775,7 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
             payload, "Main", "2026", logo_assets=[]
         )
         assert pdf.startswith(b"%PDF")
+        assert b"/Subtype /Image" in pdf
         pdf_text = b"\n".join(re.findall(rb"\((.*?)\) Tj", pdf)).decode("latin-1")
         assert "Working Timetable" in pdf_text
         assert first_range in pdf_text

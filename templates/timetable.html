@@ -1668,6 +1668,7 @@
         const canPublishTimetable = {{ can_publish_timetable | tojson }};
         const canGenerateTimetable = {{ can_generate_timetable | tojson }};
         const canArchiveVersions = {{ can_archive_versions | tojson }};
+        const canDeleteVersions = {{ can_delete_versions | tojson }};
         const canDeleteWorking = {{ can_delete_working | tojson }};
         const canExportTimetable = {{ can_export_timetable | tojson }};
         const historyMode = {{ history_mode | tojson }};
@@ -2343,7 +2344,7 @@
             }
             if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete-working") }));
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
-            if (historyMode && canArchiveVersions && !version.is_active && !version.was_published && version.lifecycle_status !== "superseded") addButton("Delete Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }), true);
+            if (historyMode && canDeleteVersions && !version.is_active && !version.was_published) addButton("Delete Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }), true);
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
