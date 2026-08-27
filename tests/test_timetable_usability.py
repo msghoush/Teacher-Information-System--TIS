@@ -282,7 +282,6 @@ def test_edit_published_and_create_new_make_drafts_without_changing_active(db, m
     copied = db.query(models.TimetableEntry).filter_by(timetable_version_id=edited_draft.id).one()
     assert copied.subject_code == published_entry.subject_code
     assert db.query(models.TimetableActiveVersion).one().timetable_version_id == published.id
-
     fresh_response = timetable_router.create_new_timetable_draft(SimpleNamespace(), db)
     assert fresh_response.status_code == 303
     fresh = db.query(models.TimetableVersion).filter(
@@ -292,6 +291,20 @@ def test_edit_published_and_create_new_make_drafts_without_changing_active(db, m
     assert fresh is not None and fresh.lifecycle_status == "draft"
     assert db.query(models.TimetableEntry).filter_by(timetable_version_id=fresh.id).count() == 0
     assert db.query(models.TimetableActiveVersion).one().timetable_version_id == published.id
+
+
+def test_new_empty_manual_draft_is_not_stale_and_generation_action_is_explicit(db):
+    draft = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    )
+    payload = build_timetable_workspace_payload(
+        db, branch_id=10, academic_year_id=100, version_id=draft.id
+    )
+
+    assert payload["version"]["is_stale"] is False
+    template = open("templates/timetable.html", encoding="utf-8").read()
+    assert "Generate Timetable" in template
+    assert "Regenerate Timetable" in template
 
 
 def test_draft_published_language_and_actions_are_explicit():

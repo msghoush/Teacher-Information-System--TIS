@@ -1,10 +1,8 @@
-knowledge_impact: yes
-summary: Rename the customer draft workflow and add explicit edit-published and fresh-draft entry actions without changing publication semantics.
+knowledge_impact: no
+summary: Keep fresh empty drafts current and make the generation action explicit without changing timetable authority or publication semantics.
 affected_areas:
   - timetable
   - tests
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/history/workforce-planning/2026-08-26-smart-timetable-stage-52-simplified-workflow.md
-no_impact_reason:
+no_impact_reason: The KMS already defines fresh empty drafts as editable current workspace shells and the Generate Timetable action as part of the existing workflow; this aligns implementation and labels with that documented behavior.
 major_change_override: no
