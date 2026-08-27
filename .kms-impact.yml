@@ -1,8 +1,8 @@
 knowledge_impact: no
-summary: Correct timetable confirmation rendering and ensure workspace exports target and identify the selected timetable version.
+summary: Refine timetable confirmation semantics and improve selected-version XLSX/PDF readability and time-range rendering.
 affected_areas:
   - timetable
   - tests
 kms_files_updated:
-no_impact_reason: This is a focused UI and export regression correction to the already-documented timetable deletion, confirmation, and version-selection behavior; it introduces no new lifecycle, permission, workflow, schema, or publication rule.
+no_impact_reason: This refines presentation of the already-documented confirmation and version-aware export behavior; it introduces no new lifecycle, permission, workflow, schema, time authority, or publication rule.
 major_change_override: yes

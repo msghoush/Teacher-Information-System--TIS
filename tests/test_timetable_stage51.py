@@ -1,5 +1,6 @@
 import json
 import io
+import re
 import os
 import subprocess
 import sys
@@ -744,6 +745,12 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
             payload, "Main", "2026", logo_assets=[]
         )
         workbook = load_workbook(io.BytesIO(xlsx), data_only=True)
+        assert workbook.sheetnames[0] == "By Section"
+        by_section = workbook["By Section"]
+        assert len(by_section._images) == 0
+        assert by_section.column_dimensions["C"].width >= 28
+        assert any((dimension.height or 0) >= 54 for dimension in by_section.row_dimensions.values())
+        assert any(cell.alignment.wrap_text for row in by_section.iter_rows() for cell in row)
         overview_values = [
             str(cell.value) for row in workbook["Overview"].iter_rows() for cell in row
             if cell.value is not None
@@ -753,11 +760,23 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
         assert "Remaining Periods" in overview_values
         assert "0" in overview_values
         assert any("Working Timetable | Version" in value for value in overview_values)
+        section_values = [
+            str(cell.value) for row in by_section.iter_rows() for cell in row
+            if cell.value is not None
+        ]
+        first_range = payload["time_slots"][0]["time_range"]
+        assert " - " in first_range and "?" not in first_range
+        assert any(first_range in value for value in section_values)
+        assert any("MAT" in value and "Generated Teacher" in value for value in section_values)
+        assert any("School:" in value and "Working Timetable" in value and f"Version {generated.version_number}" in value for value in section_values)
         pdf = timetable_router._build_timetable_pdf_bytes(
             payload, "Main", "2026", logo_assets=[]
         )
         assert pdf.startswith(b"%PDF")
-        assert b"Working Timetable" in pdf
+        pdf_text = b"\n".join(re.findall(rb"\((.*?)\) Tj", pdf)).decode("latin-1")
+        assert "Working Timetable" in pdf_text
+        assert first_range in pdf_text
+        assert "?" not in pdf_text
         assert len(payload["sections"]) == 6
         assert all(section["scheduled_hours"] == 40 for section in payload["sections"])
         assert all(section["remaining_hours"] == 0 for section in payload["sections"])

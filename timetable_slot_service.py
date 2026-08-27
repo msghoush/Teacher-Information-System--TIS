@@ -23,6 +23,13 @@ def _format_time(value: int) -> str:
     return f"{value // 60:02d}:{value % 60:02d}"
 
 
+def format_time_range(start_time: Any, end_time: Any) -> str:
+    """Return the single UI/export-safe timetable range representation."""
+    start = str(start_time or "").strip()
+    end = str(end_time or "").strip()
+    return f"{start} - {end}" if start and end else ""
+
+
 def _safe_int(value: Any) -> int:
     try:
         return int(value)
@@ -106,7 +113,7 @@ def build_canonical_slot_projection(*, school_group_id: int | None, branch_id: i
                     matches = [(index, block) for index, block in enumerate(fixed_blocks) if index not in used_fixed and _parse_time(block["start_time"]) == cursor]
                     if not matches: return
                     index, block = matches[0]; used_fixed.add(index); block_end = _parse_time(block["end_time"]) or cursor
-                    resolved = dict(block, day_key=day, start_time=_format_time(cursor), end_time=_format_time(block_end), time_range=f"{_format_time(cursor)}–{_format_time(block_end)}")
+                    resolved = dict(block, day_key=day, start_time=_format_time(cursor), end_time=_format_time(block_end), time_range=format_time_range(_format_time(cursor), _format_time(block_end)))
                     items.append({"type": NON_TEACHING_SLOT, "status": NON_TEACHING_SLOT, "sequence": sequence, **resolved}); projected_blocks.append(resolved)
                     sequence += 1; cursor = block_end
 
@@ -115,12 +122,12 @@ def build_canonical_slot_projection(*, school_group_id: int | None, branch_id: i
                 period_start, period_end = cursor, cursor + duration
                 item = {"type": TEACHING_SLOT, "status": TEACHING_SLOT, "sequence": sequence, "day_key": day,
                     "period_index": period_index, "label": f"Period {period_index}", "start_time": _format_time(period_start),
-                    "end_time": _format_time(period_end), "time_range": f"{_format_time(period_start)}–{_format_time(period_end)}",
+                    "end_time": _format_time(period_end), "time_range": format_time_range(_format_time(period_start), _format_time(period_end)),
                     "schedulable": True, "reason_code": ""}
                 items.append(item); slots.append(item); sequence += 1; cursor = period_end; insert_fixed_at_boundary()
                 for block in sorted(after_blocks.get(period_index, []), key=lambda value: value["source_order"]):
                     block_end = cursor + int(block["duration_minutes"])
-                    resolved = dict(block, day_key=day, start_time=_format_time(cursor), end_time=_format_time(block_end), time_range=f"{_format_time(cursor)}–{_format_time(block_end)}")
+                    resolved = dict(block, day_key=day, start_time=_format_time(cursor), end_time=_format_time(block_end), time_range=format_time_range(_format_time(cursor), _format_time(block_end)))
                     items.append({"type": NON_TEACHING_SLOT, "status": NON_TEACHING_SLOT, "sequence": sequence, **resolved}); projected_blocks.append(resolved)
                     sequence += 1; cursor = block_end
                 insert_fixed_at_boundary()

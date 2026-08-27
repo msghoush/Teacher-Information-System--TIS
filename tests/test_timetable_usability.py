@@ -174,6 +174,9 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     assert 'dialog.assignment-panel:not([open]) { display: none; }' in template
     assert '<h4 id="publishDialogTitle">Confirm timetable action</h4>' in template
     assert 'id="publishConfirmBtn">Continue</button>' in template
+    assert 'className = `inspector-btn ${destructive ? "is-danger" : "is-primary"}`' in template
+    assert 'title: "Delete this timetable?"' in template
+    assert 'message: "This timetable will be permanently removed. This action cannot be undone."' in template
     assert 'openConfirmation({' in template
     assert 'id="workspaceExportXlsx"' in template
     assert 'id="workspaceExportPdf"' in template
