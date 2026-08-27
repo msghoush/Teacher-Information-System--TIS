@@ -1,10 +1,8 @@
-knowledge_impact: yes
-summary: Add dedicated timetable history deletion authority and restore bounded subject icons in selected-version XLSX/PDF exports.
+knowledge_impact: no
+summary: Replace the timetable history dropdown with explicit version cards and exact-version View/Delete actions.
 affected_areas:
   - timetable
   - tests
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/history/workforce-planning/2026-08-26-smart-timetable-stage-52-simplified-workflow.md
-no_impact_reason:
+no_impact_reason: This is a focused presentation correction implementing the already-documented rule that technical version selection and management belong only in Timetable History; permissions, lifecycle, deletion eligibility, and active-pointer behavior are unchanged.
 major_change_override: no

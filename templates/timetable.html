@@ -278,6 +278,13 @@
     .version-select { min-width:240px; padding:9px 11px; border:1px solid var(--tt-border-strong); border-radius:10px; background:#fff; }
     .version-notice { margin-top:10px; color:var(--tt-subtle); font-size:12px; }
     .version-notice.is-stale { padding:10px; border-radius:10px; background:#fff1f0; color:#8b2f24; font-weight:700; }
+    .history-version-list { display:grid; gap:10px; margin-top:14px; }
+    .history-version-card { display:flex; align-items:center; justify-content:space-between; gap:14px; padding:14px; border:1px solid var(--tt-border); border-radius:12px; background:#fff; }
+    .history-version-card.is-selected { border-color:#7da8dc; box-shadow:0 0 0 2px rgba(10,78,163,.1); }
+    .history-version-copy { display:grid; gap:5px; min-width:0; }
+    .history-version-copy strong { color:var(--tt-ink); }
+    .history-version-meta { color:var(--tt-subtle); font-size:12px; line-height:1.4; }
+    .history-version-actions { display:flex; flex-wrap:wrap; gap:8px; flex-shrink:0; }
     .comparison-panel { display:none; margin-top:12px; padding:14px; border:1px solid var(--tt-border); border-radius:12px; background:#fff; }
     .comparison-panel.is-visible { display:block; }
     .comparison-results { margin-top:10px; font-size:12px; }
@@ -1485,9 +1492,9 @@
                     <div class="version-identity" id="versionStatusTitle">No timetable version selected</div>
                     <div class="version-notice" id="versionNotice"></div>
                 </div>
-                <select class="version-select{% if not history_mode %} is-hidden{% endif %}" id="versionSelector" aria-label="Timetable History"></select>
             </div>
             <div class="version-actions" id="versionActions"></div>
+            {% if history_mode %}<div class="history-version-list" id="historyVersionList" aria-label="Timetable versions"></div>{% endif %}
             <div class="comparison-panel" id="comparisonPanel">
                 <strong>Compare Versions</strong>
                 <div class="version-actions">
@@ -1733,7 +1740,7 @@
         const generationCancelBtn = document.getElementById("generationCancelBtn");
         const versionStatusTitle = document.getElementById("versionStatusTitle");
         const versionNotice = document.getElementById("versionNotice");
-        const versionSelector = document.getElementById("versionSelector");
+        const historyVersionList = document.getElementById("historyVersionList");
         const versionActions = document.getElementById("versionActions");
         const comparisonPanel = document.getElementById("comparisonPanel");
         const compareLeft = document.getElementById("compareLeft");
@@ -2298,28 +2305,73 @@
             return `Version ${normalizeInt(item.version_number)} · ${status.replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase())}${item.is_stale ? " · Stale" : ""}`;
         };
 
+        const friendlyVersionStatus = (item) => {
+            if (item.is_active) return "Published Timetable";
+            if (item.was_published) return "Previously Published";
+            if (item.lifecycle_status === "publication_ready") return "Ready to Publish";
+            if (item.lifecycle_status === "archived") return "Archived";
+            return "Working Timetable";
+        };
+
+        const deleteHistoryVersion = async (item) => {
+            setBusy(true);
+            try {
+                const response = await fetch(`/timetable/api/versions/${encodeURIComponent(item.public_id)}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+                const result = await response.json();
+                if (!response.ok || !result.ok) { setFlash(result.message || "Unable to delete this timetable.", "error"); return; }
+                state.payload = result.payload;
+                history.replaceState({}, "", "/timetable?history=1");
+                setFlash(result.message || "Timetable deleted", "success");
+                renderAll();
+            } catch (error) { setFlash("Unable to reach the timetable version service right now.", "error"); }
+            finally { setBusy(false); }
+        };
+
+        const renderHistoryVersions = (versions, selectedVersion) => {
+            if (!historyVersionList) return;
+            historyVersionList.innerHTML = "";
+            versions.forEach((item) => {
+                const card = document.createElement("article");
+                card.className = `history-version-card${item.public_id === selectedVersion?.public_id ? " is-selected" : ""}`;
+                const source = String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase());
+                const created = item.created_at ? new Date(item.created_at).toLocaleString() : "Date unavailable";
+                card.innerHTML = `<div class="history-version-copy"><strong>Version ${normalizeInt(item.version_number)} · ${escapeHtml(friendlyVersionStatus(item))}</strong><div class="history-version-meta">Source: ${escapeHtml(source)} · Created ${escapeHtml(created)}${item.was_published ? " · Published history" : ""}${item.is_stale ? " · Needs review" : ""}</div></div><div class="history-version-actions"></div>`;
+                const actions = card.querySelector(".history-version-actions");
+                const view = document.createElement("a");
+                view.className = "hero-btn is-secondary"; view.textContent = "View";
+                view.href = `/timetable?history=1&version=${encodeURIComponent(item.public_id)}`;
+                actions.appendChild(view);
+                if (canDeleteVersions && !item.is_active && !item.was_published) {
+                    const remove = document.createElement("button");
+                    remove.type = "button"; remove.className = "hero-btn is-primary"; remove.textContent = "Delete Timetable";
+                    remove.addEventListener("click", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => deleteHistoryVersion(item) }));
+                    actions.appendChild(remove);
+                }
+                historyVersionList.appendChild(card);
+            });
+        };
+
         const renderVersionStatus = () => {
             const version = state.payload.version || null;
             const versions = Array.isArray(state.payload.versions) ? state.payload.versions : [];
             if (!version) {
                 versionStatusTitle.textContent = "No Working Timetable";
                 versionNotice.textContent = "Configure the timetable, then generate a working timetable.";
-                versionSelector.innerHTML = `<option>No versions available</option>`;
                 versionActions.innerHTML = "";
+                renderHistoryVersions(versions, null);
                 return;
             }
-            const displayStatus = version.is_active ? "Published to Users" : (version.lifecycle_status === "publication_ready" ? "Ready to Publish" : "Working Timetable");
-            versionStatusTitle.innerHTML = `
-                <span>${version.is_active ? "Published Timetable" : "Working Timetable"}</span>
-                <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(displayStatus.replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span>
+            versionStatusTitle.innerHTML = historyMode ? `
+                <span>Viewing Version ${normalizeInt(version.version_number)}</span>
+                <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(friendlyVersionStatus(version))}</span>
                 <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Needs Review" : "Current"}</span>
                 ${version.has_manual_changes ? `<span class="version-badge">Manual changes</span>` : ""}
-            `;
+            ` : `<span>${version.is_active ? "Published Timetable" : "Working Timetable"}</span>`;
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
                 : (version.is_active ? "Official timetable currently visible to authorized users." : (!version.is_mutable ? "This historical timetable is read-only. Make a working copy to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`));
-            versionSelector.innerHTML = versions.map((item) => `<option value="${escapeHtml(item.public_id)}" ${item.public_id === version.public_id ? "selected" : ""}>${escapeHtml(versionLabel(item))}</option>`).join("");
+            renderHistoryVersions(versions, version);
             versionActions.innerHTML = "";
             const addButton = (label, handler, primary = false) => {
                 const button = document.createElement("button");
@@ -2344,7 +2396,6 @@
             }
             if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete-working") }));
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
-            if (historyMode && canDeleteVersions && !version.is_active && !version.was_published) addButton("Delete Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }), true);
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
@@ -3430,10 +3481,6 @@
         teacherSelector.addEventListener("change", () => {
             state.activeTeacherId = normalizeInt(teacherSelector.value);
             renderAll();
-        });
-
-        versionSelector.addEventListener("change", () => {
-            if (versionSelector.value) window.location.assign(`/timetable?version=${encodeURIComponent(versionSelector.value)}`);
         });
 
         runComparisonBtn.addEventListener("click", async () => {
