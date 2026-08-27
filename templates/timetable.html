@@ -1632,6 +1632,15 @@
             </footer>
         </section>
     </div>
+    <dialog id="publishDialog" class="assignment-panel">
+        <header class="assignment-panel-header">
+            <div class="assignment-panel-title"><h4 id="publishDialogTitle"></h4><p id="publishDialogCopy"></p></div>
+        </header>
+        <footer class="assignment-panel-footer">
+            <button type="button" class="inspector-btn is-secondary" id="publishCancelBtn">Cancel</button>
+            <button type="button" class="inspector-btn is-primary" id="publishConfirmBtn"></button>
+        </footer>
+    </dialog>
 </section>
 {% endblock %}
 
@@ -1718,6 +1727,11 @@
         const compareRight = document.getElementById("compareRight");
         const runComparisonBtn = document.getElementById("runComparisonBtn");
         const comparisonResults = document.getElementById("comparisonResults");
+        const publishDialog = document.getElementById("publishDialog");
+        const publishDialogTitle = document.getElementById("publishDialogTitle");
+        const publishDialogCopy = document.getElementById("publishDialogCopy");
+        const publishCancelBtn = document.getElementById("publishCancelBtn");
+        const publishConfirmBtn = document.getElementById("publishConfirmBtn");
 
         const normalizeInt = (value) => {
             const parsedValue = Number.parseInt(String(value ?? "").trim(), 10);
@@ -2269,7 +2283,7 @@
                 versionActions.innerHTML = "";
                 return;
             }
-            const displayStatus = version.is_active ? "Published" : (version.lifecycle_status === "publication_ready" ? "Ready to Publish" : "Working Timetable");
+            const displayStatus = version.is_active ? "Published to Users" : (version.lifecycle_status === "publication_ready" ? "Ready to Publish" : "Working Timetable");
             versionStatusTitle.innerHTML = `
                 <span>${version.is_active ? "Published Timetable" : "Working Timetable"}</span>
                 <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(displayStatus.replace(/\b\w/g, (letter) => letter.toUpperCase()))}</span>
@@ -2279,7 +2293,7 @@
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
-                : (!version.is_mutable ? "Published and historical timetables are read-only. Make a working copy to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`);
+                : (version.is_active ? "Official timetable currently visible to authorized users." : (!version.is_mutable ? "This historical timetable is read-only. Make a working copy to make changes." : `Created ${version.created_at ? new Date(version.created_at).toLocaleString() : "recently"}.`));
             versionSelector.innerHTML = versions.map((item) => `<option value="${escapeHtml(item.public_id)}" ${item.public_id === version.public_id ? "selected" : ""}>${escapeHtml(versionLabel(item))}</option>`).join("");
             versionActions.innerHTML = "";
             const addButton = (label, handler, primary = false) => {
@@ -2292,13 +2306,18 @@
             const validation = state.payload.validation || {};
             if (canPublishTimetable && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
                 addButton("Publish Timetable", () => {
-                    const scope = state.payload.scope || {};
-                    const prompt = `Publish this timetable as the official timetable for ${scope.branch_name || "this branch"} · ${scope.academic_year_name || "this academic year"}?\n\nThe previous published timetable will remain in Timetable History.`;
-                    if (window.confirm(prompt)) callVersionAction("publish");
+                    const replacing = versions.some((item) => item.is_active && item.public_id !== version.public_id);
+                    publishDialogTitle.textContent = replacing ? "Replace the published timetable?" : "Publish this timetable?";
+                    publishDialogCopy.textContent = replacing
+                        ? "Publishing this timetable will make it the official timetable visible to authorized users. The currently published timetable will move to Timetable History."
+                        : "This timetable will become the official timetable for this branch and academic year. Authorized teachers and users will be able to see it.";
+                    publishConfirmBtn.textContent = replacing ? "Replace & Publish to Users" : "Publish to Users";
+                    publishDialog.showModal();
                 }, true);
             }
             if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Working Timetable", () => { if (window.confirm("Delete Working Timetable? Published timetable history will not be changed.")) callVersionAction("delete-working"); });
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
+            if (historyMode && canArchiveVersions && !version.is_active && !version.was_published && version.lifecycle_status !== "superseded") addButton("Delete Timetable", () => { if (window.confirm("Delete Timetable permanently? This cannot be undone.")) callVersionAction("delete"); });
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
@@ -2705,6 +2724,25 @@
                         });
                     }
 
+                    if (isSectionView && canModifySelected()) {
+                        if (entry && !entry.is_locked && entry.status !== "stale") {
+                            button.draggable = true;
+                            button.addEventListener("dragstart", (event) => {
+                                event.dataTransfer.setData("text/plain", String(entry.id));
+                                event.dataTransfer.effectAllowed = "move";
+                            });
+                        }
+                        button.addEventListener("dragover", (event) => {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                        });
+                        button.addEventListener("drop", (event) => {
+                            event.preventDefault();
+                            const entryId = normalizeInt(event.dataTransfer.getData("text/plain"));
+                            if (entryId) moveLesson(entryId, entity.id, day.key, slot.period_index);
+                        });
+                    }
+
                     gridCell.appendChild(button);
                     row.appendChild(gridCell);
                 });
@@ -2777,6 +2815,38 @@
                     closeAssignmentPanel();
                 }
                 setFlash(result.message || "Timetable updated successfully.", "success");
+                renderAll();
+            } catch (error) {
+                setFlash("Unable to reach the timetable service right now.", "error");
+            } finally {
+                setBusy(false);
+            }
+        };
+
+        const moveLesson = async (entryId, destinationSectionId, dayKey, periodIndex) => {
+            const version = state.payload?.version || {};
+            if (!version.public_id || !canModifySelected()) return;
+            setBusy(true);
+            try {
+                const response = await fetch(`/timetable/api/versions/${encodeURIComponent(version.public_id)}/move`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        entry_id: entryId,
+                        destination_section_id: destinationSectionId,
+                        destination_day_key: dayKey,
+                        destination_period_index: periodIndex,
+                        edit_revision: normalizeInt(version.edit_revision),
+                    }),
+                });
+                const result = await response.json();
+                if (!response.ok || !result.ok) {
+                    setFlash(result.message || "Unable to move this lesson.", "error");
+                    return;
+                }
+                state.payload = result.payload;
+                ensureSelection();
+                setFlash(result.message, "success");
                 renderAll();
             } catch (error) {
                 setFlash("Unable to reach the timetable service right now.", "error");
@@ -3358,6 +3428,11 @@
 
         generationActionBtn.addEventListener("click", startGeneration);
         generationCancelBtn.addEventListener("click", cancelGeneration);
+        publishCancelBtn.addEventListener("click", () => publishDialog.close());
+        publishConfirmBtn.addEventListener("click", () => {
+            publishDialog.close();
+            callVersionAction("publish");
+        });
 
         ensureSelection();
         renderAll();
