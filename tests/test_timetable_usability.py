@@ -170,6 +170,15 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     assert 'href="/timetable?history=1">Timetable History' in template
     assert 'historyMode && canArchiveVersions' in template
     assert 'addButton("Delete Timetable"' in template
+    assert '!version.is_active && !version.was_published' in template
+    assert 'dialog.assignment-panel:not([open]) { display: none; }' in template
+    assert '<h4 id="publishDialogTitle">Confirm timetable action</h4>' in template
+    assert 'id="publishConfirmBtn">Continue</button>' in template
+    assert 'openConfirmation({' in template
+    assert 'id="workspaceExportXlsx"' in template
+    assert 'id="workspaceExportPdf"' in template
+    assert '/versions/${encodeURIComponent(version.public_id)}/export.xlsx' in template
+    assert '/versions/${encodeURIComponent(version.public_id)}/export.pdf' in template
     assert 'button.draggable = true' in template
     assert 'addEventListener("drop"' in template
     for text in (

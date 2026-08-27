@@ -758,10 +758,9 @@ def _write_overview_sheet(
     sheet = workbook.active
     sheet.title = "Overview"
     version = workspace_payload.get("version") or {}
+    source_label = "Published Timetable" if version.get("is_active") else "Working Timetable"
     version_note = (
-        f" | Version {version.get('version_number')} | "
-        f"{str(version.get('display_status') or version.get('lifecycle_status') or '').replace('_', ' ').title()} | "
-        f"{str(version.get('origin') or '').title()}"
+        f" | {source_label} | Version {version.get('version_number')}"
         if version else ""
     )
     if version.get("is_stale"):
@@ -1597,10 +1596,9 @@ def _build_timetable_pdf_bytes(
 ) -> bytes:
     generated_at = datetime.now()
     version = workspace_payload.get("version") or {}
+    source_label = "Published Timetable" if version.get("is_active") else "Working Timetable"
     version_note = (
-        f" | Version {version.get('version_number')} | "
-        f"{str(version.get('display_status') or version.get('lifecycle_status') or '').replace('_', ' ').title()} | "
-        f"{str(version.get('origin') or '').title()}"
+        f" | {source_label} | Version {version.get('version_number')}"
         if version else ""
     )
     if version.get("is_stale"):
