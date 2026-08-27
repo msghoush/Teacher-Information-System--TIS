@@ -1674,7 +1674,7 @@ def timetable_page(
 
     branch_id, academic_year_id = get_scope_ids(current_user)
     selected_version_id = None
-    if version and history:
+    if version:
         try:
             school_group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=academic_year_id)
             selected_version_id = _resolve_scoped_version_public(
