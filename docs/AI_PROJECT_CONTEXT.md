@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 recommended_first_read: true
 ---
 
@@ -24,18 +24,23 @@ are redirected away from management drafts and history.
 ## Smart Timetable Stage 5.1
 
 Stage 5.1 implements automatic branch/year timetable generation with Google
-OR-Tools CP-SAT 9.15.6755 in a dedicated worker dependency environment. HTTP
-requests only capture schema-v3 immutable inputs and enqueue durable PostgreSQL
-`TimetableGenerationRun` rows. The worker claims with `SKIP LOCKED`, leases and
-heartbeats work, supports bounded recovery/cancellation, solves hard constraints,
-and submits candidates to an OR-Tools-independent validator.
+OR-Tools CP-SAT 9.15.6755 in a separate task dependency environment. HTTP requests
+capture schema-v3 immutable inputs, commit durable PostgreSQL
+`TimetableGenerationRun` rows, and use the server-side Render client to start one
+on-demand Workflow task with only the run public ID. The task claims that exact row,
+leases and heartbeats it, supports cooperative cancellation, solves hard constraints,
+and submits candidates to an OR-Tools-independent validator. Render automatic retry
+is disabled so TIS terminal state and Generate Again remain the only retry authority.
 
 Generate creates a new unpublished `publication_ready` generated version only in
 one atomic transaction after current-fingerprint revalidation. Regenerate preserves
 locked placements, excludes the exact source, and requires the approved minimum
 difference among unlocked lessons. Neither flow changes published history or the
 active pointer. `timetable.generate` is independent of publish authority. Stage 5.2
-UX simplification, Delete Working Timetable, and teacher My Timetable remain deferred.
+The old polling worker is optional/local only; production requires no always-on solver
+service. Immediate dispatch failure is terminal and customer-safe, while delayed task
+start is reported as waiting for compute. Stage 5.2 supplies the simplified workflow,
+Delete Working Timetable, and teacher My Timetable.
 
 ## Smart Timetable Stage 3.5
 

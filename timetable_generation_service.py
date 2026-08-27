@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import math
+import os
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -161,18 +162,33 @@ def build_generation_state(
 def generation_run_payload(run: models.TimetableGenerationRun | None) -> dict | None:
     if run is None:
         return None
+    phase_label = FAILURE_LABELS.get(run.status) or PHASE_LABELS.get(
+        run.progress_phase, "Generation"
+    )
+    message = run.safe_failure_details or ""
+    if run.status == "queued" and run.queued_at:
+        try:
+            warning_seconds = max(
+                int(os.getenv("TIS_TIMETABLE_WORKFLOW_START_WARNING_SECONDS", "60")), 10
+            )
+        except (TypeError, ValueError):
+            warning_seconds = 60
+        if datetime.utcnow() - run.queued_at >= timedelta(seconds=warning_seconds):
+            phase_label = "Waiting for Generation Service"
+            message = (
+                "Generation is queued and waiting for compute to start. "
+                "You can leave this page and return later."
+            )
     return {
         "public_id": run.public_id,
         "request_mode": run.request_mode,
         "status": run.status,
         "progress_phase": run.progress_phase,
-        "phase_label": FAILURE_LABELS.get(run.status) or PHASE_LABELS.get(
-            run.progress_phase, "Generation"
-        ),
+        "phase_label": phase_label,
         "active": run.status in ACTIVE_STATUSES,
         "attempt_count": int(run.attempt_count or 0),
         "failure_category": run.failure_category or "",
-        "message": run.safe_failure_details or "",
+        "message": message,
         "result_version_id": run.result_version_id,
         "queued_at": run.queued_at.isoformat() if run.queued_at else "",
         "started_at": run.started_at.isoformat() if run.started_at else "",
@@ -413,6 +429,77 @@ def claim_next_run(
     run.updated_at = now
     db.flush()
     return run
+
+
+def claim_run_by_public_id(
+    db: Session,
+    *,
+    public_id: str,
+    lease_seconds: int,
+    lease_owner: str | None = None,
+    expected_school_group_id: int | None = None,
+    expected_branch_id: int | None = None,
+    expected_academic_year_id: int | None = None,
+) -> models.TimetableGenerationRun | None:
+    """Claim exactly one queued durable run for an on-demand task.
+
+    Terminal, already-active, and already-completed runs are deliberate no-ops.
+    Optional scope assertions support internal callers and isolation tests without
+    placing tenant data in the Render task input.
+    """
+    run = db.query(models.TimetableGenerationRun).filter(
+        models.TimetableGenerationRun.public_id == public_id,
+    ).with_for_update().first()
+    if run is None:
+        raise TimetableGenerationError("generation_run_not_found", "Generation run not found.", 404)
+    expected = (
+        expected_school_group_id,
+        expected_branch_id,
+        expected_academic_year_id,
+    )
+    actual = (run.school_group_id, run.branch_id, run.academic_year_id)
+    if any(value is not None for value in expected) and any(
+        value is not None and int(value) != int(actual[index])
+        for index, value in enumerate(expected)
+    ):
+        raise TimetableGenerationError(
+            "scope_mismatch", "Generation run not found in the selected scope.", 404
+        )
+    if run.status != "queued":
+        return None
+    now = datetime.utcnow()
+    run.status = "running"
+    run.progress_phase = "building"
+    run.attempt_count = int(run.attempt_count or 0) + 1
+    run.started_at = run.started_at or now
+    run.lease_owner = lease_owner or str(uuid.uuid4())
+    run.heartbeat_at = now
+    run.lease_expires_at = now + timedelta(seconds=max(int(lease_seconds), 10))
+    run.updated_at = now
+    db.flush()
+    return run
+
+
+def mark_workflow_dispatch_failed(
+    db: Session,
+    *,
+    run_id: int,
+) -> bool:
+    """Fail a run only while it is still unclaimed after dispatch failure."""
+    run = db.query(models.TimetableGenerationRun).filter(
+        models.TimetableGenerationRun.id == run_id,
+    ).with_for_update().one()
+    if run.status != "queued":
+        return False
+    mark_run_terminal(
+        db,
+        run_id=run.id,
+        lease_owner=None,
+        status="internal_error",
+        failure_category="workflow_dispatch_failed",
+        safe_message="Generation could not start. Please try Generate Again.",
+    )
+    return True
 
 
 def heartbeat_run(

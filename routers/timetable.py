@@ -52,7 +52,12 @@ from timetable_generation_service import (
     build_generation_state,
     enqueue_generation,
     generation_run_payload,
+    mark_workflow_dispatch_failed,
     request_cancellation,
+)
+from timetable_workflow_dispatch import (
+    TimetableWorkflowDispatchError,
+    dispatch_timetable_generation,
 )
 from ui_shell import build_shell_context, get_school_logo_slots
 
@@ -1919,6 +1924,21 @@ async def create_generation_run(request: Request, db: Session = Depends(get_db))
             source_public_id=str(body.get("source_version_public_id") or "").strip() or None,
         )
         db.commit()
+        if run.status == "queued":
+            try:
+                dispatch_timetable_generation(run.public_id)
+            except TimetableWorkflowDispatchError:
+                failed = mark_workflow_dispatch_failed(db, run_id=run.id)
+                db.commit()
+                if failed:
+                    return JSONResponse(
+                        status_code=503,
+                        content={
+                            "ok": False,
+                            "error": "Generation could not start. Please try Generate Again.",
+                            "run": generation_run_payload(run),
+                        },
+                    )
         return JSONResponse(
             status_code=202,
             content={"ok": True, "run": generation_run_payload(run)},

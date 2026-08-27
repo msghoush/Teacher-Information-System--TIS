@@ -11,3 +11,4 @@ pillow
 tzdata
 reportlab
 httpx
+render==1.0.1

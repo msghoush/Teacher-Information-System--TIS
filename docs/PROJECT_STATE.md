@@ -1,11 +1,23 @@
 ---
 title: TIS Project State
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## On-Demand Timetable Generation Workflow Implemented
+
+Generate and Regenerate still create the Stage 5.1 durable PostgreSQL run and
+immutable snapshot, then the web service dispatches only its public ID to a registered
+Render Workflow task. The task reuses the single-run solver/validator/persistence
+pipeline, keeps leases, heartbeats, cancellation, staleness, and atomic result guards,
+and exits. Duplicate task starts are no-ops after claim or completion. Immediate
+dispatch failure safely terminates an unclaimed run and delayed start receives an
+honest waiting message. Render retries are explicitly disabled; Generate Again is
+the retry authority. No schema or solver behavior changed, and the polling worker is
+optional/local only rather than a production service.
 
 ## Smart Timetable Stage 5.2 Simplified Workflow Implemented
 
@@ -22,7 +34,7 @@ from management. No solver constraint, schema, migration, or production data cha
 ## Smart Timetable Stage 5.1 Generator Implemented
 
 Authorized administrators can queue Generate or Regenerate from a
-`generation_ready` timetable. A separate OR-Tools CP-SAT worker uses immutable
+`generation_ready` timetable. A separate OR-Tools CP-SAT execution environment uses immutable
 schema-v3 input, durable lease/heartbeat/recovery state, exact demand and collision
 constraints, Planning/HRT teacher authority, canonical teaching slots, and fixed
 locks. A solver-independent validator and final fingerprint/source-revision check
@@ -33,7 +45,7 @@ The active/published pointer is never changed by generation.
 Migration `20260822_001_smart_timetable_stage51_generator` adds progress, attempts,
 cancellation audit, worker-claim indexing, and one-active-run-per-scope enforcement.
 The page polls real phases and recovers active work after reload. Stage 5.2 UX and
-teacher visibility work remain unimplemented.
+teacher visibility are implemented as documented above.
 
 ## Smart Timetable Stage 3.5 Composed Timeline Implemented
 

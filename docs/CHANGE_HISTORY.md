@@ -1,11 +1,23 @@
 ---
 title: TIS Change History
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-08-26 - Replaced Always-On Timetable Worker With On-Demand Workflow
+
+- Added a registered Render Workflow task that receives only a durable generation
+  run public ID and reuses the Stage 5.1 solve/validate/persist pipeline.
+- Added lightweight post-commit web dispatch, terminal handling for immediate
+  dispatch failure, delayed-start feedback, and exact-run PostgreSQL claiming.
+- Kept leases, heartbeats, cancellation, staleness, independent validation, atomic
+  persistence, and duplicate-result guards; solver mathematics and Stage 5.2 UX did
+  not change.
+- Disabled Render automatic task retries and made the prior infinite polling worker
+  optional/local only, removing the always-running production solver requirement.
 
 ## 2026-08-26 - Implemented Smart Timetable Stage 5.2 Simplified Workflow
 
