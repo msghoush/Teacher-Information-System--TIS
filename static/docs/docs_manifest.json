@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-27T22:31:34.917545+03:00",
+  "generated_at": "2026-08-28T00:04:03.681694+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "353e8aa",
+  "commit_sha": "90d2c54",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "427310da9ccade4a480a693d464a9881fea0ff9e1ac9b5de0bae88b865fd6582",
-  "pdf_size_bytes": 955094,
+  "pdf_sha256": "9d444166304c83fe9bfa8a0ac85636e4caa07759d58a4e3235b48dcc1b41d2ad",
+  "pdf_size_bytes": 955814,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-26T23:44:53.343022+03:00",
-      "size_bytes": 67535,
-      "sha256": "b0c87abcc90a9264a5237ab8060cf7f0e96b8ad9e61e4821feee809b1c15db63",
+      "modified_at": "2026-08-28T00:03:59.468086+03:00",
+      "size_bytes": 68007,
+      "sha256": "d897cda3a26b6600c16392ee9e18a6bc388f9180f09d6dbcabd979cd9b8a75c5",
       "pdf_page": 15
     },
     {
@@ -599,9 +599,9 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-08-26-smart-timetable-stage-52-simplified-workflow.md",
-      "modified_at": "2026-08-26T22:02:35.912947+03:00",
-      "size_bytes": 1228,
-      "sha256": "a082fe384673af71d50c4aa3bd4d39724b4a4769dbc195177311e7a6529b34cb",
+      "modified_at": "2026-08-28T00:03:59.468086+03:00",
+      "size_bytes": 2253,
+      "sha256": "823f9c85099f0200ebdd175c502de4618e3bd49589f217429a19a0435bd7264b",
       "pdf_page": 334
     },
     {

@@ -26,9 +26,11 @@ from timetable_version_service import (
     TimetableVersionError,
     archive_version,
     copy_version_to_draft,
+    delete_unused_timetable_version,
     discard_working_version,
     ensure_compatibility_editable_version,
     mutate_draft_placement,
+    move_or_swap_timetable_entry,
     resolve_scope_school_group_id,
     set_entry_lock,
 )
@@ -2087,7 +2089,7 @@ async def publish_timetable_version(public_id: str, request: Request, db: Sessio
         selected = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
         published = TimetablePublicationService(db).publish(version_id=selected.id, school_group_id=group_id, branch_id=branch_id, academic_year_id=year_id, actor_user_id=str(current_user.user_id or "") or None, expected_edit_revision=edit_revision, expected_pointer_revision=pointer_revision)
         db.commit()
-        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=published.id), message="This is now the official published timetable.")
+        return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=published.id), message="Published to Users")
     except TimetableVersionError as exc:
         db.rollback(); return _json_error(str(exc))
 
@@ -2144,6 +2146,65 @@ def delete_working_timetable(public_id: str, request: Request, db: Session = Dep
     except TimetableVersionError as exc:
         db.rollback()
         return _json_error(str(exc))
+
+
+@router.post("/api/versions/{public_id}/delete")
+def delete_timetable_version(public_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.archive_versions"):
+        return _json_error("You do not have permission to delete timetable history.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        version = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
+        delete_unused_timetable_version(
+            db, version_id=version.id, school_group_id=group_id,
+            branch_id=branch_id, academic_year_id=year_id,
+        )
+        db.commit()
+        return _json_success(
+            build_timetable_workspace_payload(db, branch_id, year_id),
+            message="Timetable deleted",
+        )
+    except TimetableVersionError as exc:
+        db.rollback()
+        return _json_error(str(exc))
+
+
+@router.post("/api/versions/{public_id}/move")
+async def move_timetable_lesson(public_id: str, request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.edit"):
+        return _json_error("Your role does not permit this timetable change.", 403)
+    body = await request.json()
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        version = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
+        action = move_or_swap_timetable_entry(
+            db,
+            version=version,
+            entry_id=_parse_int(body.get("entry_id")) or 0,
+            destination_section_id=_parse_int(body.get("destination_section_id")) or 0,
+            destination_day_key=normalize_day_key(body.get("destination_day_key")),
+            destination_period_index=_parse_int(body.get("destination_period_index")) or 0,
+            expected_edit_revision=_parse_int(body.get("edit_revision")),
+        )
+        db.commit()
+        return _json_success(
+            build_timetable_workspace_payload(db, branch_id, year_id, version_id=version.id),
+            message="Lessons swapped" if action == "swapped" else "Lesson moved",
+        )
+    except TimetableVersionError as exc:
+        db.rollback()
+        return _json_error(str(exc))
+    except IntegrityError:
+        db.rollback()
+        return _json_error("This timetable change conflicts with another lesson.")
 
 
 @router.post("/api/assign")

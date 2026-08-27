@@ -1011,6 +1011,7 @@ def build_timetable_workspace_payload(
                 "created_at": row.created_at.isoformat() if row.created_at else "",
                 "quality_score": row.quality_score,
                 "is_active": bool(active_version and int(active_version.id) == int(row.id)),
+                "was_published": bool(row.published_at),
                 "is_stale": bool(row.is_stale),
                 "has_manual_changes": bool(row.has_manual_changes),
                 "source_version_number": next((int(source.version_number) for source in versions if row.source_version_id and int(source.id) == int(row.source_version_id)), None),
@@ -1281,6 +1282,7 @@ def build_timetable_workspace_payload(
                 "manual_change_count": int(selected_version.manual_change_count or 0),
                 "created_at": selected_version.created_at.isoformat() if selected_version.created_at else "",
                 "published_at": selected_version.published_at.isoformat() if selected_version.published_at else "",
+                "was_published": bool(selected_version.published_at),
                 "edit_revision": int(selected_version.edit_revision or 0),
             }
             if selected_version is not None

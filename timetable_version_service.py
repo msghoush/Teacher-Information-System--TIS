@@ -745,3 +745,146 @@ def discard_working_version(
     version.updated_at = datetime.utcnow()
     db.flush()
     return version
+
+
+def delete_unused_timetable_version(
+    db: Session,
+    *,
+    version_id: int,
+    school_group_id: int,
+    branch_id: int,
+    academic_year_id: int,
+) -> None:
+    """Permanently remove an unpublished, unreferenced candidate from History."""
+    db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).with_for_update().one()
+    version = lock_scoped_version(
+        db, version_id=version_id, school_group_id=school_group_id,
+        branch_id=branch_id, academic_year_id=academic_year_id,
+    )
+    if is_active_version(db, version):
+        raise TimetableVersionError(
+            "published_delete_forbidden", "The published timetable cannot be deleted."
+        )
+    if version.published_at is not None or version.lifecycle_status == "superseded":
+        raise TimetableVersionError(
+            "published_history_delete_forbidden",
+            "A timetable that was previously published must remain in Timetable History.",
+        )
+    derived_version = db.query(models.TimetableVersion.id).filter(
+        models.TimetableVersion.source_version_id == version.id
+    ).first()
+    source_run = db.query(models.TimetableGenerationRun.id).filter(
+        models.TimetableGenerationRun.source_version_id == version.id
+    ).first()
+    if derived_version or source_run:
+        raise TimetableVersionError(
+            "version_in_use", "This timetable is used by a later generation and cannot be deleted."
+        )
+    entries = db.query(models.TimetableEntry).filter(
+        models.TimetableEntry.timetable_version_id == version.id
+    ).all()
+    for entry in entries:
+        db.delete(entry)
+    # Preserve durable run/audit history; remove only its optional result link.
+    db.query(models.TimetableGenerationRun).filter(
+        models.TimetableGenerationRun.result_version_id == version.id
+    ).update({models.TimetableGenerationRun.result_version_id: None}, synchronize_session=False)
+    db.delete(version)
+    db.flush()
+
+
+def move_or_swap_timetable_entry(
+    db: Session,
+    *,
+    version: models.TimetableVersion,
+    entry_id: int,
+    destination_section_id: int,
+    destination_day_key: str,
+    destination_period_index: int,
+    expected_edit_revision: int | None = None,
+) -> str:
+    """Atomically move one lesson, or swap it with the destination lesson."""
+    version = lock_mutable_version(
+        db, version=version, expected_edit_revision=expected_edit_revision,
+        revision_message="This timetable changed in another browser. Refresh before moving the lesson.",
+    )
+    entries = db.query(models.TimetableEntry).filter(
+        models.TimetableEntry.timetable_version_id == version.id
+    ).with_for_update().all()
+    source = next((row for row in entries if int(row.id) == int(entry_id)), None)
+    if source is None:
+        raise TimetableVersionError("entry_not_found", "The selected lesson is not in this timetable.")
+    if source.is_locked:
+        raise TimetableVersionError("locked_lesson", "Unlock this lesson before moving it")
+    section = db.query(models.PlanningSection).filter(
+        models.PlanningSection.id == destination_section_id,
+        models.PlanningSection.branch_id == version.branch_id,
+        models.PlanningSection.academic_year_id == version.academic_year_id,
+    ).first()
+    if section is None:
+        raise TimetableVersionError("section_scope_mismatch", "The destination class is outside this timetable.")
+
+    from timetable_logic import get_timetable_settings_payload
+    projection = get_timetable_settings_payload(
+        db, int(version.branch_id), int(version.academic_year_id)
+    )["slot_projection"]
+    slot = projection.get("slot_map", {}).get(
+        (str(destination_day_key).strip().lower(), int(destination_period_index))
+    )
+    if not projection.get("valid") or slot is None or not slot.get("schedulable"):
+        raise TimetableVersionError("non_teaching_period", "This is a non-teaching period")
+
+    destination = next((
+        row for row in entries
+        if int(row.planning_section_id) == int(destination_section_id)
+        and str(row.day_key) == str(destination_day_key)
+        and int(row.period_index) == int(destination_period_index)
+    ), None)
+    if destination is source:
+        return "moved"
+    if destination is not None and destination.is_locked:
+        raise TimetableVersionError("locked_lesson", "Unlock this lesson before moving it")
+
+    source_position = (
+        int(source.planning_section_id), str(source.day_key), int(source.period_index)
+    )
+    proposed = [(source, int(destination_section_id), str(destination_day_key), int(destination_period_index))]
+    if destination is not None:
+        proposed.append((destination, *source_position))
+    ignored_ids = {int(item[0].id) for item in proposed}
+    for moving, section_id, day_key, period_index in proposed:
+        section_collision = next((
+            row for row in entries if int(row.id) not in ignored_ids
+            and int(row.planning_section_id) == section_id
+            and str(row.day_key) == day_key and int(row.period_index) == period_index
+        ), None)
+        if section_collision:
+            raise TimetableVersionError("section_collision", "Class already has a lesson at this time")
+        teacher_collision = next((
+            row for row in entries if int(row.id) not in ignored_ids
+            and int(row.teacher_id) == int(moving.teacher_id)
+            and str(row.day_key) == day_key and int(row.period_index) == period_index
+        ), None)
+        if teacher_collision:
+            raise TimetableVersionError("teacher_collision", "Teacher already has a lesson at this time")
+
+    # Temporarily vacate both unique keys before applying the final positions.
+    for index, (moving, _, _, _) in enumerate(proposed, start=1):
+        moving.day_key = f"__moving_{index}"
+        moving.period_index = -index
+    db.flush()
+    now = datetime.utcnow()
+    for moving, section_id, day_key, period_index in proposed:
+        moving.planning_section_id = section_id
+        moving.day_key = day_key
+        moving.period_index = period_index
+        moving.updated_at = now
+    version.lifecycle_status = "draft"
+    version.has_manual_changes = True
+    version.manual_change_count = int(version.manual_change_count or 0) + 1
+    version.edit_revision = int(version.edit_revision or 0) + 1
+    version.updated_at = now
+    db.flush()
+    return "swapped" if destination is not None else "moved"

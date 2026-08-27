@@ -16,6 +16,12 @@ Check Timetable, Ready to Publish, Published, and Timetable History language.
 
 Delete Working Timetable is an exact-scope archive operation. It preserves entries,
 snapshots, runs, audit metadata, and the active pointer and refuses active generation.
+Timetable History may permanently delete only a never-published, non-active, unused
+candidate; its entries are removed while shared snapshots, generation runs, and audit
+history are preserved. Mutable working lessons may be moved or atomically swapped
+between canonical teaching slots, with lock, class, and teacher conflicts failing the
+whole operation. Publication uses explicit first-publish or replacement confirmation
+and customer-facing Published to Users language.
 `timetable_visibility_service.py` resolves official reads strictly through
 `TimetableActiveVersion`. `/my-timetable` matches scoped `User.user_id` to
 `Teacher.teacher_id` and shows only that teacher's published lessons. View-only users
