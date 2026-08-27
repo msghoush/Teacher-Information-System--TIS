@@ -26,3 +26,8 @@ history unchanged. Generate/Regenerate actions, real phase polling, safe termina
 messages, and `timetable.generate` are exposed now. Stage 5.2 simplification,
 Delete Working Timetable, Timetable History simplification, teacher My Timetable,
 and published-only teacher visibility remain deferred. No production action occurred.
+
+On 2026-08-26, the production execution host changed to an on-demand Render Workflow
+task. The solver pipeline and all durable safety described here remain unchanged;
+`python -m timetable_generation_worker` is now only an optional local fallback and
+`requirements-workflow.txt` is the production task dependency set.

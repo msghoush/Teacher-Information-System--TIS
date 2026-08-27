@@ -1,7 +1,7 @@
 ---
 title: TIS Module Map
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
@@ -23,12 +23,18 @@ source_of_truth: true
 - `timetable_problem_builder.py`: schema-v3 immutable snapshot normalization,
   deterministic lesson IDs, canonical slots, Planning/HRT demand, locks, and
   regeneration source contract.
-- `timetable_cp_sat_solver.py`: worker-only CP-SAT model and solve result.
+- `timetable_cp_sat_solver.py`: task-runtime-only CP-SAT model and solve result.
 - `timetable_solution_validator.py`: solver-independent hard validation.
-- `timetable_generation_worker.py`: `python -m` worker loop and real progress phases.
+- `timetable_workflow_dispatch.py`: lightweight server-side Render client and
+  environment-driven task slug.
+- `timetable_generation_workflow.py`: registered on-demand task accepting only the
+  durable generation run public ID.
+- `timetable_generation_worker.py`: reusable single-run executor and optional local
+  polling fallback; it is not an always-on production requirement.
 - `routers/timetable.py` and `templates/timetable.html`: permissioned enqueue,
   scoped status/cancel, polling, generated review selection, and regeneration action.
-- `requirements-worker.txt`: base web requirements plus pinned OR-Tools 9.15.6755.
+- `requirements-workflow.txt`: web/runtime requirements plus pinned OR-Tools 9.15.6755.
+- `requirements-worker.txt`: compatibility dependency set for the optional local worker.
 
 ## Commercial Feature Packaging Components
 

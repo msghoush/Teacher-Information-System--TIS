@@ -1,7 +1,7 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
@@ -22,9 +22,11 @@ source_of_truth: true
    `generation_ready`, and no active run.
 2. Select Generate when no generated working candidate exists; otherwise select
    Regenerate and freeze the source revision, arrangement, and locks.
-3. Capture schema-v3 canonical input and fingerprint, then enqueue one durable run.
-4. A worker claims and leases the run, builds from only the snapshot, solves with
-   CP-SAT, and records Building, Solving, Checking, and Saving phases.
+3. Capture schema-v3 canonical input and fingerprint, commit one durable run, then
+   dispatch its public ID to the configured Render Workflow task. Immediate dispatch
+   failure ends the still-unclaimed run safely and permits Generate Again.
+4. The on-demand task claims that exact run, leases it, builds from only the snapshot,
+   solves with CP-SAT, and records Building, Solving, Checking, and Saving phases.
 5. The independent validator checks exact demand, scope, Planning/HRT authority,
    canonical slots, collisions, locks, fingerprint/source revision, and diversity.
 6. Rebuild current authoritative input. Changed inputs end as `stale_input` and
@@ -35,7 +37,9 @@ source_of_truth: true
 
 Cancellation ends queued work immediately or requests cooperative cancellation of
 leased work. Reload resolves the active durable run. Infeasibility and timeout create
-no version. Regeneration is unavailable when all source lessons are locked.
+no version. A queued task delayed beyond the configured threshold reports that it is
+waiting for compute. The browser never polls Render. Regeneration is unavailable
+when all source lessons are locked.
 
 ## Common Customer Feature Decision Flow
 

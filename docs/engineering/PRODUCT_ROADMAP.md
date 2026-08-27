@@ -1,7 +1,7 @@
 ---
 title: TIS Product Roadmap
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
@@ -14,6 +14,10 @@ customer validation/publication language, secondary history, strict active-point
 official reads, and scoped My Timetable. Stage 5.1 solver constraints and concurrency
 are unchanged. Availability, rooms/resources, preferences, and student identities
 remain future separately approved work.
+
+Production generation now dispatches one on-demand Render Workflow task per durable
+run. The always-running solver worker is no longer required; solver rules and Stage
+5.2 publication/visibility behavior remain unchanged.
 
 ## M3 Promo Redemption And Organization Activation
 

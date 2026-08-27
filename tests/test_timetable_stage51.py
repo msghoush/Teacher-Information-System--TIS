@@ -17,9 +17,12 @@ from db_migrations import _smart_timetable_stage51_generator
 from timetable_generation_service import (
     TimetableGenerationError,
     _minimum_difference,
+    claim_run_by_public_id,
     claim_next_run,
     enqueue_generation,
     heartbeat_run,
+    generation_run_payload,
+    mark_workflow_dispatch_failed,
     mark_run_terminal,
     persist_generated_result,
     recover_expired_runs,
@@ -326,6 +329,82 @@ def test_enqueue_claim_heartbeat_cancel_and_bounded_recovery(db):
     db.flush()
     assert recover_expired_runs(db, max_attempts=2) == 1
     assert second.status == "queued" and second.lease_owner is None
+
+
+def test_workflow_exact_claim_is_idempotent_and_scope_safe(db):
+    _make_ready(db)
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="workflow-exact-claim",
+    )
+    db.commit()
+    claimed = claim_run_by_public_id(
+        db,
+        public_id=run.public_id,
+        lease_seconds=90,
+        lease_owner="workflow-one",
+        expected_school_group_id=1,
+        expected_branch_id=10,
+        expected_academic_year_id=100,
+    )
+    db.commit()
+    assert claimed.id == run.id
+    assert claimed.progress_phase == "building"
+    assert claimed.attempt_count == 1
+    assert claim_run_by_public_id(
+        db, public_id=run.public_id, lease_seconds=90, lease_owner="workflow-two"
+    ) is None
+    with pytest.raises(TimetableGenerationError) as mismatch:
+        claim_run_by_public_id(
+            db,
+            public_id=run.public_id,
+            lease_seconds=90,
+            expected_school_group_id=999,
+        )
+    assert mismatch.value.code == "scope_mismatch"
+
+
+def test_workflow_dispatch_failure_is_terminal_only_before_claim(db):
+    _make_ready(db)
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="workflow-dispatch-failure",
+    )
+    db.commit()
+    assert mark_workflow_dispatch_failed(db, run_id=run.id) is True
+    db.commit()
+    assert run.status == "internal_error"
+    assert run.failure_category == "workflow_dispatch_failed"
+    assert "Generate Again" in run.safe_failure_details
+
+    replacement = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="workflow-dispatch-raced",
+    )
+    db.commit()
+    claim_run_by_public_id(
+        db, public_id=replacement.public_id, lease_seconds=90, lease_owner="workflow"
+    )
+    db.commit()
+    assert mark_workflow_dispatch_failed(db, run_id=replacement.id) is False
+    assert replacement.status == "running"
+
+
+def test_queued_workflow_delayed_start_message(db, monkeypatch):
+    _make_ready(db)
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="workflow-delayed",
+    )
+    run.queued_at = datetime.utcnow() - timedelta(seconds=61)
+    monkeypatch.setenv("TIS_TIMETABLE_WORKFLOW_START_WARNING_SECONDS", "60")
+    payload = generation_run_payload(run)
+    assert payload["phase_label"] == "Waiting for Generation Service"
+    assert "waiting for compute" in payload["message"]
 
 
 def test_success_is_atomic_unpublished_and_old_worker_cannot_save(db):
@@ -759,6 +838,55 @@ def test_postgresql_two_worker_claim_lease_recovery_and_old_worker_guard(pg_stag
     assert cancellation.value.code == "cancel_requested"
     assert session.get(models.TimetableGenerationRun, run_id).status == "cancel_requested"
     session.close()
+
+
+def test_postgresql_duplicate_workflow_invocation_claims_exact_run_once(pg_stage51):
+    _, Session = pg_stage51
+    session = Session()
+    run = enqueue_generation(
+        session, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="workflow-duplicate-pg",
+    )
+    session.commit()
+    public_id = run.public_id
+    run_id = run.id
+    session.close()
+
+    barrier = threading.Barrier(2)
+    outcomes = []
+    outcome_lock = threading.Lock()
+
+    def claim(owner):
+        worker = Session()
+        try:
+            barrier.wait(timeout=5)
+            row = claim_run_by_public_id(
+                worker,
+                public_id=public_id,
+                lease_seconds=90,
+                lease_owner=owner,
+            )
+            worker.commit()
+            value = row.id if row else None
+        finally:
+            worker.close()
+        with outcome_lock:
+            outcomes.append(value)
+
+    threads = [threading.Thread(target=claim, args=(owner,)) for owner in ("wf-a", "wf-b")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    assert outcomes.count(run_id) == 1
+    assert outcomes.count(None) == 1
+    check = Session()
+    stored = check.get(models.TimetableGenerationRun, run_id)
+    assert stored.status == "running"
+    assert stored.attempt_count == 1
+    assert check.query(models.TimetableVersion).count() == 0
+    check.close()
 
 
 def test_postgresql_stale_race_and_persistence_rollback_are_atomic(pg_stage51):

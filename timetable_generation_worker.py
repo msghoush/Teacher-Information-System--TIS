@@ -11,6 +11,7 @@ from timetable_cp_sat_solver import solve_timetable
 from timetable_generation_service import (
     TimetableGenerationError,
     claim_next_run,
+    claim_run_by_public_id,
     heartbeat_run,
     load_problem_for_run,
     mark_run_terminal,
@@ -207,6 +208,31 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
         heartbeat_thread.join(timeout=1)
 
 
+def execute_generation_run(
+    generation_run_public_id: str,
+    settings: WorkerSettings | None = None,
+) -> bool:
+    """Claim and execute one exact durable run; duplicate invocations are no-ops."""
+    settings = settings or WorkerSettings.from_environment()
+    session = SessionLocal()
+    try:
+        run = claim_run_by_public_id(
+            session,
+            public_id=generation_run_public_id,
+            lease_seconds=settings.lease_seconds,
+        )
+        if run is None:
+            session.commit()
+            return False
+        run_id = int(run.id)
+        owner = str(run.lease_owner)
+        session.commit()
+    finally:
+        session.close()
+    process_run(run_id, owner, settings)
+    return True
+
+
 def run_once(settings: WorkerSettings | None = None) -> bool:
     settings = settings or WorkerSettings.from_environment()
     session = SessionLocal()
@@ -232,7 +258,7 @@ def main() -> None:
     logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO"))
     settings = WorkerSettings.from_environment()
     stop = threading.Event()
-    logger.info("Timetable generation worker started.")
+    logger.info("Optional local timetable generation polling worker started.")
     while True:
         if not run_once(settings):
             stop.wait(settings.poll_seconds)

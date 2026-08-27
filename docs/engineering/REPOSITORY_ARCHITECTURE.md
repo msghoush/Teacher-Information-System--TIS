@@ -1,7 +1,7 @@
 ---
 title: TIS Repository Architecture
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
@@ -17,18 +17,21 @@ only through `TimetableActiveVersion`; it never uses operational draft resolutio
 
 ## Smart Timetable Generation Boundary
 
-`routers/timetable.py` and `timetable_generation_service.py` are the web-safe
-enqueue/status/cancel boundary and never import OR-Tools. `timetable_problem_builder.py`
-builds solely from captured snapshot JSON. `timetable_cp_sat_solver.py` is imported
-only by `timetable_generation_worker.py`, whose deployment command is
-`python -m timetable_generation_worker` and whose dependencies are in
-`requirements-worker.txt`.
+`routers/timetable.py`, `timetable_workflow_dispatch.py`, and
+`timetable_generation_service.py` are the web-safe enqueue/dispatch/status/cancel
+boundary and never import OR-Tools. `timetable_problem_builder.py` builds solely
+from captured snapshot JSON. `timetable_generation_workflow.py` registers the
+on-demand Render task and imports the reusable single-run executor from
+`timetable_generation_worker.py`; its dependencies are in
+`requirements-workflow.txt`. The polling worker command remains local/fallback only.
 
-The worker claims durable `TimetableGenerationRun` rows, maintains leases and
-heartbeats, solves, and asks `timetable_solution_validator.py` to validate without
-solver trust. Persistence rechecks current authoritative input and source revision,
-then creates the version, entries, linkage, and successful status in one transaction.
-The web process only polls recorded phases; it never owns solver execution.
+The web commits a durable queued run before requesting one Render task and marks an
+unclaimed run terminal if dispatch fails. The task claims only that public ID,
+maintains the existing lease and heartbeat, solves, and asks the independent
+validator to verify it. Persistence rechecks current input/source revision, then
+creates the version, entries, linkage, and success in one transaction. The browser
+polls only TIS state. Render retries are explicitly zero; duplicate invocation is a
+safe no-op after the PostgreSQL claim or terminal result.
 
 ## Customer Feature Policy Boundary
 

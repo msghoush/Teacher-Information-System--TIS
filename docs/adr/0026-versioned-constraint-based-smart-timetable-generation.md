@@ -1,7 +1,7 @@
 ---
 title: Versioned, Constraint-Based Smart Timetable Generation
-documentation_version: 3.3
-last_updated: 2026-08-22
+documentation_version: 3.4
+last_updated: 2026-08-26
 status: accepted
 module: workforce-planning
 ---
@@ -47,11 +47,13 @@ Active status remains derived from the pointer rather than duplicated on the ver
 requester, Generate/Regenerate mode, source version/revision, snapshot,
 solver/seed/diversity metadata, progress, attempts, lease/heartbeat, cancellation
 audit, safe failure, result, and idempotency. A partial unique index permits only
-one queued/running/validating/cancel-requested run per exact scope. Workers claim
-with row locking and `SKIP LOCKED`, heartbeat leases, recover expired work only up
-to the configured attempt bound, and reject save attempts after lease loss.
+one queued/running/validating/cancel-requested run per exact scope. The production
+web path dispatches an on-demand Render Workflow task containing only the run public
+ID. That task claims the exact queued row under a PostgreSQL lock, heartbeats its
+lease, and rejects save attempts after lease loss. The former `SKIP LOCKED` polling
+loop remains an optional local fallback, not a production requirement.
 
-Stage 5.1 uses Google OR-Tools CP-SAT 9.15.6755 from a worker-specific dependency
+Stage 5.1 uses Google OR-Tools CP-SAT 9.15.6755 from a workflow-specific dependency
 file; no normally loaded web module imports OR-Tools. Schema-v3 immutable snapshots
 are the sole solve input. CP-SAT enforces exact demand, section and teacher slot
 exclusivity, canonical teaching slots, fixed locks, and regeneration diversity.
@@ -96,7 +98,7 @@ Exports are version-aware and preserve their current presentation. Future availa
 - Stage 3/3.5 implements composed canonical slot projection and structural readiness on stable snapshots; valid inserted blocks do not consume teaching-period indexes.
 - Stage 4 implements version comparison and truthful publication without mutating active history. Stage 5.1 adds generation on this boundary without changing publication authority.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
-- Stage 5.1 adds a durable worker process, real phase polling, and independent validation. Stage 5.2 adds simplified workflow and published-only visibility without changing the solver. Availability, rooms/resources, preferences, and quality scoring remain later decisions.
+- Stage 5.1 adds durable task execution, real phase polling, and independent validation. Production now provisions one Render Workflow task per run and requires no always-on solver worker. Render automatic retries are disabled; TIS terminal state plus Generate Again is the sole retry authority. Stage 5.2 adds simplified workflow and published-only visibility without changing the solver. Availability, rooms/resources, preferences, and quality scoring remain later decisions.
 
 ## Related Files
 
@@ -109,6 +111,8 @@ Exports are version-aware and preserve their current presentation. Future availa
 - `timetable_solution_validator.py`
 - `timetable_generation_service.py`
 - `timetable_generation_worker.py`
+- `timetable_generation_workflow.py`
+- `timetable_workflow_dispatch.py`
 - `timetable_visibility_service.py`
 - `timetable_logic.py`
 - `routers/timetable.py`

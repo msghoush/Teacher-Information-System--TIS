@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
@@ -26,7 +26,11 @@ Stage 5.1 makes Planning-resolved section/subject/teacher demand, including
 subject-specific Grades 1-2 HRT fallback, the only lesson authority for automatic
 generation. Schema-v3 snapshots freeze exact SchoolGroup/Branch/Academic-Year
 scope, canonical composed teaching slots, demands, locks, source revision and
-regeneration arrangement. OR-Tools is worker-only; web processes enqueue and poll.
+regeneration arrangement. OR-Tools is task-runtime-only; web processes commit a run,
+dispatch only its public ID to an on-demand Render Workflow task, and poll TIS state.
+The task claims the exact run under PostgreSQL locking and retains lease/heartbeat
+protection against duplicates and late persistence. Render automatic retries are
+disabled, and the old infinite worker loop is an optional local fallback only.
 
 Hard-valid candidates must pass an independent validator and a current-input check
 before atomic persistence as unpublished generated/regenerated publication-ready

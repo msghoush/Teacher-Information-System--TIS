@@ -1,11 +1,22 @@
 ---
 title: TIS Database Architecture Overview
-documentation_version: 3.2
-last_updated: 2026-08-22
+documentation_version: 3.3
+last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## On-Demand Generation Execution
+
+No schema migration is required for Render Workflows. The existing generation run
+public ID identifies task input; status, exact scope, snapshot, attempt, lease,
+heartbeat, cancellation, safe failure, and result columns remain authoritative.
+An on-demand task locks and claims exactly its queued public ID. Duplicate task
+invocations see an active or terminal row and do not solve or persist again.
+Immediate web dispatch failure atomically marks only a still-queued run
+`internal_error` with `workflow_dispatch_failed`. The partial unique active-scope
+index and atomic candidate transaction remain unchanged.
 
 ## Smart Timetable Stage 5.1 Queue Migration
 
@@ -13,7 +24,7 @@ Migration `20260822_001_smart_timetable_stage51_generator` is additive and
 idempotent. It extends the existing `timetable_generation_runs` table with
 `progress_phase`, non-negative `attempt_count`, `cancel_requested_at`, and a
 nullable cancellation actor foreign key. It adds a `(status, lease_expires_at,
-queued_at)` worker-claim index and a partial unique exact-scope index for active
+queued_at)` claim index and a partial unique exact-scope index for active
 statuses. Duplicate active scopes fail migration preflight instead of being guessed
 or rewritten. PostgreSQL receives named progress/attempt checks and the actor FK.
 
