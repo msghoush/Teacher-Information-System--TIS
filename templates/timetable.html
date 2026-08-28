@@ -1494,6 +1494,9 @@
                 </div>
             </div>
             <div class="version-actions" id="versionActions"></div>
+            {% if history_mode and can_delete_versions %}
+            <button type="button" class="hero-btn is-secondary" id="deleteAllUnpublishedBtn">Delete All Unpublished Timetables</button>
+            {% endif %}
             {% if history_mode %}<div class="history-version-list" id="historyVersionList" aria-label="Timetable versions"></div>{% endif %}
             <div class="comparison-panel" id="comparisonPanel">
                 <strong>Compare Versions</strong>
@@ -1738,6 +1741,7 @@
         const generationMessage = document.getElementById("generationMessage");
         const generationActionBtn = document.getElementById("generationActionBtn");
         const generationCancelBtn = document.getElementById("generationCancelBtn");
+        const deleteAllUnpublishedBtn = document.getElementById("deleteAllUnpublishedBtn");
         const versionStatusTitle = document.getElementById("versionStatusTitle");
         const versionNotice = document.getElementById("versionNotice");
         const historyVersionList = document.getElementById("historyVersionList");
@@ -2220,6 +2224,7 @@
                         request_mode: mode,
                         idempotency_key: requestKey,
                         source_version_public_id: source?.public_id || null,
+                        draft_version_public_id: generation.draft_version_public_id || state.payload?.version?.public_id || null,
                     }),
                 });
                 const result = await response.json();
@@ -2301,15 +2306,13 @@
         };
 
         const versionLabel = (item) => {
-            const status = String(item.display_status || item.lifecycle_status || "").replaceAll("_", " ");
-            return `Version ${normalizeInt(item.version_number)} · ${status.replace(/\b\w/g, (letter) => letter.toUpperCase())} · ${String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase())}${item.is_stale ? " · Stale" : ""}`;
+            return `Version ${normalizeInt(item.version_number)} · ${friendlyVersionStatus(item)}`;
         };
 
         const friendlyVersionStatus = (item) => {
             if (item.is_active) return "Published Timetable";
-            if (item.was_published) return "Previously Published";
+            if (item.was_published || item.lifecycle_status === "superseded") return "Previous Published Timetable";
             if (item.lifecycle_status === "publication_ready") return "Ready to Publish";
-            if (item.lifecycle_status === "archived") return "Archived";
             return "Draft Timetable";
         };
 
@@ -2327,6 +2330,29 @@
             finally { setBusy(false); }
         };
 
+        const deleteAllUnpublished = async () => {
+            setBusy(true);
+            try {
+                const response = await fetch("/timetable/api/versions/delete-unpublished", { method: "POST" });
+                const result = await response.json();
+                if (result.payload) {
+                    state.payload = result.payload;
+                    renderAll();
+                }
+                if (!response.ok || !result.ok) {
+                    const remaining = result.result?.remaining || [];
+                    const details = remaining.map((item) => `Version ${normalizeInt(item.version_number)}: ${(item.reasons || []).join(", ")}`).join(" ");
+                    setFlash(`${result.message || "Some unpublished timetables could not be safely deleted."}${details ? ` ${details}` : ""}`, "error");
+                    return;
+                }
+                setFlash(result.message || "All unpublished timetables were deleted successfully.", "success");
+            } catch (error) {
+                setFlash("Unable to delete unpublished timetables right now.", "error");
+            } finally {
+                setBusy(false);
+            }
+        };
+
         const renderHistoryVersions = (versions, selectedVersion) => {
             if (!historyVersionList) return;
             historyVersionList.innerHTML = "";
@@ -2341,7 +2367,7 @@
                 view.className = "hero-btn is-secondary"; view.textContent = "View";
                 view.href = `/timetable?history=1&version=${encodeURIComponent(item.public_id)}`;
                 actions.appendChild(view);
-                if (canDeleteVersions && !item.is_active && !item.was_published) {
+                if (canDeleteVersions && item.can_delete) {
                     const remove = document.createElement("button");
                     remove.type = "button"; remove.className = "hero-btn is-primary"; remove.textContent = "Delete Timetable";
                     remove.addEventListener("click", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => deleteHistoryVersion(item) }));
@@ -2382,7 +2408,7 @@
             if (version.is_active && canCreateTimetable) {
                 addButton("Edit This Timetable", () => submitDraftAction("/timetable/drafts/edit-published"), true);
                 addButton("Create New Timetable", () => submitDraftAction("/timetable/drafts/new"));
-            } else if (!version.is_mutable && canCreateTimetable) addButton("Create Draft Copy", () => callVersionAction("copy"), true);
+            } else if (!version.is_mutable && canCreateTimetable) addButton("Use as New Draft", () => callVersionAction("copy"), false);
             if (version.is_mutable && canModifyTimetable) addButton("Check Timetable", () => callVersionAction("validate"), true);
             const validation = state.payload.validation || {};
             if (canPublishTimetable && !version.is_active && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
@@ -2396,7 +2422,7 @@
                     });
                 }, true);
             }
-            if (canDeleteWorking && version.is_mutable && !version.is_active) addButton("Delete Draft Timetable", () => openConfirmation({ title: "Delete this timetable?", message: "This timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Timetable", destructive: true, onConfirm: () => callVersionAction("delete-working") }));
+            if (canDeleteVersions && version.is_mutable && version.can_delete) addButton("Delete Draft Timetable", () => openConfirmation({ title: "Delete this draft timetable?", message: "This draft timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Draft Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }));
             if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
             if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
@@ -3506,6 +3532,15 @@
 
         generationActionBtn.addEventListener("click", startGeneration);
         generationCancelBtn.addEventListener("click", cancelGeneration);
+        if (deleteAllUnpublishedBtn) {
+            deleteAllUnpublishedBtn.addEventListener("click", () => openConfirmation({
+                title: "Delete all unpublished timetables?",
+                message: "All draft and never-published timetable versions for this branch and academic year will be permanently removed. Published timetable history will remain protected. This action cannot be undone.",
+                actionLabel: "Delete All Unpublished Timetables",
+                destructive: true,
+                onConfirm: deleteAllUnpublished,
+            }));
+        }
         publishCancelBtn.addEventListener("click", () => { pendingConfirmationAction = null; publishDialog.close(); });
         publishConfirmBtn.addEventListener("click", () => {
             const action = pendingConfirmationAction;

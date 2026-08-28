@@ -9,6 +9,7 @@
   {% if can_create_timetable and payload and payload.published %}<div class="page-actions">
     <form method="post" action="/timetable/drafts/edit-published"><button class="btn btn-primary" type="submit">Edit This Timetable</button></form>
     <form method="post" action="/timetable/drafts/new"><button class="btn btn-secondary" type="submit">Create New Timetable</button></form>
+    <small>Creates an editable draft based on this timetable. The published timetable remains unchanged until you publish the draft.</small>
   </div>{% endif %}</div>
   {% if identity_missing %}
     <div class="empty-state">Your account is not linked to a teacher in the selected branch and academic year.</div>

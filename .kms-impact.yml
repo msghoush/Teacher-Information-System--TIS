@@ -1,8 +1,15 @@
-knowledge_impact: no
-summary: Keep fresh empty drafts current and make the generation action explicit without changing timetable authority or publication semantics.
+knowledge_impact: yes
+summary: Simplify exact-scope Draft ownership, generation context, unpublished deletion, and Timetable History cleanup while preserving publication authority.
 affected_areas:
   - timetable
   - tests
 kms_files_updated:
-no_impact_reason: The KMS already defines fresh empty drafts as editable current workspace shells and the Generate Timetable action as part of the existing workflow; this aligns implementation and labels with that documented behavior.
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/history/workforce-planning/2026-08-26-smart-timetable-stage-52-simplified-workflow.md
+  - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
+  - docs/CHANGE_HISTORY.md
+no_impact_reason:
 major_change_override: no

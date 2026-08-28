@@ -31,8 +31,9 @@ return publication-ready drafts to draft, and refresh the immutable input snapsh
 and authority fingerprint. Invalid locks remain visible and block validation.
 
 Version review is selection-only. The compatibility operational order is the newest
-mutable draft derived from active, otherwise active, otherwise the newest scoped
-mutable draft; archived and superseded versions are never arbitrary defaults. An
+mutable non-active draft in the exact scope, otherwise active, otherwise the newest
+scoped mutable draft; a fresh manual draft therefore becomes the current customer
+Draft Timetable. Archived and superseded versions are never arbitrary defaults. An
 explicit copy is required before editing immutable history.
 
 Draft validation checks freshness, complete demand, Planning teacher authority,
@@ -70,10 +71,11 @@ creates a publication-ready unpublished version and entries and completes the ru
 Generation never changes `TimetableActiveVersion` or published history.
 
 Stage 5.2 preserves these internals but makes the newest mutable non-active version
-the customer Working Timetable. Delete Working Timetable archives that candidate
-under exact-scope locks, preserves entries, snapshots, runs, and history, rejects an
-active generation, and never changes the active pointer. Technical version controls
-remain in secondary Timetable History.
+the customer Draft Timetable. Delete Draft Timetable permanently removes eligible
+never-published versions under exact-scope locks, preserves snapshots, runs, and
+history, removes unpublished dependent versions child-first, reports protected
+lineage, rejects active generation, and never changes the active pointer. Technical
+version controls remain in secondary Timetable History.
 
 Official non-management consumption is separate from operational resolution.
 `timetable_visibility_service.py` resolves strictly through `TimetableActiveVersion`.

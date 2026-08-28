@@ -9,9 +9,9 @@ source_of_truth: true
 
 ## Simplified Timetable And Official Visibility
 
-1. A manager configures inputs until Ready to Generate, then generates a Working Timetable.
-2. Regenerate retains Stage 5.1 locks and concurrency; Check Timetable runs the existing validator.
-3. Delete Working Timetable archives only the current mutable candidate and preserves publication/history.
+1. A manager creates or opens the exact-scope Draft Timetable and configures inputs until Ready to Generate.
+2. Generate and Regenerate operate against that current draft context; Regenerate retains Stage 5.1 locks and concurrency.
+3. Check Timetable runs the existing validator; eligible never-published drafts may be permanently deleted.
 4. Publish Timetable atomically makes the candidate official and retains the prior publication in history.
 5. `/my-timetable` resolves exact-scope teacher identity, reads only the active pointer,
    and filters to that teacher. View-only non-teachers use the general published page.
@@ -19,9 +19,9 @@ source_of_truth: true
 ## Generate And Regenerate Timetable Flow
 
 1. Require `timetable.generate`, exact tenant branch/year scope,
-   `generation_ready`, and no active run.
-2. Select Generate when no generated working candidate exists; otherwise select
-   Regenerate and freeze the source revision, arrangement, and locks.
+   `generation_ready`, a current mutable draft context, and no active run.
+2. Select Generate for a fresh/manual current draft; select Regenerate for a current
+   generated candidate and freeze the source revision, arrangement, and locks.
 3. Capture schema-v3 canonical input and fingerprint, commit one durable run, then
    dispatch its public ID to the configured Render Workflow task. Immediate dispatch
    failure ends the still-unclaimed run safely and permits Generate Again.

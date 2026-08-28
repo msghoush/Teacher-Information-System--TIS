@@ -111,15 +111,16 @@ def resolve_operational_version(
         models.TimetableVersion.academic_year_id == academic_year_id,
         models.TimetableVersion.lifecycle_status.in_(MUTABLE_LIFECYCLE_STATUSES),
     )
+    working_draft = query.filter(
+        models.TimetableVersion.id != (int(active_version.id) if active_version else 0),
+    ).order_by(
+        models.TimetableVersion.version_number.desc(),
+        models.TimetableVersion.id.desc(),
+    ).first()
+    if working_draft is not None:
+        return working_draft
     if active_version is not None:
-        working_draft = query.filter(
-            models.TimetableVersion.source_version_id == active_version.id,
-            models.TimetableVersion.id != active_version.id,
-        ).order_by(
-            models.TimetableVersion.version_number.desc(),
-            models.TimetableVersion.id.desc(),
-        ).first()
-        return working_draft or active_version
+        return active_version
     return query.order_by(
         models.TimetableVersion.version_number.desc(),
         models.TimetableVersion.id.desc(),
@@ -333,6 +334,98 @@ def is_active_version(db: Session, version: models.TimetableVersion) -> bool:
         models.TimetableActiveVersion.academic_year_id == version.academic_year_id,
         models.TimetableActiveVersion.timetable_version_id == version.id,
     ).first() is not None
+
+
+def _version_scope_query(db: Session, version: models.TimetableVersion):
+    return db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.school_group_id == version.school_group_id,
+        models.TimetableVersion.branch_id == version.branch_id,
+        models.TimetableVersion.academic_year_id == version.academic_year_id,
+    )
+
+
+def _unpublished_version_descendants(
+    db: Session,
+    version: models.TimetableVersion,
+) -> list[models.TimetableVersion]:
+    descendants = []
+    pending = [int(version.id)]
+    seen = set(pending)
+    while pending:
+        children = db.query(models.TimetableVersion).filter(
+            models.TimetableVersion.source_version_id.in_(pending),
+        ).all()
+        pending = []
+        for child in children:
+            child_scope = (
+                int(child.school_group_id),
+                int(child.branch_id),
+                int(child.academic_year_id),
+            )
+            version_scope = (
+                int(version.school_group_id),
+                int(version.branch_id),
+                int(version.academic_year_id),
+            )
+            if child_scope != version_scope or int(child.id) in seen:
+                continue
+            seen.add(int(child.id))
+            descendants.append(child)
+            pending.append(int(child.id))
+    return descendants
+
+
+def timetable_version_delete_eligibility(
+    db: Session,
+    *,
+    version: models.TimetableVersion,
+) -> dict:
+    reasons = []
+    if is_active_version(db, version):
+        reasons.append("This is the active Published Timetable.")
+    if version.published_at is not None:
+        reasons.append("This timetable has official publication evidence.")
+    if version.lifecycle_status == "superseded":
+        reasons.append("This timetable is protected published history.")
+    active_run = db.query(models.TimetableGenerationRun.id).filter(
+        models.TimetableGenerationRun.school_group_id == version.school_group_id,
+        models.TimetableGenerationRun.branch_id == version.branch_id,
+        models.TimetableGenerationRun.academic_year_id == version.academic_year_id,
+        models.TimetableGenerationRun.status.in_(
+            ("queued", "running", "validating", "cancel_requested")
+        ),
+    ).first()
+    if active_run:
+        reasons.append("Timetable generation is still active for this scope.")
+
+    descendants = _unpublished_version_descendants(db, version)
+    cross_scope_child = db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.source_version_id == version.id,
+        ~(
+            (models.TimetableVersion.school_group_id == version.school_group_id)
+            & (models.TimetableVersion.branch_id == version.branch_id)
+            & (models.TimetableVersion.academic_year_id == version.academic_year_id)
+        ),
+    ).first()
+    if cross_scope_child is not None:
+        reasons.append("A version in another scope references this timetable.")
+    protected_descendant = next(
+        (
+            child
+            for child in descendants
+            if child.published_at is not None
+            or child.lifecycle_status == "superseded"
+            or is_active_version(db, child)
+        ),
+        None,
+    )
+    if protected_descendant is not None:
+        reasons.append("A protected published timetable depends on this version.")
+    return {
+        "eligible": not reasons,
+        "reasons": reasons,
+        "version_ids": [int(version.id)] + [int(child.id) for child in descendants],
+    }
 
 
 def lock_scoped_version(
@@ -763,36 +856,100 @@ def delete_unused_timetable_version(
         db, version_id=version_id, school_group_id=school_group_id,
         branch_id=branch_id, academic_year_id=academic_year_id,
     )
-    if is_active_version(db, version):
+    eligibility = timetable_version_delete_eligibility(db, version=version)
+    if not eligibility["eligible"]:
+        error_code = "version_delete_forbidden"
+        if is_active_version(db, version):
+            error_code = "published_delete_forbidden"
+        elif version.published_at is not None or version.lifecycle_status == "superseded":
+            error_code = "published_history_delete_forbidden"
         raise TimetableVersionError(
-            "published_delete_forbidden", "The published timetable cannot be deleted."
+            error_code,
+            eligibility["reasons"][0],
         )
-    if version.published_at is not None or version.lifecycle_status == "superseded":
-        raise TimetableVersionError(
-            "published_history_delete_forbidden",
-            "A timetable that was previously published must remain in Timetable History.",
-        )
-    derived_version = db.query(models.TimetableVersion.id).filter(
-        models.TimetableVersion.source_version_id == version.id
-    ).first()
-    source_run = db.query(models.TimetableGenerationRun.id).filter(
-        models.TimetableGenerationRun.source_version_id == version.id
-    ).first()
-    if derived_version or source_run:
-        raise TimetableVersionError(
-            "version_in_use", "This timetable is used by a later generation and cannot be deleted."
-        )
+    _delete_unpublished_version_ids(db, eligibility["version_ids"])
+
+
+def _delete_unpublished_version_ids(db: Session, version_ids: list[int]) -> None:
+    version_ids = {int(version_id) for version_id in version_ids}
+    if not version_ids:
+        return
     entries = db.query(models.TimetableEntry).filter(
-        models.TimetableEntry.timetable_version_id == version.id
+        models.TimetableEntry.timetable_version_id.in_(version_ids)
     ).all()
     for entry in entries:
         db.delete(entry)
-    # Preserve durable run/audit history; remove only its optional result link.
     db.query(models.TimetableGenerationRun).filter(
-        models.TimetableGenerationRun.result_version_id == version.id
-    ).update({models.TimetableGenerationRun.result_version_id: None}, synchronize_session=False)
-    db.delete(version)
+        models.TimetableGenerationRun.source_version_id.in_(version_ids)
+    ).update({models.TimetableGenerationRun.source_version_id: None}, synchronize_session="fetch")
+    db.query(models.TimetableGenerationRun).filter(
+        models.TimetableGenerationRun.result_version_id.in_(version_ids)
+    ).update({models.TimetableGenerationRun.result_version_id: None}, synchronize_session="fetch")
+    versions = db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.id.in_(version_ids)
+    ).all()
+    for candidate in sorted(versions, key=lambda item: int(item.id), reverse=True):
+        db.delete(candidate)
     db.flush()
+
+
+def delete_all_unused_timetable_versions(
+    db: Session,
+    *,
+    school_group_id: int,
+    branch_id: int,
+    academic_year_id: int,
+) -> dict:
+    db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == school_group_id
+    ).with_for_update().one()
+    versions = db.query(models.TimetableVersion).filter(
+        models.TimetableVersion.school_group_id == school_group_id,
+        models.TimetableVersion.branch_id == branch_id,
+        models.TimetableVersion.academic_year_id == academic_year_id,
+    ).order_by(models.TimetableVersion.id.desc()).all()
+    pending = {
+        int(version.id): version
+        for version in versions
+        if version.published_at is None
+        and not is_active_version(db, version)
+    }
+    deleted_ids = set()
+    remaining = []
+    while pending:
+        progress = False
+        for version_id, version in list(pending.items()):
+            if version_id in deleted_ids:
+                pending.pop(version_id, None)
+                continue
+            eligibility = timetable_version_delete_eligibility(db, version=version)
+            if not eligibility["eligible"]:
+                remaining.append({
+                    "version_id": version_id,
+                    "version_number": int(version.version_number),
+                    "reasons": eligibility["reasons"],
+                })
+                pending.pop(version_id, None)
+                continue
+            ids = set(eligibility["version_ids"]) & set(pending)
+            _delete_unpublished_version_ids(db, sorted(ids, reverse=True))
+            deleted_ids.update(ids)
+            for deleted_id in ids:
+                pending.pop(deleted_id, None)
+            progress = True
+        if not progress:
+            break
+    for version in pending.values():
+        remaining.append({
+            "version_id": int(version.id),
+            "version_number": int(version.version_number),
+            "reasons": ["This version is part of a protected lineage."],
+        })
+    return {
+        "deleted_version_ids": sorted(deleted_ids),
+        "deleted_count": len(deleted_ids),
+        "remaining": remaining,
+    }
 
 
 def move_or_swap_timetable_entry(

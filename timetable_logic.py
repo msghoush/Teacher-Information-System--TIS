@@ -761,6 +761,7 @@ def build_timetable_workspace_payload(
 ) -> dict:
     from timetable_version_service import (
         TimetableVersionError,
+        timetable_version_delete_eligibility,
         resolve_operational_version,
         resolve_scope_school_group_id,
         resolve_version,
@@ -993,8 +994,10 @@ def build_timetable_workspace_payload(
             models.TimetableVersion.branch_id == branch_id,
             models.TimetableVersion.academic_year_id == academic_year_id,
         ).order_by(models.TimetableVersion.version_number.desc()).all()
-        version_history = [
-            {
+        version_history = []
+        for row in versions:
+            delete_eligibility = timetable_version_delete_eligibility(db, version=row)
+            version_history.append({
                 "public_id": row.public_id,
                 "version_number": int(row.version_number),
                 "lifecycle_status": row.lifecycle_status,
@@ -1008,9 +1011,9 @@ def build_timetable_workspace_payload(
                 "has_manual_changes": bool(row.has_manual_changes),
                 "source_version_number": next((int(source.version_number) for source in versions if row.source_version_id and int(source.id) == int(row.source_version_id)), None),
                 "edit_revision": int(row.edit_revision or 0),
-            }
-            for row in versions
-        ]
+                "can_delete": delete_eligibility["eligible"],
+                "delete_blockers": delete_eligibility["reasons"],
+            })
     except TimetableVersionError:
         # The existing read-only empty-state behavior remains available while
         # the user is still selecting a complete tenant scope.
@@ -1257,6 +1260,11 @@ def build_timetable_workspace_payload(
             )
         )
     )
+    selected_delete_eligibility = (
+        timetable_version_delete_eligibility(db, version=selected_version)
+        if selected_version is not None
+        else {"eligible": False, "reasons": []}
+    )
     validation = None
     if include_validation and selected_version and selected_version.lifecycle_status in {"draft", "publication_ready"}:
         from timetable_publication_service import TimetableDraftValidationService
@@ -1284,6 +1292,8 @@ def build_timetable_workspace_payload(
                 "published_at": selected_version.published_at.isoformat() if selected_version.published_at else "",
                 "was_published": bool(selected_version.published_at),
                 "edit_revision": int(selected_version.edit_revision or 0),
+                "can_delete": selected_delete_eligibility["eligible"],
+                "delete_blockers": selected_delete_eligibility["reasons"],
             }
             if selected_version is not None
             else None

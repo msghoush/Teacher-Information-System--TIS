@@ -12,16 +12,18 @@ Draft, and Publish to Users while preserving all Stage 2–5.1
 version and solver internals. Customer language replaces technical lifecycle state on
 the main page; version selection, comparison, exports, and archive remain in History.
 
-Delete Draft Timetable archives the current mutable unpublished candidate under
-scope locks. It preserves placements, snapshots, runs, audit fields, official
-publication, and history. `timetable.delete_working` controls the action separately.
+Delete Draft Timetable permanently removes an eligible current mutable unpublished
+candidate under scope locks. It removes version placements, preserves snapshots,
+runs, audit fields, official publication, and history, and uses
+`timetable.delete_versions`. Historical Archive remains a separate History-only action.
 
-Timetable History also permits permanent deletion of an unused candidate only when it
-is not active and has never been published. The operation removes the candidate's
-entries and version, preserves the active pointer and published history, retains shared
-snapshots, generation runs, and audit records, and refuses candidates referenced by
-later generation work. The dedicated assignable `timetable.delete_versions` permission
-controls this action and is included in the Administrator defaults.
+Timetable History permits permanent deletion of any non-active, never-published
+candidate regardless of origin or internal draft/archive state. Unpublished dependent
+versions are removed child-first, generation source/result links are nulled where
+optional, shared snapshots and generation audit records remain, and protected published
+lineage or active generation is reported rather than silently removed. The dedicated
+assignable `timetable.delete_versions` permission controls this action and is included
+in the Administrator defaults. History also provides exact-scope Delete All Unpublished Timetables.
 
 Authorized users may drag an unlocked lesson within a mutable Draft Timetable to a
 canonical teaching slot. Empty destinations produce an immediate move; occupied

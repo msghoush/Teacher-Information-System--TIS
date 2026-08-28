@@ -25,6 +25,7 @@ from timetable_version_service import (
     TimetableVersionError,
     _allocate_next_version_number,
     resolve_scope_school_group_id,
+    resolve_operational_version,
     resolve_version,
 )
 
@@ -130,6 +131,7 @@ def build_generation_state(
     school_group_id: int,
     branch_id: int,
     academic_year_id: int,
+    draft_version_id: int | None = None,
 ) -> dict:
     active = _active_run_query(
         db,
@@ -142,11 +144,33 @@ def build_generation_state(
         models.TimetableGenerationRun.branch_id == branch_id,
         models.TimetableGenerationRun.academic_year_id == academic_year_id,
     ).order_by(models.TimetableGenerationRun.created_at.desc()).first()
-    candidate = resolve_generated_working_candidate(
+    current_draft = None
+    if draft_version_id is not None:
+        current_draft = resolve_version(
+            db,
+            version_id=int(draft_version_id),
+            school_group_id=school_group_id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
+        if current_draft is not None and (
+            current_draft.lifecycle_status not in {"draft", "publication_ready"}
+            or db.query(models.TimetableActiveVersion.id).filter(
+                models.TimetableActiveVersion.timetable_version_id == current_draft.id
+            ).first()
+        ):
+            current_draft = None
+    current_draft = current_draft or resolve_operational_version(
         db,
         school_group_id=school_group_id,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
+    )
+    candidate = (
+        current_draft
+        if current_draft is not None
+        and current_draft.origin in {"generated", "regenerated"}
+        else None
     )
     return {
         "active_run": generation_run_payload(active) if active else None,
@@ -158,6 +182,7 @@ def build_generation_state(
             "edit_revision": int(candidate.edit_revision or 0),
         } if candidate else None),
         "primary_action": "regenerate" if candidate else "generate",
+        "draft_version_public_id": current_draft.public_id if current_draft else None,
     }
 
 
@@ -216,6 +241,7 @@ def enqueue_generation(
     request_mode: str,
     idempotency_key: str,
     source_public_id: str | None = None,
+    draft_public_id: str | None = None,
 ) -> models.TimetableGenerationRun:
     if request_mode not in {"generate", "regenerate"}:
         raise TimetableGenerationError("request_mode_invalid", "Generation mode is invalid.")
@@ -253,11 +279,36 @@ def enqueue_generation(
             409,
         )
 
-    candidate = resolve_generated_working_candidate(
+    selected_draft = None
+    if draft_public_id:
+        selected_draft = db.query(models.TimetableVersion).filter(
+            models.TimetableVersion.public_id == draft_public_id,
+            models.TimetableVersion.school_group_id == school_group_id,
+            models.TimetableVersion.branch_id == branch_id,
+            models.TimetableVersion.academic_year_id == academic_year_id,
+        ).first()
+        if selected_draft is None or selected_draft.lifecycle_status not in {"draft", "publication_ready"}:
+            raise TimetableGenerationError(
+                "generation_draft_invalid", "The selected Draft Timetable is no longer available.", 409
+            )
+        if db.query(models.TimetableActiveVersion.id).filter(
+            models.TimetableActiveVersion.timetable_version_id == selected_draft.id
+        ).first():
+            raise TimetableGenerationError(
+                "generation_draft_invalid", "The Published Timetable cannot be used as a draft.", 409
+            )
+    current_draft = selected_draft or resolve_operational_version(
         db,
         school_group_id=school_group_id,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
+    )
+    candidate = (
+        current_draft
+        if current_draft is not None
+        and current_draft.origin in {"generated", "regenerated"}
+        and current_draft.lifecycle_status in {"draft", "publication_ready"}
+        else None
     )
     source = None
     if request_mode == "generate" and source_public_id:
@@ -282,14 +333,7 @@ def enqueue_generation(
                 409,
             )
     if request_mode == "generate" and source is None:
-        from timetable_version_service import resolve_operational_version
-
-        source = resolve_operational_version(
-            db,
-            school_group_id=school_group_id,
-            branch_id=branch_id,
-            academic_year_id=academic_year_id,
-        )
+        source = current_draft
 
     readiness = TimetableReadinessService(db).evaluate(
         school_group_id, branch_id, academic_year_id
