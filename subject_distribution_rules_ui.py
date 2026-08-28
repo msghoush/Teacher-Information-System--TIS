@@ -10,6 +10,7 @@ from __future__ import annotations
 from sqlalchemy.orm import Session
 
 import models
+from planning_subject_demand_service import resolve_scope_subject_demands
 from homeroom_defaults import normalize_grade_label
 from planning_scope_service import (
     list_operational_planning_grades,
@@ -66,6 +67,22 @@ def _subject_grade_label(subject) -> str:
 
 def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: int) -> list[dict]:
     planned_grades = set(list_grade_levels(db, branch_id, academic_year_id))
+    planned_sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == branch_id,
+        models.PlanningSection.academic_year_id == academic_year_id,
+        models.PlanningSection.class_status.in_(["Current", "New"]),
+    ).all()
+    resolved_by_section = resolve_scope_subject_demands(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_ids=[section.id for section in planned_sections],
+    )
+    grade_by_section = {section.id: normalize_grade_label(section.grade_level) for section in planned_sections}
+    periods_by_grade_code = {}
+    for section_id, demands in resolved_by_section.items():
+        grade = grade_by_section.get(section_id)
+        for demand in demands:
+            if grade and demand.is_active and demand.weekly_periods > 0:
+                periods_by_grade_code.setdefault((grade, demand.subject_code), set()).add(int(demand.weekly_periods))
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id,
@@ -81,7 +98,10 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
         code = str(subject.subject_code or "").strip().upper()
         if not code:
             continue
-        weekly = int(subject.weekly_hours or 0)
+        period_values = periods_by_grade_code.get((grade_label, code), set())
+        if not period_values:
+            continue
+        weekly = next(iter(period_values)) if len(period_values) == 1 else max(period_values)
         resolved = resolve_subject_distribution_rule(
             db, branch_id=branch_id, academic_year_id=academic_year_id,
             grade_level=grade_label, subject_code=code, section_id=None,
@@ -107,6 +127,7 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
             "subject_code": code,
             "subject_name": str(subject.subject_name or code).strip(),
             "weekly_periods": weekly,
+            "weekly_periods_vary": len(period_values) > 1,
             "rule": resolved,
             "effective": effective,
             "is_configured": is_configured,
@@ -171,17 +192,37 @@ def normalize_rule_form_fields(form: dict) -> dict:
     }
 
 
-def _weekly_periods_for(db: Session, branch_id: int, academic_year_id: int, grade_level: str, subject_code: str) -> int | None:
+def _weekly_periods_for(db: Session, branch_id: int, academic_year_id: int, grade_level: str, subject_code: str, section_id: int | None = None) -> int | None:
     grade = normalize_grade_label(grade_level)
     code = str(subject_code or "").strip().upper()
-    for subject in db.query(models.Subject).filter(
-        models.Subject.branch_id == branch_id,
-        models.Subject.academic_year_id == academic_year_id,
-        models.Subject.subject_code == code,
-    ).all():
-        if _subject_grade_label(subject) == grade:
-            return int(subject.weekly_hours or 0)
-    return None
+    sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == branch_id,
+        models.PlanningSection.academic_year_id == academic_year_id,
+        models.PlanningSection.class_status.in_(["Current", "New"]),
+    ).all()
+    if section_id is not None:
+        sections = [section for section in sections if int(section.id) == int(section_id)]
+    else:
+        sections = [section for section in sections if normalize_grade_label(section.grade_level) == grade]
+    if not sections:
+        subject = db.query(models.Subject).filter(
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id,
+            models.Subject.subject_code == code,
+        ).first()
+        return int(subject.weekly_hours or 0) if subject is not None else None
+    resolved = resolve_scope_subject_demands(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_ids=[section.id for section in sections],
+    )
+    values = {
+        int(demand.weekly_periods)
+        for demands in resolved.values() for demand in demands
+        if demand.subject_code == code and demand.is_active and demand.weekly_periods > 0
+    }
+    if not values:
+        return None
+    return next(iter(values)) if len(values) == 1 else -1
 
 
 def save_subject_distribution_rule(
@@ -193,9 +234,11 @@ def save_subject_distribution_rule(
     section-override) rule. Returns validation errors; empty means saved."""
     grade = normalize_grade_label(grade_level)
     code = str(subject_code or "").strip().upper()
-    weekly = _weekly_periods_for(db, branch_id, academic_year_id, grade, code)
+    weekly = _weekly_periods_for(db, branch_id, academic_year_id, grade, code, section_id)
     if weekly is None:
         return [{"code": "subject_not_found", "message": "That grade and subject no longer exist in Planning."}]
+    if weekly < 0:
+        return [{"code": "section_demand_varies", "message": "Weekly demand varies by section. Save section overrides instead of one grade-level rule."}]
 
     normalized = normalize_rule_form_fields(fields)
     errors = validate_subject_distribution_rule(
@@ -319,7 +362,15 @@ def copy_grade_rules(
         if target_subject is None:
             skipped.append(f"{label} (not offered in Grade {target})")
             continue
-        weekly = int(target_subject.weekly_hours or 0)
+        weekly = _weekly_periods_for(
+            db, branch_id, academic_year_id, target, target_subject.subject_code
+        )
+        if weekly is None:
+            skipped.append(f"{label} (not active in Planning for Grade {target})")
+            continue
+        if weekly < 0:
+            skipped.append(f"{label} (weekly demand varies by section)")
+            continue
         candidate = {field: getattr(rule_row, field) for field in RULE_FIELDS}
         errors = validate_subject_distribution_rule(
             candidate, planning_weekly_periods=weekly, available_teaching_days=teaching_day_count,

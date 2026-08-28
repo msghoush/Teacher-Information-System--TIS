@@ -7,7 +7,8 @@ import db_migrations
 import models
 from database import Base
 from planning_subject_demand_service import resolve_section_subject_demands
-from routers.planning import _get_subject_alignment_map
+from routers.planning import _get_section_demand_alignment_map, _get_subject_map_by_code
+from routers.teachers import _get_teacher_allocation_map
 
 
 def _database():
@@ -144,17 +145,62 @@ def test_demand_rejects_cross_scope_section_or_subject_identity():
         db.rollback()
 
 
-def test_existing_timetable_authority_still_uses_subject_weekly_hours():
+def test_section_planning_calculation_uses_explicit_demand_without_changing_other_sections():
     _, db = _database()
     _seed(db)
     db.add(models.PlanningSubjectDemand(
         branch_id=10, academic_year_id=100, planning_section_id=3000,
         subject_code="SOC3", weekly_periods=0, is_active=False,
     ))
+    db.add(models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=3000,
+        subject_code="WEL3", weekly_periods=2, is_active=True,
+    ))
     db.commit()
-    aligned = _get_subject_alignment_map(db, 10, 100)
-    assert {(item["subject_code"], item["weekly_hours"]) for item in aligned["3"]} == {
+    sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.id.in_([3000, 3001])
+    ).all()
+    aligned = _get_section_demand_alignment_map(
+        db, 10, 100, sections, _get_subject_map_by_code(db, 10, 100)
+    )
+    assert {(item["subject_code"], item["weekly_hours"]) for item in aligned[3000]} == {
+        ("WEL3", 2)
+    }
+    assert {(item["subject_code"], item["weekly_hours"]) for item in aligned[3001]} == {
         ("SOC3", 1), ("WEL3", 1)
+    }
+
+
+def test_teacher_workload_uses_section_demand_and_ignores_retired_assignment():
+    _, db = _database()
+    _seed(db)
+    teacher = models.Teacher(
+        id=5000, teacher_id="T-5000", first_name="Test", last_name="Teacher",
+        branch_id=10, academic_year_id=100, max_hours=24,
+    )
+    db.add(teacher)
+    db.add_all([
+        models.TeacherSectionAssignment(
+            teacher_id=5000, planning_section_id=3000, subject_code="SOC3"
+        ),
+        models.TeacherSectionAssignment(
+            teacher_id=5000, planning_section_id=3000, subject_code="WEL3"
+        ),
+        models.PlanningSubjectDemand(
+            branch_id=10, academic_year_id=100, planning_section_id=3000,
+            subject_code="SOC3", weekly_periods=0, is_active=False,
+        ),
+        models.PlanningSubjectDemand(
+            branch_id=10, academic_year_id=100, planning_section_id=3000,
+            subject_code="WEL3", weekly_periods=2, is_active=True,
+        ),
+    ])
+    db.commit()
+
+    allocation = _get_teacher_allocation_map(db, [teacher], 10, 100)[5000]
+    assert allocation["allocated_hours"] == 2
+    assert {(item["subject_code"], item["hours"]) for item in allocation["teaching_load_items"]} == {
+        ("WEL3", 2)
     }
 
 

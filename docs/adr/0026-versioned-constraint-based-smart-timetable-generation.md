@@ -17,13 +17,13 @@ The original Timetable stored one mutable set of placements per branch and acade
 Migration `20260828_004_planning_subject_demands_foundation` introduces an additive
 explicit per-section subject-demand table as the future Planning authority. Its
 Stage 1 backfill is limited to grade-matched Subjects for Current/New sections in
-the same branch/year. Existing timetable snapshot and generation behavior continues
-to use `Subject.weekly_hours` until a separately approved consumer transition, so
-published and draft semantics do not change. Explicit inactive demand is retained
-as retirement evidence and suppresses compatibility fallback when the new resolver
-is adopted.
+the same branch/year. Stage 2 routes timetable readiness, workspace, immutable
+snapshot, and snapshot-fed generation input through explicit-first section demand.
+A missing explicit row alone uses `Subject.weekly_hours` as transitional fallback;
+an inactive or zero row is authoritative retirement. Published and draft lifecycle
+semantics do not change.
 
-Planning remains authoritative for section demand, subject requirements, assigned teachers, and HRT fallback. A placement represents one teaching period, not a literal 60-minute hour. Until a later approved migration introduces a new demand unit, `Subject.weekly_hours` supplies required weekly teaching periods. HRT fallback resolves the real section-subject demands; no generic HRT lesson replaces them.
+Planning remains authoritative for section demand, subject requirements, assigned teachers, and HRT fallback. A placement represents one teaching period, not a literal 60-minute hour. `PlanningSubjectDemand.weekly_periods` supplies explicit per-section requirements, with `Subject.weekly_hours` retained only as missing-row compatibility fallback. HRT fallback resolves the real section-subject demands; no generic HRT lesson replaces them.
 
 The timetable is a versioned aggregate scoped by SchoolGroup, Branch, and Academic Year. `TimetableVersion` owns placements, provenance, input authority, staleness, lifecycle, manual-edit, quality, and future solver metadata. Draft and non-active publication-ready versions may be edited. Active, superseded, and archived versions are immutable. `TimetableActiveVersion` is the sole active-selection authority and enforces one exact-scope pointer; active is not duplicated as a Boolean on a version.
 

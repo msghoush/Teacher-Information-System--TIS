@@ -15,10 +15,13 @@ weekly subject-demand foundation. The migration idempotently backfills matching
 grade subjects for Current/New Planning sections only. Composite foreign keys
 prevent section or subject scope drift, while a partial unique index permits at
 most one active demand for a section and subject and preserves retired rows.
-`planning_subject_demand_service.py` resolves an explicit active or retired row
-before using legacy `Subject.grade + Subject.weekly_hours` fallback. Stage 1 is
-additive: existing Planning, teacher allocation, reporting, readiness, snapshot,
-generation, draft, and publication consumers still use their prior authority.
+`planning_subject_demand_service.py` resolves explicit active or retired rows before
+using legacy `Subject.grade + Subject.weekly_hours` fallback. Operational Planning,
+teacher required/allocated/remaining load, timetable readiness/workspace/snapshot/
+generation input, Subject Scheduling Rule arithmetic, and required-hours reports
+consume that section demand. An explicit inactive or zero row suppresses demand.
+Legacy fallback remains only when a section-subject has no explicit row. Published
+timetable history remains immutable and unchanged.
 
 ## Tenant Report Branding
 

@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Planning Subject Demand Consumer Transition
+
+- Routed live Planning totals, teacher workload, timetable readiness/workspace/
+  snapshot/generation input, Subject Scheduling Rule arithmetic, and required-hours
+  reports through exact-scope explicit-first section demand resolution.
+- Made inactive and zero demand authoritative for one section without affecting
+  other sections; missing rows retain legacy Subject weekly-hours fallback.
+- Preserved teacher assignment behavior, solver design, timetable UX, and immutable
+  published timetable history.
+
 ## 2026-08-28 - Explicit Planning Subject Demand Foundation
 
 - Added `PlanningSubjectDemand` as an additive, normalized future authority for
