@@ -1,4 +1,5 @@
 """Stage 3 tests for the Subject Scheduling Rules Timetable Settings UI."""
+import re
 from types import SimpleNamespace
 
 import pytest
@@ -286,10 +287,25 @@ def test_professional_grade_first_editor_contract_renders(db, monkeypatch):
     assert 'id="subject-filter-search"' in html
     assert 'id="subject-rules-table-wrap" hidden' in html
     assert '<dialog id="subject-rule-dialog">' in html
+    assert '<dialog id="subject-rule-dialog" open' not in html
+    dialog_css = re.search(r"#subject-rule-dialog\s*\{(?P<rules>.*?)\}", html, re.DOTALL)
+    assert dialog_css is not None
+    assert "display:" not in dialog_css.group("rules")
+    assert "#subject-rule-dialog[open]" not in html
     assert "dialog.showModal()" in html
+    assert 'dialog.setAttribute("open", "open")' in html
     assert "titleEl.textContent = subjectName" in html
     assert "fillFormFromRule(effective, weekly)" in html
+    assert "gradeInput.value = grade" in html
+    assert "subjectInput.value = subject" in html
+    assert "weeklyDisplay.textContent = String(weekly)" in html
+    assert "dialog.close()" in html
+    assert 'dialog.removeAttribute("open")' in html
     assert "Double Blocks" in html and "Single Sessions" in html
+    assert 'class="session-structure-grid"' in html
+    assert html.count("session-control") >= 2
+    assert 'class="rule-summary-pill session-summary"' in html
+    assert '"Configured " + configured + " of " + weeklyRequired + " periods"' in html
     assert "Separate Sessions" in html and "Consecutive Double Block" in html
     assert "Choose as many conditions as this subject needs." in html
     assert "Advanced / Legacy Subject Mappings" in html

@@ -12,10 +12,12 @@ recommended_first_read: true
 Timetable Settings now presents a grade-first Subject Scheduling Rules section:
 an administrator selects one grade, can search its compact subject list, and sees
 each Planning weekly total, current pattern, and configured/default status without
-raw subject codes. Editing opens a modal headed by Subject + Grade and the
-read-only Planning total. Double-block and single-session steppers, including
-two-period Separate Sessions and Consecutive Double Block quick choices, calculate
-the configured total automatically. Multiple primary conditions can be combined;
+raw subject codes. The native dialog stays closed on page load and opens only
+after Edit has populated the selected Subject + Grade and read-only Planning
+total; Cancel/Close restores the closed state. Its compact Session Structure keeps
+the aligned double-block and single-session steppers above one full-width live
+total. Two-period Separate Sessions and Consecutive Double Block quick choices
+remain available. Multiple primary conditions can be combined in a balanced grid;
 minimum teaching days, strictness, and section overrides remain progressively
 disclosed. Legacy subject-code mappings and Swimming JSON remain available only
 inside a secondary Advanced / Legacy area. `subject_distribution_rules_ui.py`

@@ -545,20 +545,21 @@
         border: none;
         border-radius: 18px;
         padding: 20px;
-        max-width: 560px;
+        max-width: 640px;
         width: 92vw;
         box-shadow: 0 24px 64px rgba(23, 54, 93, 0.28);
-        display: grid;
-        gap: 12px;
     }
 
     #subject-rule-dialog::backdrop {
         background: rgba(15, 30, 50, 0.45);
     }
 
-    #subject-rule-dialog[open] {
-        display: grid;
-    }
+    .subject-rule-dialog-content { display: grid; gap: 14px; }
+    .session-structure-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+    .session-control { padding: 14px; border: 1px solid #d8e5f4; border-radius: 14px; background: #fbfdff; }
+    .session-control .stepper { justify-content: space-between; margin-top: 8px; }
+    .session-control .stepper input { flex: 1 1 auto; min-width: 56px; max-width: 90px; }
+    .session-summary { width: 100%; justify-content: center; box-sizing: border-box; }
 
     .subject-rule-toolbar { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
     .subject-rule-toolbar .field { min-width: 220px; flex: 1 1 240px; }
@@ -566,7 +567,9 @@
     .condition-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     .condition-option { display: flex; align-items: flex-start; gap: 9px; padding: 11px 12px; border: 1px solid #d8e5f4; border-radius: 12px; background: #fbfdff; }
     .condition-option input { margin-top: 3px; }
-    @media (max-width: 640px) { .condition-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) {
+        .condition-grid, .session-structure-grid { grid-template-columns: 1fr; }
+    }
 
     .rule-summary-pill {
         display: inline-flex;
@@ -849,11 +852,12 @@
 
         {% if can("timetable.manage_settings") %}
         <dialog id="subject-rule-dialog">
+            <div class="subject-rule-dialog-content">
             <div class="module-head" style="align-items:center;">
                 <div class="module-copy">
                     <h3 id="subject-rule-dialog-title">Subject — Grade</h3>
-                    <p>Weekly periods: <strong id="subject-rule-weekly-display">0</strong>
-                        <span class="field-note">(from Planning — set automatically, cannot be changed here)</span></p>
+                    <p><strong id="subject-rule-weekly-display">0</strong> periods per week
+                        <span class="field-note">(from Planning)</span></p>
                 </div>
                 <button class="action-btn action-btn-secondary" type="button" data-rule-cancel aria-label="Close">{{ icon("close", "icon") }}</button>
             </div>
@@ -868,8 +872,8 @@
                 <div class="module-copy">
                     <h4 style="margin:0; color:#17365d;">Session Structure</h4>
                 </div>
-                <div class="field-grid">
-                    <div class="field">
+                <div class="session-structure-grid">
+                    <div class="field session-control">
                         <label for="rule_block_count">Double Blocks</label>
                         <div class="stepper">
                             <button class="stepper-btn" type="button" data-stepper-minus="rule_block_count" aria-label="Decrease double blocks">−</button>
@@ -878,16 +882,17 @@
                         </div>
                         <div class="field-note">Each block is 2 consecutive periods.</div>
                     </div>
-                    <div class="field">
+                    <div class="field session-control">
                         <label for="rule_single_count">Single Sessions</label>
                         <div class="stepper">
                             <button class="stepper-btn" type="button" data-stepper-minus="rule_single_count" aria-label="Decrease single sessions">−</button>
                             <input type="number" min="0" id="rule_single_count" name="single_count" data-rule-arithmetic>
                             <button class="stepper-btn" type="button" data-stepper-plus="rule_single_count" aria-label="Increase single sessions">+</button>
                         </div>
+                        <div class="field-note">Each session uses one period.</div>
                     </div>
                 </div>
-                <div class="rule-summary-pill" id="rule-arithmetic-summary">Configured 0 of 0 weekly periods</div>
+                <div class="rule-summary-pill session-summary" id="rule-arithmetic-summary">Configured 0 of 0 periods</div>
 
                 <div id="rule-session-presets" hidden>
                     <p class="field-note" style="margin-bottom:7px;"><strong>Quick choice for two-period subjects</strong></p>
@@ -950,6 +955,7 @@
                     one specific section genuinely needs different handling.</p>
                 <div id="subject-rule-section-list" class="timeline-list"></div>
             </details>
+            </div>
         </dialog>
         {% endif %}
     </section>
@@ -1311,7 +1317,7 @@
             var singleCount = Number.parseInt(singleCountInput.value, 10) || 0;
             var configured = (blockCount * 2) + singleCount;
             var valid = configured === weeklyRequired;
-            summaryEl.textContent = "Configured " + configured + " of " + weeklyRequired + " weekly periods" +
+            summaryEl.textContent = "Configured " + configured + " of " + weeklyRequired + " periods" +
                 (valid ? " \u2713" : (configured < weeklyRequired
                     ? " (" + (weeklyRequired - configured) + " short)"
                     : " (" + (configured - weeklyRequired) + " too many)"));
