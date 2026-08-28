@@ -22,6 +22,7 @@ logger = logging.getLogger("tis.migrations")
 POSTGRES_CONNECT_TIMEOUT_SECONDS = 10
 POSTGRES_LOCK_TIMEOUT = "5s"
 POSTGRES_STATEMENT_TIMEOUT = "30s"
+DEFERRED_METADATA_TABLES = frozenset({"planning_subject_demands"})
 
 
 def _progress(message: str, *args) -> None:
@@ -57,6 +58,15 @@ def _migration_engine():
     return migration_engine
 
 
+def _baseline_metadata_tables():
+    """Tables safe to create before the ordered migration ledger runs."""
+    return [
+        table
+        for table in models.Base.metadata.tables.values()
+        if table.name not in DEFERRED_METADATA_TABLES
+    ]
+
+
 def run() -> int:
     engine = None
     try:
@@ -69,7 +79,10 @@ def run() -> int:
         # The legacy repository schema uses SQLAlchemy metadata for its baseline
         # and the ordered migration ledger for additive/backfill changes.
         _progress("Phase metadata.create_all: starting.")
-        models.Base.metadata.create_all(bind=engine)
+        models.Base.metadata.create_all(
+            bind=engine,
+            tables=_baseline_metadata_tables(),
+        )
         _progress("Phase metadata.create_all: complete.")
 
         _progress("Phase run_pending_migrations: starting.")
