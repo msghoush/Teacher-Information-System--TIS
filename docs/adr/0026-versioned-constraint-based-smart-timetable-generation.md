@@ -38,7 +38,9 @@ explicit copy is required before editing immutable history.
 
 Draft validation checks freshness, complete demand, Planning teacher authority,
 canonical slots, collisions, placement integrity, and locks without a solver.
-Successful validation transitions a draft to `publication_ready`; any later placement
+Successful explicit administrator approval validates the exact draft, records its
+actor and timestamp, and transitions it to `publication_ready`; generation alone is
+not approval. Any later placement
 or lock mutation returns it to `draft`. Publication locks the version and exact-scope
 active pointer, checks edit/pointer revisions, reruns validation, supersedes the
 previous active version, updates the pointer, and records actor/time atomically.

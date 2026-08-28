@@ -463,6 +463,8 @@ def test_success_is_atomic_unpublished_and_old_worker_cannot_save(db):
         db, run_id=run.id, lease_owner="worker-a", problem=problem,
         placements=result["placements"], solver_result=result,
     )
+    assert version.approved_at is None
+    assert version.approved_by_user_id is None
     db.commit()
     assert version.origin == "generated"
     assert version.lifecycle_status == "publication_ready"
@@ -601,6 +603,8 @@ def test_regeneration_persists_separate_version_and_keeps_source_and_lock(db):
     assert result_version.id != source.id
     assert result_version.origin == "regenerated"
     assert result_version.source_version_id == source.id
+    assert result_version.approved_at is None
+    assert result_version.approved_by_user_id is None
     assert db.query(models.TimetableEntry).filter_by(
         timetable_version_id=result_version.id, is_locked=True
     ).count() == 1

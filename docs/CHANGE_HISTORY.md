@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Explicit Draft Approval Before Publication
+
+- Replaced customer-facing Check Timetable with Approve Draft and Draft Approved.
+- Added durable approval timestamp and administrator provenance through migration
+  `20260828_001_smart_timetable_stage52_draft_approval`.
+- Kept generated and regenerated drafts unapproved, invalidated approval after every
+  validity-affecting draft change, and required publication-time revalidation before
+  the unchanged atomic active-pointer transition.
+
 ## 2026-08-28 - Present One Logical Draft Across Generation
 
 - Kept backend generated-result versioning and provenance while presenting the

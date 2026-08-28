@@ -2116,14 +2116,14 @@ async def validate_timetable_version(public_id: str, request: Request, db: Sessi
     body = await request.json(); branch_id, year_id = get_scope_ids(current_user)
     try:
         if _parse_int(body.get("edit_revision")) is None:
-            raise TimetableVersionError("edit_revision_required", "Refresh the draft before validating it.")
+            raise TimetableVersionError("edit_revision_required", "Refresh the draft before approving it.")
         group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
         version = _resolve_scoped_version_public(db, public_id, group_id, branch_id, year_id)
-        validation = TimetableDraftValidationService(db).validate(version=version, expected_edit_revision=_parse_int(body.get("edit_revision")), transition=True)
+        validation = TimetableDraftValidationService(db).validate(version=version, expected_edit_revision=_parse_int(body.get("edit_revision")), transition=True, actor_user_id=str(current_user.user_id or "") or None)
         db.commit()
         payload = build_timetable_workspace_payload(db, branch_id, year_id, version_id=version.id)
         payload["validation"] = validation
-        return _json_success(payload, message="Ready to Publish." if validation["valid"] else "Timetable check found issues.")
+        return _json_success(payload, message="Draft Approved" if validation["valid"] else "Draft approval found issues.")
     except TimetableVersionError as exc:
         db.rollback(); return _json_error(str(exc))
 
@@ -2145,7 +2145,11 @@ async def publish_timetable_version(public_id: str, request: Request, db: Sessio
         db.commit()
         return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=published.id), message="Published to Users")
     except TimetableVersionError as exc:
-        db.rollback(); return _json_error(str(exc))
+        if exc.code == "publication_validation_failed":
+            db.commit()
+        else:
+            db.rollback()
+        return _json_error(str(exc))
 
 
 @router.post("/api/versions/{public_id}/archive")

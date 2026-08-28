@@ -2138,7 +2138,11 @@
             const readiness = state.payload.readiness || {};
             const counts = readiness.counts || {};
             const ready = Boolean(readiness.ready);
-            readinessStatus.textContent = ready ? "Ready to Generate" : "Not Ready to Generate";
+            const version = state.payload.version || null;
+            const postGeneration = Boolean(version && ["generated", "regenerated"].includes(version.origin));
+            readinessStatus.textContent = postGeneration
+                ? (version.is_approved && !version.is_stale ? "Draft Approved" : (ready ? "Ready for Review" : "Draft Needs Review"))
+                : (ready ? "Ready to Generate" : "Not Ready to Generate");
             readinessStatus.classList.toggle("is-ready", ready);
             readinessSupport.textContent = ready
                 ? "All required teaching periods are covered and the timetable configuration is complete."
@@ -2315,7 +2319,7 @@
         const friendlyVersionStatus = (item) => {
             if (item.is_active) return "Published Timetable";
             if (item.was_published || item.lifecycle_status === "superseded") return "Previous Published Timetable";
-            if (item.lifecycle_status === "publication_ready") return "Ready to Publish";
+            if (item.lifecycle_status === "publication_ready") return item.is_approved ? "Draft Approved" : "Ready for Review";
             return "Draft Timetable";
         };
 
@@ -2396,7 +2400,7 @@
                 <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(friendlyVersionStatus(version))}</span>
                 <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Needs Review" : "Current"}</span>
                 ${version.has_manual_changes ? `<span class="version-badge">Manual changes</span>` : ""}
-            ` : `<span>${version.is_active ? "Published Timetable" : "Draft Timetable"}</span>${!version.is_active && state.payload.validation?.valid ? ` <span class="version-badge">Ready to Publish</span>` : ""}`;
+            ` : `<span>${version.is_active ? "Published Timetable" : "Draft Timetable"}</span>${!version.is_active ? ` <span class="version-badge">${version.is_approved && !version.is_stale ? "Draft Approved" : (version.origin === "generated" || version.origin === "regenerated" ? "Ready for Review" : "Draft Needs Review")}</span>` : ""}`;
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
@@ -2413,9 +2417,9 @@
                 addButton("Edit This Timetable", () => submitDraftAction("/timetable/drafts/edit-published"), true);
                 addButton("Create New Timetable", () => submitDraftAction("/timetable/drafts/new"));
             } else if (!version.is_mutable && canCreateTimetable) addButton("Use as New Draft", () => callVersionAction("copy"), false);
-            if (version.is_mutable && canModifyTimetable) addButton("Check Timetable", () => callVersionAction("validate"), true);
+            if (version.is_mutable && canModifyTimetable && !version.is_approved) addButton("Approve Draft", () => callVersionAction("validate"), true);
             const validation = state.payload.validation || {};
-            if (canPublishTimetable && !version.is_active && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
+            if (canPublishTimetable && !version.is_active && version.is_approved && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
                 addButton("Publish Timetable", () => {
                     const replacing = versions.some((item) => item.is_active && item.public_id !== version.public_id);
                     openConfirmation({

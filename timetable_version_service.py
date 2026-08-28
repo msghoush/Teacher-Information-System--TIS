@@ -20,6 +20,12 @@ class TimetableVersionError(ValueError):
         self.code = code
 
 
+def clear_draft_approval(version: models.TimetableVersion) -> None:
+    """Invalidate approval after a content or authority-affecting draft change."""
+    version.approved_at = None
+    version.approved_by_user_id = None
+
+
 def resolve_scope_school_group_id(
     db: Session,
     *,
@@ -661,6 +667,7 @@ def mutate_draft_placement(
         result = existing
 
     version.lifecycle_status = "draft"
+    clear_draft_approval(version)
     version.has_manual_changes = True
     version.manual_change_count = int(version.manual_change_count or 0) + 1
     version.edit_revision = int(version.edit_revision or 0) + 1
@@ -700,6 +707,7 @@ def set_entry_lock(
     entry.locked_by_user_id = actor_user_id if is_locked else None
     entry.updated_at = datetime.utcnow()
     version.lifecycle_status = "draft"
+    clear_draft_approval(version)
     version.has_manual_changes = True
     version.manual_change_count = int(version.manual_change_count or 0) + 1
     version.edit_revision = int(version.edit_revision or 0) + 1
@@ -1052,6 +1060,7 @@ def move_or_swap_timetable_entry(
         moving.period_index = period_index
         moving.updated_at = now
     version.lifecycle_status = "draft"
+    clear_draft_approval(version)
     version.has_manual_changes = True
     version.manual_change_count = int(version.manual_change_count or 0) + 1
     version.edit_revision = int(version.edit_revision or 0) + 1

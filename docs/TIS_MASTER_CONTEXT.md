@@ -860,8 +860,11 @@ does not move the active pointer. Active, superseded, and archived versions are
 read-only and may be reused only through an explicit copied draft. Draft validation
 checks current fingerprint, complete demand, canonical slots, Planning teacher
 authority, collisions, stale placements, and locks; it is distinct from generation
-readiness. Publication requires a fresh `publication_ready` draft and atomically
-swaps the revisioned active pointer while superseding prior active history.
+readiness. Explicit Approve Draft validation records an approval timestamp and actor
+for the exact draft revision. Generation does not approve; placement, lock, regenerated
+successor, and stale-authority changes invalidate approval. Publication requires an
+approved fresh `publication_ready` draft, revalidates it, and atomically swaps the
+revisioned active pointer while superseding prior active history.
 
 Placement actions use separate create/edit/delete permissions. Locks use
 `timetable.lock_lessons`, publication uses `timetable.publish`, archive uses

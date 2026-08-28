@@ -11,9 +11,13 @@ source_of_truth: true
 
 1. A manager creates or opens the exact-scope Draft Timetable and configures inputs until Ready to Generate.
 2. Generate and Regenerate operate against that current draft context; Regenerate retains Stage 5.1 locks and concurrency.
-3. Check Timetable runs the existing validator; eligible never-published drafts may be permanently deleted.
-4. Publish Timetable atomically makes the candidate official and retains the prior publication in history.
-5. `/my-timetable` resolves exact-scope teacher identity, reads only the active pointer,
+3. Approve Draft validates that exact draft and records the reviewing administrator;
+   generation alone never grants approval.
+4. Any placement, drag/drop, swap, lock, regeneration, or stale authority change
+   invalidates approval and requires review again.
+5. Publish Timetable requires approval, revalidates the draft, atomically makes it
+   official, and retains the prior publication in history.
+6. `/my-timetable` resolves exact-scope teacher identity, reads only the active pointer,
    and filters to that teacher. View-only non-teachers use the general published page.
 
 ## Generate And Regenerate Timetable Flow
