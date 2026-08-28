@@ -11,7 +11,8 @@ source_of_truth: true
 
 Stage 5.2 keeps internal versions but presents Configure → Create New Timetable →
 Draft → Generate/Review/Edit → Publish. The newest mutable non-active exact-scope
-version is the current Draft Timetable; technical selection, comparison, historical
+version is the current Draft Timetable; generated results continue that logical
+Draft while source rows remain internal provenance. Technical selection, comparison, historical
 exports, archive, and permanent cleanup actions live in Timetable History.
 
 Publishing remains the atomic exact-scope active-pointer swap. Deleting an eligible

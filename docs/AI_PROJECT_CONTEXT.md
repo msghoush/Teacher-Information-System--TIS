@@ -47,8 +47,10 @@ is disabled so TIS terminal state and Generate Again remain the only retry autho
 Generate creates a new unpublished `publication_ready` generated version only in
 one atomic transaction after current-fingerprint revalidation. Regenerate preserves
 locked placements, excludes the exact source, and requires the approved minimum
-difference among unlocked lessons. Neither flow changes published history or the
-active pointer. Freshness fingerprints cover Planning, canonical timetable
+ difference among unlocked lessons. Neither flow changes published history or the
+active pointer. The generated result remains the logical Draft successor of the
+fresh source draft; the source is retained for provenance but omitted from normal
+History presentation. Freshness fingerprints cover Planning, canonical timetable
 configuration, stable generation constraints, and locks; generation-only source
 metadata is retained in snapshots but excluded from authority comparison. Safe
 component-level diagnostics identify real mismatches. `timetable.generate` is independent of publish authority. Stage 5.2

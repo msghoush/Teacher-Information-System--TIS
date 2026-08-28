@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Present One Logical Draft Across Generation
+
+- Kept backend generated-result versioning and provenance while presenting the
+  generated result as the continuation of the selected Draft Timetable.
+- Bound current Draft actions to the selected exact-scope version, refreshed Check
+  and Publish state coherently, and added Create New submit feedback.
+- Hid obsolete generated-source drafts from normal History cards and separated the
+  bulk unpublished action visually.
+
 ## 2026-08-28 - Canonical Generation Freshness Authority
 
 - Excluded generation-only runtime metadata from freshness fingerprints while

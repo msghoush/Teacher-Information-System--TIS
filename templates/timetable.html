@@ -275,6 +275,7 @@
     .version-badge.is-warning { background:#fff1e1; color:#8a4f00; }
     .version-badge.is-active { background:#e9f8f2; color:#08745a; }
     .version-actions { margin-top:12px; }
+    .bulk-version-actions { margin-top:18px; padding-top:14px; border-top:1px solid var(--tt-border); }
     .version-select { min-width:240px; padding:9px 11px; border:1px solid var(--tt-border-strong); border-radius:10px; background:#fff; }
     .version-notice { margin-top:10px; color:var(--tt-subtle); font-size:12px; }
     .version-notice.is-stale { padding:10px; border-radius:10px; background:#fff1f0; color:#8b2f24; font-weight:700; }
@@ -1495,7 +1496,9 @@
             </div>
             <div class="version-actions" id="versionActions"></div>
             {% if history_mode and can_delete_versions %}
-            <button type="button" class="hero-btn is-secondary" id="deleteAllUnpublishedBtn">Delete All Unpublished Timetables</button>
+            <div class="bulk-version-actions">
+                <button type="button" class="hero-btn is-secondary" id="deleteAllUnpublishedBtn">Delete All Unpublished Timetables</button>
+            </div>
             {% endif %}
             {% if history_mode %}<div class="history-version-list" id="historyVersionList" aria-label="Timetable versions"></div>{% endif %}
             <div class="comparison-panel" id="comparisonPanel">
@@ -2357,6 +2360,7 @@
             if (!historyVersionList) return;
             historyVersionList.innerHTML = "";
             versions.forEach((item) => {
+                if (item.is_logical_draft_source && !item.is_active) return;
                 const card = document.createElement("article");
                 card.className = `history-version-card${item.public_id === selectedVersion?.public_id ? " is-selected" : ""}`;
                 const source = String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -2392,7 +2396,7 @@
                 <span class="version-badge${version.is_active ? " is-active" : ""}">${escapeHtml(friendlyVersionStatus(version))}</span>
                 <span class="version-badge${version.is_stale ? " is-warning" : ""}">${version.is_stale ? "Needs Review" : "Current"}</span>
                 ${version.has_manual_changes ? `<span class="version-badge">Manual changes</span>` : ""}
-            ` : `<span>${version.is_active ? "Published Timetable" : "Draft Timetable"}</span>`;
+            ` : `<span>${version.is_active ? "Published Timetable" : "Draft Timetable"}</span>${!version.is_active && state.payload.validation?.valid ? ` <span class="version-badge">Ready to Publish</span>` : ""}`;
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."

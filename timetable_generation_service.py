@@ -826,7 +826,7 @@ def persist_generated_result(
         ),
         lifecycle_status="publication_ready",
         origin="regenerated" if run.request_mode == "regenerate" else "generated",
-        source_version_id=run.source_version_id if run.request_mode == "regenerate" else None,
+        source_version_id=run.source_version_id,
         input_snapshot_id=run.input_snapshot_id,
         generation_run_id=run.id,
         created_by_user_id=run.requested_by_user_id,

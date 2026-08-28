@@ -762,6 +762,7 @@ def build_timetable_workspace_payload(
 ) -> dict:
     from timetable_version_service import (
         TimetableVersionError,
+        is_logical_draft_source,
         timetable_version_delete_eligibility,
         resolve_operational_version,
         resolve_scope_school_group_id,
@@ -1012,6 +1013,7 @@ def build_timetable_workspace_payload(
                 "has_manual_changes": bool(row.has_manual_changes),
                 "source_version_number": next((int(source.version_number) for source in versions if row.source_version_id and int(source.id) == int(row.source_version_id)), None),
                 "edit_revision": int(row.edit_revision or 0),
+                "is_logical_draft_source": is_logical_draft_source(db, row),
                 "can_delete": delete_eligibility["eligible"],
                 "delete_blockers": delete_eligibility["reasons"],
             })
@@ -1304,6 +1306,7 @@ def build_timetable_workspace_payload(
                 "edit_revision": int(selected_version.edit_revision or 0),
                 "can_delete": selected_delete_eligibility["eligible"],
                 "delete_blockers": selected_delete_eligibility["reasons"],
+                "is_logical_draft_source": is_logical_draft_source(db, selected_version),
             }
             if selected_version is not None
             else None

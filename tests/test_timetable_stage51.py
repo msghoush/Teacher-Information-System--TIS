@@ -41,6 +41,7 @@ from permission_registry import get_default_permissions_for_role
 from timetable_logic import build_timetable_workspace_payload
 from timetable_version_service import (
     create_manual_draft,
+    resolve_operational_version,
     set_entry_lock,
     set_imported_active_pointer,
 )
@@ -779,6 +780,11 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
     )
     generated_id = generated.id
     db.commit()
+    assert generated.source_version_id == published.id
+    assert generated.public_id
+    assert resolve_operational_version(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    ).id == generated_id
 
     FreshSession = sessionmaker(bind=db.get_bind())
     fresh = FreshSession()
@@ -794,6 +800,7 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
         assert payload["version"]["id"] == generated_id
         assert payload["version"]["origin"] == "generated"
         assert payload["version"]["is_active"] is False
+        assert payload["version"]["is_logical_draft_source"] is False
         xlsx = timetable_router._build_timetable_xlsx_bytes(
             payload, "Main", "2026", logo_assets=[]
         )
