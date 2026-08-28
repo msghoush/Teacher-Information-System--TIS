@@ -48,7 +48,10 @@ Generate creates a new unpublished `publication_ready` generated version only in
 one atomic transaction after current-fingerprint revalidation. Regenerate preserves
 locked placements, excludes the exact source, and requires the approved minimum
 difference among unlocked lessons. Neither flow changes published history or the
-active pointer. `timetable.generate` is independent of publish authority. Stage 5.2
+active pointer. Freshness fingerprints cover Planning, canonical timetable
+configuration, stable generation constraints, and locks; generation-only source
+metadata is retained in snapshots but excluded from authority comparison. Safe
+component-level diagnostics identify real mismatches. `timetable.generate` is independent of publish authority. Stage 5.2
 The old polling worker is optional/local only; production requires no always-on solver
 service. Immediate dispatch failure is terminal and customer-safe, while delayed task
 start is reported as waiting for compute. Stage 5.2 supplies the simplified workflow,

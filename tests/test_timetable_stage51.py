@@ -24,6 +24,7 @@ from timetable_generation_service import (
     claim_run_by_public_id,
     claim_next_run,
     enqueue_generation,
+    _current_input_for_run,
     heartbeat_run,
     generation_run_payload,
     mark_workflow_dispatch_failed,
@@ -340,6 +341,32 @@ def test_enqueue_claim_heartbeat_cancel_and_bounded_recovery(db):
     assert second.status == "queued" and second.lease_owner is None
 
 
+def test_fresh_draft_generation_snapshot_matches_immediate_current_input(db):
+    _make_ready(db)
+    published = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100, origin="imported"
+    )
+    published.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=published)
+    fresh = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    )
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="fresh-snapshot-components", draft_public_id=fresh.public_id,
+    )
+
+    current, _, _ = _current_input_for_run(db, run)
+    snapshot = db.get(models.TimetableInputSnapshot, run.input_snapshot_id)
+
+    assert snapshot.planning_fingerprint == current.planning_fingerprint
+    assert snapshot.period_configuration_fingerprint == current.period_configuration_fingerprint
+    assert snapshot.constraint_fingerprint == current.constraint_fingerprint
+    assert snapshot.lock_fingerprint == current.lock_fingerprint
+    assert snapshot.full_input_fingerprint == current.full_input_fingerprint
+
+
 def test_workflow_exact_claim_is_idempotent_and_scope_safe(db):
     _make_ready(db)
     run = enqueue_generation(
@@ -438,12 +465,17 @@ def test_success_is_atomic_unpublished_and_old_worker_cannot_save(db):
     db.commit()
     assert version.origin == "generated"
     assert version.lifecycle_status == "publication_ready"
+    assert version.public_id
     assert version.quality_score is None
     assert db.query(models.TimetableEntry).filter_by(
         timetable_version_id=version.id
     ).count() == 8
     assert db.query(models.TimetableActiveVersion).count() == 0
     assert db.get(models.TimetableGenerationRun, run.id).result_version_id == version.id
+    rendered = build_timetable_workspace_payload(
+        db, branch_id=10, academic_year_id=100, version_id=version.id
+    )
+    assert rendered["version"]["is_stale"] is False
     with pytest.raises(TimetableGenerationError) as exc:
         persist_generated_result(
             db, run_id=run.id, lease_owner="old-worker", problem=problem,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections import defaultdict
 from datetime import datetime
 
@@ -1228,6 +1229,14 @@ def build_timetable_workspace_payload(
     current_authority_fingerprint = readiness.get("authority_fingerprint", "")
     if selected_version is not None:
         from timetable_snapshot_service import build_current_snapshot_data
+        selected_snapshot = db.get(
+            models.TimetableInputSnapshot, selected_version.input_snapshot_id
+        )
+        selected_constraints = {}
+        if selected_snapshot is not None:
+            selected_constraints = json.loads(
+                selected_snapshot.canonical_snapshot_json
+            ).get("constraints") or {}
         selected_locks = [
             {
                 "section_id": row.planning_section_id,
@@ -1245,6 +1254,7 @@ def build_timetable_workspace_payload(
             branch_id=branch_id,
             academic_year_id=academic_year_id,
             locks=selected_locks,
+            constraint_configuration=selected_constraints,
         ).authority_fingerprint
     selected_is_stale = bool(
         selected_version
