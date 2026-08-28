@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Fix the Subject Scheduling Rule modal so native dialog semantics keep it hidden until Edit, preserve correct open/populate/close behavior, and polish Session Structure and Conditions into compact balanced two-column layouts without changing backend or scheduling authority.
+summary: Restrict Subject Scheduling Rules and copy-rule grade selectors and visible subject rows to PlanningSection grades in the selected branch and academic year, excluding global and Subject-catalog-only grades without changing global master data or scheduling behavior.
 affected_areas:
   - timetable
   - tests

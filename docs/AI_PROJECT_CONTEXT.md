@@ -10,7 +10,9 @@ recommended_first_read: true
 ## Subject Scheduling Rules UI
 
 Timetable Settings now presents a grade-first Subject Scheduling Rules section:
-an administrator selects one grade, can search its compact subject list, and sees
+the main and copy-rule grade selectors derive only from `PlanningSection` grades
+in the selected branch and academic year, never from the global grade range or a
+catalog-only Subject row. An administrator selects one planned grade, can search its compact subject list, and sees
 each Planning weekly total, current pattern, and configured/default status without
 raw subject codes. The native dialog stays closed on page load and opens only
 after Edit has populated the selected Subject + Grade and read-only Planning

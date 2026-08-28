@@ -10,7 +10,9 @@ source_of_truth: true
 ## Subject Scheduling Rules UI Implemented
 
 The Timetable Settings page presents a grade-first Subject Scheduling Rules table
-sourced automatically from Planning. Only the selected grade's compact Subject,
+sourced automatically from Planning. Its main, copy-from, and copy-to grade selectors
+contain only distinct `PlanningSection` grades for the selected branch and academic
+year; global or Subject-catalog-only grades are excluded. Only the selected grade's compact Subject,
 read-only Weekly, Current Pattern, Status, and Edit columns are shown, with optional
 subject search. The modal uses native closed-dialog behavior on page load and opens
 only after Edit populates the selected Subject + Grade rule; Cancel/Close closes it.

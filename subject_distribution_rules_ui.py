@@ -61,6 +61,7 @@ def _subject_grade_label(subject) -> str:
 
 
 def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: int) -> list[dict]:
+    planned_grades = set(list_grade_levels(db, branch_id, academic_year_id))
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id,
@@ -71,6 +72,8 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
     sections_by_grade: dict[str, list[dict]] = {}
     for subject in subjects:
         grade_label = _subject_grade_label(subject)
+        if grade_label not in planned_grades:
+            continue
         code = str(subject.subject_code or "").strip().upper()
         if not code:
             continue
@@ -120,11 +123,12 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
 
 def list_grade_levels(db: Session, branch_id: int, academic_year_id: int) -> list[str]:
     values = {
-        _subject_grade_label(row)
-        for row in db.query(models.Subject).filter(
-            models.Subject.branch_id == branch_id,
-            models.Subject.academic_year_id == academic_year_id,
+        normalize_grade_label(row.grade_level)
+        for row in db.query(models.PlanningSection).filter(
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == academic_year_id,
         ).all()
+        if normalize_grade_label(row.grade_level)
     }
     return sorted(values, key=_grade_sort_key)
 

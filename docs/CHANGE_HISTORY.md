@@ -9,6 +9,10 @@ source_of_truth: true
 
 ## 2026-08-28 - Subject Scheduling Rules UI
 
+- Restricted the main and copy-rule grade selectors, plus their subject rows, to
+  distinct `PlanningSection` grades in the selected branch and academic year;
+  global and Subject-catalog-only grades no longer appear in operational timetable
+  configuration.
 - Corrected the modal visibility regression by removing author CSS that forced a
   closed native `<dialog>` to render. The modal now opens only after Edit populates
   the selected subject and closes through Cancel/Close.
