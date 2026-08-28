@@ -35,9 +35,12 @@ disabled, and the old infinite worker loop is an optional local fallback only.
 
 Hard-valid candidates must pass an independent validator and a current-input check
 before atomic persistence as unpublished generated/regenerated publication-ready
-versions. Generation never changes `TimetableActiveVersion`. Regeneration preserves
-locks and requires a calculated minimum difference; random seed alone is not
-diversity authority. Publishing remains a separate permission and transaction.
+versions. Generation never changes `TimetableActiveVersion`. Freshness authority
+uses stable Planning, canonical timetable configuration, generation constraints,
+and locks; runtime generation metadata is retained in snapshots but excluded from
+the freshness comparison. Regeneration preserves locks and requires a calculated
+minimum difference; random seed alone is not diversity authority. Publishing remains
+a separate permission and transaction.
 
 ## Capacity-Based Commercial Packaging
 

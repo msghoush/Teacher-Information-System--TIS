@@ -7,6 +7,13 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Canonical Generation Freshness Authority
+
+- Excluded generation-only runtime metadata from freshness fingerprints while
+  retaining it in immutable solve snapshots.
+- Aligned generated-result authority with the generation snapshot contract and added
+  safe component-level mismatch diagnostics.
+
 ## 2026-08-28 - Simplified Draft Ownership And Unpublished Cleanup
 
 - Made the newest mutable non-active exact-scope version the current Draft Timetable,

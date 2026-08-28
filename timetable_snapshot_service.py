@@ -203,6 +203,12 @@ def _normalize_locks(locks: Iterable[dict] | None) -> list[dict]:
     )
 
 
+def _authority_constraints(constraints: dict) -> dict:
+    authority = dict(constraints or {})
+    authority.pop("generation", None)
+    return authority
+
+
 def build_current_snapshot_data(
     db: Session,
     *,
@@ -243,7 +249,7 @@ def build_current_snapshot_data(
     }
     planning_hash = fingerprint(planning)
     period_hash = fingerprint(period_configuration)
-    constraint_hash = fingerprint(constraints)
+    constraint_hash = fingerprint(_authority_constraints(constraints))
     lock_hash = fingerprint(normalized_locks)
     authority_hash = fingerprint(
         {
@@ -260,7 +266,10 @@ def build_current_snapshot_data(
         period_configuration_fingerprint=period_hash,
         constraint_fingerprint=constraint_hash,
         lock_fingerprint=lock_hash,
-        full_input_fingerprint=fingerprint(snapshot),
+        full_input_fingerprint=fingerprint({
+            **snapshot,
+            "constraints": _authority_constraints(constraints),
+        }),
         authority_fingerprint=authority_hash,
     )
 

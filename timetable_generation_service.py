@@ -56,6 +56,21 @@ FAILURE_LABELS = {
 logger = logging.getLogger("tis.timetable_generation_service")
 
 
+def _fingerprint_differences(expected, current) -> dict[str, dict[str, str]]:
+    fields = (
+        ("planning", "planning_fingerprint"),
+        ("period_configuration", "period_configuration_fingerprint"),
+        ("constraints", "constraint_fingerprint"),
+        ("locks", "lock_fingerprint"),
+        ("full_input", "full_input_fingerprint"),
+    )
+    return {
+        name: {"expected": str(getattr(expected, field, "") or ""), "current": str(getattr(current, field, "") or "")}
+        for name, field in fields
+        if str(getattr(expected, field, "") or "") != str(getattr(current, field, "") or "")
+    }
+
+
 class TimetableGenerationError(ValueError):
     def __init__(self, code: str, message: str, status_code: int = 400):
         super().__init__(message)
@@ -748,6 +763,14 @@ def persist_generated_result(
     if not validation["valid"]:
         first = validation["errors"][0]
         if first["code"] in {"stale_input", "stale_source"}:
+            differences = _fingerprint_differences(snapshot, current)
+            logger.warning(
+                "Timetable generation run %s freshness mismatch components=%s source_revision_expected=%s source_revision_current=%s",
+                run.id,
+                sorted(differences),
+                run.source_edit_revision,
+                current_revision,
+            )
             mark_run_terminal(
                 db, run_id=run.id, lease_owner=lease_owner, status="stale_input",
                 failure_category=first["code"], safe_message="Inputs changed — generate again.",
@@ -790,13 +813,7 @@ def persist_generated_result(
             500,
         )
 
-    base_authority = build_current_snapshot_data(
-        db,
-        school_group_id=int(run.school_group_id),
-        branch_id=int(run.branch_id),
-        academic_year_id=int(run.academic_year_id),
-        locks=[item for item in _serialize_entries(source_entries) if item["is_locked"]],
-    )
+    base_authority = current
     version = models.TimetableVersion(
         school_group_id=run.school_group_id,
         branch_id=run.branch_id,
