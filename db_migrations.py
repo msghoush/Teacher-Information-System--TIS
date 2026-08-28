@@ -6136,11 +6136,43 @@ def _planning_subject_demands_foundation(engine, connection):
 
     if not _table_exists(connection, "planning_sections") or not _table_exists(connection, "subjects"):
         return
-    if not _index_exists(connection, "planning_sections", "uq_planning_sections_id_scope"):
-        _execute(
+    if engine.dialect.name == "postgresql":
+        planning_unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("planning_sections")
+        }
+        if ("id", "branch_id", "academic_year_id") not in planning_unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE planning_sections ADD CONSTRAINT "
+                "uq_planning_sections_id_scope UNIQUE (id, branch_id, academic_year_id)",
+            )
+
+        subject_unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("subjects")
+        }
+        if ("branch_id", "academic_year_id", "subject_code") not in subject_unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE subjects ADD CONSTRAINT "
+                "uq_subjects_scope_code_fk_target "
+                "UNIQUE (branch_id, academic_year_id, subject_code)",
+            )
+    else:
+        _create_unique_index_if_missing(
             connection,
-            "CREATE UNIQUE INDEX uq_planning_sections_id_scope "
-            "ON planning_sections (id, branch_id, academic_year_id)",
+            connection,
+            "planning_sections",
+            "uq_planning_sections_id_scope",
+            "id, branch_id, academic_year_id",
+        )
+        _create_unique_index_if_missing(
+            connection,
+            connection,
+            "subjects",
+            "uq_subjects_scope_code",
+            "branch_id, academic_year_id, subject_code",
         )
     Base.metadata.tables["planning_subject_demands"].create(bind=connection, checkfirst=True)
     _execute(
