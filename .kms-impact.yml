@@ -1,10 +1,8 @@
 knowledge_impact: yes
-summary: Wire the Stage 1 Subject Distribution Rules foundation into the actual Smart Timetable generation pipeline - snapshot resolution per demand, problem-builder pre-solve validation, generalized CP-SAT block/coverage/spread/max-per-day enforcement, independent validator parity, and readiness blockers for invalid configuration, while preserving quality_rules_json legacy behavior for every demand without a resolved rule.
+summary: Add the Subject Scheduling Rules Timetable Settings UI - a Planning-sourced Grade+Subject table, an edit panel with plain-language fields and live/authoritative arithmetic validation, section overrides, copy-from-grade, and reset-to-default, wired to the existing Stage 1/2 model, resolver, and validator without changing solver/validator/snapshot behavior or the legacy Swimming JSON editor.
 affected_areas:
   - timetable
   - tests
-  - solver
-  - database
   - settings
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md

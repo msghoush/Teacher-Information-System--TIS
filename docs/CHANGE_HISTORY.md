@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Subject Scheduling Rules UI
+
+- Added a Subject Scheduling Rules section to Timetable Settings listing every
+  Grade + Subject from Planning with read-only weekly totals, a plain-language
+  distribution summary, min-days/max-per-day, and Configured/Default status.
+- Added an edit panel with plain-language fields, live client-side arithmetic
+  validation of blocks/singles against the Planning weekly total, and
+  authoritative backend re-validation on save (`subject_distribution_rules_ui.py`).
+- Added Section Overrides (create/edit/clear per section), Reset To Default
+  (removes only the grade-level row), and Copy Rules From Grade (subjects
+  matched by name across grades, skipping arithmetic mismatches instead of
+  copying them).
+- Added routes under `/system-configuration/timetable-settings/subject-rules`
+  reusing the existing `timetable.manage_settings` permission and remaining
+  tenant/branch/year-scoped; Planning weekly totals are never mutated.
+- Preserved the existing raw Swimming/grouped-activity JSON editor,
+  Non-Teaching Blocks management, and the unchanged Stage 2
+  snapshot/solver/validator pipeline; saved rules apply to the next created
+  snapshot only.
+
 ## 2026-08-28 - Subject Distribution Rules Generation Wiring
 
 - Embedded the fully resolved Subject Distribution Rule (section over grade over

@@ -7,6 +7,27 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Subject Scheduling Rules UI
+
+Timetable Settings now presents a Subject Scheduling Rules section that lists
+every Grade + Subject from current Planning with its read-only weekly total,
+plain-language distribution summary, min-days/max-per-day, and a Configured or
+"Using Default Scheduling Rules" status. Editing opens a shared panel with
+plain-language fields (blocks, block length, singles, minimum teaching days,
+maximum periods per day, daily coverage, spread, avoid-consecutive, minimum day
+gap, and Preference/Hard rule strictness) and live client-side arithmetic
+validation of `block_count x block_length + single_count` against the Planning
+total; `subject_distribution_rules_ui.py` re-validates authoritatively on save
+using the Stage 1 validator. Saving creates or updates only the intended
+Grade+Subject (`scope_level="grade"`) row, or a specific section override when
+a section is selected from the panel's Section Overrides list. Reset To
+Default removes only the grade-level row so resolution falls back to the next
+hierarchy tier; Copy Rules From Grade matches subjects across grades by name
+(since subject codes are grade-specific) and skips any subject whose
+arithmetic does not fit the target grade instead of copying it blindly. No
+changes were made to the CP-SAT solver, independent validator, snapshot
+immutability, or grouped-activity/Swimming JSON authority.
+
 ## Smart Timetable Academic Quality Rules
 
 Branch/year Timetable Settings store explicit subject-code mappings for core,
