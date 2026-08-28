@@ -95,37 +95,111 @@ def solve_timetable(
     slots_by_day = defaultdict(list)
     for slot in problem["slots"]:
         slots_by_day[slot["day_key"]].append(slot)
+    working_days = list(problem.get("working_days") or [])
+    num_days = len(working_days)
     for demand in problem["demands"]:
         code = demand["subject_code"]
+        demand_id = demand["demand_id"]
+        rule = demand.get("distribution_rule")
         day_used = []
-        for day in problem.get("working_days") or []:
-            day_vars = [variables[(demand["demand_id"], day, slot["period_index"])] for slot in slots_by_day[day]]
+        for day in working_days:
+            day_vars = [variables[(demand_id, day, slot["period_index"])] for slot in slots_by_day[day]]
             if not day_vars:
                 continue
-            used = model.new_bool_var(f"day_used|{demand['demand_id']}|{day}")
+            used = model.new_bool_var(f"day_used|{demand_id}|{day}")
             model.add_max_equality(used, day_vars)
             day_used.append(used)
-            if code in core_codes and int(demand["required_weekly_periods"]) >= len(problem.get("working_days") or []):
-                model.add(sum(day_vars) >= 1)
-            if code in ict_codes and quality.get("ict_hard_one_per_day") and int(demand["required_weekly_periods"]) <= len(problem.get("working_days") or []):
-                model.add(sum(day_vars) <= 1)
-            if code in core_codes or code in spread_codes or code in ict_codes:
-                objective_terms.append(20 * used)
-            if code in avoid_consecutive and code not in allow_double:
-                ordered = sorted(slots_by_day[day], key=lambda item: item["period_index"])
-                for left, right in zip(ordered, ordered[1:]):
-                    if int(right["period_index"]) != int(left["period_index"]) + 1:
-                        continue
-                    adjacent = model.new_bool_var(f"adjacent|{demand['demand_id']}|{day}|{left['period_index']}")
-                    model.add_multiplication_equality(adjacent, [
-                        variables[(demand["demand_id"], day, left["period_index"])],
-                        variables[(demand["demand_id"], day, right["period_index"])],
-                    ])
-                    objective_terms.append(-8 * adjacent)
-        if day_used and int(demand["required_weekly_periods"]) < len(problem.get("working_days") or []) and code in core_codes:
+
+            if rule is not None:
+                # Generalized Subject Distribution Rule replaces the flat
+                # code-list checks below for this demand.
+                coverage_mode = rule["require_daily_coverage"]
+                if coverage_mode != "never" and int(demand["required_weekly_periods"]) >= num_days:
+                    model.add(sum(day_vars) >= 1)
+                if rule["spread_distinct_days"] and coverage_mode != "never":
+                    objective_terms.append(20 * used)
+                max_per_day = rule["max_periods_per_day"]
+                if max_per_day:
+                    if rule["strictness"] == "hard":
+                        model.add(sum(day_vars) <= max_per_day)
+                    else:
+                        over = model.new_bool_var(f"over_max|{demand_id}|{day}")
+                        model.add(sum(day_vars) <= max_per_day + len(day_vars) * over)
+                        objective_terms.append(-25 * over)
+                # Intentional blocks are exempt from the consecutive-avoidance
+                # penalty; the exact-block constraint below governs them.
+                if rule["avoid_consecutive"] and rule["block_count"] <= 0:
+                    ordered = sorted(slots_by_day[day], key=lambda item: item["period_index"])
+                    for left, right in zip(ordered, ordered[1:]):
+                        if not left.get("next_period_physically_adjacent"):
+                            continue
+                        adjacent = model.new_bool_var(f"adjacent|{demand_id}|{day}|{left['period_index']}")
+                        model.add_multiplication_equality(adjacent, [
+                            variables[(demand_id, day, left["period_index"])],
+                            variables[(demand_id, day, right["period_index"])],
+                        ])
+                        objective_terms.append(-8 * adjacent)
+            else:
+                # Legacy fallback: no normalized rule configured for this
+                # demand, so the existing branch/year quality_rules_json
+                # behavior applies unchanged.
+                if code in core_codes and int(demand["required_weekly_periods"]) >= num_days:
+                    model.add(sum(day_vars) >= 1)
+                if code in ict_codes and quality.get("ict_hard_one_per_day") and int(demand["required_weekly_periods"]) <= num_days:
+                    model.add(sum(day_vars) <= 1)
+                if code in core_codes or code in spread_codes or code in ict_codes:
+                    objective_terms.append(20 * used)
+                if code in avoid_consecutive and code not in allow_double:
+                    ordered = sorted(slots_by_day[day], key=lambda item: item["period_index"])
+                    for left, right in zip(ordered, ordered[1:]):
+                        if int(right["period_index"]) != int(left["period_index"]) + 1:
+                            continue
+                        adjacent = model.new_bool_var(f"adjacent|{demand_id}|{day}|{left['period_index']}")
+                        model.add_multiplication_equality(adjacent, [
+                            variables[(demand_id, day, left["period_index"])],
+                            variables[(demand_id, day, right["period_index"])],
+                        ])
+                        objective_terms.append(-8 * adjacent)
+
+        if rule is not None:
+            coverage_mode = rule["require_daily_coverage"]
+            if (
+                day_used and rule["spread_distinct_days"] and coverage_mode != "never"
+                and int(demand["required_weekly_periods"]) < num_days
+            ):
+                objective_terms.extend(30 * used for used in day_used)
+            if rule["strictness"] == "hard" and rule.get("min_teaching_days"):
+                model.add(sum(day_used) >= int(rule["min_teaching_days"]))
+            if rule["block_count"] > 0:
+                # Exactly ``block_count`` true consecutive block_length-period
+                # blocks must exist; a period may belong to at most one
+                # counted block so overlapping runs cannot fake extra blocks.
+                pair_vars = []
+                covering_by_slot = defaultdict(list)
+                for day in working_days:
+                    ordered = sorted(slots_by_day[day], key=lambda item: item["period_index"])
+                    for left, right in zip(ordered, ordered[1:]):
+                        if not left.get("next_period_physically_adjacent"):
+                            continue
+                        pair_var = model.new_bool_var(
+                            f"block|{demand_id}|{day}|{left['period_index']}"
+                        )
+                        model.add_multiplication_equality(pair_var, [
+                            variables[(demand_id, day, left["period_index"])],
+                            variables[(demand_id, day, right["period_index"])],
+                        ])
+                        pair_vars.append(pair_var)
+                        covering_by_slot[(day, left["period_index"])].append(pair_var)
+                        covering_by_slot[(day, right["period_index"])].append(pair_var)
+                for covering in covering_by_slot.values():
+                    if len(covering) > 1:
+                        model.add(sum(covering) <= 1)
+                model.add(sum(pair_vars) == int(rule["block_count"]))
+        elif day_used and int(demand["required_weekly_periods"]) < num_days and code in core_codes:
             objective_terms.extend(30 * used for used in day_used)
 
     if problem.get("request_mode") == "regenerate":
+
         same_unlocked = []
         for item in problem.get("source_arrangement") or []:
             if item.get("is_locked"):

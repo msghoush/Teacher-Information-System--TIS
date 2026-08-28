@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 
 from timetable_problem_builder import demand_key, placement_key
 
@@ -104,16 +104,57 @@ class TimetableSolutionValidator:
         placements_by_demand_day = Counter(
             (demand_key(item), str(item.get("day_key") or "").lower()) for item in placements
         )
+        slot_lookup = {(item["day_key"], item["period_index"]): item for item in problem["slots"]}
+        placements_by_demand = defaultdict(list)
+        for item in placements:
+            placements_by_demand[demand_key(item)].append((
+                str(item.get("day_key") or "").lower(), int(item.get("period_index") or 0),
+            ))
         for demand in problem["demands"]:
             key = demand_key(demand)
             code = demand["subject_code"]
-            if code in core_codes and int(demand["required_weekly_periods"]) >= len(working_days):
-                for day in working_days:
-                    if placements_by_demand_day[(key, day)] < 1:
-                        add("core_daily_coverage_missing", "A configured core subject is missing from a required teaching day.")
-            if code in ict_codes and quality.get("ict_hard_one_per_day") and int(demand["required_weekly_periods"]) <= len(working_days):
-                if any(placements_by_demand_day[(key, day)] > 1 for day in working_days):
-                    add("ict_daily_max_exceeded", "ICT exceeds the configured maximum of one session per day.")
+            rule = demand.get("distribution_rule")
+            if rule is not None:
+                # Generalized Subject Distribution Rule hard checks replace
+                # the legacy flat code-list checks for this demand.
+                coverage_mode = rule.get("require_daily_coverage") or "auto"
+                if coverage_mode != "never" and int(demand["required_weekly_periods"]) >= len(working_days):
+                    for day in working_days:
+                        if placements_by_demand_day[(key, day)] < 1:
+                            add("distribution_daily_coverage_missing", "A configured Subject Distribution Rule requires daily coverage that is missing.")
+                max_per_day = rule.get("max_periods_per_day")
+                if max_per_day and rule.get("strictness") == "hard":
+                    if any(placements_by_demand_day[(key, day)] > int(max_per_day) for day in working_days):
+                        add("distribution_max_per_day_exceeded", "A configured Subject Distribution Rule exceeds its hard maximum periods per day.")
+                if rule.get("strictness") == "hard" and rule.get("min_teaching_days"):
+                    distinct_days = {day for day in working_days if placements_by_demand_day[(key, day)] > 0}
+                    if len(distinct_days) < int(rule["min_teaching_days"]):
+                        add("distribution_min_teaching_days_missing", "A configured Subject Distribution Rule requires more distinct teaching days than were scheduled.")
+                block_count = int(rule.get("block_count") or 0)
+                if block_count > 0:
+                    total_blocks = 0
+                    for day in working_days:
+                        selected = sorted(period for (d, period) in placements_by_demand.get(key, []) if d == day)
+                        consumed = set()
+                        for period in selected:
+                            if period in consumed:
+                                continue
+                            if (period + 1) in selected and (period + 1) not in consumed and (
+                                slot_lookup.get((day, period), {}).get("next_period_physically_adjacent")
+                            ):
+                                total_blocks += 1
+                                consumed.update({period, period + 1})
+                    if total_blocks != block_count:
+                        add("distribution_block_count_mismatch", "A configured Subject Distribution Rule does not contain the exact required number of true consecutive blocks.")
+            else:
+                if code in core_codes and int(demand["required_weekly_periods"]) >= len(working_days):
+                    for day in working_days:
+                        if placements_by_demand_day[(key, day)] < 1:
+                            add("core_daily_coverage_missing", "A configured core subject is missing from a required teaching day.")
+                if code in ict_codes and quality.get("ict_hard_one_per_day") and int(demand["required_weekly_periods"]) <= len(working_days):
+                    if any(placements_by_demand_day[(key, day)] > 1 for day in working_days):
+                        add("ict_daily_max_exceeded", "ICT exceeds the configured maximum of one session per day.")
+
 
         resource_slots = Counter()
         for group in problem.get("grouped_activities") or []:

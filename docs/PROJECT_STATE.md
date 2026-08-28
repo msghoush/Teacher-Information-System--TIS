@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Project State
 
+## Subject Distribution Rules Generation Wiring Implemented
+
+The resolved Subject Distribution Rule (section over grade over branch
+default, `None` for legacy fallback) is now embedded per Planning demand in
+the schema-v3 snapshot at creation time; a later rule change never alters an
+already-created snapshot. The problem builder carries the resolved rule per
+demand, exposes true physical period adjacency per slot, and runs the
+arithmetic/feasibility validator as a final pre-solve defense
+(`distribution_rule_invalid`). CP-SAT enforces exact non-overlapping
+intentional blocks, generalized daily-coverage/spread/max-per-day/
+min-teaching-days behavior (hard only when explicitly configured hard), and
+exempts declared blocks from the consecutive-avoidance penalty; demands
+without a resolved rule keep the exact legacy `quality_rules_json` behavior.
+The independent validator mirrors every new hard check. Readiness blocks
+genuinely invalid/infeasible normalized configurations while keeping the
+existing legacy warning path. Regeneration's `ceil(25% x unlocked placements)`
+default, locks, and teacher authority are unchanged; hard distribution rules
+remain enforced during regenerate through the same constraint-building path.
+
 ## Subject Distribution Rules Foundation Implemented
 
 Migration `20260828_003_subject_distribution_rules_foundation` adds the normalized

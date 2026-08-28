@@ -4,6 +4,8 @@ import json
 from collections import Counter
 from typing import Any
 
+from subject_distribution_validator import validate_subject_distribution_rule
+
 
 class TimetableProblemError(ValueError):
     def __init__(self, code: str, message: str):
@@ -29,6 +31,30 @@ def placement_key(item: dict) -> tuple[int, str, int, str, int]:
         str(item.get("day_key") or "").strip().lower(),
         int(item.get("period_index") or 0),
     )
+
+
+def _normalized_distribution_rule(raw: Any) -> dict | None:
+    if not isinstance(raw, dict):
+        return None
+    return {
+        "block_length": int(raw.get("block_length") or 0),
+        "block_count": int(raw.get("block_count") or 0),
+        "single_count": int(raw.get("single_count") or 0),
+        "min_teaching_days": (
+            int(raw["min_teaching_days"]) if raw.get("min_teaching_days") is not None else None
+        ),
+        "max_periods_per_day": (
+            int(raw["max_periods_per_day"]) if raw.get("max_periods_per_day") is not None else None
+        ),
+        "require_daily_coverage": str(raw.get("require_daily_coverage") or "auto"),
+        "spread_distinct_days": bool(raw.get("spread_distinct_days", True)),
+        "avoid_consecutive": bool(raw.get("avoid_consecutive", True)),
+        "min_day_gap": (
+            int(raw["min_day_gap"]) if raw.get("min_day_gap") is not None else None
+        ),
+        "strictness": str(raw.get("strictness") or "soft"),
+        "source_scope_level": str(raw.get("source_scope_level") or ""),
+    }
 
 
 class TimetableProblemBuilder:
@@ -99,6 +125,9 @@ class TimetableProblemBuilder:
                 "teacher_id": teacher_id,
                 "assignment_source": str(item.get("assignment_source") or "planning"),
                 "required_weekly_periods": periods,
+                # None means legacy fallback: no normalized rule is configured
+                # for this exact section/subject scope.
+                "distribution_rule": _normalized_distribution_rule(item.get("distribution_rule")),
             })
         demands.sort(key=lambda item: (
             item["section_id"], item["subject_code"], item["teacher_id"], item["subject_id"]
@@ -165,6 +194,10 @@ class TimetableProblemBuilder:
                     "period_index": key[1],
                     "start_time": str(item.get("start_time") or ""),
                     "end_time": str(item.get("end_time") or ""),
+                    # True only when the composed timeline places the next
+                    # period immediately after with no Break/Prayer/other
+                    # non-teaching item between them.
+                    "next_period_physically_adjacent": bool(item.get("next_period_physically_adjacent")),
                 })
         slots.sort(key=lambda item: (
             (projection.get("working_day_keys") or []).index(item["day_key"])
@@ -175,6 +208,26 @@ class TimetableProblemBuilder:
             raise TimetableProblemError(
                 "insufficient_teaching_slots", "No canonical teaching slots are available."
             )
+
+        # Final defense-in-depth: an invalid resolved distribution rule must
+        # fail cleanly here rather than reach CP-SAT with an unsatisfiable or
+        # nonsensical configuration.
+        available_teaching_days = len(projection.get("working_day_keys") or [])
+        for demand in demands:
+            rule = demand.get("distribution_rule")
+            if rule is None:
+                continue
+            rule_errors = validate_subject_distribution_rule(
+                rule,
+                planning_weekly_periods=demand["required_weekly_periods"],
+                available_teaching_days=available_teaching_days,
+            )
+            if rule_errors:
+                raise TimetableProblemError(
+                    "distribution_rule_invalid",
+                    f"The {demand['subject_code']} distribution rule for section "
+                    f"{demand['section_id']} is invalid: {rule_errors[0]['message']}",
+                )
 
         demand_by_key = {
             (item["section_id"], item["subject_code"], item["teacher_id"]): item

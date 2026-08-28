@@ -18,6 +18,29 @@ configured Swimming sections simultaneous without weakening section, teacher, or
 shared-resource protection. The independent validator repeats every new hard check.
 Regeneration diversity remains configurable with a 25 percent default.
 
+## Subject Distribution Rules Generation Wiring
+
+Schema-v3 snapshots now resolve and embed the effective Subject Distribution
+Rule (section over grade over branch default, `None` for legacy fallback) on
+every Planning demand at snapshot creation time, so a later rule change never
+alters an already-created snapshot. The problem builder carries that resolved
+rule per demand, exposes true physical period adjacency on every slot, and
+runs the arithmetic/feasibility validator as a final pre-solve defense,
+failing cleanly with `distribution_rule_invalid` rather than reaching CP-SAT.
+CP-SAT enforces exact non-overlapping intentional blocks, generalized
+daily-coverage/spread/max-per-day/min-teaching-days hard-or-soft behavior per
+resolved rule, and exempts declared blocks from the consecutive-avoidance
+penalty; demands without a resolved rule keep the exact legacy
+`quality_rules_json` code-list behavior. The independent validator mirrors
+every new hard check (exact block count via true adjacency, hard daily
+coverage, hard max/day, hard min teaching days) alongside the unchanged
+grouped-activity and collision checks. Readiness now blocks genuinely invalid
+or infeasible normalized configurations before generation while keeping the
+existing core-subject warning path for legacy-only scopes. Regeneration is
+unchanged: the same constraint-building path applies during regenerate, so
+hard distribution rules remain valid while the diversity requirement reshuffles
+unlocked placements.
+
 ## Subject Distribution Rules Foundation
 
 A normalized `subject_distribution_rules` table (migration
@@ -32,12 +55,11 @@ when no normalized row exists so the caller keeps today's `quality_rules_json`
 behavior unchanged. `subject_distribution_validator.py` is a pure arithmetic and
 feasibility check confirming `block_count * block_length + single_count` equals
 the authoritative Planning weekly total and that day/period limits are
-feasible. `timetable_slot_service.py` now marks each composed teaching period
+feasible. `timetable_slot_service.py` marks each composed teaching period
 with true physical adjacency to its next period, false whenever a Break,
-Prayer, or other non-teaching item is composed between them, so future
-intentional-block enforcement can rely on genuine continuity rather than raw
-period-index arithmetic. None of this is yet wired into CP-SAT, the
-independent validator, or the settings UI.
+Prayer, or other non-teaching item is composed between them, so intentional-block
+enforcement can rely on genuine continuity rather than raw period-index
+arithmetic.
 
 ## Smart Timetable Stage 5.2
 

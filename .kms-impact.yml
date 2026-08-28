@@ -1,8 +1,9 @@
 knowledge_impact: yes
-summary: Add the Stage 1 foundation for generalized Subject Distribution Rules - a normalized branch/grade/section rule table, a pure hierarchy resolver, a pure arithmetic/feasibility validator, and a corrected true-adjacency signal on the canonical composed timeline, without wiring any of it into CP-SAT, the independent validator, readiness, or the settings UI, and without altering quality_rules_json behavior for existing tenants.
+summary: Wire the Stage 1 Subject Distribution Rules foundation into the actual Smart Timetable generation pipeline - snapshot resolution per demand, problem-builder pre-solve validation, generalized CP-SAT block/coverage/spread/max-per-day enforcement, independent validator parity, and readiness blockers for invalid configuration, while preserving quality_rules_json legacy behavior for every demand without a resolved rule.
 affected_areas:
   - timetable
   - tests
+  - solver
   - database
   - settings
 kms_files_updated:
