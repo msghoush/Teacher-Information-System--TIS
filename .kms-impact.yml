@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Use one stable authority fingerprint contract for fresh-draft generation and diagnose real freshness changes without weakening validation.
+summary: Present one logical Draft across generation, review, validation, publication, and History while preserving backend version provenance.
 affected_areas:
   - timetable
   - tests

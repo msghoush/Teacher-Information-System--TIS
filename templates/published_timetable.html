@@ -8,7 +8,7 @@
   </div>
   {% if can_create_timetable and payload and payload.published %}<div class="page-actions">
     <form method="post" action="/timetable/drafts/edit-published"><button class="btn btn-primary" type="submit">Edit This Timetable</button></form>
-    <form method="post" action="/timetable/drafts/new"><button class="btn btn-secondary" type="submit">Create New Timetable</button></form>
+    <form id="createNewTimetableForm" method="post" action="/timetable/drafts/new"><button class="btn btn-secondary" type="submit">Create New Timetable</button><small id="createNewTimetableStatus" role="status" aria-live="polite"></small></form>
     <small>Creates an editable draft based on this timetable. The published timetable remains unchanged until you publish the draft.</small>
   </div>{% endif %}</div>
   {% if identity_missing %}
@@ -22,4 +22,20 @@
     <tbody>{% for lesson in payload.entries %}<tr><td>{{ lesson.day }}</td><td>{{ lesson.period }}</td><td>{{ lesson.time }}</td><td>{{ lesson.subject }}{% if lesson.subject_code %} ({{ lesson.subject_code }}){% endif %}</td><td>{{ lesson.section }}</td></tr>{% endfor %}</tbody></table></div>
   {% endif %}
 </section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+  (() => {
+    const form = document.getElementById("createNewTimetableForm");
+    const button = form?.querySelector("button[type=submit]");
+    const status = document.getElementById("createNewTimetableStatus");
+    if (!form || !button || !status) return;
+    form.addEventListener("submit", () => {
+      button.disabled = true;
+      button.textContent = "Creating Draft Timetable...";
+      status.textContent = "Opening your new draft...";
+    });
+  })();
+</script>
 {% endblock %}

@@ -152,6 +152,19 @@ def resolve_working_version(
     ).first()
 
 
+def is_logical_draft_source(db: Session, version: models.TimetableVersion) -> bool:
+    """Return whether a manual source has a generated successor in this scope."""
+    if version.origin != "manual" or version.source_version_id is not None:
+        return False
+    return db.query(models.TimetableVersion.id).filter(
+        models.TimetableVersion.source_version_id == version.id,
+        models.TimetableVersion.school_group_id == version.school_group_id,
+        models.TimetableVersion.branch_id == version.branch_id,
+        models.TimetableVersion.academic_year_id == version.academic_year_id,
+        models.TimetableVersion.origin.in_(("generated", "regenerated")),
+    ).first() is not None
+
+
 def _allocate_next_version_number(
     db: Session,
     *,
