@@ -12,9 +12,11 @@ source_of_truth: true
 The Timetable Settings page presents a grade-first Subject Scheduling Rules table
 sourced automatically from Planning. Only the selected grade's compact Subject,
 read-only Weekly, Current Pattern, Status, and Edit columns are shown, with optional
-subject search. Edit opens a Subject + Grade modal with double-block/single-session
-steppers, automatic total validation, combinable conditions, two-period session
-presets, and progressively disclosed advanced settings. A Section Overrides list
+subject search. The modal uses native closed-dialog behavior on page load and opens
+only after Edit populates the selected Subject + Grade rule; Cancel/Close closes it.
+Its compact two-column Session Structure aligns double-block/single-session steppers
+above a full-width automatic total, while conditions use a balanced two-column grid.
+Two-period presets and progressively disclosed advanced settings remain. A Section Overrides list
 preserving Stage 1 section-over-grade-over-branch-default precedence, Copy
 Rules From Grade (name-matched across grades, skipping arithmetic mismatches),
 and Reset To Default (removes only the grade-level row). New routes

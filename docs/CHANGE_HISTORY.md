@@ -9,6 +9,12 @@ source_of_truth: true
 
 ## 2026-08-28 - Subject Scheduling Rules UI
 
+- Corrected the modal visibility regression by removing author CSS that forced a
+  closed native `<dialog>` to render. The modal now opens only after Edit populates
+  the selected subject and closes through Cancel/Close.
+- Polished the modal with aligned two-column double-block/single-session controls,
+  one full-width arithmetic summary, and a balanced two-column Conditions layout;
+  advanced conditions, Reset To Default, and section overrides remain secondary.
 - Added a grade-first Subject Scheduling Rules section to Timetable Settings;
   administrators select one grade and can search its compact subject list with
   read-only Planning totals, current patterns, and Configured/Default status.
