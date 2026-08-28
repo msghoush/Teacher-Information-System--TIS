@@ -113,6 +113,7 @@ from timetable_logic import (
     validate_non_teaching_block_overlap,
 )
 from timetable_slot_service import build_canonical_slot_projection
+import subject_distribution_rules_ui
 
 # ---------------------------------------
 # App Initialization
@@ -12040,6 +12041,14 @@ def _build_timetable_settings_module_context(
         "timetable_settings_notice": str(
             request.query_params.get("notice", "") or ""
         ).strip(),
+        "subject_scheduling_rows": subject_distribution_rules_ui.list_subject_scheduling_rows(
+            db, scoped_branch_id, scoped_academic_year_id,
+        ),
+        "subject_scheduling_grade_levels": subject_distribution_rules_ui.list_grade_levels(
+            db, scoped_branch_id, scoped_academic_year_id,
+        ),
+        "daily_coverage_options": list(subject_distribution_rules_ui.DAILY_COVERAGE_OPTIONS),
+        "strictness_options": list(subject_distribution_rules_ui.STRICTNESS_OPTIONS),
     }
 
 
@@ -13554,6 +13563,156 @@ def save_timetable_settings(
         safe_return_to,
         "Timetable settings saved for the current branch and academic year.",
     )
+
+
+@app.post("/system-configuration/timetable-settings/subject-rules")
+def save_subject_scheduling_rule(
+    request: Request,
+    grade_level: str = Form(...),
+    subject_code: str = Form(...),
+    section_id: str = Form(""),
+    block_length: str = Form("2"),
+    block_count: str = Form("0"),
+    single_count: str = Form("0"),
+    min_teaching_days: str = Form(""),
+    max_periods_per_day: str = Form(""),
+    require_daily_coverage: str = Form("auto"),
+    spread_distinct_days: str | None = Form(None),
+    avoid_consecutive: str | None = Form(None),
+    min_day_gap: str = Form(""),
+    strictness: str = Form("soft"),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_settings"):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("timetable.manage_settings",), page_key="system-configuration",
+        )
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(current_user, "scope_academic_year_id", current_user.academic_year_id)
+    settings_payload = get_timetable_settings_payload(db, branch_id, academic_year_id)
+    teaching_day_count = len(settings_payload.get("working_day_keys") or [])
+
+    errors = subject_distribution_rules_ui.save_subject_distribution_rule(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        grade_level=grade_level, subject_code=subject_code,
+        section_id=int(section_id) if str(section_id or "").strip().isdigit() else None,
+        fields=subject_distribution_rules_ui.normalize_rule_form_fields({
+            "block_length": block_length, "block_count": block_count, "single_count": single_count,
+            "min_teaching_days": min_teaching_days, "max_periods_per_day": max_periods_per_day,
+            "require_daily_coverage": require_daily_coverage,
+            "spread_distinct_days": bool(spread_distinct_days),
+            "avoid_consecutive": bool(avoid_consecutive),
+            "min_day_gap": min_day_gap, "strictness": strictness,
+        }),
+        teaching_day_count=teaching_day_count, actor_user_id=current_user.user_id,
+    )
+    if errors:
+        return _redirect_with_error(safe_return_to, errors[0]["message"])
+    return _redirect_with_notice(
+        safe_return_to, f"Scheduling rule saved for Grade {grade_level} {subject_code.upper()}.",
+    )
+
+
+@app.post("/system-configuration/timetable-settings/subject-rules/reset")
+def reset_subject_scheduling_rule(
+    request: Request,
+    grade_level: str = Form(...),
+    subject_code: str = Form(...),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_settings"):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("timetable.manage_settings",), page_key="system-configuration",
+        )
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(current_user, "scope_academic_year_id", current_user.academic_year_id)
+    subject_distribution_rules_ui.reset_subject_distribution_rule(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        grade_level=grade_level, subject_code=subject_code,
+    )
+    return _redirect_with_notice(
+        safe_return_to, f"Grade {grade_level} {subject_code.upper()} now uses the default scheduling rules.",
+    )
+
+
+@app.post("/system-configuration/timetable-settings/subject-rules/clear-override")
+def clear_subject_scheduling_section_override(
+    request: Request,
+    grade_level: str = Form(...),
+    subject_code: str = Form(...),
+    section_id: int = Form(...),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_settings"):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("timetable.manage_settings",), page_key="system-configuration",
+        )
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(current_user, "scope_academic_year_id", current_user.academic_year_id)
+    subject_distribution_rules_ui.clear_section_override(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        grade_level=grade_level, subject_code=subject_code, section_id=section_id,
+    )
+    return _redirect_with_notice(safe_return_to, "Section override removed.")
+
+
+@app.post("/system-configuration/timetable-settings/subject-rules/copy")
+def copy_subject_scheduling_rules(
+    request: Request,
+    source_grade: str = Form(...),
+    target_grade: str = Form(...),
+    return_to: str = Form("/system-configuration/timetable-settings"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_settings"):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("timetable.manage_settings",), page_key="system-configuration",
+        )
+
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
+    academic_year_id = getattr(current_user, "scope_academic_year_id", current_user.academic_year_id)
+    if str(source_grade).strip().upper() == str(target_grade).strip().upper():
+        return _redirect_with_error(safe_return_to, "Choose two different grades to copy rules between.")
+    settings_payload = get_timetable_settings_payload(db, branch_id, academic_year_id)
+    teaching_day_count = len(settings_payload.get("working_day_keys") or [])
+    result = subject_distribution_rules_ui.copy_grade_rules(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        source_grade=source_grade, target_grade=target_grade,
+        teaching_day_count=teaching_day_count, actor_user_id=current_user.user_id,
+    )
+    if not result["applied"] and not result["skipped"]:
+        return _redirect_with_error(safe_return_to, f"Grade {source_grade} has no configured scheduling rules to copy.")
+    message = f"Copied {len(result['applied'])} rule(s) from Grade {source_grade} to Grade {target_grade}."
+    if result["skipped"]:
+        message += " Needs adjustment: " + "; ".join(result["skipped"])
+        return _redirect_with_error(safe_return_to, message)
+    return _redirect_with_notice(safe_return_to, message)
 
 
 @app.post("/system-configuration/timetable-settings/recalculate")

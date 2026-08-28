@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Subject Scheduling Rules UI
+
+No schema change was required. `subject_distribution_rules_ui.py` lists,
+creates, updates, resets, and copies `subject_distribution_rules` rows through
+the existing Stage 1 table and Stage 1/2 resolver/validator; Timetable
+Settings routes under `/system-configuration/timetable-settings/subject-rules`
+remain tenant/branch/year-scoped and reuse `timetable.manage_settings`.
+
 ## Subject Distribution Rules Generation Wiring
 
 `timetable_snapshot_service.py` resolves and embeds the effective Subject

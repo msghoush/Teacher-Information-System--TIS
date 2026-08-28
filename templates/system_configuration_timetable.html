@@ -654,6 +654,179 @@
         </div>
     </section>
 
+    <section class="module-shell" id="subject-scheduling-rules">
+        <div class="module-head">
+            <div class="module-copy">
+                <h2>Subject Scheduling Rules</h2>
+                <p>Planning decides how many periods each subject needs every week. This screen decides how those
+                    periods are distributed across the week — as single sessions or intentional blocks — before
+                    Generate or Regenerate builds the Draft Timetable.</p>
+            </div>
+            <div class="pill-row">
+                <span class="usage-pill is-highlight">{{ subject_scheduling_rows|length }} subject{{ "" if subject_scheduling_rows|length == 1 else "s" }}</span>
+            </div>
+        </div>
+
+        {% if can("timetable.manage_settings") and subject_scheduling_grade_levels|length > 1 %}
+        <form class="action-row" method="post" action="/system-configuration/timetable-settings/subject-rules/copy" style="gap:10px;">
+            <input type="hidden" name="return_to" value="/system-configuration/timetable-settings#subject-scheduling-rules">
+            <span class="field-note" style="font-weight:800; color:#17365d;">Copy Rules From Grade</span>
+            <select name="source_grade" required aria-label="Copy from grade">
+                {% for grade in subject_scheduling_grade_levels %}
+                <option value="{{ grade }}">Grade {{ grade }}</option>
+                {% endfor %}
+            </select>
+            <span>to</span>
+            <select name="target_grade" required aria-label="Copy to grade">
+                {% for grade in subject_scheduling_grade_levels %}
+                <option value="{{ grade }}">Grade {{ grade }}</option>
+                {% endfor %}
+            </select>
+            <button class="action-btn action-btn-secondary" type="submit">{{ icon("copy", "icon") }} Copy Rules</button>
+        </form>
+        {% endif %}
+
+        {% if subject_scheduling_rows %}
+        <div class="table-wrap">
+            <table class="block-table" id="subject-rules-table">
+                <thead>
+                    <tr>
+                        <th>Grade</th>
+                        <th>Subject</th>
+                        <th>Weekly</th>
+                        <th>Distribution</th>
+                        <th>Min Days</th>
+                        <th>Max/Day</th>
+                        <th>Status</th>
+                        <th style="text-align: right;">Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in subject_scheduling_rows %}
+                    <tr data-rule-row
+                        data-grade-level="{{ row.grade_level }}"
+                        data-subject-code="{{ row.subject_code }}"
+                        data-subject-name="{{ row.subject_name }}"
+                        data-weekly="{{ row.weekly_periods }}"
+                        data-effective="{{ row.effective|tojson }}"
+                        data-section-overrides="{{ row.section_overrides|tojson }}">
+                        <td>Grade {{ row.grade_level }}</td>
+                        <td>{{ row.subject_name }} <span class="field-note">({{ row.subject_code }})</span></td>
+                        <td><strong>{{ row.weekly_periods }}</strong></td>
+                        <td>{{ row.distribution_summary }}</td>
+                        <td>{{ row.min_teaching_days if row.min_teaching_days is not none else "—" }}</td>
+                        <td>{{ row.max_periods_per_day if row.max_periods_per_day is not none else "—" }}</td>
+                        <td>
+                            <span class="status-pill {% if not row.is_configured %}is-warning{% endif %}">{{ row.status_label }}</span>
+                            {% if row.section_override_count %}
+                            <span class="usage-pill">{{ row.section_override_count }} section override{{ "" if row.section_override_count == 1 else "s" }}</span>
+                            {% endif %}
+                        </td>
+                        <td style="text-align:right;">
+                            {% if can("timetable.manage_settings") %}
+                            <button class="action-btn action-btn-secondary" type="button" data-rule-edit>{{ icon("edit", "icon") }} Edit</button>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="empty-note">No Planning subjects with positive weekly periods exist yet for this branch and academic year.</div>
+        {% endif %}
+
+        {% if can("timetable.manage_settings") %}
+        <section class="settings-card" id="subject-rule-editor" hidden>
+            <div class="module-copy">
+                <h3 id="subject-rule-editor-title">Edit Scheduling Rule</h3>
+                <p>Planning weekly periods stay authoritative. Configure how they are distributed, then save.</p>
+            </div>
+
+            <form method="post" action="/system-configuration/timetable-settings/subject-rules" id="subject-rule-form">
+                <input type="hidden" name="return_to" value="/system-configuration/timetable-settings#subject-scheduling-rules">
+                <input type="hidden" name="grade_level" id="rule_grade_level">
+                <input type="hidden" name="subject_code" id="rule_subject_code">
+                <input type="hidden" name="section_id" id="rule_section_id" value="">
+
+                <div class="field-grid">
+                    <div class="field">
+                        <label>Weekly Periods (from Planning)</label>
+                        <input type="text" id="rule_weekly_display" readonly aria-readonly="true">
+                    </div>
+                    <div class="field">
+                        <label for="rule_block_count">Number Of Blocks</label>
+                        <input type="number" min="0" id="rule_block_count" name="block_count" data-rule-arithmetic>
+                    </div>
+                    <div class="field">
+                        <label for="rule_block_length">Periods Per Block</label>
+                        <input type="number" min="2" max="2" id="rule_block_length" name="block_length" data-rule-arithmetic>
+                    </div>
+                    <div class="field">
+                        <label for="rule_single_count">Number Of Single Sessions</label>
+                        <input type="number" min="0" id="rule_single_count" name="single_count" data-rule-arithmetic>
+                    </div>
+                    <div class="field">
+                        <label for="rule_min_teaching_days">Minimum Teaching Days</label>
+                        <input type="number" min="0" id="rule_min_teaching_days" name="min_teaching_days">
+                    </div>
+                    <div class="field">
+                        <label for="rule_max_periods_per_day">Maximum Periods Per Day</label>
+                        <input type="number" min="1" id="rule_max_periods_per_day" name="max_periods_per_day">
+                    </div>
+                    <div class="field">
+                        <label for="rule_require_daily_coverage">Daily Coverage</label>
+                        <select id="rule_require_daily_coverage" name="require_daily_coverage">
+                            {% for option in daily_coverage_options %}
+                            <option value="{{ option.key }}">{{ option.label }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="field">
+                        <label for="rule_min_day_gap">Minimum Day Gap</label>
+                        <input type="number" min="0" id="rule_min_day_gap" name="min_day_gap">
+                    </div>
+                </div>
+
+                <label class="day-pill"><input type="checkbox" id="rule_spread_distinct_days" name="spread_distinct_days" value="1"> <strong>Spread across different days</strong></label>
+                <label class="day-pill"><input type="checkbox" id="rule_avoid_consecutive" name="avoid_consecutive" value="1"> <strong>Avoid unnecessary consecutive sessions</strong></label>
+
+                <div class="field">
+                    <label>Strictness For Maximum Per Day / Daily Coverage / Minimum Days</label>
+                    <select id="rule_strictness" name="strictness">
+                        {% for option in strictness_options %}
+                        <option value="{{ option.key }}">{{ option.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div class="field-note">A hard rule can never be broken. A preference is used only when it does not block generation.</div>
+                </div>
+
+                <div class="usage-pill is-highlight" id="rule-arithmetic-summary" style="width:fit-content;">Required 0 · Configured 0 · Remaining 0</div>
+
+                <div class="action-row">
+                    <button class="action-btn action-btn-primary" type="submit" id="rule-save-button">{{ icon("save", "icon") }} Save Scheduling Rule</button>
+                    <button class="action-btn action-btn-secondary" type="button" data-rule-cancel>{{ icon("close", "icon") }} Cancel</button>
+                </div>
+            </form>
+
+            <form method="post" action="/system-configuration/timetable-settings/subject-rules/reset" id="subject-rule-reset-form"
+                onsubmit="return confirm('Reset this Grade + Subject to the default scheduling rules?');">
+                <input type="hidden" name="return_to" value="/system-configuration/timetable-settings#subject-scheduling-rules">
+                <input type="hidden" name="grade_level" id="reset_grade_level">
+                <input type="hidden" name="subject_code" id="reset_subject_code">
+                <button class="action-btn action-btn-secondary" type="submit">{{ icon("undo", "icon") }} Reset To Default</button>
+            </form>
+
+            <details id="subject-rule-section-overrides">
+                <summary style="cursor:pointer; font-weight:800; color:#17365d;">Section Overrides</summary>
+                <p class="field-note">This rule applies to every section in the grade. Only add a section override when
+                    one specific section genuinely needs different handling.</p>
+                <div id="subject-rule-section-list" class="timeline-list"></div>
+            </details>
+        </section>
+        {% endif %}
+    </section>
+
     <section class="block-shell">
         <div class="module-head">
             <div class="module-copy">
@@ -921,6 +1094,144 @@
                 clearBlockEditState(button.getAttribute("data-block-cancel"));
             });
         });
+    })();
+
+    (function () {
+        var editor = document.getElementById("subject-rule-editor");
+        if (!editor) { return; }
+        var table = document.getElementById("subject-rules-table");
+        var titleEl = document.getElementById("subject-rule-editor-title");
+        var weeklyDisplay = document.getElementById("rule_weekly_display");
+        var gradeInput = document.getElementById("rule_grade_level");
+        var subjectInput = document.getElementById("rule_subject_code");
+        var sectionInput = document.getElementById("rule_section_id");
+        var resetGradeInput = document.getElementById("reset_grade_level");
+        var resetSubjectInput = document.getElementById("reset_subject_code");
+        var blockCountInput = document.getElementById("rule_block_count");
+        var blockLengthInput = document.getElementById("rule_block_length");
+        var singleCountInput = document.getElementById("rule_single_count");
+        var minDaysInput = document.getElementById("rule_min_teaching_days");
+        var maxPerDayInput = document.getElementById("rule_max_periods_per_day");
+        var dailyCoverageSelect = document.getElementById("rule_require_daily_coverage");
+        var minDayGapInput = document.getElementById("rule_min_day_gap");
+        var spreadCheckbox = document.getElementById("rule_spread_distinct_days");
+        var avoidCheckbox = document.getElementById("rule_avoid_consecutive");
+        var strictnessSelect = document.getElementById("rule_strictness");
+        var summaryEl = document.getElementById("rule-arithmetic-summary");
+        var saveButton = document.getElementById("rule-save-button");
+        var sectionList = document.getElementById("subject-rule-section-list");
+        var weeklyRequired = 0;
+
+        function updateArithmeticSummary() {
+            var blockCount = Number.parseInt(blockCountInput.value, 10) || 0;
+            var blockLength = Number.parseInt(blockLengthInput.value, 10) || 0;
+            var singleCount = Number.parseInt(singleCountInput.value, 10) || 0;
+            var configured = (blockCount * blockLength) + singleCount;
+            var remaining = weeklyRequired - configured;
+            var valid = remaining === 0;
+            summaryEl.textContent = "Required " + weeklyRequired + " \u00b7 Configured " + configured + " \u00b7 " +
+                (valid ? "Matches exactly" : (remaining > 0 ? remaining + " period(s) remaining" : Math.abs(remaining) + " period(s) too many"));
+            summaryEl.classList.toggle("is-warning", !valid);
+            if (saveButton) { saveButton.disabled = !valid; }
+            return valid;
+        }
+        [blockCountInput, blockLengthInput, singleCountInput].forEach(function (input) {
+            input.addEventListener("input", updateArithmeticSummary);
+        });
+
+        function fillFormFromRule(rule, weekly) {
+            rule = rule || {};
+            weeklyRequired = weekly;
+            weeklyDisplay.value = String(weekly);
+            blockCountInput.value = rule.block_count || 0;
+            blockLengthInput.value = rule.block_length || 2;
+            singleCountInput.value = rule.single_count || 0;
+            minDaysInput.value = (rule.min_teaching_days === null || rule.min_teaching_days === undefined) ? "" : rule.min_teaching_days;
+            maxPerDayInput.value = (rule.max_periods_per_day === null || rule.max_periods_per_day === undefined) ? "" : rule.max_periods_per_day;
+            dailyCoverageSelect.value = rule.require_daily_coverage || "auto";
+            minDayGapInput.value = (rule.min_day_gap === null || rule.min_day_gap === undefined) ? "" : rule.min_day_gap;
+            spreadCheckbox.checked = rule.spread_distinct_days !== false;
+            avoidCheckbox.checked = rule.avoid_consecutive !== false;
+            strictnessSelect.value = rule.strictness || "soft";
+            updateArithmeticSummary();
+        }
+
+        function renderSectionOverrides(overrides, grade, subject) {
+            sectionList.innerHTML = "";
+            if (!overrides || !overrides.length) {
+                sectionList.innerHTML = '<div class="empty-note">No sections found for this grade.</div>';
+                return;
+            }
+            overrides.forEach(function (section) {
+                var row = document.createElement("div");
+                row.className = "timeline-row";
+                var status = section.has_override ? "Overridden" : "Uses the grade rule above";
+                row.innerHTML =
+                    '<div class="timeline-meta"><strong>Section ' + section.section_name + '</strong><span>' + status + '</span></div>' +
+                    '<div class="table-actions"></div>';
+                var actions = row.querySelector(".table-actions");
+
+                var editBtn = document.createElement("button");
+                editBtn.type = "button";
+                editBtn.className = "action-btn action-btn-secondary";
+                editBtn.textContent = section.has_override ? "Edit Override" : "Add Override";
+                editBtn.addEventListener("click", function () {
+                    sectionInput.value = section.id;
+                    titleEl.textContent = "Edit Scheduling Rule \u2014 Section " + section.section_name;
+                    fillFormFromRule(section.rule, weeklyRequired);
+                });
+                actions.appendChild(editBtn);
+
+                if (section.has_override) {
+                    var clearForm = document.createElement("form");
+                    clearForm.method = "post";
+                    clearForm.action = "/system-configuration/timetable-settings/subject-rules/clear-override";
+                    clearForm.innerHTML =
+                        '<input type="hidden" name="return_to" value="/system-configuration/timetable-settings#subject-scheduling-rules">' +
+                        '<input type="hidden" name="grade_level" value="' + grade + '">' +
+                        '<input type="hidden" name="subject_code" value="' + subject + '">' +
+                        '<input type="hidden" name="section_id" value="' + section.id + '">' +
+                        '<button class="action-btn action-btn-danger" type="submit">Clear Override</button>';
+                    clearForm.addEventListener("submit", function (event) {
+                        if (!confirm("Remove this section override?")) { event.preventDefault(); }
+                    });
+                    actions.appendChild(clearForm);
+                }
+                sectionList.appendChild(row);
+            });
+        }
+
+        if (table) {
+            table.querySelectorAll("[data-rule-edit]").forEach(function (button) {
+                button.addEventListener("click", function () {
+                    var row = button.closest("[data-rule-row]");
+                    var grade = row.getAttribute("data-grade-level");
+                    var subject = row.getAttribute("data-subject-code");
+                    var subjectName = row.getAttribute("data-subject-name");
+                    var weekly = Number.parseInt(row.getAttribute("data-weekly"), 10) || 0;
+                    var effective = JSON.parse(row.getAttribute("data-effective"));
+                    var overrides = JSON.parse(row.getAttribute("data-section-overrides") || "[]");
+
+                    gradeInput.value = grade;
+                    subjectInput.value = subject;
+                    sectionInput.value = "";
+                    resetGradeInput.value = grade;
+                    resetSubjectInput.value = subject;
+                    titleEl.textContent = "Edit Scheduling Rule \u2014 Grade " + grade + " " + subjectName;
+                    fillFormFromRule(effective, weekly);
+                    renderSectionOverrides(overrides, grade, subject);
+                    editor.hidden = false;
+                    editor.scrollIntoView({ behavior: "smooth", block: "start" });
+                });
+            });
+        }
+
+        var cancelButton = editor.querySelector("[data-rule-cancel]");
+        if (cancelButton) {
+            cancelButton.addEventListener("click", function () {
+                editor.hidden = true;
+            });
+        }
     })();
 </script>
 {% endblock %}
