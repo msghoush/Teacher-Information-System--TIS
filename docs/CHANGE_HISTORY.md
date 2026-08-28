@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Simplified Draft Ownership And Unpublished Cleanup
+
+- Made the newest mutable non-active exact-scope version the current Draft Timetable,
+  including a fresh Create New Timetable draft, and bound Generate to that context.
+- Changed customer-facing draft deletion to permanent deletion for eligible
+  never-published versions while retaining History-only archive behavior.
+- Added exact-scope Delete All Unpublished Timetables with dependency-safe cleanup,
+  preserved snapshots and generation audit records, protected publication history,
+  and visible partial-failure reporting.
+- Reconciled History deletion eligibility with the backend and replaced Create Draft
+  Copy with Use as New Draft for immutable historical versions.
+
 ## 2026-08-26 - Replaced Always-On Timetable Worker With On-Demand Workflow
 
 - Added a registered Render Workflow task that receives only a durable generation

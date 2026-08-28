@@ -11,8 +11,11 @@ from timetable_logic import build_timetable_workspace_payload
 from timetable_version_service import (
     TimetableVersionError,
     create_manual_draft,
+    delete_all_unused_timetable_versions,
     delete_unused_timetable_version,
     move_or_swap_timetable_entry,
+    resolve_operational_version,
+    timetable_version_delete_eligibility,
     set_imported_active_pointer,
 )
 from test_timetable_versioning import db  # noqa: F401
@@ -199,13 +202,16 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     assert '{% if history_mode %}<div class="history-version-list"' in template
     assert 'href="/timetable?history=1">Timetable History' in template
     assert 'historyMode && canArchiveVersions' in template
-    assert 'if (canDeleteVersions && !item.is_active && !item.was_published)' in template
+    assert 'if (canDeleteVersions && item.can_delete)' in template
     assert 'view.textContent = "View"' in template
     assert '/timetable?history=1&version=${encodeURIComponent(item.public_id)}' in template
     assert 'Viewing Version ${normalizeInt(version.version_number)}' in template
-    for value in ("Source:", "Created", "Published history", "Previously Published"):
+    for value in ("Source:", "Created", "Published history", "Previous Published Timetable"):
         assert value in template
     assert 'remove.textContent = "Delete Timetable"' in template
+    assert 'Delete All Unpublished Timetables' in template
+    assert 'Delete this draft timetable?' in template
+    assert 'This draft timetable will be permanently removed.' in template
     assert 'dialog.assignment-panel:not([open]) { display: none; }' in template
     assert '<h4 id="publishDialogTitle">Confirm timetable action</h4>' in template
     assert 'id="publishConfirmBtn">Continue</button>' in template
@@ -262,6 +268,80 @@ def test_archived_never_published_admin_can_delete_but_unauthorized_user_cannot(
     assert db.get(models.TimetableVersion, archived.id) is None
 
 
+def test_bulk_delete_removes_unpublished_versions_preserves_runs_and_scope(db):
+    active = _version(db, origin="imported")
+    active.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=active)
+    archived = _version(db, origin="manual")
+    archived.lifecycle_status = "archived"
+    generated = _version(db, origin="generated")
+    generated.lifecycle_status = "publication_ready"
+    run = models.TimetableGenerationRun(
+        school_group_id=1, branch_id=10, academic_year_id=100,
+        request_mode="generate", input_snapshot_id=generated.input_snapshot_id,
+        status="succeeded", progress_phase="complete", idempotency_key="bulk-run",
+        result_version_id=generated.id,
+    )
+    db.add(run)
+    entry = _entry(db, archived)
+    other = create_manual_draft(db, school_group_id=2, branch_id=20, academic_year_id=200)
+    db.flush()
+    snapshot_ids = {archived.input_snapshot_id, generated.input_snapshot_id}
+
+    result = delete_all_unused_timetable_versions(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    )
+
+    assert result["remaining"] == []
+    assert result["deleted_count"] == 2
+    assert db.get(models.TimetableVersion, archived.id) is None
+    assert db.get(models.TimetableVersion, generated.id) is None
+    assert db.get(models.TimetableEntry, entry.id) is None
+    assert db.get(models.TimetableVersion, active.id) is not None
+    assert db.get(models.TimetableVersion, other.id) is not None
+    assert db.get(models.TimetableGenerationRun, run.id).result_version_id is None
+    assert {row.id for row in db.query(models.TimetableInputSnapshot).filter(
+        models.TimetableInputSnapshot.id.in_(snapshot_ids)
+    ).all()} == snapshot_ids
+
+
+def test_bulk_delete_reports_protected_published_lineage(db):
+    active = _version(db, origin="imported")
+    active.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=active)
+    protected = _version(db, origin="manual")
+    protected.lifecycle_status = "superseded"
+    disposable = _version(db, origin="manual")
+
+    result = delete_all_unused_timetable_versions(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    )
+
+    assert result["deleted_count"] == 1
+    assert result["remaining"] == [{
+        "version_id": protected.id,
+        "version_number": protected.version_number,
+        "reasons": ["This timetable is protected published history."],
+    }]
+    assert db.get(models.TimetableVersion, disposable.id) is None
+    assert db.get(models.TimetableVersion, protected.id) is not None
+
+
+def test_history_delete_payload_matches_service_eligibility(db):
+    active = _version(db, origin="imported")
+    active.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=active)
+    candidate = _version(db, origin="generated")
+    candidate.lifecycle_status = "archived"
+    payload = build_timetable_workspace_payload(
+        db, branch_id=10, academic_year_id=100, version_id=candidate.id
+    )
+
+    eligibility = timetable_version_delete_eligibility(db, version=candidate)
+    assert payload["version"]["can_delete"] == eligibility["eligible"]
+    assert payload["version"]["delete_blockers"] == eligibility["reasons"]
+
+
 def test_edit_published_and_create_new_make_drafts_without_changing_active(db, monkeypatch):
     published = _version(db, origin="imported")
     published.lifecycle_status = "publication_ready"
@@ -291,6 +371,9 @@ def test_edit_published_and_create_new_make_drafts_without_changing_active(db, m
     assert fresh is not None and fresh.lifecycle_status == "draft"
     assert db.query(models.TimetableEntry).filter_by(timetable_version_id=fresh.id).count() == 0
     assert db.query(models.TimetableActiveVersion).one().timetable_version_id == published.id
+    assert resolve_operational_version(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    ).id == fresh.id
 
 
 def test_new_empty_manual_draft_is_not_stale_and_generation_action_is_explicit(db):

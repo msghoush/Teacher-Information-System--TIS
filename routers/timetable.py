@@ -28,6 +28,7 @@ from timetable_version_service import (
     copy_version_to_draft,
     create_manual_draft,
     delete_unused_timetable_version,
+    delete_all_unused_timetable_versions,
     discard_working_version,
     ensure_compatibility_editable_version,
     mutate_draft_placement,
@@ -1712,6 +1713,7 @@ def timetable_page(
             school_group_id=school_group_id,
             branch_id=branch_id,
             academic_year_id=academic_year_id,
+            draft_version_id=selected_version_id,
         )
     except TimetableVersionError:
         workspace_payload["generation"] = {
@@ -1940,6 +1942,7 @@ async def create_generation_run(request: Request, db: Session = Depends(get_db))
             request_mode=str(body.get("request_mode") or "generate"),
             idempotency_key=str(body.get("idempotency_key") or "").strip(),
             source_public_id=str(body.get("source_version_public_id") or "").strip() or None,
+            draft_public_id=str(body.get("draft_version_public_id") or "").strip() or None,
         )
         db.commit()
         if run.status == "queued":
@@ -2222,6 +2225,42 @@ def delete_timetable_version(public_id: str, request: Request, db: Session = Dep
             build_timetable_workspace_payload(db, branch_id, year_id),
             message="Timetable deleted successfully.",
         )
+    except TimetableVersionError as exc:
+        db.rollback()
+        return _json_error(str(exc))
+
+
+@router.post("/api/versions/delete-unpublished")
+def delete_all_unpublished_timetables(request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.delete_versions"):
+        return _json_error("You do not have permission to delete timetable history.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(
+            db, branch_id=branch_id, academic_year_id=year_id
+        )
+        result = delete_all_unused_timetable_versions(
+            db,
+            school_group_id=group_id,
+            branch_id=branch_id,
+            academic_year_id=year_id,
+        )
+        db.commit()
+        payload = build_timetable_workspace_payload(db, branch_id, year_id)
+        message = (
+            "All unpublished timetables were deleted successfully."
+            if not result["remaining"]
+            else "Some unpublished timetables could not be safely deleted."
+        )
+        return JSONResponse({
+            "ok": not bool(result["remaining"]),
+            "message": message,
+            "payload": payload,
+            "result": result,
+        }, status_code=200 if not result["remaining"] else 409)
     except TimetableVersionError as exc:
         db.rollback()
         return _json_error(str(exc))

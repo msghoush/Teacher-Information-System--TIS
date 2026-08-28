@@ -11,15 +11,17 @@ recommended_first_read: true
 
 Stage 5.2 presents Configure, Generate Draft, Review/Edit Draft, and Publish to Users
 while retaining the Stage 2–5.1 version and solver internals.
-The primary workspace resolves one mutable unpublished Draft Timetable and uses
-Check Timetable, Ready to Publish, Published, and Timetable History language.
+The primary workspace resolves one exact-scope mutable unpublished Draft Timetable,
+including a freshly created draft, and uses Check Timetable, Ready to Publish,
+Published, and Timetable History language.
 
-Delete Draft Timetable is an exact-scope archive operation. It preserves entries,
-snapshots, runs, audit metadata, and the active pointer and refuses active generation.
-Timetable History may permanently delete only a never-published, non-active, unused
-candidate; its entries are removed while shared snapshots, generation runs, and audit
-history are preserved. The assignable `timetable.delete_versions` permission controls
-this History action and is granted to Administrators by default. Mutable working lessons may be moved or atomically swapped
+Delete Draft Timetable permanently removes an eligible never-published draft and
+preserves the active pointer. Timetable History may permanently delete every
+never-published, non-active candidate regardless of origin or internal draft/archive
+state; dependent unpublished versions are removed child-first while snapshots,
+generation runs, and audit history are preserved. Protected published lineage and
+active generation are reported as blockers. The assignable `timetable.delete_versions`
+permission controls these actions and is granted to Administrators by default. Mutable working lessons may be moved or atomically swapped
 between canonical teaching slots, with lock, class, and teacher conflicts failing the
 whole operation. Publication uses explicit first-publish or replacement confirmation
 and customer-facing Published to Users language.

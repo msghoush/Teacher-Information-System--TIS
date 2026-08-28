@@ -21,10 +21,12 @@ optional/local only rather than a production service.
 
 ## Smart Timetable Stage 5.2 Simplified Workflow Implemented
 
-The manager workspace now emphasizes Working Timetable, readiness, Generate or
-Regenerate, Check Timetable, Delete Working Timetable, and Publish Timetable.
-Technical lifecycle controls are secondary Timetable History features. The
-`timetable.delete_working` action archives safely without moving the active pointer.
+The manager workspace now emphasizes Create New Timetable, one current Draft
+Timetable, readiness, Generate or Regenerate, Check Timetable, and Publish Timetable.
+Technical lifecycle controls and permanent unpublished cleanup are secondary
+Timetable History features. Draft deletion uses `timetable.delete_versions` and
+permanently removes eligible never-published versions without moving the active pointer;
+historical archive remains a separate History-only action.
 
 Published-only `/my-timetable` and `/published-timetable` views resolve exclusively
 from `TimetableActiveVersion`. My Timetable fails closed without exact-scope teacher

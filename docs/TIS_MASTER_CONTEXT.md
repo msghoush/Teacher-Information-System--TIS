@@ -9,14 +9,15 @@ source_of_truth: true
 
 ## Smart Timetable Customer And Published-Visibility Boundary
 
-Stage 5.2 keeps internal versions but presents Configure → Ready → Generate → Review
-→ Regenerate/Delete Working Timetable → Publish. One newest mutable non-active
-version is the Working Timetable; technical selection, comparison, historical
-exports, and archive actions live in Timetable History.
+Stage 5.2 keeps internal versions but presents Configure → Create New Timetable →
+Draft → Generate/Review/Edit → Publish. The newest mutable non-active exact-scope
+version is the current Draft Timetable; technical selection, comparison, historical
+exports, archive, and permanent cleanup actions live in Timetable History.
 
-Publishing remains the atomic exact-scope active-pointer swap. Deleting a working
-timetable archives it without deleting placements, snapshots, runs, or published
-history. Official non-management reads use `timetable_visibility_service.py`, which
+Publishing remains the atomic exact-scope active-pointer swap. Deleting an eligible
+never-published draft removes its placements and version while preserving snapshots,
+runs, and published history; History bulk cleanup uses dependency-safe child-first
+deletion and reports protected remnants. Official non-management reads use `timetable_visibility_service.py`, which
 accepts only `TimetableActiveVersion`. Teacher identity follows the existing scoped
 `User.user_id == Teacher.teacher_id` convention.
 

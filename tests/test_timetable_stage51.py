@@ -452,6 +452,27 @@ def test_success_is_atomic_unpublished_and_old_worker_cannot_save(db):
     assert exc.value.code == "lease_lost"
 
 
+def test_generate_uses_explicit_fresh_draft_instead_of_active_published_version(db):
+    _make_ready(db)
+    published = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100, origin="imported"
+    )
+    published.lifecycle_status = "publication_ready"
+    set_imported_active_pointer(db, version=published)
+    fresh = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    )
+
+    run = enqueue_generation(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        requested_by_user_id="U1", request_mode="generate",
+        idempotency_key="fresh-draft-context", draft_public_id=fresh.public_id,
+    )
+
+    assert run.source_version_id == fresh.id
+    assert run.source_version_id != published.id
+
+
 def test_cancellation_wins_immediately_before_persistence(db):
     _make_ready(db)
     run = enqueue_generation(
