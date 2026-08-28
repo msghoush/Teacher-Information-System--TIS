@@ -7,6 +7,19 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Explicit Planning Subject Demand Foundation
+
+Migration `20260828_004_planning_subject_demands_foundation` adds
+`planning_subject_demands`, an explicit branch/year and Planning-section scoped
+weekly subject-demand foundation. The migration idempotently backfills matching
+grade subjects for Current/New Planning sections only. Composite foreign keys
+prevent section or subject scope drift, while a partial unique index permits at
+most one active demand for a section and subject and preserves retired rows.
+`planning_subject_demand_service.py` resolves an explicit active or retired row
+before using legacy `Subject.grade + Subject.weekly_hours` fallback. Stage 1 is
+additive: existing Planning, teacher allocation, reporting, readiness, snapshot,
+generation, draft, and publication consumers still use their prior authority.
+
 ## Tenant Report Branding
 
 Tenant-facing operational reports and exports use `tenant_report_branding.py`
