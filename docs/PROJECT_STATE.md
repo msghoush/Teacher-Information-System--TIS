@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Project State
 
+## Central Tenant Report Branding Implemented
+
+Tenant-facing operational exports now resolve logo assets through
+`tenant_report_branding.py`, which delegates to the existing branch/organization-
+scoped branding slots and returns configured tenant logos only. Timetable PDF/XLSX,
+academic-calendar PDF, and observation PDF generation share this authority. When
+no tenant logo is configured, exports retain their normal report title/header but
+render no logo; they never substitute the TIS product mark. Application UI,
+login/product, public/platform, and internal platform-owner branding are unchanged.
+
 ## Subject Scheduling Rules UI Implemented
 
 The Timetable Settings page presents a grade-first Subject Scheduling Rules table

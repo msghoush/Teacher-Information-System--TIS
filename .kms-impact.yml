@@ -1,13 +1,15 @@
 knowledge_impact: yes
-summary: Centralize operational timetable grade and section selectors on a reusable PlanningSection source restricted to Current/New rows for the selected branch and academic year, excluding global, placeholder, and catalog-only grades without changing master data or solver behavior.
+summary: Centralize tenant-facing report and export logo resolution so configured branch/organization branding is used without any TIS product-logo fallback, while leaving product and platform-owned surfaces unchanged.
 affected_areas:
+  - branding
+  - exports
+  - reports
   - timetable
   - tests
-  - settings
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/engineering/TIS_MODULE_MAP.md
 no_impact_reason:
 major_change_override: no

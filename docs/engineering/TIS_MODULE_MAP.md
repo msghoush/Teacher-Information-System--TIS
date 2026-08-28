@@ -802,6 +802,7 @@ Expose operational summaries, exports, allocation reports, and decision visibili
 
 Main files/folders:
 - `main.py`
+- `tenant_report_branding.py`
 - report/export helper code
 - `templates/dashboard.html`
 
@@ -813,6 +814,8 @@ Related docs/ADRs:
 
 Risks/guardrails:
 - Report data must be permission-checked and tenant scoped.
+- Tenant-facing exports may use configured branch/organization logos only. Missing
+  tenant branding produces no logo and must never fall back to the TIS product mark.
 
 ## Branding / Design Settings
 
@@ -822,6 +825,7 @@ Manage organization logos, design settings, visual shell behavior, and platform 
 Main files/folders:
 - `branding_storage.py`
 - `design_tokens.py`
+- `tenant_report_branding.py`
 - `visual_design.py`
 - `ui_shell.py`
 - `static/css/branding.css`
@@ -838,6 +842,7 @@ Related docs/ADRs:
 Risks/guardrails:
 - Do not confuse operational app branding with public landing website design.
 - Protect uploaded/owned assets.
+- Keep product-surface branding separate from tenant-facing report branding.
 
 ## Landing Website
 

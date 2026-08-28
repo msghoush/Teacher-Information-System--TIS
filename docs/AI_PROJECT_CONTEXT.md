@@ -7,6 +7,17 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Tenant Report Branding
+
+Tenant-facing operational reports and exports use `tenant_report_branding.py`
+as their shared logo authority. It resolves only configured branch/organization
+logo slots through the existing tenant-scoped branding resolver. A tenant with no
+configured logo receives a clean text header with no image; tenant artifacts must
+never fall back to a TIS product logo. Timetable PDF/XLSX exports, academic-calendar
+PDF exports, and observation PDFs consume this rule. TIS branding remains valid in
+the application shell, login/product surfaces, public/platform-owned materials,
+and explicitly internal platform-owner reports.
+
 ## Subject Scheduling Rules UI
 
 Timetable Settings now presents a grade-first Subject Scheduling Rules section:

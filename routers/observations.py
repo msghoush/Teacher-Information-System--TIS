@@ -20,7 +20,8 @@ import models
 from auth import get_current_user
 from database import engine
 from dependencies import get_db
-from ui_shell import build_shell_context, get_school_logo_slots
+from tenant_report_branding import get_tenant_report_logos
+from ui_shell import build_shell_context
 
 
 router = APIRouter(prefix="/observations", tags=["Observations"])
@@ -1447,7 +1448,7 @@ def _build_observation_pdf_report(
     generated_at_display = _format_pdf_datetime(datetime.now(timezone.utc), display_timezone_name)
 
     logo_flowables = []
-    for logo in get_school_logo_slots(request, db, observation.branch_id, getattr(school_group, "id", None))[:3]:
+    for logo in get_tenant_report_logos(request, db, observation.branch_id, getattr(school_group, "id", None))[:3]:
         logo_path = _logo_static_path(logo)
         if not logo_path:
             continue
@@ -1681,7 +1682,7 @@ def _build_teacher_cycle_pdf_report(
     generated_at_display = _format_pdf_datetime(datetime.now(timezone.utc), display_timezone_name)
 
     logo_flowables = []
-    for logo in get_school_logo_slots(request, db, first_observation.branch_id, getattr(school_group, "id", None))[:3]:
+    for logo in get_tenant_report_logos(request, db, first_observation.branch_id, getattr(school_group, "id", None))[:3]:
         logo_path = _logo_static_path(logo)
         if not logo_path:
             continue

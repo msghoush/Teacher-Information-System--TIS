@@ -19,7 +19,6 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
-import branding_storage
 import models
 from dependencies import get_db
 from timetable_version_service import (
@@ -64,29 +63,18 @@ from timetable_workflow_dispatch import (
     TimetableWorkflowDispatchError,
     dispatch_timetable_generation,
 )
-from ui_shell import build_shell_context, get_school_logo_slots
+from tenant_report_branding import get_tenant_report_logos
+from ui_shell import build_shell_context
 
 
 router = APIRouter(prefix="/timetable", tags=["Timetable"])
 published_router = APIRouter(tags=["Published Timetable"])
 templates = Jinja2Templates(directory="templates")
-PLATFORM_EXPORT_LOGO_ASSET = {
-    "path": branding_storage.tis_logo_absolute_path(
-        theme="light",
-        layout="horizontal",
-    ),
-    "anchor": "A1",
-    "max_width": 82,
-    "max_height": 34,
-    "fallback": "Teacher Information System",
-}
-
-
 def _build_export_logo_assets(request: Request, db: Session, branch_id: int) -> list[dict]:
-    assets = [dict(PLATFORM_EXPORT_LOGO_ASSET)]
-    anchors = ("C1", "E1", "G1")
+    assets = []
+    anchors = ("A1", "C1", "E1")
     for index, logo in enumerate(
-        get_school_logo_slots(request, db, branch_id)[: len(anchors)]
+        get_tenant_report_logos(request, db, branch_id)[: len(anchors)]
     ):
         absolute_path = str(logo.get("absolute_path") or "").strip()
         if not absolute_path:
@@ -567,9 +555,13 @@ def _prepare_excel_sheet(
     sheet.sheet_view.showGridLines = False
     _fit_sheet_to_printed_page(sheet)
     if include_logos:
+        resolved_logo_assets = list(logo_assets or [])
+    else:
+        resolved_logo_assets = []
+    if resolved_logo_assets:
         _add_excel_logo_strip(
             sheet,
-            logo_assets or [dict(PLATFORM_EXPORT_LOGO_ASSET)],
+            resolved_logo_assets,
         )
         title_row = 4
     else:
@@ -1109,7 +1101,7 @@ def _build_timetable_xlsx_bytes(
         branch_name,
         academic_year_name,
         generated_at,
-        logo_assets or [dict(PLATFORM_EXPORT_LOGO_ASSET)],
+        list(logo_assets or []),
     )
     _write_entity_timetable_sheet(
         workbook,
@@ -1232,7 +1224,7 @@ class _TimetablePdf:
         self.title = title
         self.subtitle = subtitle
         self.image_assets = _load_pdf_logo_assets(
-            logo_assets or [dict(PLATFORM_EXPORT_LOGO_ASSET)]
+            list(logo_assets or [])
         )
         self.logo_asset_count = len(self.image_assets)
         self.subject_icon_asset_names: dict[tuple[str, str], str] = {}

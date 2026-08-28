@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Central Tenant Report Branding
+
+- Added `tenant_report_branding.py` as the reusable tenant-facing report/export
+  logo authority over existing branch/organization-scoped branding resolution.
+- Removed TIS product-logo fallback injection from timetable PDF/XLSX and
+  academic-calendar PDF exports; an unbranded tenant now receives a clean
+  no-logo report header.
+- Routed observation PDF branding through the same authority without changing
+  report content, permissions, formats, or tenant isolation.
+- Kept TIS branding unchanged in the application UI and platform-owned surfaces.
+
 ## 2026-08-28 - Subject Scheduling Rules UI
 
 - Centralized operational timetable grade/section choices in

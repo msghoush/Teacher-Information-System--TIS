@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-28T11:38:49.283283+03:00",
+  "generated_at": "2026-08-28T11:50:12.385269+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "926301f",
+  "commit_sha": "aaa06f4",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "fa24d5aa346807b1597be5a916b7959a928ae721417273b5dbb62fcda92678cc",
-  "pdf_size_bytes": 981862,
+  "pdf_sha256": "01c918609a02189a579e43d887b77d0003d755dcc829e5c6d5eca5333990008a",
+  "pdf_size_bytes": 984486,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-28T11:38:14.773424+03:00",
-      "size_bytes": 74973,
-      "sha256": "d83a9b2c582da50e1b7d4c1607663de02052a1e1d5707a211362f8fc4b95855d",
+      "modified_at": "2026-08-28T11:49:45.988914+03:00",
+      "size_bytes": 75619,
+      "sha256": "96f0af363f54640a558265e0d209d19fbb7adb7704b0a57a1a0f516f63f67857",
       "pdf_page": 15
     },
     {
@@ -46,16 +46,16 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-28T11:38:14.773424+03:00",
-      "size_bytes": 60428,
-      "sha256": "1a9836b36cd24035e4417e24058ffe97bd7348894ff6c24c50d2aa3d0bfd1cc0",
+      "modified_at": "2026-08-28T11:49:45.988914+03:00",
+      "size_bytes": 61031,
+      "sha256": "eb33633e99fc7ceda51581b151cdc6ac9ec85953ace35a0f3c6254382a99956c",
       "pdf_page": 60
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-28T11:38:14.783090+03:00",
-      "size_bytes": 114312,
-      "sha256": "2406c8b9d946e8f1e416c026de04eb4fa268d2d1abdd9796c695c1578709897b",
+      "modified_at": "2026-08-28T11:49:46.004375+03:00",
+      "size_bytes": 114913,
+      "sha256": "f045a9cb07c2cdfb5c8d2d52058e58f26e38cf6f0c3c881c8ba0ee0aec612762",
       "pdf_page": 79
     },
     {
@@ -74,9 +74,9 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-08-26T23:45:14.939328+03:00",
-      "size_bytes": 31866,
-      "sha256": "69424c9b8c5efc87908aac000812900113ae00c698ed2a5fa0ef2a8129ef8c0a",
+      "modified_at": "2026-08-28T11:49:46.004782+03:00",
+      "size_bytes": 32171,
+      "sha256": "5b699474a0d1cac15abd64056a1fa5c2ef4b40c9c37be1d6c1cffc3c1a3a6f58",
       "pdf_page": 123
     },
     {
