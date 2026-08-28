@@ -41,6 +41,15 @@ def _issue(message: str, *, day_key: str = "", label: str = "") -> dict:
     return {"code": "invalid_non_teaching_block", "message": message, "day_key": day_key, "display_label": label}
 
 
+def _mark_true_period_adjacency(items: list[dict]) -> None:
+    """Mark each teaching item as block-adjacent to the next only when no
+    Break, Prayer, or other non-teaching item is composed between them."""
+    teaching_positions = [index for index, entry in enumerate(items) if entry["type"] == TEACHING_SLOT]
+    for position, index in enumerate(teaching_positions):
+        next_index = teaching_positions[position + 1] if position + 1 < len(teaching_positions) else None
+        items[index]["next_period_physically_adjacent"] = next_index == index + 1
+
+
 def _public_block(block: dict) -> dict:
     return {
         "id": block.get("id"),
@@ -138,6 +147,7 @@ def build_canonical_slot_projection(*, school_group_id: int | None, branch_id: i
                 message = (f"{label} starts inside a teaching period on {day.title()}; choose a valid timeline boundary." if inside
                     else f"{label} does not match a valid timeline boundary on {day.title()}.")
                 issues.append(_issue(message, day_key=day, label=label))
+            _mark_true_period_adjacency(items)
             block_minutes = sum(int(item.get("duration_minutes") or 0) for item in items if item["type"] == NON_TEACHING_SLOT)
             timelines.append({"day_key": day, "start_time": _format_time(start), "end_time": _format_time(cursor),
                 "teaching_minutes": period_count * duration, "block_minutes": block_minutes, "shift_minutes": cursor - start, "items": items})
@@ -169,6 +179,13 @@ def build_canonical_slot_projection(*, school_group_id: int | None, branch_id: i
         "counts": {"configured_working_days": len(days), "configured_periods_per_day": period_count, "total_slots": len(slots),
             "teaching_slots": len(slots), "blocked_slots": len(projected_blocks), "invalid_slots": len(deduped)},
         "canonical_json": canonical_json(fp_payload), "fingerprint": fingerprint(fp_payload)}
+
+
+def is_true_adjacent_period_pair(slot_map: dict, day_key: str, first_period_index: int) -> bool:
+    """True only when the next period is physically continuous with no
+    Break, Prayer, or other non-teaching item composed between them."""
+    slot = slot_map.get((day_key, first_period_index))
+    return bool(slot and slot.get("next_period_physically_adjacent"))
 
 
 def public_slot_projection(projection: dict) -> dict:

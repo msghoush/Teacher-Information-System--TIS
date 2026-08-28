@@ -6119,6 +6119,16 @@ def _smart_timetable_academic_quality_rules(engine, connection):
     )
 
 
+def _subject_distribution_rules_foundation(engine, connection):
+    """Create the normalized Subject Distribution Rule table. No backfill: an
+    absent normalized row means the existing quality_rules_json behavior
+    continues unchanged for that scope."""
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+
+    Base.metadata.tables["subject_distribution_rules"].create(bind=connection, checkfirst=True)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6359,6 +6369,11 @@ MIGRATIONS = (
         migration_id="20260828_002_smart_timetable_academic_quality_rules",
         description="Store branch and academic-year scoped timetable academic quality policies",
         apply=_smart_timetable_academic_quality_rules,
+    ),
+    Migration(
+        migration_id="20260828_003_subject_distribution_rules_foundation",
+        description="Add normalized branch/grade/section Subject Distribution Rules foundation",
+        apply=_subject_distribution_rules_foundation,
     ),
 )
 

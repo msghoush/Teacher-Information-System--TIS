@@ -772,6 +772,116 @@ class TimetableNonTeachingBlock(Base):
     duration_minutes = Column(Integer, nullable=True)
 
 
+class SubjectDistributionRule(Base):
+    """Configurable HOW-distribution policy for one branch/year/grade/subject/section scope.
+
+    Precedence is resolved in the application layer: section override, then
+    grade+subject rule, then the branch/year default, then legacy behavior
+    when no normalized row exists at all.
+    """
+
+    __tablename__ = "subject_distribution_rules"
+    __table_args__ = (
+        CheckConstraint(
+            "scope_level IN ('branch_default','grade','section')",
+            name="ck_subject_distribution_rules_scope_level",
+        ),
+        CheckConstraint(
+            "scope_level <> 'branch_default' OR (grade_level IS NULL AND subject_code IS NULL AND section_id IS NULL)",
+            name="ck_subject_distribution_rules_branch_default_shape",
+        ),
+        CheckConstraint(
+            "scope_level = 'branch_default' OR (grade_level IS NOT NULL AND subject_code IS NOT NULL)",
+            name="ck_subject_distribution_rules_grade_shape",
+        ),
+        CheckConstraint(
+            "scope_level <> 'section' OR section_id IS NOT NULL",
+            name="ck_subject_distribution_rules_section_shape",
+        ),
+        CheckConstraint(
+            "require_daily_coverage IN ('auto','always','never')",
+            name="ck_subject_distribution_rules_daily_coverage",
+        ),
+        CheckConstraint(
+            "strictness IN ('hard','soft')",
+            name="ck_subject_distribution_rules_strictness",
+        ),
+        CheckConstraint(
+            "block_length >= 0 AND block_count >= 0 AND single_count >= 0",
+            name="ck_subject_distribution_rules_nonnegative_counts",
+        ),
+        CheckConstraint(
+            "min_teaching_days IS NULL OR min_teaching_days >= 0",
+            name="ck_subject_distribution_rules_min_teaching_days",
+        ),
+        CheckConstraint(
+            "max_periods_per_day IS NULL OR max_periods_per_day > 0",
+            name="ck_subject_distribution_rules_max_periods_per_day",
+        ),
+        CheckConstraint(
+            "min_day_gap IS NULL OR min_day_gap >= 0",
+            name="ck_subject_distribution_rules_min_day_gap",
+        ),
+        Index(
+            "uq_subject_distribution_rules_branch_default",
+            "branch_id",
+            "academic_year_id",
+            unique=True,
+            sqlite_where=text("scope_level = 'branch_default'"),
+            postgresql_where=text("scope_level = 'branch_default'"),
+        ),
+        Index(
+            "uq_subject_distribution_rules_grade",
+            "branch_id",
+            "academic_year_id",
+            "grade_level",
+            "subject_code",
+            unique=True,
+            sqlite_where=text("scope_level = 'grade'"),
+            postgresql_where=text("scope_level = 'grade'"),
+        ),
+        Index(
+            "uq_subject_distribution_rules_section",
+            "branch_id",
+            "academic_year_id",
+            "grade_level",
+            "subject_code",
+            "section_id",
+            unique=True,
+            sqlite_where=text("scope_level = 'section'"),
+            postgresql_where=text("scope_level = 'section'"),
+        ),
+        Index(
+            "ix_subject_distribution_rules_scope",
+            "branch_id",
+            "academic_year_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    scope_level = Column(String(16), nullable=False)
+    grade_level = Column(String(8), nullable=True)
+    subject_code = Column(String(20), nullable=True)
+    section_id = Column(Integer, ForeignKey("planning_sections.id"), nullable=True)
+    block_length = Column(Integer, nullable=False, default=2)
+    block_count = Column(Integer, nullable=False, default=0)
+    single_count = Column(Integer, nullable=False, default=0)
+    min_teaching_days = Column(Integer, nullable=True)
+    max_periods_per_day = Column(Integer, nullable=True)
+    require_daily_coverage = Column(String(16), nullable=False, default="auto")
+    spread_distinct_days = Column(Boolean, nullable=False, default=True)
+    avoid_consecutive = Column(Boolean, nullable=False, default=True)
+    min_day_gap = Column(Integer, nullable=True)
+    strictness = Column(String(8), nullable=False, default="soft")
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+
+
 class TimetableInputSnapshot(Base):
     __tablename__ = "timetable_input_snapshots"
     __table_args__ = (
