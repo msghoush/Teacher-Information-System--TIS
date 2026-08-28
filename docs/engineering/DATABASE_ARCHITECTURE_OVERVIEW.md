@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Planning Subject Demand Foundation
+
+`planning_subject_demands` normalizes future weekly-period authority at the
+Planning-section and subject level. Each row carries branch/year scope,
+`planning_section_id`, scoped `subject_code`, weekly periods, active/retired state,
+timestamps, and optional creating/updating actors. Composite foreign keys require
+the section and Subject to belong to the row's branch/year. A partial unique index
+allows at most one active row per section and subject while retaining inactive rows.
+
+Migration `20260828_004_planning_subject_demands_foundation` inserts missing active
+rows for Current/New Planning sections joined to Subjects by branch, academic year,
+and normalized grade. `NOT EXISTS` for any prior demand makes the backfill repeat-safe
+without reactivating retired rows. Stage 1 does not
+redirect existing readers: legacy Subject grade/weekly-hours derivation remains the
+runtime authority while the compatibility service exposes explicit-first resolution
+for later adoption.
+
 ## Subject Scheduling Rules UI
 
 No schema change was required. `subject_distribution_rules_ui.py` lists,

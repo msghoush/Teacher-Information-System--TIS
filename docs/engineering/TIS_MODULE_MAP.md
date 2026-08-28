@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Explicit Planning Subject Demand Foundation
+
+- `models.PlanningSubjectDemand`: future section-subject weekly-period authority,
+  with scoped integrity, active uniqueness, and retained retirement state.
+- `planning_subject_demand_service.py`: explicit-first demand resolution with
+  transitional legacy fallback.
+- `db_migrations.py`: idempotent Current/New section backfill from grade-matched
+  Subjects through migration `20260828_004_planning_subject_demands_foundation`.
+- Existing Planning, teachers, reports, and timetable modules remain consumers of
+  their pre-Stage-1 legacy demand derivation.
+
 ## Smart Timetable Stage 5.2 Components
 
 - `timetable_visibility_service.py`: active-pointer-only reads and scoped teacher identity.

@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Project State
 
+## Explicit Planning Subject Demand Foundation Implemented
+
+Migration `20260828_004_planning_subject_demands_foundation` adds normalized
+`planning_subject_demands` records for section-subject weekly periods. Current/New
+Planning sections are backfilled from grade-matched Subjects in the same branch and
+academic year. The operation is idempotent; composite scope foreign keys and an
+active-row partial unique index protect integrity while allowing retired history.
+
+`planning_subject_demand_service.py` provides explicit-first resolution and legacy
+fallback, including authoritative inactive rows that suppress fallback. This is an
+additive Stage 1 foundation only. Existing Planning screens, teacher allocations,
+reports, timetable readiness/snapshots/generation, drafts, and published timetables
+continue using existing behavior until a separately approved consumer migration.
+
 ## Central Tenant Report Branding Implemented
 
 Tenant-facing operational exports now resolve logo assets through

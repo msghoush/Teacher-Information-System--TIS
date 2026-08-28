@@ -18,6 +18,10 @@ Related files:
 
 History entries:
 
+- `2026-08-28-explicit-planning-subject-demand-foundation.md` — normalized future
+  section-subject demand, safe backfill, scoped integrity, retirement state, and
+  transitional legacy compatibility.
+
 - `2026-08-21-smart-timetable-stage-4-version-publication.md` — visible version history, draft locks/validation, comparison, explicit export, archive, and atomic publication.
 - `2026-08-21-smart-timetable-stage-35-composed-timeline.md` — automatic per-day teaching/block composition, calculated end time, explicit placement modes, and shared slot authority.
 

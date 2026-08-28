@@ -6129,6 +6129,50 @@ def _subject_distribution_rules_foundation(engine, connection):
     Base.metadata.tables["subject_distribution_rules"].create(bind=connection, checkfirst=True)
 
 
+def _planning_subject_demands_foundation(engine, connection):
+    """Create explicit section demand and backfill current legacy Planning once."""
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+
+    if not _table_exists(connection, "planning_sections") or not _table_exists(connection, "subjects"):
+        return
+    if not _index_exists(connection, "planning_sections", "uq_planning_sections_id_scope"):
+        _execute(
+            connection,
+            "CREATE UNIQUE INDEX uq_planning_sections_id_scope "
+            "ON planning_sections (id, branch_id, academic_year_id)",
+        )
+    Base.metadata.tables["planning_subject_demands"].create(bind=connection, checkfirst=True)
+    _execute(
+        connection,
+        """
+        INSERT INTO planning_subject_demands (
+            branch_id, academic_year_id, planning_section_id, subject_code,
+            weekly_periods, is_active, created_at, updated_at
+        )
+        SELECT
+            ps.branch_id, ps.academic_year_id, ps.id, s.subject_code,
+            COALESCE(s.weekly_hours, 0), true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        FROM planning_sections ps
+        JOIN subjects s
+          ON s.branch_id = ps.branch_id
+         AND s.academic_year_id = ps.academic_year_id
+         AND (
+              (UPPER(TRIM(ps.grade_level)) IN ('KG', 'K', 'KINDERGARTEN', '0') AND s.grade = 0)
+              OR CAST(s.grade AS VARCHAR) = TRIM(ps.grade_level)
+         )
+        WHERE ps.class_status IN ('Current', 'New')
+          AND s.subject_code IS NOT NULL
+          AND NOT EXISTS (
+              SELECT 1
+              FROM planning_subject_demands existing
+              WHERE existing.planning_section_id = ps.id
+                AND existing.subject_code = s.subject_code
+          )
+        """,
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6374,6 +6418,11 @@ MIGRATIONS = (
         migration_id="20260828_003_subject_distribution_rules_foundation",
         description="Add normalized branch/grade/section Subject Distribution Rules foundation",
         apply=_subject_distribution_rules_foundation,
+    ),
+    Migration(
+        migration_id="20260828_004_planning_subject_demands_foundation",
+        description="Add explicit section subject demand and backfill current Planning authority",
+        apply=_planning_subject_demands_foundation,
     ),
 )
 

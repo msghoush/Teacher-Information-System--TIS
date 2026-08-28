@@ -708,6 +708,12 @@ class PlanningSection(Base):
             "academic_year_id",
             name="uq_planning_sections_scope_grade_section",
         ),
+        UniqueConstraint(
+            "id",
+            "branch_id",
+            "academic_year_id",
+            name="uq_planning_sections_id_scope",
+        ),
     )
 
     id = Column(Integer, primary_key=True)
@@ -717,6 +723,62 @@ class PlanningSection(Base):
     homeroom_teacher_id = Column(Integer, nullable=True)
     branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+
+
+class PlanningSubjectDemand(Base):
+    """Explicit section-subject weekly demand introduced alongside legacy Planning.
+
+    Stage 1 records are additive. Existing operational consumers continue deriving
+    demand from Subject grade/weekly_hours until a later migration of authority.
+    """
+
+    __tablename__ = "planning_subject_demands"
+    __table_args__ = (
+        CheckConstraint(
+            "weekly_periods >= 0",
+            name="ck_planning_subject_demands_weekly_periods_nonnegative",
+        ),
+        ForeignKeyConstraint(
+            ["planning_section_id", "branch_id", "academic_year_id"],
+            [
+                "planning_sections.id",
+                "planning_sections.branch_id",
+                "planning_sections.academic_year_id",
+            ],
+            name="fk_planning_subject_demands_section_scope",
+        ),
+        ForeignKeyConstraint(
+            ["branch_id", "academic_year_id", "subject_code"],
+            ["subjects.branch_id", "subjects.academic_year_id", "subjects.subject_code"],
+            name="fk_planning_subject_demands_subject_scope",
+        ),
+        Index(
+            "uq_planning_subject_demands_active_section_subject",
+            "planning_section_id",
+            "subject_code",
+            unique=True,
+            sqlite_where=text("is_active = 1"),
+            postgresql_where=text("is_active = true"),
+        ),
+        Index(
+            "ix_planning_subject_demands_scope",
+            "branch_id",
+            "academic_year_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    planning_section_id = Column(Integer, nullable=False)
+    subject_code = Column(String, nullable=False)
+    weekly_periods = Column(Integer, nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    retired_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
 
 
 class TimetableSetting(Base):

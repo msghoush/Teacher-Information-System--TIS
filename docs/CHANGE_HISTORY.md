@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Explicit Planning Subject Demand Foundation
+
+- Added `PlanningSubjectDemand` as an additive, normalized future authority for
+  per-section subject weekly periods, including active/retired lifecycle metadata.
+- Added composite branch/year integrity and one-active-row-per-section-subject
+  uniqueness while allowing inactive history.
+- Added migration `20260828_004_planning_subject_demands_foundation` with an
+  idempotent, branch/year-isolated Current/New Planning backfill from grade-matched
+  Subject weekly hours that preserves any existing retirement evidence.
+- Added explicit-first demand resolution with legacy fallback. Existing Planning,
+  teacher allocation, reporting, timetable, draft, and publication behavior remains
+  unchanged in this foundation stage.
+
 ## 2026-08-28 - Central Tenant Report Branding
 
 - Added `tenant_report_branding.py` as the reusable tenant-facing report/export
