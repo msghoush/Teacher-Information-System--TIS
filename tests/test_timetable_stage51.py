@@ -258,8 +258,63 @@ def test_regeneration_enforces_approved_difference_and_locks(db):
     assert validation["valid"]
     assert _minimum_difference(0) == 0
     assert _minimum_difference(1) == 1
-    assert _minimum_difference(2) == 2
-    assert _minimum_difference(400) == 10
+    assert _minimum_difference(2) == 1
+    assert _minimum_difference(20) == 5
+    assert _minimum_difference(100) == 25
+    assert _minimum_difference(240) == 60
+    assert _minimum_difference(400) == 100
+
+
+def test_240_placement_regeneration_changes_at_least_twenty_five_percent():
+    days = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+    slots = [
+        {"slot_id": f"{day}:{period}", "day_key": day, "period_index": period}
+        for day in days for period in range(1, 9)
+    ]
+    demands = [
+        {
+            "demand_id": f"section:{section}|subject:S{subject}|teacher:{section * 100 + subject}",
+            "section_id": section,
+            "subject_code": f"S{subject}",
+            "teacher_id": section * 100 + subject,
+            "required_weekly_periods": 5,
+        }
+        for section in range(1, 7) for subject in range(1, 9)
+    ]
+    generated_problem = {
+        "demands": demands, "slots": slots, "locks": [],
+        "request_mode": "generate", "source_arrangement": [],
+        "minimum_difference": 0,
+    }
+    generated = _solve(generated_problem, seed=101, timeout=30)
+    assert generated["outcome"] == "feasible"
+    source = [dict(item, is_locked=False) for item in generated["placements"]]
+    regenerated_problem = dict(
+        generated_problem,
+        request_mode="regenerate",
+        source_arrangement=source,
+        minimum_difference=_minimum_difference(len(source)),
+    )
+    regenerated = _solve(regenerated_problem, seed=202, timeout=30)
+    assert regenerated["outcome"] == "feasible"
+
+    source_keys = {
+        (item["section_id"], item["subject_code"], item["teacher_id"], item["day_key"], item["period_index"])
+        for item in source
+    }
+    result_keys = {
+        (item["section_id"], item["subject_code"], item["teacher_id"], item["day_key"], item["period_index"])
+        for item in regenerated["placements"]
+    }
+    assert len(source_keys) == len(result_keys) == 240
+    assert len(source_keys - result_keys) >= 60
+    assert {
+        (item["section_id"], item["subject_code"], item["teacher_id"])
+        for item in source
+    } == {
+        (item["section_id"], item["subject_code"], item["teacher_id"])
+        for item in regenerated["placements"]
+    }
 
 
 def test_regeneration_with_no_alternative_is_infeasible():
@@ -281,6 +336,27 @@ def test_regeneration_with_no_alternative_is_infeasible():
         "minimum_difference": 1,
     }
     assert _solve(problem)["outcome"] == "infeasible"
+
+
+def test_regeneration_infeasibility_reports_controlled_diversity_result(monkeypatch):
+    import timetable_generation_worker as worker
+
+    terminal = {}
+    monkeypatch.setattr(
+        worker,
+        "_terminal",
+        lambda run_id, owner, status, category, message: terminal.update(
+            run_id=run_id, owner=owner, status=status, category=category, message=message
+        ),
+    )
+    worker._mark_infeasible(7, "workflow", {"request_mode": "regenerate"})
+    assert terminal == {
+        "run_id": 7,
+        "owner": "workflow",
+        "status": "infeasible",
+        "category": "regeneration_diversity_unavailable",
+        "message": "No sufficiently different valid timetable could be generated while preserving all current requirements and locks.",
+    }
 
 
 def test_validator_rejects_extra_collision_stale_and_insufficient_diversity(db):

@@ -1,9 +1,9 @@
 knowledge_impact: yes
-summary: Require explicit administrator approval of the exact Draft before publication and invalidate approval after validity-affecting changes.
+summary: Group the primary Draft workflow actions and require 25 percent regeneration diversity across unlocked placements without weakening hard constraints.
 affected_areas:
   - timetable
   - tests
-  - database
+  - solver
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md

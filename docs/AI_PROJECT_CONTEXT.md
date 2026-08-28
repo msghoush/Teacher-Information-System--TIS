@@ -17,6 +17,8 @@ Published, and Timetable History language. Generation never approves a draft.
 Approval records the reviewing administrator and exact draft state; placement,
 lock, regeneration, and stale-authority changes invalidate it. Publication requires
 approval and repeats validation before atomically changing the active pointer.
+Generated Draft workflow actions are grouped together on the primary workspace;
+delete, archive, comparison, and version-specific exports remain in History.
 
 Delete Draft Timetable permanently removes an eligible never-published draft and
 preserves the active pointer. Timetable History may permanently delete every
@@ -49,8 +51,9 @@ is disabled so TIS terminal state and Generate Again remain the only retry autho
 
 Generate creates a new unpublished `publication_ready` generated version only in
 one atomic transaction after current-fingerprint revalidation. Regenerate preserves
-locked placements, excludes the exact source, and requires the approved minimum
- difference among unlocked lessons. Neither flow changes published history or the
+locked placements, excludes the exact source, and requires 25 percent of unlocked
+placements to differ, rounded up. An infeasible diversity target fails explicitly
+rather than returning a nearly identical result. Neither flow changes published history or the
 active pointer. The generated result remains the logical Draft successor of the
 fresh source draft; the source is retained for provenance but omitted from normal
 History presentation. Freshness fingerprints cover Planning, canonical timetable

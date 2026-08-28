@@ -72,6 +72,19 @@ def _terminal(run_id: int, owner: str, status: str, category: str, message: str)
         session.close()
 
 
+def _mark_infeasible(run_id: int, owner: str, problem: dict) -> None:
+    if problem.get("request_mode") == "regenerate":
+        _terminal(
+            run_id, owner, "infeasible", "regeneration_diversity_unavailable",
+            "No sufficiently different valid timetable could be generated while preserving all current requirements and locks.",
+        )
+        return
+    _terminal(
+        run_id, owner, "infeasible", "solver_infeasible",
+        "No valid timetable satisfies all current requirements and locks.",
+    )
+
+
 def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
     cancel_event = threading.Event()
     stop_heartbeat = threading.Event()
@@ -127,10 +140,7 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
             _terminal(run_id, owner, "cancelled", "cancelled", "Generation was cancelled.")
             return
         if result["outcome"] == "infeasible":
-            _terminal(
-                run_id, owner, "infeasible", "solver_infeasible",
-                "No valid timetable satisfies all current requirements and locks.",
-            )
+            _mark_infeasible(run_id, owner, problem)
             return
         if result["outcome"] == "timed_out":
             _terminal(run_id, owner, "timed_out", "solver_timeout", "Generation timed out.")

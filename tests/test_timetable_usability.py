@@ -214,6 +214,12 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     assert 'view.textContent = "View"' in template
     assert '/timetable?history=1&version=${encodeURIComponent(item.public_id)}' in template
     assert 'Viewing Version ${normalizeInt(version.version_number)}' in template
+    assert 'historyMode ? `' in template
+    assert 'id="draftWorkflowActions"' in template
+    assert 'addButton(draftWorkflowActions, "Regenerate Timetable"' in template
+    assert 'addButton(draftWorkflowActions, "Approve Draft"' in template
+    assert 'addButton(draftWorkflowActions, "Publish Timetable"' in template
+    assert 'historyMode && canDeleteVersions' in template
     for value in ("Source:", "Created", "Published history", "Previous Published Timetable"):
         assert value in template
     assert 'remove.textContent = "Delete Timetable"' in template

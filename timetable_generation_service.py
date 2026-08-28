@@ -100,9 +100,7 @@ def _serialize_entries(entries) -> list[dict]:
 def _minimum_difference(unlocked_count: int) -> int:
     if unlocked_count <= 0:
         return 0
-    if unlocked_count == 1:
-        return 1
-    return min(10, max(2, math.ceil(0.05 * unlocked_count)))
+    return math.ceil(0.25 * unlocked_count)
 
 
 def resolve_generated_working_candidate(

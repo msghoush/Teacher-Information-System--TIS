@@ -44,6 +44,11 @@ validates the exact selected draft and records the administrator and approval ti
 Generated and regenerated results begin unapproved; placement, drag/drop, swap,
 lock, regeneration, or stale-authority changes clear approval. Publish requires a
 still-current approval and repeats validation before the existing atomic pointer swap.
+The normal Draft workspace groups Regenerate and Approve Draft before approval, then
+shows Publish Timetable after approval. Destructive, comparison, archive, and
+version-specific export controls remain in History. Regeneration now requires 25
+percent of unlocked direct-source placements to change, rounded up, and reports a
+controlled failure when no valid timetable can reach that diversity.
 
 The published-only service resolves strictly from `TimetableActiveVersion`.
 `/my-timetable` uses exact-scope teacher identity and exposes only that teacher's

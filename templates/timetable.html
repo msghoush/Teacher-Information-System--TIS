@@ -1494,6 +1494,7 @@
                     <div class="version-notice" id="versionNotice"></div>
                 </div>
             </div>
+            <div class="version-actions" id="draftWorkflowActions" aria-label="Draft workflow actions"></div>
             <div class="version-actions" id="versionActions"></div>
             {% if history_mode and can_delete_versions %}
             <div class="bulk-version-actions">
@@ -1748,6 +1749,7 @@
         const versionStatusTitle = document.getElementById("versionStatusTitle");
         const versionNotice = document.getElementById("versionNotice");
         const historyVersionList = document.getElementById("historyVersionList");
+        const draftWorkflowActions = document.getElementById("draftWorkflowActions");
         const versionActions = document.getElementById("versionActions");
         const comparisonPanel = document.getElementById("comparisonPanel");
         const compareLeft = document.getElementById("compareLeft");
@@ -2190,8 +2192,9 @@
             const activeRun = generation.active_run || null;
             const latestRun = generation.latest_run || null;
             const readiness = state.payload.readiness || {};
-            const actionAvailable = Boolean(canGenerateTimetable && readiness.ready && !activeRun);
-            generationPanel.classList.toggle("is-visible", Boolean(canGenerateTimetable && (readiness.ready || activeRun || latestRun)));
+            const isRegeneration = generation.primary_action === "regenerate";
+            const actionAvailable = Boolean(canGenerateTimetable && readiness.ready && !activeRun && !isRegeneration);
+            generationPanel.classList.toggle("is-visible", Boolean(canGenerateTimetable && (activeRun || (!isRegeneration && (readiness.ready || latestRun)) || (isRegeneration && latestRun && latestRun.status !== "succeeded"))));
             generationActionBtn.style.display = actionAvailable ? "inline-flex" : "none";
             generationCancelBtn.style.display = activeRun ? "inline-flex" : "none";
             generationActionBtn.disabled = state.busy;
@@ -2241,12 +2244,14 @@
                 }
                 state.payload.generation.active_run = result.run;
                 state.payload.generation.latest_run = result.run;
+                renderVersionStatus();
                 renderGeneration();
                 scheduleGenerationPoll(result.run.public_id);
             } catch (error) {
                 setFlash("Unable to start timetable generation right now.", "error");
             } finally {
                 state.busy = false;
+                renderVersionStatus();
                 renderGeneration();
             }
         };
@@ -2392,6 +2397,7 @@
                 versionStatusTitle.textContent = "No Draft Timetable";
                 versionNotice.textContent = "Configure the timetable, then generate a draft timetable.";
                 versionActions.innerHTML = "";
+                draftWorkflowActions.innerHTML = "";
                 renderHistoryVersions(versions, null);
                 return;
             }
@@ -2406,21 +2412,29 @@
                 ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
                 : (version.is_active ? "Published to Users · Official timetable currently visible to authorized users." : (!version.is_mutable ? "This historical timetable is read-only. Create a draft copy to make changes." : "Not Published Yet"));
             renderHistoryVersions(versions, version);
+            draftWorkflowActions.innerHTML = "";
             versionActions.innerHTML = "";
-            const addButton = (label, handler, primary = false) => {
+            const addButton = (container, label, handler, primary = false) => {
                 const button = document.createElement("button");
                 button.type = "button"; button.className = `hero-btn ${primary ? "is-primary" : "is-secondary"}`;
-                button.textContent = label; button.disabled = state.busy; button.addEventListener("click", handler); versionActions.appendChild(button);
+                button.textContent = label; button.disabled = state.busy; button.addEventListener("click", handler); container.appendChild(button);
             };
             const submitDraftAction = (path) => { const form = document.createElement("form"); form.method = "POST"; form.action = path; document.body.appendChild(form); form.submit(); };
             if (version.is_active && canCreateTimetable) {
-                addButton("Edit This Timetable", () => submitDraftAction("/timetable/drafts/edit-published"), true);
-                addButton("Create New Timetable", () => submitDraftAction("/timetable/drafts/new"));
-            } else if (!version.is_mutable && canCreateTimetable) addButton("Use as New Draft", () => callVersionAction("copy"), false);
-            if (version.is_mutable && canModifyTimetable && !version.is_approved) addButton("Approve Draft", () => callVersionAction("validate"), true);
+                addButton(draftWorkflowActions, "Edit This Timetable", () => submitDraftAction("/timetable/drafts/edit-published"), true);
+                addButton(draftWorkflowActions, "Create New Timetable", () => submitDraftAction("/timetable/drafts/new"));
+            } else if (!version.is_mutable && canCreateTimetable && historyMode) addButton(versionActions, "Use as New Draft", () => callVersionAction("copy"), false);
+            const generation = state.payload.generation || {};
+            const activeRun = generation.active_run || null;
+            const readiness = state.payload.readiness || {};
+            const generatedDraft = version.is_mutable && ["generated", "regenerated"].includes(version.origin);
+            if (!historyMode && generatedDraft && !version.is_approved && canGenerateTimetable && readiness.ready && !activeRun) {
+                addButton(draftWorkflowActions, "Regenerate Timetable", startGeneration, false);
+            }
+            if (!historyMode && version.is_mutable && canModifyTimetable && !version.is_approved) addButton(draftWorkflowActions, "Approve Draft", () => callVersionAction("validate"), true);
             const validation = state.payload.validation || {};
-            if (canPublishTimetable && !version.is_active && version.is_approved && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
-                addButton("Publish Timetable", () => {
+            if (!historyMode && canPublishTimetable && !version.is_active && version.is_approved && version.lifecycle_status === "publication_ready" && !version.is_stale && validation.valid) {
+                addButton(draftWorkflowActions, "Publish Timetable", () => {
                     const replacing = versions.some((item) => item.is_active && item.public_id !== version.public_id);
                     openConfirmation({
                         title: replacing ? "Replace the published timetable?" : "Publish this timetable?",
@@ -2430,9 +2444,9 @@
                     });
                 }, true);
             }
-            if (canDeleteVersions && version.is_mutable && version.can_delete) addButton("Delete Draft Timetable", () => openConfirmation({ title: "Delete this draft timetable?", message: "This draft timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Draft Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }));
-            if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton("Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
-            if (historyMode) addButton("Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
+            if (historyMode && canDeleteVersions && version.is_mutable && version.can_delete) addButton(versionActions, "Delete Draft Timetable", () => openConfirmation({ title: "Delete this draft timetable?", message: "This draft timetable will be permanently removed. This action cannot be undone.", actionLabel: "Delete Draft Timetable", destructive: true, onConfirm: () => callVersionAction("delete") }));
+            if (historyMode && canArchiveVersions && !version.is_active && ["draft", "superseded"].includes(version.lifecycle_status)) addButton(versionActions, "Archive Historical Timetable", () => { if (window.confirm("Archive this historical timetable?")) callVersionAction("archive"); });
+            if (historyMode) addButton(versionActions, "Compare Timetables", () => comparisonPanel.classList.toggle("is-visible"));
             if (historyMode && canExportTimetable) {
                 const excel = document.createElement("a"); excel.className = "hero-btn is-secondary"; excel.textContent = "Export This Version (XLSX)"; excel.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.xlsx`; versionActions.appendChild(excel);
                 const pdf = document.createElement("a"); pdf.className = "hero-btn is-secondary"; pdf.textContent = "Export This Version (PDF)"; pdf.target = "_blank"; pdf.href = `/timetable/versions/${encodeURIComponent(version.public_id)}/export.pdf`; versionActions.appendChild(pdf);
