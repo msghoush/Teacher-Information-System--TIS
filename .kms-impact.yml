@@ -1,8 +1,9 @@
 knowledge_impact: no
-summary: Correct migration 20260828_004 to establish PostgreSQL composite foreign-key target constraints before creating PlanningSubjectDemand.
+summary: Defer PlanningSubjectDemand from baseline metadata creation so migration 20260828_004 establishes PostgreSQL parent constraints before creating it.
 affected_areas:
+  - deployment
   - planning
   - tests
 kms_files_updated:
-no_impact_reason: The documented composite tenant-scope foreign keys and demand architecture are unchanged; this fix only makes the existing PostgreSQL migration DDL establish its required parent-key constraints before child-table creation.
+no_impact_reason: The documented migration-owned PlanningSubjectDemand architecture and tenant-scope constraints are unchanged; pre-deploy now defers only that table so the existing ordered migration can create it safely.
 major_change_override: yes

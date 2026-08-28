@@ -5,6 +5,9 @@ import pytest
 from sqlalchemy import create_engine, inspect, text
 
 import db_migrations
+import models
+import saas.models  # noqa: F401 - register shared metadata
+from scripts import run_migrations
 
 
 POSTGRESQL_URL = os.getenv("TIS_TEST_POSTGRESQL_URL", "")
@@ -32,9 +35,6 @@ def test_planning_subject_demand_migration_creates_fk_target_constraints_first()
     )
     try:
         with engine.begin() as connection:
-            connection.execute(text("CREATE TABLE branches (id SERIAL PRIMARY KEY)"))
-            connection.execute(text("CREATE TABLE academic_years (id SERIAL PRIMARY KEY)"))
-            connection.execute(text("CREATE TABLE users (user_id VARCHAR(10) PRIMARY KEY)"))
             connection.execute(text(
                 "CREATE TABLE planning_sections ("
                 "id SERIAL PRIMARY KEY, grade_level VARCHAR(8) NOT NULL, "
@@ -52,21 +52,25 @@ def test_planning_subject_demand_migration_creates_fk_target_constraints_first()
                 "CREATE UNIQUE INDEX uq_subjects_scope_code "
                 "ON subjects (branch_id, academic_year_id, subject_code)"
             ))
+        models.Base.metadata.create_all(
+            engine,
+            tables=run_migrations._baseline_metadata_tables(),
+        )
+        db_migrations._ensure_schema_migrations_table(engine)
+        with engine.begin() as connection:
+            assert not inspect(connection).has_table("planning_subject_demands")
             connection.execute(text(
-                "INSERT INTO planning_sections "
-                "(id, grade_level, section_name, class_status, branch_id, academic_year_id) "
-                "VALUES (1, '3', 'A', 'Current', 10, 100)"
-            ))
-            connection.execute(text(
-                "INSERT INTO subjects "
-                "(id, subject_code, subject_name, weekly_hours, grade, branch_id, academic_year_id) "
-                "VALUES (1, 'SOC3', 'Social Studies', 1, 3, 10, 100)"
-            ))
+                "INSERT INTO schema_migrations (migration_id, description, applied_at) "
+                "VALUES (:migration_id, :description, CURRENT_TIMESTAMP)"
+            ), [
+                {"migration_id": migration.migration_id, "description": migration.description}
+                for migration in db_migrations.MIGRATIONS
+                if migration.migration_id != "20260828_004_planning_subject_demands_foundation"
+            ])
 
-        with engine.begin() as connection:
-            db_migrations._planning_subject_demands_foundation(engine, connection)
-        with engine.begin() as connection:
-            db_migrations._planning_subject_demands_foundation(engine, connection)
+        applied = db_migrations.run_pending_migrations(engine)
+        assert applied == ["20260828_004_planning_subject_demands_foundation"]
+        assert db_migrations.run_pending_migrations(engine) == []
 
         inspector = inspect(engine)
         planning_unique = {
@@ -86,7 +90,7 @@ def test_planning_subject_demand_migration_creates_fk_target_constraints_first()
         assert ("planning_section_id", "branch_id", "academic_year_id") in demand_fks
         assert ("branch_id", "academic_year_id", "subject_code") in demand_fks
         with engine.connect() as connection:
-            assert connection.execute(text("SELECT COUNT(*) FROM planning_subject_demands")).scalar() == 1
+            assert connection.execute(text("SELECT COUNT(*) FROM planning_subject_demands")).scalar() == 0
     finally:
         engine.dispose()
         with admin_engine.begin() as connection:
