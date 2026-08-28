@@ -6109,6 +6109,16 @@ def _smart_timetable_stage52_draft_approval(engine, connection):
             )
 
 
+def _smart_timetable_academic_quality_rules(engine, connection):
+    _add_column_if_missing(
+        connection,
+        connection,
+        "timetable_settings",
+        "quality_rules_json",
+        "quality_rules_json TEXT NOT NULL DEFAULT '{}'",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6344,6 +6354,11 @@ MIGRATIONS = (
         migration_id="20260828_001_smart_timetable_stage52_draft_approval",
         description="Track explicit Draft Timetable approval separately from generated readiness",
         apply=_smart_timetable_stage52_draft_approval,
+    ),
+    Migration(
+        migration_id="20260828_002_smart_timetable_academic_quality_rules",
+        description="Store branch and academic-year scoped timetable academic quality policies",
+        apply=_smart_timetable_academic_quality_rules,
     ),
 )
 

@@ -77,6 +77,76 @@ DEFAULT_TIMETABLE_SETTINGS = {
     "school_start_time": "07:00",
 }
 DEFAULT_TIMETABLE_SETTINGS["school_end_time"] = ""
+DEFAULT_TIMETABLE_QUALITY_RULES = {
+    "core_subject_codes": {
+        "english": ["ENG"],
+        "mathematics": ["MAT"],
+        "science": ["SCI"],
+    },
+    "spread_subject_codes": ["ART", "WLB", "SOC", "REF"],
+    "ict_subject_codes": ["ICT"],
+    "ict_hard_one_per_day": True,
+    "avoid_consecutive_subject_codes": ["ENG", "MAT", "SCI", "ART", "WLB", "SOC", "REF", "ICT"],
+    "allow_double_period_subject_codes": [],
+    "swimming_groups": [],
+    "regeneration_diversity_percent": 25,
+}
+
+
+def _normalized_code_list(value) -> list[str]:
+    raw = value.split(",") if isinstance(value, str) else (value or [])
+    return sorted({str(item or "").strip().upper() for item in raw if str(item or "").strip()})
+
+
+def _positive_int_or_default(value, default: int) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed > 0 else default
+
+
+def normalize_timetable_quality_rules(value=None) -> dict:
+    if isinstance(value, str):
+        try:
+            value = json.loads(value or "{}")
+        except (TypeError, ValueError):
+            value = {}
+    source = value if isinstance(value, dict) else {}
+    core = source.get("core_subject_codes") if isinstance(source.get("core_subject_codes"), dict) else {}
+    groups = []
+    for index, raw in enumerate(source.get("swimming_groups") or []):
+        if not isinstance(raw, dict):
+            continue
+        section_ids = sorted({int(item) for item in raw.get("section_ids") or [] if str(item).isdigit() and int(item) > 0})
+        subject_code = str(raw.get("subject_code") or "").strip().upper()
+        if len(section_ids) < 2 or not subject_code:
+            continue
+        groups.append({
+            "key": str(raw.get("key") or f"swimming_group_{index + 1}").strip(),
+            "subject_code": subject_code,
+            "section_ids": section_ids,
+            "teacher_id": _positive_int_or_default(raw.get("teacher_id"), 0) or None,
+            "resource_key": str(raw.get("resource_key") or "").strip(),
+            "resource_capacity": _positive_int_or_default(raw.get("resource_capacity"), 1),
+        })
+    try:
+        diversity = int(source.get("regeneration_diversity_percent", 25))
+    except (TypeError, ValueError):
+        diversity = 25
+    return {
+        "core_subject_codes": {
+            key: _normalized_code_list(core.get(key, DEFAULT_TIMETABLE_QUALITY_RULES["core_subject_codes"][key]))
+            for key in ("english", "mathematics", "science")
+        },
+        "spread_subject_codes": _normalized_code_list(source.get("spread_subject_codes", DEFAULT_TIMETABLE_QUALITY_RULES["spread_subject_codes"])),
+        "ict_subject_codes": _normalized_code_list(source.get("ict_subject_codes", DEFAULT_TIMETABLE_QUALITY_RULES["ict_subject_codes"])),
+        "ict_hard_one_per_day": bool(source.get("ict_hard_one_per_day", True)),
+        "avoid_consecutive_subject_codes": _normalized_code_list(source.get("avoid_consecutive_subject_codes", DEFAULT_TIMETABLE_QUALITY_RULES["avoid_consecutive_subject_codes"])),
+        "allow_double_period_subject_codes": _normalized_code_list(source.get("allow_double_period_subject_codes", [])),
+        "swimming_groups": groups,
+        "regeneration_diversity_percent": min(max(diversity, 1), 100),
+    }
 
 
 def _parse_int(value):
@@ -234,6 +304,7 @@ def build_default_timetable_settings_payload() -> dict:
         "school_start_time": DEFAULT_TIMETABLE_SETTINGS["school_start_time"],
         "school_end_time": school_end_time,
         "blocks": [],
+        "quality_rules": normalize_timetable_quality_rules(),
     }
 
 
@@ -364,6 +435,7 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         school_end_time = defaults["school_end_time"]
         setting_id = None
         is_saved = False
+        quality_rules = normalize_timetable_quality_rules()
     else:
         working_day_keys = normalize_day_keys(
             str(getattr(setting_row, "working_days_csv", "") or "").split(",")
@@ -385,6 +457,7 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         )
         setting_id = getattr(setting_row, "id", None)
         is_saved = True
+        quality_rules = normalize_timetable_quality_rules(getattr(setting_row, "quality_rules_json", "{}"))
         time_slots = build_time_slots(
             periods_per_day,
             period_duration_minutes,
@@ -445,6 +518,7 @@ def build_timetable_settings_payload(setting_row=None, block_rows=None) -> dict:
         "blocked_slot_count": blocked_slot_count,
         "total_slot_count": total_slot_count,
         "teaching_slot_count": slot_projection["counts"]["teaching_slots"],
+        "quality_rules": quality_rules,
     }
 
 

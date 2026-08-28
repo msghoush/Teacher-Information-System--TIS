@@ -7,6 +7,17 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Smart Timetable Academic Quality Rules
+
+Branch/year Timetable Settings store explicit subject-code mappings for core,
+spread, ICT, double-period, and grouped Swimming behavior. Schema-v3 snapshots carry
+the normalized rules into the problem builder. CP-SAT requires daily core coverage
+when weekly demand reaches the teaching-day count, maximizes distinct-day spread for
+shorter core and configured spread subjects, supports hard ICT one-per-day, and keeps
+configured Swimming sections simultaneous without weakening section, teacher, or
+shared-resource protection. The independent validator repeats every new hard check.
+Regeneration diversity remains configurable with a 25 percent default.
+
 ## Smart Timetable Stage 5.2
 
 Stage 5.2 presents Configure, Generate Draft, Review/Edit Draft, and Publish to Users

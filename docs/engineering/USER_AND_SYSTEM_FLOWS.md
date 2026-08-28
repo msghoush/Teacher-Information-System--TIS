@@ -25,6 +25,12 @@ source_of_truth: true
 
 ## Generate And Regenerate Timetable Flow
 
+Academic Scheduling Quality is configured using explicit subject codes and optional
+Swimming section groups. Saved branch/year rules enter the immutable run snapshot.
+CP-SAT applies hard daily core coverage when demand permits, optional ICT one-per-day,
+simultaneous group/resource constraints, and soft distinct-day/non-consecutive
+preferences. Independent validation repeats hard rules before persistence.
+
 1. Require `timetable.generate`, exact tenant branch/year scope,
    `generation_ready`, a current mutable draft context, and no active run.
 2. Select Generate for a fresh/manual current draft; select Regenerate for a current

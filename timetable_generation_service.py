@@ -97,10 +97,10 @@ def _serialize_entries(entries) -> list[dict]:
     ]
 
 
-def _minimum_difference(unlocked_count: int) -> int:
+def _minimum_difference(unlocked_count: int, percent: int = 25) -> int:
     if unlocked_count <= 0:
         return 0
-    return math.ceil(0.25 * unlocked_count)
+    return math.ceil((min(max(int(percent or 25), 1), 100) / 100) * unlocked_count)
 
 
 def resolve_generated_working_candidate(
@@ -362,7 +362,10 @@ def enqueue_generation(
     locks = [item for item in _serialize_entries(source_entries) if item["is_locked"]]
     source_arrangement = _serialize_entries(source_entries) if request_mode == "regenerate" else []
     unlocked = sum(1 for item in source_arrangement if not item["is_locked"])
-    minimum_difference = _minimum_difference(unlocked) if request_mode == "regenerate" else 0
+    from timetable_logic import get_timetable_settings_payload
+    quality_rules = get_timetable_settings_payload(db, branch_id, academic_year_id).get("quality_rules") or {}
+    diversity_percent = int(quality_rules.get("regeneration_diversity_percent") or 25)
+    minimum_difference = _minimum_difference(unlocked, diversity_percent) if request_mode == "regenerate" else 0
     if request_mode == "regenerate" and unlocked == 0:
         raise TimetableGenerationError(
             "regeneration_fully_locked",
@@ -383,6 +386,7 @@ def enqueue_generation(
             "source_lifecycle_status": str(source.lifecycle_status) if source else None,
             "source_arrangement": source_arrangement,
             "minimum_difference": minimum_difference,
+            "diversity_percent": diversity_percent,
         },
     }
     snapshot = create_current_input_snapshot(
@@ -414,6 +418,7 @@ def enqueue_generation(
         diversity_configuration_json=json.dumps({
             "unlocked_lessons": unlocked,
             "minimum_difference": minimum_difference,
+            "diversity_percent": diversity_percent,
         }, separators=(",", ":")),
         idempotency_key=idempotency_key,
     )

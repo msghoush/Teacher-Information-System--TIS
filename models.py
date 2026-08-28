@@ -742,6 +742,7 @@ class TimetableSetting(Base):
     period_duration_minutes = Column(Integer, nullable=False, default=45)
     school_start_time = Column(String(5), nullable=False, default="07:00")
     school_end_time = Column(String(5), nullable=False, default="13:00")
+    quality_rules_json = Column(Text, nullable=False, default="{}")
 
 
 class TimetableNonTeachingBlock(Base):

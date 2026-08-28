@@ -12,6 +12,11 @@ Draft, and Publish to Users while preserving all Stage 2–5.1
 version and solver internals. Customer language replaces technical lifecycle state on
 the main page; version selection, comparison, exports, and archive remain in History.
 
+The 2026-08-28 academic-quality extension keeps this workflow intact while adding
+branch/year settings for mapped core daily distribution, spread preferences, ICT,
+grouped Swimming activities, and regeneration diversity. The settings are captured
+in immutable generation snapshots and do not change approval/publication semantics.
+
 Delete Draft Timetable permanently removes an eligible current mutable unpublished
 candidate under scope locks. It removes version placements, preserves snapshots,
 runs, audit fields, official publication, and history, and uses

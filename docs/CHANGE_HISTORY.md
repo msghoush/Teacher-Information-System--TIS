@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Added Smart Timetable Academic Scheduling Quality
+
+- Added branch/year settings and migration-backed JSON authority for core, spread,
+  ICT, double-period, grouped Swimming, shared-resource, and diversity rules.
+- Extended immutable snapshots, problem construction, CP-SAT, readiness diagnostics,
+  and independent validation with daily core coverage, distinct-day spreading, ICT
+  daily limits, and simultaneous grouped activities.
+- Preserved the regeneration-diversity default, locks, teacher authority,
+  publication transactions, and Render Workflow architecture.
+
 ## 2026-08-28 - Primary Draft Workflow And Meaningful Regeneration
 
 - Grouped Regenerate, Approve Draft, and Publish Timetable in the primary Draft area

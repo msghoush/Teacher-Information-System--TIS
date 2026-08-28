@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Project State
 
+## Smart Timetable Academic Scheduling Quality Implemented
+
+Timetable Settings persist branch/year subject-code mappings and grouped Swimming
+configuration through migration
+`20260828_002_smart_timetable_academic_quality_rules`. Immutable snapshots, problem
+construction, CP-SAT, and independent validation share the normalized authority for
+core daily coverage, short-demand spread, ICT daily limits, grouped synchronization,
+teacher/resource safety, and configurable regeneration diversity.
+
 ## On-Demand Timetable Generation Workflow Implemented
 
 Generate and Regenerate still create the Stage 5.1 durable PostgreSQL run and

@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Timetable Academic Quality Configuration
+
+`TimetableSetting.quality_rules_json`, added by migration
+`20260828_002_smart_timetable_academic_quality_rules`, stores normalized exact-scope
+academic distribution and grouped-activity authority. Generation copies it into an
+immutable snapshot; timetable versions and published-pointer relationships are
+unchanged.
+
 ## On-Demand Generation Execution
 
 No schema migration is required for Render Workflows. The existing generation run
