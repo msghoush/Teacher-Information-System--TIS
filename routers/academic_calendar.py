@@ -21,11 +21,12 @@ from sqlalchemy.orm import Session
 
 import auth
 import authorization
-import branding_storage
 import models
+from planning_scope_service import list_operational_planning_sections
 from dependencies import get_db
 from subject_colors import build_subject_theme, normalize_hex_color
-from ui_shell import build_shell_context, get_school_logo_slots
+from tenant_report_branding import get_tenant_report_logo_paths
+from ui_shell import build_shell_context
 
 
 router = APIRouter(tags=["Academic Calendar"])
@@ -33,23 +34,12 @@ templates = Jinja2Templates(directory="templates")
 
 DATE_PATTERN = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
-PLATFORM_CALENDAR_PDF_LOGO = branding_storage.tis_logo_absolute_path(
-    theme="light",
-    layout="horizontal",
-)
-
-
 def _calendar_pdf_logos(
     request: Request,
     db: Session,
     branch_id: int,
 ) -> tuple[Path, ...]:
-    logo_paths = [PLATFORM_CALENDAR_PDF_LOGO]
-    for logo in get_school_logo_slots(request, db, branch_id):
-        absolute_path = str(logo.get("absolute_path") or "").strip()
-        if absolute_path:
-            logo_paths.append(Path(absolute_path))
-    return tuple(logo_paths)
+    return get_tenant_report_logo_paths(request, db, branch_id)
 
 DEFAULT_EVENT_TYPES = (
     {
@@ -1120,13 +1110,9 @@ def _get_scope_options(db: Session, branch_id: int, academic_year_id: int):
         models.User.last_name.asc(),
         models.User.username.asc(),
     ).all()
-    sections = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == branch_id,
-        models.PlanningSection.academic_year_id == academic_year_id,
-    ).order_by(
-        models.PlanningSection.grade_level.asc(),
-        models.PlanningSection.section_name.asc(),
-    ).all()
+    sections = list_operational_planning_sections(
+        db, branch_id, academic_year_id,
+    )
     return teachers, users, sections
 
 
@@ -1672,7 +1658,7 @@ def _build_academic_calendar_pdf_bytes(
     pdf = _CalendarPdfReport(
         "Parent Academic Calendar Report",
         subtitle,
-        logos=logos or (PLATFORM_CALENDAR_PDF_LOGO,),
+        logos=tuple(logos or ()),
     )
     pdf.paragraph(
         "This parent-facing calendar report summarizes school activities, events, assessments, meetings, "

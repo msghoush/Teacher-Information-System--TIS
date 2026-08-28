@@ -1,12 +1,19 @@
 knowledge_impact: yes
-summary: Fix the Subject Scheduling Rule modal so native dialog semantics keep it hidden until Edit, preserve correct open/populate/close behavior, and polish Session Structure and Conditions into compact balanced two-column layouts without changing backend or scheduling authority.
+summary: Centralize operational grade and section selectors on branch/year Planning authority for Subject Scheduling Rules and related timetable filters, and centralize tenant-facing report/export branding on configured organization logos without a TIS product-logo fallback.
 affected_areas:
+  - academic-calendar
+  - branding
+  - exports
+  - planning
+  - reports
+  - settings
   - timetable
   - tests
-  - settings
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/engineering/TIS_MODULE_MAP.md
 no_impact_reason:
 major_change_override: no

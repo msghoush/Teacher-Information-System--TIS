@@ -8,7 +8,12 @@ from starlette.requests import Request
 import main
 import models
 import subject_distribution_rules_ui as ui
+from planning_scope_service import (
+    list_operational_planning_grades,
+    list_operational_planning_sections,
+)
 from subject_distribution_rules import resolve_subject_distribution_rule
+from timetable_logic import build_timetable_workspace_payload
 from test_timetable_versioning import db  # noqa: F401 - shared isolated database
 
 
@@ -36,6 +41,91 @@ def test_table_loads_subjects_from_planning_and_weekly_is_authoritative(db):
     assert row["grade_level"] == "1" and row["subject_code"] == "MAT"
     assert row["weekly_periods"] == 4
     assert row["status_label"] == "Using Default Scheduling Rules"
+
+
+def test_grade_levels_include_only_planned_grades_for_scope(db):
+    _add_subject(db, id=3001, grade=2, code="ENG2", weekly=5, name="English")
+    db.add_all([
+        models.PlanningSection(
+            id=2010, grade_level="3", section_name="A", class_status="Current",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2020, grade_level="7", section_name="A", class_status="New",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2030, grade_level="6", section_name="A", class_status="Current",
+            branch_id=20, academic_year_id=200,
+        ),
+        models.PlanningSection(
+            id=2040, grade_level="2", section_name="A", class_status="Inactive",
+            branch_id=10, academic_year_id=100,
+        ),
+    ])
+    db.commit()
+
+    assert ui.list_grade_levels(db, 10, 100) == ["1", "3", "7"]
+    assert "2" not in ui.list_grade_levels(db, 10, 100)
+    assert "6" not in ui.list_grade_levels(db, 10, 100)
+
+    visible_codes = {
+        row["subject_code"]
+        for row in ui.list_subject_scheduling_rows(db, 10, 100)
+    }
+    assert "MAT" in visible_codes
+    assert "ENG2" not in visible_codes
+
+
+def test_timetable_selectors_share_operational_planning_authority(db):
+    db.add_all([
+        models.PlanningSection(
+            id=2010, grade_level="4", section_name="A", class_status="Current",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2020, grade_level="7", section_name="B", class_status="New",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2030, grade_level="9", section_name="A", class_status="Inactive",
+            branch_id=10, academic_year_id=100,
+        ),
+    ])
+    db.commit()
+
+    authority_grades = list_operational_planning_grades(db, 10, 100)
+    authority_sections = list_operational_planning_sections(db, 10, 100)
+    workspace = build_timetable_workspace_payload(
+        db, 10, 100, include_validation=False,
+    )
+
+    assert authority_grades == ["1", "4", "7"]
+    assert ui.list_grade_levels(db, 10, 100) == authority_grades
+    assert {
+        section["grade_label"] for section in workspace["sections"]
+    } == set(authority_grades)
+    assert {
+        section["id"] for section in workspace["sections"]
+    } == {section.id for section in authority_sections}
+    assert "9" not in authority_grades
+
+
+def test_planned_grade_levels_preserve_branch_and_year_isolation(db):
+    db.add_all([
+        models.PlanningSection(
+            id=2010, grade_level="4", section_name="A", class_status="Current",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2020, grade_level="8", section_name="A", class_status="Current",
+            branch_id=20, academic_year_id=200,
+        ),
+    ])
+    db.commit()
+
+    assert ui.list_grade_levels(db, 10, 100) == ["1", "4"]
+    assert ui.list_grade_levels(db, 20, 200) == ["8"]
 
 
 def test_creating_grade_level_rule(db):
@@ -269,6 +359,12 @@ def test_existing_timetable_settings_route_still_renders(db, monkeypatch):
 
 
 def test_professional_grade_first_editor_contract_renders(db, monkeypatch):
+    _add_subject(db, id=3001, grade=2, code="ENG2", weekly=5, name="English")
+    db.add(models.PlanningSection(
+        id=2010, grade_level="3", section_name="A", class_status="Current",
+        branch_id=10, academic_year_id=100,
+    ))
+    db.commit()
     user = db.query(models.User).filter_by(user_id="U1").one()
     user.scope_school_group_id = 1
     user.scope_branch_id = 10
@@ -284,6 +380,9 @@ def test_professional_grade_first_editor_contract_renders(db, monkeypatch):
     )
     html = response.body.decode("utf-8")
     assert 'id="grade-filter-select"' in html
+    assert html.count('<option value="1">Grade 1</option>') == 3
+    assert html.count('<option value="3">Grade 3</option>') == 3
+    assert '<option value="2">Grade 2</option>' not in html
     assert 'id="subject-filter-search"' in html
     assert 'id="subject-rules-table-wrap" hidden' in html
     assert '<dialog id="subject-rule-dialog">' in html

@@ -7,10 +7,25 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Tenant Report Branding
+
+Tenant-facing operational reports and exports use `tenant_report_branding.py`
+as their shared logo authority. It resolves only configured branch/organization
+logo slots through the existing tenant-scoped branding resolver. A tenant with no
+configured logo receives a clean text header with no image; tenant artifacts must
+never fall back to a TIS product logo. Timetable PDF/XLSX exports, academic-calendar
+PDF exports, and observation PDFs consume this rule. TIS branding remains valid in
+the application shell, login/product surfaces, public/platform-owned materials,
+and explicitly internal platform-owner reports.
+
 ## Subject Scheduling Rules UI
 
 Timetable Settings now presents a grade-first Subject Scheduling Rules section:
-an administrator selects one grade, can search its compact subject list, and sees
+`planning_scope_service.py` is the reusable operational selector authority. The
+main and copy-rule grade selectors, timetable workspace section filters, and
+calendar/grouped section choices derive only from Current/New `PlanningSection`
+rows in the selected branch and academic year, never from the global grade range or a
+catalog-only Subject row. An administrator selects one planned grade, can search its compact subject list, and sees
 each Planning weekly total, current pattern, and configured/default status without
 raw subject codes. The native dialog stays closed on page load and opens only
 after Edit has populated the selected Subject + Grade and read-only Planning

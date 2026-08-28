@@ -7,8 +7,27 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Central Tenant Report Branding
+
+- Added `tenant_report_branding.py` as the reusable tenant-facing report/export
+  logo authority over existing branch/organization-scoped branding resolution.
+- Removed TIS product-logo fallback injection from timetable PDF/XLSX and
+  academic-calendar PDF exports; an unbranded tenant now receives a clean
+  no-logo report header.
+- Routed observation PDF branding through the same authority without changing
+  report content, permissions, formats, or tenant isolation.
+- Kept TIS branding unchanged in the application UI and platform-owned surfaces.
+
 ## 2026-08-28 - Subject Scheduling Rules UI
 
+- Centralized operational timetable grade/section choices in
+  `planning_scope_service.py`, restricted to Current/New PlanningSection rows for
+  one branch/year. Subject Scheduling, timetable workspace filters, and directly
+  related calendar/grouped section selectors now share this authority.
+- Restricted the main and copy-rule grade selectors, plus their subject rows, to
+  distinct `PlanningSection` grades in the selected branch and academic year;
+  global and Subject-catalog-only grades no longer appear in operational timetable
+  configuration.
 - Corrected the modal visibility regression by removing author CSS that forced a
   closed native `<dialog>` to render. The modal now opens only after Edit populates
   the selected subject and closes through Cancel/Close.

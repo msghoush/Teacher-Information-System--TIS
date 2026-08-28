@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import normalize_grade_label
+from planning_scope_service import (
+    list_operational_planning_grades,
+    list_operational_planning_sections,
+)
 from subject_distribution_rules import resolve_subject_distribution_rule
 from subject_distribution_validator import validate_subject_distribution_rule
 
@@ -61,6 +65,7 @@ def _subject_grade_label(subject) -> str:
 
 
 def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: int) -> list[dict]:
+    planned_grades = set(list_grade_levels(db, branch_id, academic_year_id))
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id,
@@ -71,6 +76,8 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
     sections_by_grade: dict[str, list[dict]] = {}
     for subject in subjects:
         grade_label = _subject_grade_label(subject)
+        if grade_label not in planned_grades:
+            continue
         code = str(subject.subject_code or "").strip().upper()
         if not code:
             continue
@@ -119,22 +126,12 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
 
 
 def list_grade_levels(db: Session, branch_id: int, academic_year_id: int) -> list[str]:
-    values = {
-        _subject_grade_label(row)
-        for row in db.query(models.Subject).filter(
-            models.Subject.branch_id == branch_id,
-            models.Subject.academic_year_id == academic_year_id,
-        ).all()
-    }
-    return sorted(values, key=_grade_sort_key)
+    return list_operational_planning_grades(db, branch_id, academic_year_id)
 
 
 def list_sections_for_grade(db: Session, branch_id: int, academic_year_id: int, grade_level: str) -> list[dict]:
     grade = normalize_grade_label(grade_level)
-    sections = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == branch_id,
-        models.PlanningSection.academic_year_id == academic_year_id,
-    ).order_by(models.PlanningSection.section_name.asc()).all()
+    sections = list_operational_planning_sections(db, branch_id, academic_year_id)
     return [
         {"id": int(section.id), "section_name": str(section.section_name or "").strip()}
         for section in sections
