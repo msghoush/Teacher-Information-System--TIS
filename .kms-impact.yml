@@ -1,15 +1,19 @@
 knowledge_impact: yes
-summary: Centralize tenant-facing report and export logo resolution so configured branch/organization branding is used without any TIS product-logo fallback, while leaving product and platform-owned surfaces unchanged.
+summary: Centralize operational grade and section selectors on branch/year Planning authority for Subject Scheduling Rules and related timetable filters, and centralize tenant-facing report/export branding on configured organization logos without a TIS product-logo fallback.
 affected_areas:
+  - academic-calendar
   - branding
   - exports
+  - planning
   - reports
+  - settings
   - timetable
   - tests
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/TIS_MODULE_MAP.md
 no_impact_reason:
 major_change_override: no
