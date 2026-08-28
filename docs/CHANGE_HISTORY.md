@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Subject Distribution Rules Generation Wiring
+
+- Embedded the fully resolved Subject Distribution Rule (section over grade over
+  branch default, `None` for legacy fallback) into every Planning demand at
+  snapshot creation time; later rule changes never alter an already-created
+  snapshot, and fingerprint authority is preserved.
+- Carried the resolved rule and true physical period adjacency into the problem
+  builder, which now runs the arithmetic/feasibility validator as a final
+  pre-solve defense and fails cleanly with `distribution_rule_invalid`.
+- Added generalized CP-SAT enforcement: exact non-overlapping intentional
+  blocks using true adjacency, generalized daily-coverage/spread/max-per-day/
+  min-teaching-days behavior (hard only when explicitly configured hard), and
+  exemption of declared blocks from the consecutive-avoidance penalty.
+- Mirrored every new hard rule in the independent validator and added
+  readiness blockers for genuinely invalid or infeasible normalized
+  configurations.
+- Preserved legacy `quality_rules_json` behavior exactly for every demand
+  without a resolved rule, preserved grouped-activity/teacher/section
+  exclusivity, and preserved the unchanged regeneration diversity default.
+
 ## 2026-08-28 - Subject Distribution Rules Foundation
 
 - Added the normalized `subject_distribution_rules` table (migration

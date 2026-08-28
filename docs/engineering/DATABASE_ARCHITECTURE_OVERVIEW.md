@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Subject Distribution Rules Generation Wiring
+
+`timetable_snapshot_service.py` resolves and embeds the effective Subject
+Distribution Rule per Planning demand at snapshot creation time using
+`subject_distribution_rules.resolve_subject_distribution_rule`. The problem
+builder, CP-SAT solver, independent validator, and `TimetableReadinessService`
+all consume that resolved, per-demand authority; no schema change was
+required beyond the Stage 1 table. `TimetableActiveVersion` and the
+published/draft/history lifecycle are unaffected.
+
 ## Subject Distribution Rules Foundation
 
 `subject_distribution_rules`, added by migration
@@ -14,8 +24,7 @@ source_of_truth: true
 `branch_default`, `grade`, or `section` per branch/academic year, with partial
 unique indexes enforcing exactly one row per scope tier. It coexists with
 `TimetableSetting.quality_rules_json`; an absent normalized row means the existing
-JSON authority applies unchanged for that scope. No snapshot, CP-SAT, validator, or
-readiness wiring exists yet.
+JSON authority applies unchanged for that scope.
 
 ## Timetable Academic Quality Configuration
 

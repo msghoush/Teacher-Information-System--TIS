@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import is_default_homeroom_subject
+from subject_distribution_rules import resolve_subject_distribution_rule
 
 
 SNAPSHOT_SCHEMA_VERSION = 3
@@ -127,6 +128,16 @@ def _build_planning_component(
             ):
                 teacher_id = int(section.homeroom_teacher_id)
                 assignment_source = "homeroom_default"
+            # Resolved once, at snapshot time, so a later rule change never
+            # alters an already-created generation snapshot.
+            distribution_rule = resolve_subject_distribution_rule(
+                db,
+                branch_id=branch_id,
+                academic_year_id=academic_year_id,
+                grade_level=grade_label,
+                subject_code=subject_code,
+                section_id=int(section.id),
+            )
             demand_payloads.append(
                 {
                     "section_id": int(section.id),
@@ -137,6 +148,9 @@ def _build_planning_component(
                     "required_weekly_periods": int(subject.weekly_hours or 0),
                     "assigned_teacher_id": teacher_id,
                     "assignment_source": assignment_source,
+                    # None means legacy fallback: no normalized rule is
+                    # configured, so quality_rules_json authority applies.
+                    "distribution_rule": distribution_rule,
                 }
             )
 

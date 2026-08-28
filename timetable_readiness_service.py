@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import is_default_homeroom_subject
+from subject_distribution_rules import resolve_subject_distribution_rule
+from subject_distribution_validator import validate_subject_distribution_rule
 from teacher_capacity import get_teacher_international_capacity_hours
 from timetable_logic import build_teacher_display_name, format_section_label, get_timetable_settings_payload
 from timetable_snapshot_service import build_current_snapshot_data
@@ -148,7 +150,21 @@ class TimetableReadinessService:
                 counts["required_periods"] += periods
                 code = str(subject.subject_code or "").strip().upper()
                 subject_label = str(subject.subject_name or code or "Subject").strip()
-                if code in core_codes and periods < teaching_day_count:
+                distribution_rule = resolve_subject_distribution_rule(
+                    self.db, branch_id=branch_id, academic_year_id=academic_year_id,
+                    grade_level=grade, subject_code=code, section_id=int(section.id),
+                )
+                if distribution_rule is not None:
+                    for error in validate_subject_distribution_rule(
+                        distribution_rule, planning_weekly_periods=periods,
+                        available_teaching_days=teaching_day_count,
+                    ):
+                        blockers.append(self._finding(
+                            f"distribution_rule_{error['code']}",
+                            f"{label} {subject_label}: {error['message']}",
+                            "section_subject", f"{label} {subject_label}", "Timetable Configuration",
+                        ))
+                elif code in core_codes and periods < teaching_day_count:
                     warnings.append({
                         **self._finding(
                             "core_daily_coverage_impossible",
