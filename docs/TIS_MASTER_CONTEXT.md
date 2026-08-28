@@ -16,12 +16,14 @@ scope section or Subject references and duplicate active section-subject demand.
 Migration `20260828_004_planning_subject_demands_foundation` seeds only Current/New
 Planning sections from the existing grade-aligned Subject catalog and is idempotent.
 
-The Stage 1 compatibility boundary is deliberate: current operational consumers
-continue deriving demand from `Subject.grade` and `Subject.weekly_hours`.
-`planning_subject_demand_service.py` exposes explicit-first resolution with legacy
-fallback for later staged adoption; an explicit inactive row suppresses fallback
-and therefore represents durable retirement. No teacher allocation, timetable
-snapshot, generation, draft, publication, or UX behavior changes in Stage 1.
+Stage 2 makes the explicit-first resolver authoritative for live Planning demand,
+teacher workload arithmetic, timetable readiness/workspace/snapshot/generation
+input, Subject Scheduling Rule validation, and required-hours reporting. An
+explicit inactive or zero row suppresses fallback and represents durable retirement
+for that section. `Subject.grade + Subject.weekly_hours` remains a transitional
+fallback only where no explicit section-subject row exists. Existing teacher
+assignment identity, solver behavior, timetable UX, and published history are not
+rewritten.
 
 ## Smart Timetable Customer And Published-Visibility Boundary
 

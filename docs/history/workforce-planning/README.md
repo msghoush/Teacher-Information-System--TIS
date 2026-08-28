@@ -18,6 +18,10 @@ Related files:
 
 History entries:
 
+- `2026-08-28-planning-subject-demand-consumers.md` — live Planning, workload,
+  timetable, scheduling-rule, and required-hours report consumers adopt explicit
+  per-section demand authority with missing-row legacy fallback.
+
 - `2026-08-28-explicit-planning-subject-demand-foundation.md` — normalized future
   section-subject demand, safe backfill, scoped integrity, retirement state, and
   transitional legacy compatibility.

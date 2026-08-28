@@ -26,6 +26,7 @@ from teacher_capacity import (
     get_teacher_national_section_hours,
     get_teacher_total_capacity_hours,
 )
+from planning_subject_demand_service import resolve_scope_subject_demands
 from teacher_qualifications import (
     build_legacy_qualification_snapshot,
     build_qualification_summary,
@@ -644,6 +645,16 @@ def _get_section_options_by_subject(
     }
 
     planning_section_ids = list(planning_sections_by_id.keys())
+    resolved_demands = resolve_scope_subject_demands(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_ids=planning_section_ids,
+    )
+    active_demand_hours = {
+        (section_id, demand.subject_code): int(demand.weekly_periods)
+        for section_id, demands in resolved_demands.items()
+        for demand in demands
+        if demand.is_active and demand.weekly_periods > 0
+    }
     if planning_section_ids:
         section_assignments = db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.planning_section_id.in_(planning_section_ids)
@@ -664,6 +675,8 @@ def _get_section_options_by_subject(
         grade_label = _subject_grade_label(subject.grade)
         subject_options = []
         for section in planning_sections_by_grade.get(grade_label, []):
+            if (section.id, str(subject.subject_code or "").strip().upper()) not in active_demand_hours:
+                continue
             occupying_teacher_id = occupied_assignments.get(
                 (subject.subject_code, section.id)
             )
@@ -698,6 +711,7 @@ def _get_section_options_by_subject(
         "section_options_by_subject": section_options_by_subject,
         "planning_sections_by_id": planning_sections_by_id,
         "occupied_assignments": occupied_assignments,
+        "active_demand_hours": active_demand_hours,
     }
 
 
@@ -968,6 +982,17 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                 models.PlanningSection.academic_year_id == academic_year_id,
             ).all()
         }
+    resolved_demands = resolve_scope_subject_demands(
+        db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        planning_section_ids=list(planning_sections_by_id),
+    )
+    demand_by_section_code = {
+        (section_id, demand.subject_code): demand
+        for section_id, demands in resolved_demands.items()
+        for demand in demands
+    }
 
     teaching_load_map = {}
     for assignment in section_assignments:
@@ -977,7 +1002,12 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
         subject = subjects_by_code.get(assignment.subject_code)
         if not subject:
             continue
-        subject_hours = int(subject.weekly_hours or 0)
+        demand = demand_by_section_code.get(
+            (assignment.planning_section_id, str(assignment.subject_code or "").strip().upper())
+        )
+        if demand is None or not demand.is_active or demand.weekly_periods <= 0:
+            continue
+        subject_hours = int(demand.weekly_periods)
         section = planning_sections_by_id.get(assignment.planning_section_id)
         section_label = _format_section_label(section)
         subject_key = (assignment.teacher_id, assignment.subject_code)
@@ -1022,7 +1052,12 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
 
         bundle_subjects = []
         default_subjects = []
-        for subject in subjects_by_grade.get(grade_label, []):
+        for demand in resolved_demands.get(section.id, []):
+            if not demand.is_active or demand.weekly_periods <= 0:
+                continue
+            subject = subjects_by_code.get(demand.subject_code)
+            if subject is None:
+                continue
             subject_code = str(subject.subject_code or "").strip().upper()
             if not subject_code:
                 continue
@@ -1035,7 +1070,7 @@ def _get_teacher_allocation_map(db: Session, teachers, branch_id: int, academic_
                 "subject": subject,
                 "subject_code": subject_code,
                 "subject_name": subject.subject_name or "Unnamed Subject",
-                "weekly_hours": int(subject.weekly_hours or 0),
+                "weekly_hours": int(demand.weekly_periods),
                 "is_explicit_assignment": explicit_teacher_id == homeroom_teacher_id,
             }
 
@@ -1618,6 +1653,7 @@ def _validate_section_assignments(
     total_assigned_hours = 0
     planning_sections_by_id = section_assignment_support["planning_sections_by_id"]
     occupied_assignments = section_assignment_support["occupied_assignments"]
+    active_demand_hours = section_assignment_support.get("active_demand_hours", {})
 
     for subject_code, planning_section_ids in subject_assignment_map.items():
         if subject_code not in normalized_subject_codes:
@@ -1661,7 +1697,13 @@ def _validate_section_assignments(
                 )
                 continue
 
-            total_assigned_hours += int(subject.weekly_hours or 0)
+            demand_hours = int(active_demand_hours.get((planning_section_id, subject_code), 0))
+            if demand_hours <= 0:
+                errors.append(
+                    f"{subject_code} is not active in {_format_section_label(planning_section)} Planning demand."
+                )
+                continue
+            total_assigned_hours += demand_hours
 
     return errors, total_assigned_hours
 

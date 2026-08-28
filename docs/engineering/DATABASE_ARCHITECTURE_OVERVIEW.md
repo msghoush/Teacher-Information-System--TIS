@@ -19,10 +19,12 @@ allows at most one active row per section and subject while retaining inactive r
 Migration `20260828_004_planning_subject_demands_foundation` inserts missing active
 rows for Current/New Planning sections joined to Subjects by branch, academic year,
 and normalized grade. `NOT EXISTS` for any prior demand makes the backfill repeat-safe
-without reactivating retired rows. Stage 1 does not
-redirect existing readers: legacy Subject grade/weekly-hours derivation remains the
-runtime authority while the compatibility service exposes explicit-first resolution
-for later adoption.
+without reactivating retired rows. The demand service bulk-resolves Current/New
+sections inside one exact branch/year: any explicit row, including inactive or zero,
+is authoritative; only a missing row falls back to the grade-matched Subject weekly
+value. Live Planning, workload, timetable inputs, scheduling-rule arithmetic, and
+required-hours reporting consume this resolved demand. Historical published
+timetable data is not recomputed.
 
 ## Subject Scheduling Rules UI
 

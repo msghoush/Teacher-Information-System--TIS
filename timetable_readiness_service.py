@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import is_default_homeroom_subject
+from planning_subject_demand_service import resolve_scope_subject_demands
 from subject_distribution_rules import resolve_subject_distribution_rule
 from subject_distribution_validator import validate_subject_distribution_rule
 from teacher_capacity import get_teacher_international_capacity_hours
@@ -102,18 +103,21 @@ class TimetableReadinessService:
         subjects = self.db.query(models.Subject).filter(
             models.Subject.branch_id == branch_id,
             models.Subject.academic_year_id == academic_year_id,
-            models.Subject.weekly_hours > 0,
         ).order_by(models.Subject.id.asc()).all()
         teachers = self.db.query(models.Teacher).filter(
             models.Teacher.branch_id == branch_id,
             models.Teacher.academic_year_id == academic_year_id,
         ).all()
         teacher_map = {int(t.id): t for t in teachers}
-        subject_by_grade = defaultdict(list)
-        for subject in subjects:
-            grade = "KG" if int(subject.grade or 0) == 0 else str(int(subject.grade or 0))
-            subject_by_grade[grade].append(subject)
+        subject_by_code = {
+            str(subject.subject_code or "").strip().upper(): subject
+            for subject in subjects if subject.subject_code
+        }
         section_ids = [int(s.id) for s in sections]
+        resolved_demands = resolve_scope_subject_demands(
+            self.db, branch_id=branch_id, academic_year_id=academic_year_id,
+            planning_section_ids=section_ids,
+        )
         assignments = self.db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.planning_section_id.in_(section_ids)
         ).all() if section_ids else []
@@ -122,7 +126,10 @@ class TimetableReadinessService:
         counts["eligible_sections"] = len(sections)
         if not sections:
             blockers.append(self._finding("sections_missing", "No eligible Current or New Planning sections exist in this scope.", "section", "Planning sections", "Planning"))
-        if sections and not subjects:
+        if sections and not any(
+            demand.is_active and demand.weekly_periods > 0
+            for demands in resolved_demands.values() for demand in demands
+        ):
             blockers.append(self._finding("subjects_missing", "No subjects with positive weekly periods exist for this scope.", "subject", "Subjects", "Planning"))
 
         teacher_demand = defaultdict(int)
@@ -138,17 +145,23 @@ class TimetableReadinessService:
             if grade in {"K", "KINDERGARTEN", "0"}:
                 grade = "KG"
             label = format_section_label(section)
-            demands = subject_by_grade.get(grade, [])
+            demands = [
+                demand for demand in resolved_demands.get(int(section.id), [])
+                if demand.is_active and int(demand.weekly_periods or 0) > 0
+            ]
             if not demands:
                 blockers.append(self._finding("demand_missing", f"{label} has no positive timetable demand.", "section", label, "Planning"))
                 continue
             section_demand = 0
-            for subject in demands:
-                periods = int(subject.weekly_hours or 0)
+            for demand in demands:
+                periods = int(demand.weekly_periods)
                 section_demand += periods
                 counts["eligible_demands"] += 1
                 counts["required_periods"] += periods
-                code = str(subject.subject_code or "").strip().upper()
+                code = demand.subject_code
+                subject = subject_by_code.get(code)
+                if subject is None:
+                    continue
                 subject_label = str(subject.subject_name or code or "Subject").strip()
                 distribution_rule = resolve_subject_distribution_rule(
                     self.db, branch_id=branch_id, academic_year_id=academic_year_id,

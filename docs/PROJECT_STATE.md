@@ -15,11 +15,12 @@ Planning sections are backfilled from grade-matched Subjects in the same branch 
 academic year. The operation is idempotent; composite scope foreign keys and an
 active-row partial unique index protect integrity while allowing retired history.
 
-`planning_subject_demand_service.py` provides explicit-first resolution and legacy
-fallback, including authoritative inactive rows that suppress fallback. This is an
-additive Stage 1 foundation only. Existing Planning screens, teacher allocations,
-reports, timetable readiness/snapshots/generation, drafts, and published timetables
-continue using existing behavior until a separately approved consumer migration.
+`planning_subject_demand_service.py` provides exact-scope explicit-first resolution
+and legacy fallback, including authoritative inactive rows that suppress fallback.
+Stage 2 now routes Planning calculations, teacher workload, timetable readiness,
+workspace, snapshots and generation inputs, Subject Scheduling Rule arithmetic,
+and required-hours reports through that authority. Missing explicit rows retain
+legacy fallback during transition. Published timetable rows are untouched.
 
 ## Central Tenant Report Branding Implemented
 

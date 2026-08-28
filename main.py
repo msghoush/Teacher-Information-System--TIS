@@ -69,6 +69,7 @@ from models import User, Branch, AcademicYear
 from teacher_capacity import (
     get_teacher_capacity_breakdown,
 )
+from planning_subject_demand_service import resolve_scope_subject_demands
 from ui_shell import DEFAULT_SCHOOL_LOGO_SLOTS, build_shell_context, get_school_logo_slots
 from audit import (
     get_audit_log_path,
@@ -2179,7 +2180,7 @@ def _build_reporting_context_from_section_assignments(
             )
 
     scoped_subjects_by_code = {
-        subject.subject_code: subject
+        str(subject.subject_code).strip().upper(): subject
         for subject in subjects
         if subject.subject_code
     }
@@ -2188,45 +2189,46 @@ def _build_reporting_context_from_section_assignments(
     required_current_hours_by_grade = {}
     required_new_hours_by_grade = {}
 
-    for subject in subjects:
-        grade_label = _normalize_grade_label(subject.grade)
-        if not grade_label:
+    branch_id = planning_sections[0].branch_id if planning_sections else None
+    academic_year_id = planning_sections[0].academic_year_id if planning_sections else None
+    resolved_by_section = resolve_scope_subject_demands(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_ids=[section.id for section in planning_sections],
+    ) if branch_id and academic_year_id else {}
+    section_by_id = {section.id: section for section in planning_sections}
+    demand_by_section_code = {}
+    for section_id, demands in resolved_by_section.items():
+        section = section_by_id.get(section_id)
+        if section is None:
             continue
+        grade_label = _normalize_grade_label(section.grade_level)
+        status = str(section.class_status or "").strip().lower()
+        for demand in demands:
+            if not demand.is_active or demand.weekly_periods <= 0:
+                continue
+            subject = scoped_subjects_by_code.get(demand.subject_code)
+            if subject is None:
+                continue
+            weekly_hours = int(demand.weekly_periods)
+            demand_by_section_code[(section_id, demand.subject_code)] = weekly_hours
 
-        weekly_hours = int(subject.weekly_hours or 0)
-        if weekly_hours <= 0:
-            continue
+            subject_key, subject_label = _build_subject_identity(
+                subject_name=subject.subject_name,
+                fallback_code=subject.subject_code or "",
+            )
+            if not subject_key:
+                continue
 
-        sections_count = sections_by_grade.get(grade_label, 0)
-        if sections_count <= 0:
-            continue
+            required_hours = weekly_hours
+            required_current_hours = weekly_hours if status == "current" else 0
+            required_new_hours = weekly_hours if status == "new" else 0
 
-        current_sections_count = current_sections_by_grade.get(grade_label, 0)
-        new_sections_count = new_sections_by_grade.get(grade_label, 0)
+            required_hours_by_grade[grade_label] = required_hours_by_grade.get(grade_label, 0) + required_hours
+            required_current_hours_by_grade[grade_label] = required_current_hours_by_grade.get(grade_label, 0) + required_current_hours
+            required_new_hours_by_grade[grade_label] = required_new_hours_by_grade.get(grade_label, 0) + required_new_hours
 
-        subject_key, subject_label = _build_subject_identity(
-            subject_name=subject.subject_name,
-            fallback_code=subject.subject_code or "",
-        )
-        if not subject_key:
-            continue
-
-        required_hours = weekly_hours * sections_count
-        required_current_hours = weekly_hours * current_sections_count
-        required_new_hours = weekly_hours * new_sections_count
-
-        required_hours_by_grade[grade_label] = (
-            required_hours_by_grade.get(grade_label, 0) + required_hours
-        )
-        required_current_hours_by_grade[grade_label] = (
-            required_current_hours_by_grade.get(grade_label, 0) + required_current_hours
-        )
-        required_new_hours_by_grade[grade_label] = (
-            required_new_hours_by_grade.get(grade_label, 0) + required_new_hours
-        )
-
-        if subject_key not in subject_demand_map:
-            subject_demand_map[subject_key] = {
+            if subject_key not in subject_demand_map:
+                subject_demand_map[subject_key] = {
                 "subject_name": subject_label,
                 "subject_code": subject.subject_code or "",
                 "subject_color": resolve_subject_color(
@@ -2248,13 +2250,13 @@ def _build_reporting_context_from_section_assignments(
                 "required_current_hours": 0,
                 "required_new_hours": 0,
                 "grades": set(),
-            }
+                }
 
-        entry = subject_demand_map[subject_key]
-        entry["required_hours"] += required_hours
-        entry["required_current_hours"] += required_current_hours
-        entry["required_new_hours"] += required_new_hours
-        entry["grades"].add(grade_label)
+            entry = subject_demand_map[subject_key]
+            entry["required_hours"] += required_hours
+            entry["required_current_hours"] += required_current_hours
+            entry["required_new_hours"] += required_new_hours
+            entry["grades"].add(grade_label)
 
     teacher_ids = sorted(
         teacher.id
@@ -2283,7 +2285,9 @@ def _build_reporting_context_from_section_assignments(
         teacher_allocations = []
 
     for allocation in teacher_allocations:
-        subject = scoped_subjects_by_code.get(allocation.subject_code)
+        subject = scoped_subjects_by_code.get(
+            str(allocation.subject_code or "").strip().upper()
+        )
         if not subject:
             continue
         subject_key, _ = _build_subject_identity(
@@ -2325,13 +2329,16 @@ def _build_reporting_context_from_section_assignments(
         planning_sections=planning_sections,
         explicit_section_subject_keys=explicit_section_subject_keys,
         valid_teacher_ids=set(teachers_by_id.keys()),
+        demand_by_section_code=demand_by_section_code,
     )
 
     for assignment in section_assignments:
         teacher = teachers_by_id.get(getattr(assignment, "teacher_id", None))
         if not teacher:
             continue
-        subject = scoped_subjects_by_code.get(assignment.subject_code)
+        subject = scoped_subjects_by_code.get(
+            str(assignment.subject_code or "").strip().upper()
+        )
         if not subject:
             continue
 
@@ -2342,7 +2349,11 @@ def _build_reporting_context_from_section_assignments(
         if not subject_key or subject_key not in subject_demand_map:
             continue
 
-        subject_hours = int(subject.weekly_hours or 0)
+        subject_hours = int(demand_by_section_code.get(
+            (assignment.planning_section_id, str(assignment.subject_code or "").strip().upper()), 0
+        ))
+        if subject_hours <= 0:
+            continue
         teacher_id = getattr(teacher, "id", None)
         actual_hours_by_teacher[teacher_id] = (
             actual_hours_by_teacher.get(teacher_id, 0) + subject_hours
@@ -2894,6 +2905,22 @@ def _build_report_class_allocation_data_from_section_assignments(
 ):
     class_rows = _build_report_class_rows(planning_sections)
     subjects_by_grade, subject_name_by_key = _build_report_subject_catalog(subjects)
+    subject_items_by_code = {
+        str(item["subject_code"] or "").strip().upper(): item
+        for items in subjects_by_grade.values() for item in items
+    }
+    branch_id = planning_sections[0].branch_id if planning_sections else None
+    academic_year_id = planning_sections[0].academic_year_id if planning_sections else None
+    resolved_by_section = resolve_scope_subject_demands(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_ids=[section.id for section in planning_sections],
+    ) if branch_id and academic_year_id else {}
+    demand_by_section_code = {
+        (section_id, demand.subject_code): int(demand.weekly_periods)
+        for section_id, demands in resolved_by_section.items()
+        for demand in demands
+        if demand.is_active and demand.weekly_periods > 0
+    }
     teacher_by_id = {
         teacher.id: teacher
         for teacher in teachers
@@ -2913,8 +2940,12 @@ def _build_report_class_allocation_data_from_section_assignments(
     demand_items_lookup = {}
     demand_items_by_section_subject_code = {}
     for class_row in class_rows:
-        grade_subjects = subjects_by_grade.get(class_row["grade_label"], [])
-        for subject_item in grade_subjects:
+        for (section_id, subject_code), demand_hours in demand_by_section_code.items():
+            if section_id != class_row["planning_section_id"]:
+                continue
+            subject_item = subject_items_by_code.get(subject_code)
+            if subject_item is None:
+                continue
             demand_item = {
                 "planning_section_id": class_row["planning_section_id"],
                 "class_key": class_row["class_key"],
@@ -2925,8 +2956,8 @@ def _build_report_class_allocation_data_from_section_assignments(
                 "subject_key": subject_item["subject_key"],
                 "subject_code": subject_item["subject_code"],
                 "subject_name": subject_item["subject_name"],
-                "required_hours": subject_item["weekly_hours"],
-                "remaining_hours": subject_item["weekly_hours"],
+                "required_hours": demand_hours,
+                "remaining_hours": demand_hours,
                 "allocated_hours": 0,
                 "teacher_id": None,
                 "teacher_name": "",
@@ -2962,7 +2993,8 @@ def _build_report_class_allocation_data_from_section_assignments(
         subjects=subjects,
         planning_sections=planning_sections,
         explicit_section_subject_keys=explicit_section_subject_keys,
-        valid_teacher_ids=set(teacher_by_id.keys())
+        valid_teacher_ids=set(teacher_by_id.keys()),
+        demand_by_section_code=demand_by_section_code,
     )
 
     assignment_rows = []
@@ -3305,8 +3337,6 @@ def _build_reporting_context(
             continue
 
         weekly_hours = int(subject.weekly_hours or 0)
-        if weekly_hours <= 0:
-            continue
 
         sections_count = sections_by_grade.get(grade_label, 0)
         if sections_count <= 0:
@@ -5558,6 +5588,7 @@ def _build_homeroom_assignments_by_teacher(
     planning_sections,
     explicit_section_subject_keys=None,
     valid_teacher_ids=None,
+    demand_by_section_code=None,
 ):
     class_rows = _build_report_class_rows(planning_sections)
     subjects_by_grade, _ = _build_report_subject_catalog(subjects)
@@ -5576,6 +5607,15 @@ def _build_homeroom_assignments_by_teacher(
         bundle_subject_items = []
         default_subject_items = []
         for subject_item in subjects_by_grade.get(class_row["grade_label"], []):
+            demand_key = (
+                class_row.get("planning_section_id"),
+                str(subject_item["subject_code"] or "").strip().upper(),
+            )
+            if demand_by_section_code is not None:
+                demand_hours = int(demand_by_section_code.get(demand_key, 0))
+                if demand_hours <= 0:
+                    continue
+                subject_item = {**subject_item, "weekly_hours": demand_hours}
             explicit_section_key = (
                 class_row.get("planning_section_id"),
                 str(subject_item["subject_code"] or "").strip().upper(),
@@ -7200,18 +7240,17 @@ def _build_current_report_package(db: Session, user) -> dict:
         if str(section.class_status or "").strip().lower() == "new"
     )
     teachers_for_reporting = teachers_query.order_by(models.Teacher.id.asc()).all()
-    subject_hours_by_grade = {}
-    for subject in subjects_dashboard_rows:
-        grade_label = _normalize_grade_label(getattr(subject, "grade", None))
-        if not grade_label:
-            continue
-        subject_hours_by_grade[grade_label] = (
-            subject_hours_by_grade.get(grade_label, 0)
-            + int(subject.weekly_hours or 0)
-        )
+    dashboard_demands = resolve_scope_subject_demands(
+        db,
+        branch_id=scoped_branch_id,
+        academic_year_id=scoped_academic_year_id,
+        planning_section_ids=[section.id for section in planning_sections],
+    )
     planning_total_allocated_hours = sum(
-        subject_hours_by_grade.get(_normalize_grade_label(section.grade_level), 0)
-        for section in planning_sections
+        int(demand.weekly_periods)
+        for demands in dashboard_demands.values()
+        for demand in demands
+        if demand.is_active and demand.weekly_periods > 0
     )
 
     planning_section_ids = [

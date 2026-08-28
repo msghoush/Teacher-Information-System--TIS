@@ -159,3 +159,40 @@ def test_readiness_allows_a_valid_distribution_configuration(db):
     result = TimetableReadinessService(db).evaluate(1, 10, 100)
     blocker_codes = {item["code"] for item in result["blockers"]}
     assert not any(code.startswith("distribution_rule_") for code in blocker_codes)
+
+
+def test_section_demand_retirement_and_increase_drive_snapshot_and_readiness(db):
+    _make_ready(db)
+    db.add(models.Subject(
+        id=3001, subject_code="WEL", subject_name="Well Being", weekly_hours=1,
+        grade=1, branch_id=10, academic_year_id=100,
+    ))
+    db.commit()
+    db.add_all([
+        models.PlanningSubjectDemand(
+            branch_id=10, academic_year_id=100, planning_section_id=2000,
+            subject_code="MAT", weekly_periods=0, is_active=False,
+        ),
+        models.PlanningSubjectDemand(
+            branch_id=10, academic_year_id=100, planning_section_id=2000,
+            subject_code="WEL", weekly_periods=2, is_active=True,
+        ),
+        models.TeacherSectionAssignment(
+            teacher_id=1000, planning_section_id=2000, subject_code="WEL",
+        ),
+    ])
+    db.commit()
+
+    snapshot = build_current_snapshot_data(
+        db, school_group_id=1, branch_id=10, academic_year_id=100
+    )
+    demands = json.loads(snapshot.canonical_json)["planning"]["demands"]
+    by_section = {}
+    for demand in demands:
+        by_section.setdefault(demand["section_id"], {})[demand["subject_code"]] = demand["required_weekly_periods"]
+    assert by_section[2000] == {"WEL": 2}
+    assert by_section[2001] == {"MAT": 4, "WEL": 1}
+
+    readiness = TimetableReadinessService(db).evaluate(1, 10, 100)
+    assert readiness["counts"]["required_periods"] == 7
+    assert not any("2000" in item.get("display_label", "") and "MAT" in item.get("display_label", "") for item in readiness["blockers"])

@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 
 import models
+from planning_subject_demand_service import resolve_scope_subject_demands
 from planning_scope_service import list_operational_planning_sections
 from homeroom_defaults import is_default_homeroom_subject
 from subject_colors import build_subject_theme, resolve_subject_color
@@ -855,6 +856,12 @@ def build_timetable_workspace_payload(
     planning_sections = list_operational_planning_sections(
         db, branch_id, academic_year_id,
     )
+    demands_by_section = resolve_scope_subject_demands(
+        db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        planning_section_ids=[section.id for section in planning_sections],
+    )
 
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
@@ -873,7 +880,7 @@ def build_timetable_workspace_payload(
         models.Teacher.id.asc(),
     ).all()
 
-    subject_rows_by_grade = defaultdict(list)
+    subject_rows_by_code = {}
     subject_name_lookup = {}
     for subject in subjects:
         subject_code = str(getattr(subject, "subject_code", "") or "").strip().upper()
@@ -893,7 +900,7 @@ def build_timetable_workspace_payload(
             "grade_label": grade_label,
             **subject_theme,
         }
-        subject_rows_by_grade[grade_label].append(subject_payload)
+        subject_rows_by_code[subject_code] = subject_payload
         subject_name_lookup[subject_code] = subject_name
 
     teacher_map = {
@@ -946,8 +953,17 @@ def build_timetable_workspace_payload(
         missing_teacher_hours = 0
         missing_teacher_subjects = 0
 
-        for subject_payload in subject_rows_by_grade.get(grade_label, []):
-            subject_code = subject_payload["subject_code"]
+        for demand in demands_by_section.get(int(section_id), []):
+            if not demand.is_active or int(demand.weekly_periods) <= 0:
+                continue
+            subject_code = demand.subject_code
+            catalog_subject_payload = subject_rows_by_code.get(subject_code)
+            if catalog_subject_payload is None:
+                continue
+            subject_payload = {
+                **catalog_subject_payload,
+                "weekly_hours": int(demand.weekly_periods),
+            }
             teacher_id = explicit_teacher_by_section_subject.get((section_id, subject_code))
             assignment_source = "manual"
             if (

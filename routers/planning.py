@@ -21,6 +21,7 @@ from teacher_qualifications import (
     infer_qualification_keys_from_legacy_text,
 )
 from teacher_capacity import get_teacher_international_capacity_hours
+from planning_subject_demand_service import resolve_scope_subject_demands
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 from subject_colors import build_subject_theme, resolve_subject_color
@@ -428,6 +429,46 @@ def _get_current_assignment_selection_map(
     }
 
 
+def _get_section_demand_alignment_map(
+    db: Session,
+    branch_id: int,
+    academic_year_id: int,
+    planning_sections,
+    subject_map_by_code,
+):
+    resolved = resolve_scope_subject_demands(
+        db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        planning_section_ids=[section.id for section in planning_sections],
+    )
+    result = {}
+    for section in planning_sections:
+        items = []
+        for demand in resolved.get(section.id, []):
+            if not demand.is_active or int(demand.weekly_periods or 0) <= 0:
+                continue
+            subject = subject_map_by_code.get(demand.subject_code)
+            if subject is None:
+                continue
+            subject_color = resolve_subject_color(
+                subject.subject_code, getattr(subject, "color", ""),
+                subject_name=subject.subject_name,
+            )
+            theme = build_subject_theme(subject_color)
+            items.append({
+                "subject_code": demand.subject_code,
+                "subject_name": subject.subject_name or "Unnamed Subject",
+                "weekly_hours": int(demand.weekly_periods),
+                "subject_color": subject_color,
+                "subject_color_soft": theme["soft"],
+                "subject_color_text": theme["text"],
+                "subject_color_border": theme["border"],
+            })
+        result[section.id] = items
+    return result
+
+
 def _calculate_teacher_section_hours(
     db: Session,
     branch_id: int,
@@ -461,13 +502,13 @@ def _calculate_teacher_section_hours(
         subject_alignment_map=subject_alignment_map,
         subject_map_by_code=subject_map_by_code,
     )
+    resolved_by_section = _get_section_demand_alignment_map(
+        db, branch_id, academic_year_id, planning_sections, subject_map_by_code
+    )
 
     teacher_hours = {}
     for section in planning_sections:
-        aligned_subjects = subject_alignment_map.get(
-            _normalize_grade_level(section.grade_level),
-            [],
-        )
+        aligned_subjects = resolved_by_section.get(section.id, [])
         for subject in aligned_subjects:
             subject_code = str(subject.get("subject_code") or "").strip().upper()
             if not subject_code:
@@ -492,10 +533,13 @@ def _build_planning_rows(
     subject_alignment_map,
     teacher_names_by_id,
     section_assignment_map,
+    section_demand_map=None,
 ):
     rows = []
     for section in planning_sections:
-        aligned_subjects = subject_alignment_map.get(section.grade_level, [])
+        aligned_subjects = (section_demand_map or {}).get(
+            section.id, subject_alignment_map.get(section.grade_level, [])
+        )
         allocated_hours = sum(
             int(item.get("weekly_hours", 0))
             for item in aligned_subjects
@@ -593,6 +637,9 @@ def _render_planning_page(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
+    section_demand_map = _get_section_demand_alignment_map(
+        db, branch_id, academic_year_id, planning_sections, subject_map_by_code
+    )
     teacher_choices, teacher_names_by_id = _get_teacher_choices(
         db=db,
         branch_id=branch_id,
@@ -610,6 +657,7 @@ def _render_planning_page(
         subject_alignment_map=subject_alignment_map,
         teacher_names_by_id=teacher_names_by_id,
         section_assignment_map=section_assignment_map,
+        section_demand_map=section_demand_map,
     )
 
     current_sections_count = sum(
@@ -702,6 +750,9 @@ def _render_edit_planning_page(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
+    section_demand_map = _get_section_demand_alignment_map(
+        db, branch_id, academic_year_id, [planning_section], subject_map_by_code
+    )
     section_assignment_map = _get_section_assignment_map(
         db=db,
         planning_sections=[planning_section],
@@ -724,7 +775,12 @@ def _render_edit_planning_page(
         normalized_form_data.update(form_data)
 
     selected_grade_level = normalized_form_data.get("grade_level") or planning_section.grade_level
-    aligned_subjects = subject_alignment_map.get(selected_grade_level, [])
+    aligned_subjects = (
+        section_demand_map.get(planning_section.id, [])
+        if _normalize_grade_level(selected_grade_level)
+        == _normalize_grade_level(planning_section.grade_level)
+        else subject_alignment_map.get(selected_grade_level, [])
+    )
     allocated_hours = sum(
         int(item.get("weekly_hours", 0))
         for item in aligned_subjects
@@ -1326,6 +1382,10 @@ def update_planning_section(
         academic_year_id=academic_year_id,
     )
     aligned_subjects = subject_alignment_map.get(normalized_grade_level, [])
+    if normalized_grade_level == _normalize_grade_level(planning_section.grade_level):
+        aligned_subjects = _get_section_demand_alignment_map(
+            db, branch_id, academic_year_id, [planning_section], subject_map_by_code
+        ).get(planning_section.id, [])
     aligned_subject_codes = {
         item.get("subject_code")
         for item in aligned_subjects

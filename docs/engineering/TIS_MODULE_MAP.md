@@ -11,12 +11,15 @@ source_of_truth: true
 
 - `models.PlanningSubjectDemand`: future section-subject weekly-period authority,
   with scoped integrity, active uniqueness, and retained retirement state.
-- `planning_subject_demand_service.py`: explicit-first demand resolution with
-  transitional legacy fallback.
+- `planning_subject_demand_service.py`: single-section and bulk exact-scope
+  explicit-first demand resolution with transitional legacy fallback.
 - `db_migrations.py`: idempotent Current/New section backfill from grade-matched
   Subjects through migration `20260828_004_planning_subject_demands_foundation`.
-- Existing Planning, teachers, reports, and timetable modules remain consumers of
-  their pre-Stage-1 legacy demand derivation.
+- `routers/planning.py`, `routers/teachers.py`, `main.py`, `timetable_logic.py`,
+  `timetable_readiness_service.py`, `timetable_snapshot_service.py`, and
+  `subject_distribution_rules_ui.py` consume resolved section demand for live
+  required-period arithmetic. Snapshot-fed generation therefore receives the same
+  authority; publication history remains unchanged.
 
 ## Smart Timetable Stage 5.2 Components
 

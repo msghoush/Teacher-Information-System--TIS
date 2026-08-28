@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import is_default_homeroom_subject
+from planning_subject_demand_service import resolve_scope_subject_demands
 from subject_distribution_rules import resolve_subject_distribution_rule
 
 
@@ -72,6 +73,12 @@ def _build_planning_component(
         ).order_by(models.Teacher.id.asc()).all()
     ]
     section_ids = [int(section.id) for section in sections]
+    resolved_demands = resolve_scope_subject_demands(
+        db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        planning_section_ids=section_ids,
+    )
     assignments = (
         db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.planning_section_id.in_(section_ids)
@@ -89,12 +96,10 @@ def _build_planning_component(
         and assignment.teacher_id is not None
         and str(assignment.subject_code or "").strip()
     }
-    subjects_by_grade: dict[str, list] = {}
-    for subject in subjects:
-        code = str(subject.subject_code or "").strip().upper()
-        if not code:
-            continue
-        subjects_by_grade.setdefault(_grade_label(subject.grade), []).append(subject)
+    subjects_by_code = {
+        str(subject.subject_code or "").strip().upper(): subject
+        for subject in subjects if str(subject.subject_code or "").strip()
+    }
 
     section_payloads = []
     demand_payloads = []
@@ -113,8 +118,13 @@ def _build_planning_component(
                 ),
             }
         )
-        for subject in subjects_by_grade.get(grade_label, []):
-            subject_code = str(subject.subject_code or "").strip().upper()
+        for demand in resolved_demands.get(int(section.id), []):
+            if not demand.is_active or int(demand.weekly_periods or 0) <= 0:
+                continue
+            subject_code = demand.subject_code
+            subject = subjects_by_code.get(subject_code)
+            if subject is None:
+                continue
             teacher_id = explicit_teacher.get((int(section.id), subject_code))
             assignment_source = "planning"
             if (
@@ -143,9 +153,7 @@ def _build_planning_component(
                     "section_id": int(section.id),
                     "subject_id": int(subject.id),
                     "subject_code": subject_code,
-                    # Compatibility authority: one current weekly hour is one
-                    # required timetable teaching period.
-                    "required_weekly_periods": int(subject.weekly_hours or 0),
+                    "required_weekly_periods": int(demand.weekly_periods),
                     "assigned_teacher_id": teacher_id,
                     "assignment_source": assignment_source,
                     # None means legacy fallback: no normalized rule is
