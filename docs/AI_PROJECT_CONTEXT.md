@@ -18,6 +18,27 @@ configured Swimming sections simultaneous without weakening section, teacher, or
 shared-resource protection. The independent validator repeats every new hard check.
 Regeneration diversity remains configurable with a 25 percent default.
 
+## Subject Distribution Rules Foundation
+
+A normalized `subject_distribution_rules` table (migration
+`20260828_003_subject_distribution_rules_foundation`) now exists alongside
+`quality_rules_json` without replacing it. Rows are scoped `branch_default`,
+`grade`, or `section` per branch/academic year, with block/single counts, min
+teaching days, max periods per day, daily-coverage/spread/consecutive
+preferences, an optional min day gap, and a hard/soft strictness flag.
+`subject_distribution_rules.py` resolves section-over-grade-over-branch-default
+precedence with field-level inheritance for nullable fields, and returns `None`
+when no normalized row exists so the caller keeps today's `quality_rules_json`
+behavior unchanged. `subject_distribution_validator.py` is a pure arithmetic and
+feasibility check confirming `block_count * block_length + single_count` equals
+the authoritative Planning weekly total and that day/period limits are
+feasible. `timetable_slot_service.py` now marks each composed teaching period
+with true physical adjacency to its next period, false whenever a Break,
+Prayer, or other non-teaching item is composed between them, so future
+intentional-block enforcement can rely on genuine continuity rather than raw
+period-index arithmetic. None of this is yet wired into CP-SAT, the
+independent validator, or the settings UI.
+
 ## Smart Timetable Stage 5.2
 
 Stage 5.2 presents Configure, Generate Draft, Review/Edit Draft, and Publish to Users

@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Subject Distribution Rules Foundation
+
+- Added the normalized `subject_distribution_rules` table (migration
+  `20260828_003_subject_distribution_rules_foundation`) scoped branch default,
+  grade, or section, alongside the existing `quality_rules_json` authority.
+- Added a pure hierarchy resolver (section over grade over branch default, with
+  field-level inheritance) and a pure arithmetic/feasibility validator confirming
+  configured block/single distributions match the authoritative Planning weekly
+  total.
+- Corrected the canonical composed timeline to mark true physical period
+  adjacency, false across a Break, Prayer, or other non-teaching item, so a
+  later intentional-block feature can rely on genuine continuity.
+- No existing CP-SAT, independent validator, readiness, or settings-UI behavior
+  changed; every existing tenant continues on current `quality_rules_json`
+  behavior until normalized rules are explicitly configured.
+
 ## 2026-08-28 - Added Smart Timetable Academic Scheduling Quality
 
 - Added branch/year settings and migration-backed JSON authority for core, spread,

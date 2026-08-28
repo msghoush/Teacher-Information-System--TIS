@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Project State
 
+## Subject Distribution Rules Foundation Implemented
+
+Migration `20260828_003_subject_distribution_rules_foundation` adds the normalized
+`subject_distribution_rules` table (branch/grade/section scope, block/single counts,
+min teaching days, max periods per day, daily-coverage/spread/consecutive
+preferences, min day gap, hard/soft strictness). `subject_distribution_rules.py`
+resolves section-then-grade-then-branch-default precedence with field-level
+inheritance and returns `None` for legacy fallback when nothing is configured.
+`subject_distribution_validator.py` independently checks the Planning-weekly-total
+arithmetic and day/period feasibility. `timetable_slot_service.py` now marks true
+physical period adjacency (false across a Break, Prayer, or other non-teaching
+item) so a later intentional-block feature can rely on genuine continuity. No
+existing solver, validator, readiness, or settings-UI behavior changed, and
+`quality_rules_json` remains the active authority for every tenant.
+
 ## Smart Timetable Academic Scheduling Quality Implemented
 
 Timetable Settings persist branch/year subject-code mappings and grouped Swimming

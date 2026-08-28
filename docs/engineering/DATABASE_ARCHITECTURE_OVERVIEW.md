@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Subject Distribution Rules Foundation
+
+`subject_distribution_rules`, added by migration
+`20260828_003_subject_distribution_rules_foundation`, is a normalized table scoped
+`branch_default`, `grade`, or `section` per branch/academic year, with partial
+unique indexes enforcing exactly one row per scope tier. It coexists with
+`TimetableSetting.quality_rules_json`; an absent normalized row means the existing
+JSON authority applies unchanged for that scope. No snapshot, CP-SAT, validator, or
+readiness wiring exists yet.
+
 ## Timetable Academic Quality Configuration
 
 `TimetableSetting.quality_rules_json`, added by migration
