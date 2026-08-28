@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-28 - Primary Draft Workflow And Meaningful Regeneration
+
+- Grouped Regenerate, Approve Draft, and Publish Timetable in the primary Draft area
+  while keeping deletion, archive, comparison, and version exports in History.
+- Replaced the capped regeneration difference with 25 percent of unlocked source
+  placements, rounded up, while preserving locks and all existing hard constraints.
+- Added a controlled insufficient-diversity result instead of silently accepting an
+  almost-identical timetable.
+
 ## 2026-08-28 - Explicit Draft Approval Before Publication
 
 - Replaced customer-facing Check Timetable with Approve Draft and Draft Approved.

@@ -26,6 +26,8 @@ Timetable, readiness, Generate or Regenerate, Approve Draft, and Publish Timetab
 Generation creates an unapproved draft. Approval records the reviewing administrator
 only after exact-version validation, every content or authority change invalidates
 approval, and publication revalidates before changing the active pointer.
+Regenerate, Approve Draft, and Publish Timetable now occupy one primary Draft workflow
+area; History retains destructive and technical version actions.
 Technical lifecycle controls and permanent unpublished cleanup are secondary
 Timetable History features. Draft deletion uses `timetable.delete_versions` and
 permanently removes eligible never-published versions without moving the active pointer;
@@ -46,6 +48,8 @@ constraints, Planning/HRT teacher authority, canonical teaching slots, and fixed
 locks. A solver-independent validator and final fingerprint/source-revision check
 gate atomic creation of one unpublished `publication_ready` version. Regeneration
 keeps its source unchanged and enforces the approved unlocked-lesson difference.
+The default regeneration difference is 25 percent of unlocked source placements,
+rounded up. Infeasible diversity is reported explicitly without weakening hard rules.
 The active/published pointer is never changed by generation.
 
 Migration `20260822_001_smart_timetable_stage51_generator` adds progress, attempts,

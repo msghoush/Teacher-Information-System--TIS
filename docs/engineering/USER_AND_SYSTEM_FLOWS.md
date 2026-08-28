@@ -13,12 +13,15 @@ source_of_truth: true
 2. Generate and Regenerate operate against that current draft context; Regenerate retains Stage 5.1 locks and concurrency.
 3. Approve Draft validates that exact draft and records the reviewing administrator;
    generation alone never grants approval.
+   Regenerate is presented beside Approve Draft and requires at least 25 percent of
+   unlocked source placements to change, rounded up.
 4. Any placement, drag/drop, swap, lock, regeneration, or stale authority change
    invalidates approval and requires review again.
 5. Publish Timetable requires approval, revalidates the draft, atomically makes it
    official, and retains the prior publication in history.
 6. `/my-timetable` resolves exact-scope teacher identity, reads only the active pointer,
    and filters to that teacher. View-only non-teachers use the general published page.
+   Destructive and technical version actions remain in Timetable History.
 
 ## Generate And Regenerate Timetable Flow
 

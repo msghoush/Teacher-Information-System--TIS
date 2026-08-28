@@ -44,6 +44,10 @@ not approval. Any later placement
 or lock mutation returns it to `draft`. Publication locks the version and exact-scope
 active pointer, checks edit/pointer revisions, reruns validation, supersedes the
 previous active version, updates the pointer, and records actor/time atomically.
+Regeneration preserves locked placements and requires the ceiling of 25 percent of
+unlocked direct-source placements to change. If that hard diversity target is
+infeasible, the run terminates with an explicit safe result; existing timetable hard
+constraints are never weakened and no near-identical fallback is persisted.
 Active status remains derived from the pointer rather than duplicated on the version.
 
 `TimetableGenerationRun` is the durable PostgreSQL queue and reserves scope,

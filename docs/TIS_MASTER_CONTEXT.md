@@ -865,6 +865,10 @@ for the exact draft revision. Generation does not approve; placement, lock, rege
 successor, and stale-authority changes invalidate approval. Publication requires an
 approved fresh `publication_ready` draft, revalidates it, and atomically swaps the
 revisioned active pointer while superseding prior active history.
+The main Draft workspace groups Regenerate, Approve Draft, and Publish Timetable;
+technical and destructive version controls remain secondary in History. Regeneration
+requires `ceil(25% * unlocked placements)` changes from its direct source and fails
+with a controlled diversity result when no valid alternative reaches that threshold.
 
 Placement actions use separate create/edit/delete permissions. Locks use
 `timetable.lock_lessons`, publication uses `timetable.publish`, archive uses
