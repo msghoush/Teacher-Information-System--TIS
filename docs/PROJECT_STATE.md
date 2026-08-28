@@ -9,10 +9,12 @@ source_of_truth: true
 
 ## Subject Scheduling Rules UI Implemented
 
-The Timetable Settings page presents a Subject Scheduling Rules table sourced
-automatically from Planning subjects (Grade, Subject, read-only Weekly,
-Distribution, Min Days, Max/Day, Status, Action), an Edit panel with
-plain-language fields and live arithmetic validation, a Section Overrides list
+The Timetable Settings page presents a grade-first Subject Scheduling Rules table
+sourced automatically from Planning. Only the selected grade's compact Subject,
+read-only Weekly, Current Pattern, Status, and Edit columns are shown, with optional
+subject search. Edit opens a Subject + Grade modal with double-block/single-session
+steppers, automatic total validation, combinable conditions, two-period session
+presets, and progressively disclosed advanced settings. A Section Overrides list
 preserving Stage 1 section-over-grade-over-branch-default precedence, Copy
 Rules From Grade (name-matched across grades, skipping arithmetic mismatches),
 and Reset To Default (removes only the grade-level row). New routes
@@ -20,8 +22,9 @@ and Reset To Default (removes only the grade-level row). New routes
 (save/reset/clear-override/copy) reuse the existing `timetable.manage_settings`
 permission, remain tenant/branch/year-scoped, and never mutate Planning
 weekly totals. `subject_distribution_rules_ui.py` re-validates arithmetic and
-feasibility authoritatively before any write. The existing raw Swimming/grouped
-JSON editor and Non-Teaching Blocks management are unchanged. Newly
+feasibility authoritatively before any write. Existing legacy subject-code mappings
+and Swimming/grouped JSON remain unchanged but are collapsed inside an Advanced /
+Legacy area; Non-Teaching Blocks management is unchanged. Newly
 saved/updated rules take effect the next time a Draft Timetable snapshot is
 created, through the unchanged Stage 2 resolution/snapshot pipeline; no
 already-created snapshot is altered.

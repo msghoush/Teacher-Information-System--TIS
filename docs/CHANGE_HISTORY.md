@@ -9,11 +9,13 @@ source_of_truth: true
 
 ## 2026-08-28 - Subject Scheduling Rules UI
 
-- Added a Subject Scheduling Rules section to Timetable Settings listing every
-  Grade + Subject from Planning with read-only weekly totals, a plain-language
-  distribution summary, min-days/max-per-day, and Configured/Default status.
-- Added an edit panel with plain-language fields, live client-side arithmetic
-  validation of blocks/singles against the Planning weekly total, and
+- Added a grade-first Subject Scheduling Rules section to Timetable Settings;
+  administrators select one grade and can search its compact subject list with
+  read-only Planning totals, current patterns, and Configured/Default status.
+- Added a modal editor with double-block and single-session steppers, two-period
+  Separate Sessions / Consecutive Double Block presets, combinable primary
+  conditions, progressively disclosed advanced options, live client-side arithmetic
+  validation against the Planning weekly total, and
   authoritative backend re-validation on save (`subject_distribution_rules_ui.py`).
 - Added Section Overrides (create/edit/clear per section), Reset To Default
   (removes only the grade-level row), and Copy Rules From Grade (subjects
@@ -22,7 +24,8 @@ source_of_truth: true
 - Added routes under `/system-configuration/timetable-settings/subject-rules`
   reusing the existing `timetable.manage_settings` permission and remaining
   tenant/branch/year-scoped; Planning weekly totals are never mutated.
-- Preserved the existing raw Swimming/grouped-activity JSON editor,
+- Preserved the existing subject-code mappings and raw Swimming/grouped-activity
+  JSON editor behind a secondary Advanced / Legacy disclosure,
   Non-Teaching Blocks management, and the unchanged Stage 2
   snapshot/solver/validator pipeline; saved rules apply to the next created
   snapshot only.

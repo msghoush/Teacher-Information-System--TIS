@@ -9,15 +9,17 @@ recommended_first_read: true
 
 ## Subject Scheduling Rules UI
 
-Timetable Settings now presents a Subject Scheduling Rules section that lists
-every Grade + Subject from current Planning with its read-only weekly total,
-plain-language distribution summary, min-days/max-per-day, and a Configured or
-"Using Default Scheduling Rules" status. Editing opens a shared panel with
-plain-language fields (blocks, block length, singles, minimum teaching days,
-maximum periods per day, daily coverage, spread, avoid-consecutive, minimum day
-gap, and Preference/Hard rule strictness) and live client-side arithmetic
-validation of `block_count x block_length + single_count` against the Planning
-total; `subject_distribution_rules_ui.py` re-validates authoritatively on save
+Timetable Settings now presents a grade-first Subject Scheduling Rules section:
+an administrator selects one grade, can search its compact subject list, and sees
+each Planning weekly total, current pattern, and configured/default status without
+raw subject codes. Editing opens a modal headed by Subject + Grade and the
+read-only Planning total. Double-block and single-session steppers, including
+two-period Separate Sessions and Consecutive Double Block quick choices, calculate
+the configured total automatically. Multiple primary conditions can be combined;
+minimum teaching days, strictness, and section overrides remain progressively
+disclosed. Legacy subject-code mappings and Swimming JSON remain available only
+inside a secondary Advanced / Legacy area. `subject_distribution_rules_ui.py`
+re-validates the fixed two-period block arithmetic authoritatively on save
 using the Stage 1 validator. Saving creates or updates only the intended
 Grade+Subject (`scope_level="grade"`) row, or a specific section override when
 a section is selected from the panel's Section Overrides list. Reset To

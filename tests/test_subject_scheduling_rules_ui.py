@@ -50,7 +50,7 @@ def test_creating_grade_level_rule(db):
     assert row.block_count == 1 and row.single_count == 2
     rows = ui.list_subject_scheduling_rows(db, 10, 100)
     assert rows[0]["status_label"] == "Configured"
-    assert rows[0]["distribution_summary"] == "1 2-period block + 2 singles"
+    assert rows[0]["distribution_summary"] == "1 double block + 2 singles"
 
 
 def test_editing_existing_rule_updates_same_row_not_a_duplicate(db):
@@ -185,7 +185,7 @@ def test_pe_swimming_block_configuration(db):
     )
     assert errors == []
     rows = {row["subject_code"]: row for row in ui.list_subject_scheduling_rows(db, 10, 100)}
-    assert rows["PE"]["distribution_summary"] == "1 2-period block"
+    assert rows["PE"]["distribution_summary"] == "1 double block"
 
 
 def test_english_8_period_example(db):
@@ -201,7 +201,7 @@ def test_english_8_period_example(db):
     )
     assert errors == []
     rows = {row["subject_code"]: row for row in ui.list_subject_scheduling_rows(db, 10, 100)}
-    assert rows["ENG"]["distribution_summary"] == "2 2-period blocks + 4 singles"
+    assert rows["ENG"]["distribution_summary"] == "2 double blocks + 4 singles"
     assert rows["ENG"]["min_teaching_days"] == 5
     assert rows["ENG"]["max_periods_per_day"] == 2
 
@@ -265,6 +265,60 @@ def test_existing_timetable_settings_route_still_renders(db, monkeypatch):
     html = response.body.decode("utf-8")
     assert "Subject Scheduling Rules" in html
     assert "Non-Teaching Blocks" in html
+
+
+def test_professional_grade_first_editor_contract_renders(db, monkeypatch):
+    user = db.query(models.User).filter_by(user_id="U1").one()
+    user.scope_school_group_id = 1
+    user.scope_branch_id = 10
+    user.scope_academic_year_id = 100
+    monkeypatch.setattr(main, "_get_configuration_access", lambda request, session: (user, None))
+    monkeypatch.setattr(main.auth, "has_permission", lambda *args, **kwargs: True)
+    monkeypatch.setattr(main.auth, "has_any_permission", lambda *args, **kwargs: True)
+    monkeypatch.setattr(main.auth, "is_platform_user", lambda *args, **kwargs: False)
+    monkeypatch.setattr(main.auth, "get_allowed_permission_keys", lambda *args, **kwargs: {"timetable.manage_settings"})
+
+    response = main.system_configuration_timetable_settings(
+        _request("/system-configuration/timetable-settings"), db
+    )
+    html = response.body.decode("utf-8")
+    assert 'id="grade-filter-select"' in html
+    assert 'id="subject-filter-search"' in html
+    assert 'id="subject-rules-table-wrap" hidden' in html
+    assert '<dialog id="subject-rule-dialog">' in html
+    assert "dialog.showModal()" in html
+    assert "titleEl.textContent = subjectName" in html
+    assert "fillFormFromRule(effective, weekly)" in html
+    assert "Double Blocks" in html and "Single Sessions" in html
+    assert "Separate Sessions" in html and "Consecutive Double Block" in html
+    assert "Choose as many conditions as this subject needs." in html
+    assert "Advanced / Legacy Subject Mappings" in html
+    assert "name=\"block_length\" value=\"2\"" in html
+    assert "rule_block_length" not in html
+
+
+def test_multiple_conditions_persist_together(db):
+    errors = ui.save_subject_distribution_rule(
+        db, branch_id=10, academic_year_id=100, grade_level="1", subject_code="MAT",
+        section_id=None,
+        fields={
+            "block_count": "1", "single_count": "2",
+            "require_daily_coverage": "always", "spread_distinct_days": "1",
+            "avoid_consecutive": "1", "max_periods_per_day": "2",
+            "min_teaching_days": "2", "strictness": "hard",
+        },
+        teaching_day_count=2, actor_user_id="U1",
+    )
+    assert errors == []
+    row = db.query(models.SubjectDistributionRule).filter_by(
+        branch_id=10, academic_year_id=100, scope_level="grade", subject_code="MAT",
+    ).one()
+    assert row.require_daily_coverage == "always"
+    assert row.spread_distinct_days is True
+    assert row.avoid_consecutive is True
+    assert row.max_periods_per_day == 2
+    assert row.min_teaching_days == 2
+    assert row.strictness == "hard"
 
 
 def test_save_route_persists_rule_end_to_end(db, monkeypatch):
