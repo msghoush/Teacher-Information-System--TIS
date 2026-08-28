@@ -1,4 +1,5 @@
 import concurrent.futures
+from datetime import datetime
 import os
 import threading
 import time
@@ -9,6 +10,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 import models
+from timetable_logic import build_timetable_workspace_payload
 from timetable_publication_service import (
     TimetableDraftValidationService,
     TimetablePublicationService,
@@ -68,11 +70,15 @@ def test_copy_preserves_source_placements_locks_and_provenance(db):
 def test_lock_unlock_refreshes_authority_and_locked_lesson_cannot_change(db):
     draft = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100)
     entry = mutate_draft_placement(db, version=draft, planning_section_id=2000, day_key="monday", period_index=1, subject_code="MAT", teacher_id=1000)
+    draft.approved_at = datetime.utcnow()
+    draft.approved_by_user_id = "U1"
     old_snapshot = draft.input_snapshot_id
     revision = draft.edit_revision
     set_entry_lock(db, version=draft, entry=entry, is_locked=True, actor_user_id="U1", expected_edit_revision=revision)
     assert entry.is_locked is True
     assert draft.input_snapshot_id != old_snapshot
+    assert draft.approved_at is None
+    assert draft.approved_by_user_id is None
     with pytest.raises(TimetableVersionError, match="Unlock"):
         mutate_draft_placement(db, version=draft, planning_section_id=2000, day_key="monday", period_index=1, subject_code=None, teacher_id=None)
     set_entry_lock(db, version=draft, entry=entry, is_locked=False, actor_user_id="U1", expected_edit_revision=draft.edit_revision)
@@ -94,24 +100,84 @@ def test_lock_and_edit_revision_fail_closed_on_immutable_or_stale_browser(db):
 
 def test_complete_draft_validates_and_subsequent_edit_returns_to_draft(db):
     draft = _complete_draft(db)
-    result = TimetableDraftValidationService(db).validate(version=draft, expected_edit_revision=0, transition=True)
+    assert draft.approved_at is None
+    assert draft.approved_by_user_id is None
+    result = TimetableDraftValidationService(db).validate(version=draft, expected_edit_revision=0, transition=True, actor_user_id="U1")
     assert result["valid"] is True
     assert draft.lifecycle_status == "publication_ready"
+    assert draft.approved_at is not None
+    assert draft.approved_by_user_id == "U1"
+    approved_payload = build_timetable_workspace_payload(
+        db, branch_id=10, academic_year_id=100, version_id=draft.id
+    )
+    assert approved_payload["version"]["id"] == draft.id
+    assert approved_payload["version"]["is_approved"] is True
     mutate_draft_placement(db, version=draft, planning_section_id=2000, day_key="monday", period_index=1, subject_code="MAT", teacher_id=1000, expected_edit_revision=0)
     assert draft.lifecycle_status == "draft"
+    assert draft.approved_at is None
+    assert draft.approved_by_user_id is None
+
+
+def test_publish_requires_explicit_approval_and_failed_revalidation_clears_it(db):
+    draft = _complete_draft(db)
+    draft.lifecycle_status = "publication_ready"
+    db.flush()
+    with pytest.raises(TimetableVersionError) as unapproved:
+        TimetablePublicationService(db).publish(
+            version_id=draft.id, school_group_id=1, branch_id=10,
+            academic_year_id=100, actor_user_id="U1",
+            expected_edit_revision=0, expected_pointer_revision=0,
+        )
+    assert unapproved.value.code == "draft_not_approved"
+
+    draft.approved_at = datetime.utcnow()
+    draft.approved_by_user_id = None
+    with pytest.raises(TimetableVersionError) as missing_actor:
+        TimetablePublicationService(db).publish(
+            version_id=draft.id, school_group_id=1, branch_id=10,
+            academic_year_id=100, actor_user_id="U1",
+            expected_edit_revision=0, expected_pointer_revision=0,
+        )
+    assert missing_actor.value.code == "draft_not_approved"
+    draft.approved_at = None
+
+    assert TimetableDraftValidationService(db).validate(
+        version=draft, expected_edit_revision=0, transition=True,
+        actor_user_id="U1",
+    )["valid"]
+    db.query(models.Subject).filter_by(id=3000).one().weekly_hours = 5
+    db.flush()
+    with pytest.raises(TimetableVersionError) as invalid:
+        TimetablePublicationService(db).publish(
+            version_id=draft.id, school_group_id=1, branch_id=10,
+            academic_year_id=100, actor_user_id="U1",
+            expected_edit_revision=0, expected_pointer_revision=0,
+        )
+    assert invalid.value.code == "publication_validation_failed"
+    assert draft.approved_at is None
+    assert draft.approved_by_user_id is None
+    assert draft.lifecycle_status == "draft"
+    assert draft.is_stale is True
+    assert db.query(models.TimetableActiveVersion).count() == 0
 
 
 def test_incomplete_stale_and_blocked_drafts_fail_validation(db):
     incomplete = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100)
-    result = TimetableDraftValidationService(db).validate(version=incomplete, transition=True)
+    result = TimetableDraftValidationService(db).validate(version=incomplete, transition=True, actor_user_id="U1")
     assert result["valid"] is False
     assert "demand_incomplete" in {item["code"] for item in result["blockers"]}
     db.rollback()
 
     stale = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100)
+    stale.approved_at = datetime.utcnow()
+    stale.approved_by_user_id = "U1"
     db.query(models.Subject).filter_by(id=3000).one().weekly_hours = 5
-    result = TimetableDraftValidationService(db).validate(version=stale)
+    result = TimetableDraftValidationService(db).validate(
+        version=stale, transition=True, actor_user_id="U1"
+    )
     assert "stale_input" in {item["code"] for item in result["blockers"]}
+    assert stale.approved_at is None
+    assert stale.approved_by_user_id is None
     db.rollback()
 
     blocked = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100)
@@ -127,7 +193,7 @@ def test_publish_swaps_pointer_supersedes_previous_and_makes_new_active_immutabl
     previous = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100, origin="imported")
     previous.lifecycle_status = "publication_ready"; set_imported_active_pointer(db, version=previous)
     draft = _complete_draft(db)
-    assert TimetableDraftValidationService(db).validate(version=draft, transition=True)["valid"]
+    assert TimetableDraftValidationService(db).validate(version=draft, transition=True, actor_user_id="U1")["valid"]
     published = TimetablePublicationService(db).publish(
         version_id=draft.id, school_group_id=1, branch_id=10, academic_year_id=100,
         actor_user_id="U1", expected_edit_revision=draft.edit_revision, expected_pointer_revision=0,
@@ -144,7 +210,7 @@ def test_publish_swaps_pointer_supersedes_previous_and_makes_new_active_immutabl
 
 def test_publish_rejects_pointer_conflict_wrong_scope_and_incomplete(db):
     draft = _complete_draft(db)
-    TimetableDraftValidationService(db).validate(version=draft, transition=True)
+    TimetableDraftValidationService(db).validate(version=draft, transition=True, actor_user_id="U1")
     with pytest.raises(TimetableVersionError) as conflict:
         TimetablePublicationService(db).publish(version_id=draft.id, school_group_id=1, branch_id=10, academic_year_id=100, actor_user_id="U1", expected_edit_revision=0, expected_pointer_revision=9)
     assert conflict.value.code == "pointer_revision_conflict"
@@ -190,7 +256,8 @@ def test_stage4_ui_and_permissions_are_declared():
     template = open("templates/timetable.html", encoding="utf-8").read()
     permissions = open("permission_registry.py", encoding="utf-8").read()
     assert "Use as New Draft" in template
-    assert "Check Timetable" in template
+    assert "Check Timetable" not in template
+    assert "Approve Draft" in template
     assert "Publish Timetable" in template
     assert "Export This Version" in template
     assert "Timetable Readiness" in template
@@ -259,7 +326,7 @@ def _pg_ready_version(db, *, origin="manual"):
     ))
     db.flush()
     assert TimetableDraftValidationService(db).validate(
-        version=version, expected_edit_revision=0, transition=True
+        version=version, expected_edit_revision=0, transition=True, actor_user_id="U1"
     )["valid"]
     return version
 
@@ -395,7 +462,7 @@ def test_postgresql_publication_blocks_waiting_lock_and_archive(pg_stage4, desir
         )
         expected_revision = 1
         assert TimetableDraftValidationService(prepare).validate(
-            version=candidate, expected_edit_revision=expected_revision, transition=True
+            version=candidate, expected_edit_revision=expected_revision, transition=True, actor_user_id="U1"
         )["valid"]
         prepare.commit()
         prepare.close()
@@ -469,7 +536,7 @@ def test_postgresql_validation_cannot_overwrite_winning_edit(pg_stage4):
             version = db.get(models.TimetableVersion, candidate_id)
             started.set()
             TimetableDraftValidationService(db).validate(
-                version=version, expected_edit_revision=0, transition=True
+                version=version, expected_edit_revision=0, transition=True, actor_user_id="U1"
             )
             db.commit()
             return "committed"

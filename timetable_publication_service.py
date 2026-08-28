@@ -9,6 +9,7 @@ import models
 from timetable_snapshot_service import build_current_snapshot_data
 from timetable_version_service import (
     TimetableVersionError,
+    clear_draft_approval,
     is_active_version,
     lock_mutable_version,
     lock_scoped_version,
@@ -47,6 +48,7 @@ class TimetableDraftValidationService:
         version: models.TimetableVersion,
         expected_edit_revision: int | None = None,
         transition: bool = False,
+        actor_user_id: str | None = None,
     ) -> dict:
         if transition:
             version = lock_mutable_version(
@@ -129,9 +131,19 @@ class TimetableDraftValidationService:
                 unique.append(item)
         valid = not unique
         if transition:
+            if valid and not actor_user_id:
+                raise TimetableVersionError(
+                    "approval_actor_required",
+                    "A signed-in administrator is required to approve this draft.",
+                )
             version.lifecycle_status = "publication_ready" if valid else "draft"
             version.is_stale = any(item["code"] == "stale_input" for item in unique)
             version.stale_reason_json = "[\"input_changed\"]" if version.is_stale else "[]"
+            if valid:
+                version.approved_at = datetime.utcnow()
+                version.approved_by_user_id = actor_user_id
+            else:
+                clear_draft_approval(version)
             version.updated_at = datetime.utcnow()
             self.db.flush()
         return {
@@ -170,11 +182,21 @@ class TimetablePublicationService:
                 "The active timetable is already published and cannot be published again in place.",
             )
         if version.lifecycle_status != "publication_ready":
-            raise TimetableVersionError("not_publication_ready", "Validate this draft successfully before publishing it.")
+            raise TimetableVersionError("not_publication_ready", "Approve this draft before publishing it.")
+        if version.approved_at is None or not version.approved_by_user_id:
+            raise TimetableVersionError("draft_not_approved", "Approve this draft successfully before publishing it.")
         validation = TimetableDraftValidationService(self.db).validate(version=version, expected_edit_revision=expected_edit_revision)
         if not validation["valid"]:
             version.lifecycle_status = "draft"
-            raise TimetableVersionError("publication_validation_failed", validation["blockers"][0]["message"])
+            version.is_stale = any(item["code"] == "stale_input" for item in validation["blockers"])
+            version.stale_reason_json = '["input_changed"]' if version.is_stale else "[]"
+            clear_draft_approval(version)
+            version.updated_at = datetime.utcnow()
+            self.db.flush()
+            raise TimetableVersionError(
+                "publication_validation_failed",
+                f"{validation['blockers'][0]['message']} Review and approve this draft again.",
+            )
 
         pointer = self.db.query(models.TimetableActiveVersion).filter(
             models.TimetableActiveVersion.school_group_id == school_group_id,

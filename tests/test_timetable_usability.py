@@ -106,6 +106,8 @@ def test_history_view_payload_opens_exact_version_without_changing_active_pointe
 
 def test_move_to_empty_valid_slot_increments_revision(db):
     version = _version(db)
+    version.approved_at = datetime.utcnow()
+    version.approved_by_user_id = "U1"
     lesson = _entry(db, version)
     action = move_or_swap_timetable_entry(
         db, version=version, entry_id=lesson.id, destination_section_id=2000,
@@ -116,6 +118,8 @@ def test_move_to_empty_valid_slot_increments_revision(db):
     assert (lesson.day_key, lesson.period_index) == ("tuesday", 2)
     assert version.edit_revision == 1
     assert version.lifecycle_status == "draft"
+    assert version.approved_at is None
+    assert version.approved_by_user_id is None
 
 
 def test_teacher_conflict_and_locked_lesson_are_rejected(db):
@@ -172,6 +176,8 @@ def test_non_teaching_destination_and_published_version_are_rejected(db):
 
 def test_valid_swap_succeeds_and_invalid_swap_changes_neither_lesson(db):
     version = _version(db)
+    version.approved_at = datetime.utcnow()
+    version.approved_by_user_id = "U1"
     first = _entry(db, version, teacher=1000, day="monday", period=1)
     second = _entry(db, version, teacher=1001, day="monday", period=2)
     assert move_or_swap_timetable_entry(
@@ -179,6 +185,8 @@ def test_valid_swap_succeeds_and_invalid_swap_changes_neither_lesson(db):
         destination_day_key="monday", destination_period_index=2,
     ) == "swapped"
     assert (first.period_index, second.period_index) == (2, 1)
+    assert version.approved_at is None
+    assert version.approved_by_user_id is None
 
     third = _entry(db, version, section=2001, teacher=1001, day="tuesday", period=2)
     first.day_key, first.period_index = "tuesday", 2

@@ -22,7 +22,10 @@ optional/local only rather than a production service.
 ## Smart Timetable Stage 5.2 Simplified Workflow Implemented
 
 The manager workspace now emphasizes Create New Timetable, one current Draft
-Timetable, readiness, Generate or Regenerate, Check Timetable, and Publish Timetable.
+Timetable, readiness, Generate or Regenerate, Approve Draft, and Publish Timetable.
+Generation creates an unapproved draft. Approval records the reviewing administrator
+only after exact-version validation, every content or authority change invalidates
+approval, and publication revalidates before changing the active pointer.
 Technical lifecycle controls and permanent unpublished cleanup are secondary
 Timetable History features. Draft deletion uses `timetable.delete_versions` and
 permanently removes eligible never-published versions without moving the active pointer;
@@ -31,7 +34,8 @@ historical archive remains a separate History-only action.
 Published-only `/my-timetable` and `/published-timetable` views resolve exclusively
 from `TimetableActiveVersion`. My Timetable fails closed without exact-scope teacher
 identity and filters to that teacher. `timetable.view`-only users are redirected away
-from management. No solver constraint, schema, migration, or production data changed.
+from management. Migration `20260828_001_smart_timetable_stage52_draft_approval`
+adds nullable approval timestamp and actor provenance; solver behavior is unchanged.
 
 ## Smart Timetable Stage 5.1 Generator Implemented
 

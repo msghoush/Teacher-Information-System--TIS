@@ -1,6 +1,8 @@
+import inspect
 from types import SimpleNamespace
 
 import models
+from db_migrations import _smart_timetable_stage52_draft_approval
 from timetable_version_service import (
     TimetableVersionError,
     create_manual_draft,
@@ -106,7 +108,17 @@ def test_stage52_customer_language_and_permissions():
     template = open("templates/timetable.html", encoding="utf-8").read()
     published = open("templates/published_timetable.html", encoding="utf-8").read()
     permissions = open("permission_registry.py", encoding="utf-8").read()
-    for label in ("Check Timetable", "Draft Timetable", "Ready to Publish", "Published", "Timetable History", "Delete Draft Timetable"):
+    for label in ("Approve Draft", "Draft Timetable", "Draft Approved", "Published", "Timetable History", "Delete Draft Timetable"):
         assert label in template or label in published
+    assert "Check Timetable" not in template
     assert "Validate Draft" not in template
     assert "timetable.delete_working" in permissions
+
+
+def test_draft_approval_schema_and_migration_use_user_public_id_foreign_key():
+    column = models.TimetableVersion.__table__.c.approved_by_user_id
+    assert column.type.length == 10
+    assert {fk.target_fullname for fk in column.foreign_keys} == {"users.user_id"}
+    migration = inspect.getsource(_smart_timetable_stage52_draft_approval)
+    assert "fk_timetable_versions_approved_by_user" in migration
+    assert "FOREIGN KEY (approved_by_user_id) REFERENCES users (user_id)" in migration

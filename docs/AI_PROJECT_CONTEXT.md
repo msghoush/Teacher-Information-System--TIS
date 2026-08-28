@@ -12,8 +12,11 @@ recommended_first_read: true
 Stage 5.2 presents Configure, Generate Draft, Review/Edit Draft, and Publish to Users
 while retaining the Stage 2–5.1 version and solver internals.
 The primary workspace resolves one exact-scope mutable unpublished Draft Timetable,
-including a freshly created draft, and uses Check Timetable, Ready to Publish,
-Published, and Timetable History language.
+including a freshly created draft, and uses Approve Draft, Draft Approved,
+Published, and Timetable History language. Generation never approves a draft.
+Approval records the reviewing administrator and exact draft state; placement,
+lock, regeneration, and stale-authority changes invalidate it. Publication requires
+approval and repeats validation before atomically changing the active pointer.
 
 Delete Draft Timetable permanently removes an eligible never-published draft and
 preserves the active pointer. Timetable History may permanently delete every

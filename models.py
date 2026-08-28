@@ -895,6 +895,8 @@ class TimetableVersion(Base):
     authority_fingerprint = Column(String(64), nullable=False)
     is_stale = Column(Boolean, nullable=False, default=False)
     stale_reason_json = Column(Text, nullable=False, default="[]")
+    approved_at = Column(DateTime, nullable=True)
+    approved_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
     published_at = Column(DateTime, nullable=True)
     published_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
     superseded_at = Column(DateTime, nullable=True)

@@ -39,6 +39,12 @@ official timetable into an editable draft, and Create New Timetable, which creat
 fresh empty draft from current Planning/configuration authority. Both preserve the
 official timetable and active pointer until the draft is explicitly published.
 
+Approve Draft replaces Check Timetable in customer-facing workflow language. It
+validates the exact selected draft and records the administrator and approval time.
+Generated and regenerated results begin unapproved; placement, drag/drop, swap,
+lock, regeneration, or stale-authority changes clear approval. Publish requires a
+still-current approval and repeats validation before the existing atomic pointer swap.
+
 The published-only service resolves strictly from `TimetableActiveVersion`.
 `/my-timetable` uses exact-scope teacher identity and exposes only that teacher's
 official lessons. A general published page supports other view-only users. Management

@@ -6088,6 +6088,27 @@ def _smart_timetable_stage51_generator(engine, connection):
             )
 
 
+def _smart_timetable_stage52_draft_approval(engine, connection):
+    _add_column_if_missing(
+        connection, connection, "timetable_versions", "approved_at", "approved_at TIMESTAMP"
+    )
+    _add_column_if_missing(
+        connection, connection, "timetable_versions", "approved_by_user_id", "approved_by_user_id VARCHAR(10)"
+    )
+    if engine.dialect.name == "postgresql":
+        foreign_key_column_sets = {
+            tuple(item.get("constrained_columns") or [])
+            for item in inspect(connection).get_foreign_keys("timetable_versions")
+        }
+        if ("approved_by_user_id",) not in foreign_key_column_sets:
+            _execute(
+                connection,
+                "ALTER TABLE timetable_versions ADD CONSTRAINT "
+                "fk_timetable_versions_approved_by_user "
+                "FOREIGN KEY (approved_by_user_id) REFERENCES users (user_id)",
+            )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6318,6 +6339,11 @@ MIGRATIONS = (
         migration_id="20260822_001_smart_timetable_stage51_generator",
         description="Add durable smart timetable worker progress, recovery, cancellation, and active-scope queue guards",
         apply=_smart_timetable_stage51_generator,
+    ),
+    Migration(
+        migration_id="20260828_001_smart_timetable_stage52_draft_approval",
+        description="Track explicit Draft Timetable approval separately from generated readiness",
+        apply=_smart_timetable_stage52_draft_approval,
     ),
 )
 
