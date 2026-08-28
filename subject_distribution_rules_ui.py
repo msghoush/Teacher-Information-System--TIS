@@ -40,7 +40,8 @@ def describe_distribution(block_count: int, block_length: int, single_count: int
     parts = []
     if block_count:
         block_word = "block" if block_count == 1 else "blocks"
-        parts.append(f"{block_count} {block_length}-period {block_word}")
+        block_label = "double" if block_length == 2 else f"{block_length}-period"
+        parts.append(f"{block_count} {block_label} {block_word}")
     if single_count:
         parts.append(f"{single_count} single{'' if single_count == 1 else 's'}")
     return " + ".join(parts) if parts else "No sessions configured"

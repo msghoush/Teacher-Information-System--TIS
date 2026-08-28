@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Add the Subject Scheduling Rules Timetable Settings UI - a Planning-sourced Grade+Subject table, an edit panel with plain-language fields and live/authoritative arithmetic validation, section overrides, copy-from-grade, and reset-to-default, wired to the existing Stage 1/2 model, resolver, and validator without changing solver/validator/snapshot behavior or the legacy Swimming JSON editor.
+summary: Rework Subject Scheduling Rules into a professional grade-first, searchable Timetable Settings UI with a modal editor, double-block and single-session steppers, automatic total validation, multiple simultaneous conditions, two-period session presets, progressive disclosure for advanced and legacy settings, and unchanged Planning, persistence, solver, validator, snapshot, and grouped Swimming authority.
 affected_areas:
   - timetable
   - tests

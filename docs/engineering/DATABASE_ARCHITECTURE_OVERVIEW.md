@@ -14,6 +14,9 @@ creates, updates, resets, and copies `subject_distribution_rules` rows through
 the existing Stage 1 table and Stage 1/2 resolver/validator; Timetable
 Settings routes under `/system-configuration/timetable-settings/subject-rules`
 remain tenant/branch/year-scoped and reuse `timetable.manage_settings`.
+The grade-first modal, search, two-period presets, and progressive disclosure are
+presentation only; Planning totals, normalized rule persistence, legacy fallback,
+and grouped Swimming authority are unchanged.
 
 ## Subject Distribution Rules Generation Wiring
 
