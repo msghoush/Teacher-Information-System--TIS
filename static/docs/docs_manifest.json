@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-28T11:10:10.530916+03:00",
+  "generated_at": "2026-08-28T11:38:49.283283+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "3ad2437",
+  "commit_sha": "926301f",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "8f6f841c35bdf776aa22e6f17c1ece73603d358e974e6d46d15659725d5712bb",
-  "pdf_size_bytes": 981718,
+  "pdf_sha256": "fa24d5aa346807b1597be5a916b7959a928ae721417273b5dbb62fcda92678cc",
+  "pdf_size_bytes": 981862,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-28T11:09:50.202690+03:00",
-      "size_bytes": 74812,
-      "sha256": "5c38ffeffa35f25b814d1e13a5808aac2795fa466b05c6b37d0832ad72ce9d0b",
+      "modified_at": "2026-08-28T11:38:14.773424+03:00",
+      "size_bytes": 74973,
+      "sha256": "d83a9b2c582da50e1b7d4c1607663de02052a1e1d5707a211362f8fc4b95855d",
       "pdf_page": 15
     },
     {
@@ -46,16 +46,16 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-28T11:09:50.208775+03:00",
-      "size_bytes": 60292,
-      "sha256": "f8f927fa50f07d9fe0dac77b7eac8e953da715c0cc5e7897e60d1228e2e16423",
+      "modified_at": "2026-08-28T11:38:14.773424+03:00",
+      "size_bytes": 60428,
+      "sha256": "1a9836b36cd24035e4417e24058ffe97bd7348894ff6c24c50d2aa3d0bfd1cc0",
       "pdf_page": 60
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-28T11:09:50.210793+03:00",
-      "size_bytes": 114017,
-      "sha256": "f1b156861c596366f55953554522c8018df4286565c87028f80bc162c067c93e",
+      "modified_at": "2026-08-28T11:38:14.783090+03:00",
+      "size_bytes": 114312,
+      "sha256": "2406c8b9d946e8f1e416c026de04eb4fa268d2d1abdd9796c695c1578709897b",
       "pdf_page": 79
     },
     {
@@ -95,9 +95,9 @@
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-08-28T10:23:53.611048+03:00",
-      "size_bytes": 34728,
-      "sha256": "354b732919fce95c8abbf62ff71cc03031b63fdd32f56d6642bd38ee880600b9",
+      "modified_at": "2026-08-28T11:38:14.783090+03:00",
+      "size_bytes": 34998,
+      "sha256": "6033100996d72feb4289ebf47accf64f85606ae604a3539d05404254963b1b23",
       "pdf_page": 179
     },
     {

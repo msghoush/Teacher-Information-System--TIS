@@ -23,6 +23,7 @@ import auth
 import authorization
 import branding_storage
 import models
+from planning_scope_service import list_operational_planning_sections
 from dependencies import get_db
 from subject_colors import build_subject_theme, normalize_hex_color
 from ui_shell import build_shell_context, get_school_logo_slots
@@ -1120,13 +1121,9 @@ def _get_scope_options(db: Session, branch_id: int, academic_year_id: int):
         models.User.last_name.asc(),
         models.User.username.asc(),
     ).all()
-    sections = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == branch_id,
-        models.PlanningSection.academic_year_id == academic_year_id,
-    ).order_by(
-        models.PlanningSection.grade_level.asc(),
-        models.PlanningSection.section_name.asc(),
-    ).all()
+    sections = list_operational_planning_sections(
+        db, branch_id, academic_year_id,
+    )
     return teachers, users, sections
 
 

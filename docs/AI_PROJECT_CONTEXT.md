@@ -10,8 +10,10 @@ recommended_first_read: true
 ## Subject Scheduling Rules UI
 
 Timetable Settings now presents a grade-first Subject Scheduling Rules section:
-the main and copy-rule grade selectors derive only from `PlanningSection` grades
-in the selected branch and academic year, never from the global grade range or a
+`planning_scope_service.py` is the reusable operational selector authority. The
+main and copy-rule grade selectors, timetable workspace section filters, and
+calendar/grouped section choices derive only from Current/New `PlanningSection`
+rows in the selected branch and academic year, never from the global grade range or a
 catalog-only Subject row. An administrator selects one planned grade, can search its compact subject list, and sees
 each Planning weekly total, current pattern, and configured/default status without
 raw subject codes. The native dialog stays closed on page load and opens only

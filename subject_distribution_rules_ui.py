@@ -11,6 +11,10 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import normalize_grade_label
+from planning_scope_service import (
+    list_operational_planning_grades,
+    list_operational_planning_sections,
+)
 from subject_distribution_rules import resolve_subject_distribution_rule
 from subject_distribution_validator import validate_subject_distribution_rule
 
@@ -122,23 +126,12 @@ def list_subject_scheduling_rows(db: Session, branch_id: int, academic_year_id: 
 
 
 def list_grade_levels(db: Session, branch_id: int, academic_year_id: int) -> list[str]:
-    values = {
-        normalize_grade_label(row.grade_level)
-        for row in db.query(models.PlanningSection).filter(
-            models.PlanningSection.branch_id == branch_id,
-            models.PlanningSection.academic_year_id == academic_year_id,
-        ).all()
-        if normalize_grade_label(row.grade_level)
-    }
-    return sorted(values, key=_grade_sort_key)
+    return list_operational_planning_grades(db, branch_id, academic_year_id)
 
 
 def list_sections_for_grade(db: Session, branch_id: int, academic_year_id: int, grade_level: str) -> list[dict]:
     grade = normalize_grade_label(grade_level)
-    sections = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == branch_id,
-        models.PlanningSection.academic_year_id == academic_year_id,
-    ).order_by(models.PlanningSection.section_name.asc()).all()
+    sections = list_operational_planning_sections(db, branch_id, academic_year_id)
     return [
         {"id": int(section.id), "section_name": str(section.section_name or "").strip()}
         for section in sections

@@ -8,7 +8,12 @@ from starlette.requests import Request
 import main
 import models
 import subject_distribution_rules_ui as ui
+from planning_scope_service import (
+    list_operational_planning_grades,
+    list_operational_planning_sections,
+)
 from subject_distribution_rules import resolve_subject_distribution_rule
+from timetable_logic import build_timetable_workspace_payload
 from test_timetable_versioning import db  # noqa: F401 - shared isolated database
 
 
@@ -53,6 +58,10 @@ def test_grade_levels_include_only_planned_grades_for_scope(db):
             id=2030, grade_level="6", section_name="A", class_status="Current",
             branch_id=20, academic_year_id=200,
         ),
+        models.PlanningSection(
+            id=2040, grade_level="2", section_name="A", class_status="Inactive",
+            branch_id=10, academic_year_id=100,
+        ),
     ])
     db.commit()
 
@@ -66,6 +75,40 @@ def test_grade_levels_include_only_planned_grades_for_scope(db):
     }
     assert "MAT" in visible_codes
     assert "ENG2" not in visible_codes
+
+
+def test_timetable_selectors_share_operational_planning_authority(db):
+    db.add_all([
+        models.PlanningSection(
+            id=2010, grade_level="4", section_name="A", class_status="Current",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2020, grade_level="7", section_name="B", class_status="New",
+            branch_id=10, academic_year_id=100,
+        ),
+        models.PlanningSection(
+            id=2030, grade_level="9", section_name="A", class_status="Inactive",
+            branch_id=10, academic_year_id=100,
+        ),
+    ])
+    db.commit()
+
+    authority_grades = list_operational_planning_grades(db, 10, 100)
+    authority_sections = list_operational_planning_sections(db, 10, 100)
+    workspace = build_timetable_workspace_payload(
+        db, 10, 100, include_validation=False,
+    )
+
+    assert authority_grades == ["1", "4", "7"]
+    assert ui.list_grade_levels(db, 10, 100) == authority_grades
+    assert {
+        section["grade_label"] for section in workspace["sections"]
+    } == set(authority_grades)
+    assert {
+        section["id"] for section in workspace["sections"]
+    } == {section.id for section in authority_sections}
+    assert "9" not in authority_grades
 
 
 def test_planned_grade_levels_preserve_branch_and_year_isolation(db):

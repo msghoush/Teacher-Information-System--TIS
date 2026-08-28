@@ -5,6 +5,7 @@ from collections import defaultdict
 from datetime import datetime
 
 import models
+from planning_scope_service import list_operational_planning_sections
 from homeroom_defaults import is_default_homeroom_subject
 from subject_colors import build_subject_theme, resolve_subject_color
 from teacher_capacity import get_teacher_international_capacity_hours
@@ -851,14 +852,9 @@ def build_timetable_workspace_payload(
     periods_per_day = int(settings_payload["periods_per_day"] or 0)
     block_slot_map = settings_payload["block_slot_map"]
 
-    planning_sections = db.query(models.PlanningSection).filter(
-        models.PlanningSection.branch_id == branch_id,
-        models.PlanningSection.academic_year_id == academic_year_id,
-    ).order_by(
-        models.PlanningSection.grade_level.asc(),
-        models.PlanningSection.section_name.asc(),
-        models.PlanningSection.id.asc(),
-    ).all()
+    planning_sections = list_operational_planning_sections(
+        db, branch_id, academic_year_id,
+    )
 
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,

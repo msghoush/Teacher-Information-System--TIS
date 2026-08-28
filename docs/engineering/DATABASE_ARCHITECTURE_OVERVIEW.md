@@ -17,6 +17,10 @@ remain tenant/branch/year-scoped and reuse `timetable.manage_settings`.
 The grade-first modal, search, two-period presets, and progressive disclosure are
 presentation only; Planning totals, normalized rule persistence, legacy fallback,
 and grouped Swimming authority are unchanged.
+Operational timetable grade and section selectors use
+`planning_scope_service.py`, which reads only Current/New `PlanningSection` rows
+for one exact branch and academic year; global grade catalogs remain creation/edit
+choices and are not operational selector authority.
 
 ## Subject Distribution Rules Generation Wiring
 

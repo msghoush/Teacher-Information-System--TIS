@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Restrict Subject Scheduling Rules and copy-rule grade selectors and visible subject rows to PlanningSection grades in the selected branch and academic year, excluding global and Subject-catalog-only grades without changing global master data or scheduling behavior.
+summary: Centralize operational timetable grade and section selectors on a reusable PlanningSection source restricted to Current/New rows for the selected branch and academic year, excluding global, placeholder, and catalog-only grades without changing master data or solver behavior.
 affected_areas:
   - timetable
   - tests
@@ -8,5 +8,6 @@ kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
 no_impact_reason:
 major_change_override: no

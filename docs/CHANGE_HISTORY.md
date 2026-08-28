@@ -9,6 +9,10 @@ source_of_truth: true
 
 ## 2026-08-28 - Subject Scheduling Rules UI
 
+- Centralized operational timetable grade/section choices in
+  `planning_scope_service.py`, restricted to Current/New PlanningSection rows for
+  one branch/year. Subject Scheduling, timetable workspace filters, and directly
+  related calendar/grouped section selectors now share this authority.
 - Restricted the main and copy-rule grade selectors, plus their subject rows, to
   distinct `PlanningSection` grades in the selected branch and academic year;
   global and Subject-catalog-only grades no longer appear in operational timetable
