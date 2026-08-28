@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-28T05:35:56.289850+03:00",
+  "generated_at": "2026-08-28T06:03:01.495353+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "68aa251",
+  "commit_sha": "2be0f4d",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "a14384fc71480a6298fef3186e0006aa49002c679cb9fb99eb6f2f582ff2b8d2",
-  "pdf_size_bytes": 963242,
+  "pdf_sha256": "8843bc6d1e9f4a15fed77fe5d3f465d056abba10523406b75e6570b70461adc9",
+  "pdf_size_bytes": 967461,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-28T05:35:47.921197+03:00",
-      "size_bytes": 69448,
-      "sha256": "41c2846f4a4881144a23e86705cdb09b19b3ae92b0351ddf2881b5a0c503f5f5",
+      "modified_at": "2026-08-28T06:02:16.606483+03:00",
+      "size_bytes": 70145,
+      "sha256": "f223cfbf935d61cff99b58b9091465a3e018953473d860ebd104921e3a5c79b7",
       "pdf_page": 15
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-08-28T05:35:47.924167+03:00",
-      "size_bytes": 68957,
-      "sha256": "d4235f9d5dc0942dd9c27bd61fa1d892133c3d5c1f0b06da9bb4c0c66ac53130",
+      "modified_at": "2026-08-28T06:02:16.606483+03:00",
+      "size_bytes": 69531,
+      "sha256": "cf2f74c27260accc83c7e9f617b17705d7cc5f0b9794b01258cf661a79a8c0d8",
       "pdf_page": 37
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-28T05:35:47.921197+03:00",
-      "size_bytes": 55721,
-      "sha256": "00c7a2aca7bc8a80a003c1297fece4f3864ce9137a0f6262794e25a873c5b9f6",
+      "modified_at": "2026-08-28T06:02:16.606483+03:00",
+      "size_bytes": 56215,
+      "sha256": "763004b7be3a53c941152bbb81cf3467b7d5f8022d8ad7436d38e3053cd6672e",
       "pdf_page": 59
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-28T05:35:47.926883+03:00",
-      "size_bytes": 109072,
-      "sha256": "4f83ce832a993e3fe8c298e321dc5a8badfca89a1350587126ac72d7ea5892df",
+      "modified_at": "2026-08-28T06:02:16.609738+03:00",
+      "size_bytes": 109658,
+      "sha256": "5b37f34527959d02fb010820034f439207435b2ccf807d2e9c03d7bfa1703bb5",
       "pdf_page": 77
     },
     {
@@ -88,16 +88,16 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-08-28T05:35:47.925369+03:00",
-      "size_bytes": 59729,
-      "sha256": "1f4ce3c63991ebb2451e2f965db2a4b09ffe2ba30fab0199ed396534653f5d8e",
+      "modified_at": "2026-08-28T06:02:16.609738+03:00",
+      "size_bytes": 60138,
+      "sha256": "def5b4d3f252d5a893d88aaa39c4a84abbd2c5b8840367068c3df83ece1b378a",
       "pdf_page": 150
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-08-26T23:45:14.939328+03:00",
-      "size_bytes": 32752,
-      "sha256": "5700d13b4cb4e5c66a15d7e21ff6008e94e48931fd95f98718283f72e4234c1d",
+      "modified_at": "2026-08-28T06:02:16.609738+03:00",
+      "size_bytes": 33114,
+      "sha256": "1743981560aea7dbb57a69646c997bef2825fdd2a5f0af5859e243510a63b68b",
       "pdf_page": 175
     },
     {
@@ -375,9 +375,9 @@
     },
     {
       "path": "docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md",
-      "modified_at": "2026-08-28T05:35:47.928893+03:00",
-      "size_bytes": 10295,
-      "sha256": "bd723f22d58986532ac5944b9dca44443b73fd66419f6863f91e777a31585ecc",
+      "modified_at": "2026-08-28T06:02:31.555726+03:00",
+      "size_bytes": 10656,
+      "sha256": "cb6efc46438fe0f0ce583b2253f3940abdcae746369051d9c843563b6f9da64f",
       "pdf_page": 278
     },
     {
@@ -599,9 +599,9 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-08-26-smart-timetable-stage-52-simplified-workflow.md",
-      "modified_at": "2026-08-28T05:35:47.926883+03:00",
-      "size_bytes": 3688,
-      "sha256": "2d18ff7637545ac19c1d5d3095a8af1192bdc0e88ec5e48c826f2dca292bd30c",
+      "modified_at": "2026-08-28T06:02:16.614232+03:00",
+      "size_bytes": 4020,
+      "sha256": "0e56229143f68dcc8bc778e7267eb78847924726d2b182c96f3db633a1a192bd",
       "pdf_page": 336
     },
     {

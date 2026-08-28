@@ -108,6 +108,7 @@ from timetable_logic import (
     get_timetable_setting_row,
     get_timetable_settings_payload,
     normalize_non_teaching_block_values,
+    normalize_timetable_quality_rules,
     normalize_timetable_settings_values,
     validate_non_teaching_block_overlap,
 )
@@ -13410,6 +13411,16 @@ def save_timetable_settings(
     period_duration_minutes: str = Form("45"),
     school_start_time: str = Form("07:00"),
     school_end_time: str = Form("13:00"),
+    core_english_codes: str = Form("ENG"),
+    core_mathematics_codes: str = Form("MAT"),
+    core_science_codes: str = Form("SCI"),
+    spread_subject_codes: str = Form("ART,WLB,SOC,REF"),
+    ict_subject_codes: str = Form("ICT"),
+    ict_hard_one_per_day: str | None = Form(None),
+    avoid_consecutive_subject_codes: str = Form("ENG,MAT,SCI,ART,WLB,SOC,REF,ICT"),
+    allow_double_period_subject_codes: str = Form(""),
+    swimming_groups_json: str = Form("[]"),
+    regeneration_diversity_percent: str = Form("25"),
     return_to: str = Form("/system-configuration/timetable-settings"),
     db: Session = Depends(get_db),
 ):
@@ -13444,6 +13455,24 @@ def save_timetable_settings(
             safe_return_to,
             " ".join(normalized_settings["errors"]),
         )
+    try:
+        swimming_groups = json.loads(swimming_groups_json or "[]")
+    except (TypeError, ValueError):
+        return _redirect_with_error(safe_return_to, "Swimming groups must use valid JSON.")
+    quality_rules = normalize_timetable_quality_rules({
+        "core_subject_codes": {
+            "english": core_english_codes,
+            "mathematics": core_mathematics_codes,
+            "science": core_science_codes,
+        },
+        "spread_subject_codes": spread_subject_codes,
+        "ict_subject_codes": ict_subject_codes,
+        "ict_hard_one_per_day": bool(ict_hard_one_per_day),
+        "avoid_consecutive_subject_codes": avoid_consecutive_subject_codes,
+        "allow_double_period_subject_codes": allow_double_period_subject_codes,
+        "swimming_groups": swimming_groups,
+        "regeneration_diversity_percent": regeneration_diversity_percent,
+    })
 
     existing_settings = get_timetable_settings_payload(
         db,
@@ -13515,6 +13544,7 @@ def save_timetable_settings(
     timetable_setting_row.period_duration_minutes = normalized_settings["period_duration_minutes"]
     timetable_setting_row.school_start_time = normalized_settings["school_start_time"]
     timetable_setting_row.school_end_time = normalized_settings["school_end_time"]
+    timetable_setting_row.quality_rules_json = json.dumps(quality_rules, separators=(",", ":"), sort_keys=True)
     db.flush()
     refreshed_settings = get_timetable_settings_payload(db, branch_id, academic_year_id)
     timetable_setting_row.school_end_time = refreshed_settings["school_end_time"]

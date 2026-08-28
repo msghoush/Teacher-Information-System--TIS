@@ -171,6 +171,7 @@ def _build_period_configuration_component(
             "period_duration_minutes": int(payload["period_duration_minutes"] or 0),
             "school_start_time": str(payload["school_start_time"] or ""),
             "school_end_time": str(payload["school_end_time"] or ""),
+            "quality_rules": payload.get("quality_rules") or {},
         },
         "blocks": payload["blocks"],
         "canonical_slot_projection": json.loads(

@@ -24,6 +24,14 @@ accepts only `TimetableActiveVersion`. Teacher identity follows the existing sco
 
 ## Smart Timetable Generation Authority
 
+Academic scheduling quality is configured per branch and academic year using
+authoritative subject codes. Core English, Mathematics, and Science receive hard
+daily coverage when demand permits and distinct-day soft spread otherwise. Art,
+Well-being, Social Studies, Reflection, and ICT mappings receive configurable spread
+and non-consecutive preferences; ICT may enforce one session per day. Explicit
+Swimming groups synchronize selected sections and account for one common teacher and
+an optional capacity-limited resource. Independent validation repeats all hard rules.
+
 Stage 5.1 makes Planning-resolved section/subject/teacher demand, including
 subject-specific Grades 1-2 HRT fallback, the only lesson authority for automatic
 generation. Schema-v3 snapshots freeze exact SchoolGroup/Branch/Academic-Year

@@ -125,6 +125,12 @@ class TimetableReadinessService:
 
         teacher_demand = defaultdict(int)
         assigned_teacher_ids = set()
+        core_codes = {
+            str(code).upper()
+            for values in (settings.get("quality_rules", {}).get("core_subject_codes") or {}).values()
+            for code in values or []
+        }
+        teaching_day_count = len(settings.get("working_day_keys") or [])
         for section in sections:
             grade = str(section.grade_level or "").strip().upper()
             if grade in {"K", "KINDERGARTEN", "0"}:
@@ -142,6 +148,15 @@ class TimetableReadinessService:
                 counts["required_periods"] += periods
                 code = str(subject.subject_code or "").strip().upper()
                 subject_label = str(subject.subject_name or code or "Subject").strip()
+                if code in core_codes and periods < teaching_day_count:
+                    warnings.append({
+                        **self._finding(
+                            "core_daily_coverage_impossible",
+                            f"{label} {subject_label} has {periods} weekly periods across {teaching_day_count} teaching days; TIS will maximize distinct-day spread instead of requiring daily coverage.",
+                            "section_subject", f"{label} {subject_label}", "Timetable Configuration",
+                        ),
+                        "severity": "warning",
+                    })
                 teacher_id = explicit.get((int(section.id), code))
                 source = "planning"
                 if teacher_id is None and section.homeroom_teacher_id is not None and is_default_homeroom_subject(grade, subject_name=subject_label, subject_code=code):

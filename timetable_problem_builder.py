@@ -108,6 +108,42 @@ class TimetableProblemBuilder:
                 "demand_missing", "No positive timetable demand is available."
             )
 
+        raw_quality = ((snapshot.get("period_configuration") or {}).get("settings") or {}).get("quality_rules") or {}
+        quality_rules = {
+            "core_subject_codes": raw_quality.get("core_subject_codes") or {},
+            "spread_subject_codes": list(raw_quality.get("spread_subject_codes") or []),
+            "ict_subject_codes": list(raw_quality.get("ict_subject_codes") or []),
+            "ict_hard_one_per_day": bool(raw_quality.get("ict_hard_one_per_day")),
+            "avoid_consecutive_subject_codes": list(raw_quality.get("avoid_consecutive_subject_codes") or []),
+            "allow_double_period_subject_codes": list(raw_quality.get("allow_double_period_subject_codes") or []),
+            "regeneration_diversity_percent": int(raw_quality.get("regeneration_diversity_percent") or 25),
+        }
+        grouped_activities = []
+        demand_by_section_subject = {
+            (item["section_id"], item["subject_code"]): item for item in demands
+        }
+        for raw_group in raw_quality.get("swimming_groups") or []:
+            subject_code = str(raw_group.get("subject_code") or "").strip().upper()
+            section_ids = sorted({int(item) for item in raw_group.get("section_ids") or []})
+            members = [demand_by_section_subject.get((section_id, subject_code)) for section_id in section_ids]
+            if len(section_ids) < 2 or any(member is None for member in members):
+                raise TimetableProblemError("grouped_activity_invalid", "A configured grouped activity does not match current section demand.")
+            required_counts = {int(member["required_weekly_periods"]) for member in members}
+            teacher_ids = {int(member["teacher_id"]) for member in members}
+            configured_teacher = int(raw_group.get("teacher_id") or 0)
+            if len(required_counts) != 1 or (configured_teacher and teacher_ids != {configured_teacher}) or len(teacher_ids) != 1:
+                raise TimetableProblemError("grouped_activity_authority_invalid", "Grouped Swimming sections must have equal weekly demand and one common assigned teacher.")
+            grouped_activities.append({
+                "key": str(raw_group.get("key") or "grouped_activity"),
+                "subject_code": subject_code,
+                "section_ids": section_ids,
+                "teacher_id": next(iter(teacher_ids)),
+                "required_weekly_periods": next(iter(required_counts)),
+                "demand_ids": [member["demand_id"] for member in members],
+                "resource_key": str(raw_group.get("resource_key") or ""),
+                "resource_capacity": max(int(raw_group.get("resource_capacity") or 1), 1),
+            })
+
         period_configuration = snapshot.get("period_configuration") or {}
         projection = period_configuration.get("canonical_slot_projection") or {}
         slots = []
@@ -148,7 +184,11 @@ class TimetableProblemBuilder:
         locks = []
         lock_demand_counts = Counter()
         section_slots = set()
-        teacher_slots = set()
+        teacher_slots = {}
+        grouped_member_keys = {
+            (section_id, group["subject_code"], group["teacher_id"]): group["key"]
+            for group in grouped_activities for section_id in group["section_ids"]
+        }
         for raw_lock in snapshot.get("locks") or []:
             normalized = {
                 "section_id": int(raw_lock.get("section_id") or 0),
@@ -170,12 +210,15 @@ class TimetableProblemBuilder:
                 )
             section_slot = (normalized["section_id"], *slot_key)
             teacher_slot = (normalized["teacher_id"], *slot_key)
-            if section_slot in section_slots or teacher_slot in teacher_slots:
+            group_key = grouped_member_keys.get(key)
+            if section_slot in section_slots or (
+                teacher_slot in teacher_slots and (not group_key or teacher_slots[teacher_slot] != group_key)
+            ):
                 raise TimetableProblemError(
                     "lock_conflict", "Locked lessons conflict in the same timetable slot."
                 )
             section_slots.add(section_slot)
-            teacher_slots.add(teacher_slot)
+            teacher_slots[teacher_slot] = group_key
             lock_demand_counts[key] += 1
             if lock_demand_counts[key] > demand_by_key[key]["required_weekly_periods"]:
                 raise TimetableProblemError(
@@ -240,4 +283,6 @@ class TimetableProblemBuilder:
             "source_lifecycle_status": generation.get("source_lifecycle_status"),
             "source_arrangement": source_arrangement,
             "minimum_difference": minimum_difference,
+            "quality_rules": quality_rules,
+            "grouped_activities": grouped_activities,
         }

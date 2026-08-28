@@ -68,9 +68,9 @@ Planning/HRT resolution happens before capture and remains subject-specific.
 
 Generate creates a separate generated candidate. Regenerate leaves its source
 unchanged, fixes locked lessons, excludes the exact source arrangement, and requires
-`0` changes for no unlocked lessons (therefore unavailable), `1` for one unlocked
-lesson, otherwise `min(10, max(2, ceil(0.05 * U)))`. Seed is recorded only as a
-secondary reproducibility input. A solver-independent validator checks scope,
+the ceiling of the configured diversity percentage of unlocked placements to change
+(25 percent by default). Seed is recorded only as a secondary reproducibility input.
+A solver-independent validator checks scope,
 authority, exact demand, collisions, slots, locks, fingerprints, source revision,
 and diversity. A final current-input rebuild gates one atomic transaction that
 creates a publication-ready unpublished version and entries and completes the run.
@@ -88,7 +88,14 @@ Official non-management consumption is separate from operational resolution.
 `/my-timetable` additionally requires exact-scope `User.user_id == Teacher.teacher_id`
 identity and filters to that teacher; view-only users cannot consume mutable history.
 
-Exports are version-aware and preserve their current presentation. Future availability, rooms/resources, cross-campus coordination, normalized teaching/non-teaching slots, rule authoring, and generation preferences require separately approved stages and snapshot-schema evolution.
+Academic quality settings are exact-scope explicit subject-code authority captured
+inside schema-v3 snapshots. CP-SAT implements daily core coverage when demand reaches
+teaching days, distinct-day and non-consecutive preferences, optional hard ICT
+one-per-day, and simultaneous configured Swimming groups. Group members may share
+their configured common teacher in one slot, while unrelated teacher collisions and
+optional shared-resource capacity remain protected. The independent validator repeats
+all hard rules. Exports remain version-aware. Future teacher availability, broader
+rooms/resources, and cross-campus coordination require separately approved stages.
 
 ## Rejected Alternatives
 
@@ -106,7 +113,7 @@ Exports are version-aware and preserve their current presentation. Future availa
 - Stage 3/3.5 implements composed canonical slot projection and structural readiness on stable snapshots; valid inserted blocks do not consume teaching-period indexes.
 - Stage 4 implements version comparison and truthful publication without mutating active history. Stage 5.1 adds generation on this boundary without changing publication authority.
 - PostgreSQL row locking plus a per-scope unique key is the version-number allocation authority; SQLite retains the unique guard for supported local tests.
-- Stage 5.1 adds durable task execution, real phase polling, and independent validation. Production now provisions one Render Workflow task per run and requires no always-on solver worker. Render automatic retries are disabled; TIS terminal state plus Generate Again is the sole retry authority. Stage 5.2 adds simplified workflow and published-only visibility without changing the solver. Availability, rooms/resources, preferences, and quality scoring remain later decisions.
+- Stage 5.1 adds durable task execution, real phase polling, and independent validation. Production provisions one Render Workflow task per run and requires no always-on solver worker. Render automatic retries are disabled; TIS terminal state plus Generate Again is the sole retry authority. Stage 5.2 adds simplified workflow and published-only visibility. Academic-quality rules add mapped distribution and grouped activities without changing Workflow or publication authority.
 
 ## Related Files
 

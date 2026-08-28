@@ -575,6 +575,28 @@
 
                 <div class="field-note">The end time is calculated from teaching minutes plus inserted blocks; it is not a separate scheduling authority.</div>
 
+                {% set quality = timetable_settings.quality_rules %}
+                <div class="module-copy" style="margin-top:1.5rem;">
+                    <h3>Academic Scheduling Quality</h3>
+                    <p>Map authoritative subject codes and configure distribution and grouped Swimming behavior for this branch and academic year.</p>
+                </div>
+                <div class="field-grid">
+                    <div class="field"><label for="core_english_codes">English codes</label><input id="core_english_codes" name="core_english_codes" value="{{ quality.core_subject_codes.english|join(',') }}"></div>
+                    <div class="field"><label for="core_mathematics_codes">Mathematics codes</label><input id="core_mathematics_codes" name="core_mathematics_codes" value="{{ quality.core_subject_codes.mathematics|join(',') }}"></div>
+                    <div class="field"><label for="core_science_codes">Science codes</label><input id="core_science_codes" name="core_science_codes" value="{{ quality.core_subject_codes.science|join(',') }}"></div>
+                    <div class="field"><label for="spread_subject_codes">Spread subject codes</label><input id="spread_subject_codes" name="spread_subject_codes" value="{{ quality.spread_subject_codes|join(',') }}"></div>
+                    <div class="field"><label for="ict_subject_codes">ICT codes</label><input id="ict_subject_codes" name="ict_subject_codes" value="{{ quality.ict_subject_codes|join(',') }}"></div>
+                    <div class="field"><label for="avoid_consecutive_subject_codes">Avoid consecutive codes</label><input id="avoid_consecutive_subject_codes" name="avoid_consecutive_subject_codes" value="{{ quality.avoid_consecutive_subject_codes|join(',') }}"></div>
+                    <div class="field"><label for="allow_double_period_subject_codes">Allow double-period codes</label><input id="allow_double_period_subject_codes" name="allow_double_period_subject_codes" value="{{ quality.allow_double_period_subject_codes|join(',') }}"></div>
+                    <div class="field"><label for="regeneration_diversity_percent">Regeneration diversity %</label><input id="regeneration_diversity_percent" type="number" min="1" max="100" name="regeneration_diversity_percent" value="{{ quality.regeneration_diversity_percent }}"></div>
+                </div>
+                <label class="day-pill"><input type="checkbox" name="ict_hard_one_per_day" value="1" {% if quality.ict_hard_one_per_day %}checked{% endif %}> <strong>ICT maximum one session per day when demand fits the week</strong></label>
+                <div class="field">
+                    <label for="swimming_groups_json">Swimming grouped activities</label>
+                    <textarea id="swimming_groups_json" name="swimming_groups_json" rows="5">{{ quality.swimming_groups|tojson }}</textarea>
+                    <div class="field-note">JSON entries use: key, subject_code, section_ids, optional teacher_id, resource_key, and resource_capacity.</div>
+                </div>
+
                 <div class="action-row">
                     {% if can("timetable.manage_settings") %}
                     <button class="action-btn action-btn-primary" type="submit">{{ icon("save", "icon") }} Save Timetable Settings</button>
