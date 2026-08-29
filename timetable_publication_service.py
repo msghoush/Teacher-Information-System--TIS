@@ -111,6 +111,19 @@ class TimetableDraftValidationService:
             section_slots.add(section_key)
             teacher_slots.add(teacher_key)
 
+        from teacher_scheduling_rules import validate_draft_entries
+
+        for issue in validate_draft_entries(
+            self.db,
+            school_group_id=int(version.school_group_id),
+            branch_id=int(version.branch_id),
+            academic_year_id=int(version.academic_year_id),
+            entries=entries,
+        ):
+            blockers.append(_blocker(
+                issue["code"], issue["message"], issue["display_label"],
+            ))
+
         for section in payload.get("sections", []):
             for demand in section.get("options", []):
                 required = int(demand.get("weekly_hours") or 0)

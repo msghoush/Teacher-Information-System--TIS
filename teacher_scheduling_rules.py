@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 import models
-from timetable_logic import build_teacher_display_name, format_section_label, get_timetable_settings_payload
+from timetable_logic import build_teacher_display_name, get_timetable_settings_payload
 from timetable_version_service import clear_draft_approval
 
 
@@ -105,6 +105,162 @@ def canonical_rules(db: Session, *, school_group_id: int, branch_id: int, academ
             for day, period in _resolved_slots(rule, working_days, slots)
         ]})
     return result
+
+
+def _current_canonical_rules(
+    db: Session, *, school_group_id: int, branch_id: int, academic_year_id: int,
+) -> list[dict]:
+    settings = get_timetable_settings_payload(db, branch_id, academic_year_id)
+    projection = settings["slot_projection"]
+    slots = [
+        {"day_key": key[0], "period_index": key[1]}
+        for key, value in projection["slot_map"].items()
+        if value.get("schedulable")
+    ]
+    return canonical_rules(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        working_days=list(settings.get("working_day_keys") or []), slots=slots,
+    )
+
+
+def _rule_section_ids(rule: dict) -> set[int]:
+    return {
+        int(target.get("planning_section_id") or 0)
+        for target in rule.get("targets") or []
+        if target.get("target_type") == "section"
+    }
+
+
+def _rule_grade_levels(rule: dict) -> set[str]:
+    return {
+        str(target.get("grade_level") or "").strip()
+        for target in rule.get("targets") or []
+        if target.get("target_type") == "grade"
+    }
+
+
+def _rule_applies_to_section(
+    rule: dict, section_id: int, grade_level: str | None = None,
+) -> bool:
+    return rule.get("target_scope") == "any_assigned" or (
+        rule.get("target_scope") == "selected_sections"
+        and int(section_id) in _rule_section_ids(rule)
+    ) or (
+        rule.get("target_scope") == "selected_grades"
+        and str(grade_level or "").strip() in _rule_grade_levels(rule)
+    )
+
+
+def validate_manual_placement(
+    db: Session, *, school_group_id: int, branch_id: int, academic_year_id: int,
+    teacher_id: int, planning_section_id: int, grade_level: str | None,
+    day_key: str, period_index: int,
+) -> dict | None:
+    slot = (str(day_key or "").strip().lower(), int(period_index))
+    for rule in _current_canonical_rules(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    ):
+        if int(rule["teacher_id"]) != int(teacher_id) or rule["strictness"] != "hard":
+            continue
+        configured = {
+            (item["day_key"], int(item["period_index"]))
+            for item in rule.get("resolved_slots") or []
+        }
+        if rule["rule_type"] == "unavailable" and slot in configured:
+            return {
+                "code": "teacher_unavailable_violated",
+                "message": f"This teacher is unavailable on {slot[0].title()} during P{slot[1]}.",
+                "rule_type": rule["rule_type"],
+            }
+        if rule["rule_type"] == "schedule_within" and _rule_applies_to_section(
+            rule, planning_section_id, grade_level
+        ) and slot not in configured:
+            return {
+                "code": "teacher_schedule_window_violated",
+                "message": f"This lesson falls outside the teacher's required scheduling window on {slot[0].title()} during P{slot[1]}.",
+                "rule_type": rule["rule_type"],
+            }
+    return None
+
+
+def validate_draft_entries(
+    db: Session, *, school_group_id: int, branch_id: int, academic_year_id: int,
+    entries: list[dict],
+) -> list[dict]:
+    teacher_rows = db.query(models.Teacher).filter(
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).all()
+    teacher_labels = {int(row.id): build_teacher_display_name(row) for row in teacher_rows}
+    section_ids = {
+        int(item.get("section_id") or item.get("planning_section_id") or 0)
+        for item in entries
+    }
+    section_grades = {
+        int(row.id): str(row.grade_level or "").strip()
+        for row in db.query(models.PlanningSection).filter(
+            models.PlanningSection.id.in_(section_ids),
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == academic_year_id,
+        ).all()
+    } if section_ids else {}
+    normalized = [{
+        "teacher_id": int(item.get("teacher_id") or 0),
+        "section_id": int(item.get("section_id") or item.get("planning_section_id") or 0),
+        "grade_level": section_grades.get(int(item.get("section_id") or item.get("planning_section_id") or 0)),
+        "day_key": str(item.get("day_key") or "").strip().lower(),
+        "period_index": int(item.get("period_index") or 0),
+    } for item in entries]
+    blockers = []
+    for rule in _current_canonical_rules(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    ):
+        if rule["strictness"] != "hard":
+            continue
+        teacher_id = int(rule["teacher_id"])
+        teacher_label = teacher_labels.get(teacher_id, "Teacher")
+        configured = {
+            (item["day_key"], int(item["period_index"]))
+            for item in rule.get("resolved_slots") or []
+        }
+        teacher_entries = [item for item in normalized if item["teacher_id"] == teacher_id]
+        if rule["rule_type"] == "unavailable":
+            for item in teacher_entries:
+                slot = (item["day_key"], item["period_index"])
+                if slot in configured:
+                    blockers.append({
+                        "code": "teacher_unavailable_violated",
+                        "message": f"{teacher_label} is unavailable on {slot[0].title()} during P{slot[1]}.",
+                        "display_label": teacher_label,
+                    })
+        elif rule["rule_type"] == "schedule_within":
+            for item in teacher_entries:
+                if not _rule_applies_to_section(rule, item["section_id"], item["grade_level"]):
+                    continue
+                slot = (item["day_key"], item["period_index"])
+                if slot not in configured:
+                    blockers.append({
+                        "code": "teacher_schedule_window_violated",
+                        "message": f"{teacher_label} has a lesson outside the required scheduling window on {slot[0].title()} during P{slot[1]}.",
+                        "display_label": teacher_label,
+                    })
+        elif rule["rule_type"] == "must_teach":
+            for day, period in sorted(configured):
+                matching = [
+                    item for item in teacher_entries
+                    if (item["day_key"], item["period_index"]) == (day, period)
+                    and _rule_applies_to_section(rule, item["section_id"], item["grade_level"])
+                ]
+                if not matching:
+                    blockers.append({
+                        "code": "teacher_must_teach_missing",
+                        "message": f"{teacher_label} must teach an eligible selected section on {day.title()} during P{period}.",
+                        "display_label": teacher_label,
+                    })
+    return blockers
 
 
 def save_rule(db: Session, *, school_group_id: int, branch_id: int, academic_year_id: int,
@@ -267,7 +423,10 @@ def ui_context(db: Session, *, school_group_id: int, branch_id: int, academic_ye
     rules = list_rules(db, school_group_id=school_group_id, branch_id=branch_id,
                        academic_year_id=academic_year_id)
     teacher_map = {int(row.id): build_teacher_display_name(row) for row in teachers}
-    section_map = {int(row.id): format_section_label(row) for row in sections}
+    section_map = {
+        int(row.id): f"Grade {str(row.grade_level or '').strip()}-{str(row.section_name or '').strip()}"
+        for row in sections
+    }
     for rule in rules:
         rule["is_simple_editable"] = (
             rule["rule_type"] in {"schedule_within", "must_teach", "unavailable"}
@@ -282,7 +441,8 @@ def ui_context(db: Session, *, school_group_id: int, branch_id: int, academic_ye
         rule["teacher_name"] = teacher_map.get(rule["teacher_id"], "Teacher")
         rule["type_label"] = RULE_TYPES[rule["rule_type"]][0]
         rule["scope_label"] = {
-            "any_assigned": "Any assigned class", "selected_grades": "Selected grades",
+            "any_assigned": "All classes" if rule["rule_type"] == "unavailable" else "All assigned sections",
+            "selected_grades": "Selected grades",
             "selected_sections": "Selected sections",
         }[rule["target_scope"]]
         rule["target_labels"] = [
@@ -292,5 +452,5 @@ def ui_context(db: Session, *, school_group_id: int, branch_id: int, academic_ye
     return {
         "teacher_scheduling_rules": rules,
         "teacher_rule_teachers": [{"id": int(row.id), "name": teacher_map[int(row.id)]} for row in teachers],
-        "teacher_rule_sections": [{"id": int(row.id), "label": section_map[int(row.id)], "grade": str(row.grade_level)} for row in sections],
+        "teacher_rule_sections": [{"id": int(row.id), "label": section_map[int(row.id)]} for row in sections],
     }

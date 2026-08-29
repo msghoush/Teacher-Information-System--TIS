@@ -28,6 +28,15 @@ enforces hard timing and scores existing preferences; the independent validator
 repeats hard-rule and window checks. With no rules, generation behavior is
 backward compatible.
 
+The configuration UI keeps section selection literal: Select All synchronizes
+every visible Current/New section, editing restores the exact saved targets, and
+saved summaries name selected grade-section labels instead of collapsing them
+to an any-class label. Manual Draft placement rejects hard Unavailable and
+Schedule-within violations immediately. Complete Draft validation additionally
+requires every Must-teach slot to contain an eligible lesson in its configured
+section scope; the same validation blocks approval and publication. Soft
+preferences remain non-blocking.
+
 ## Guided Curriculum Adjustment UI
 
 Administrators with `curriculum.adjust` can enter a five-step, page-based workflow from Planning or Subjects. The UI selects Current/New scope, prepares the existing read-only preview, separates blockers from warnings, requires an explicit eligible teacher decision for every section, and submits the reviewed fingerprint to the atomic apply endpoint. A changed Planning state refreshes the preview without exposing revision terminology. Success links to Timetable and regeneration, but never starts generation automatically.

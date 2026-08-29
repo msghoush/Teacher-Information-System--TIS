@@ -8,13 +8,19 @@ import db_migrations
 import models
 from permission_registry import ALL_PERMISSION_KEYS, get_default_permissions_for_role
 from teacher_scheduling_rules import (
-    TeacherSchedulingRuleError, canonical_rules, list_rules, save_rule,
+    TeacherSchedulingRuleError, canonical_rules, list_rules, save_rule, ui_context,
+    validate_draft_entries,
 )
 from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
 from timetable_readiness_service import TimetableReadinessService
+from timetable_publication_service import (
+    TimetableDraftValidationService, TimetablePublicationService,
+)
 from timetable_snapshot_service import build_current_snapshot_data
 from timetable_solution_validator import TimetableSolutionValidator
-from timetable_version_service import create_manual_draft
+from timetable_version_service import (
+    TimetableVersionError, create_manual_draft, mutate_draft_placement,
+)
 from test_timetable_versioning import db  # noqa: F401
 
 
@@ -124,6 +130,19 @@ def test_schedule_within_selected_section_does_not_restrict_other_sections():
     result = _solve(problem)
     assert result["outcome"] == "feasible"
     assert next(item for item in result["placements"] if item["section_id"] == 1)["period_index"] == 2
+
+
+def test_must_teach_selected_section_rejects_wrong_section_in_validator():
+    problem = _problem("must_teach", target_section=1)
+    placements = [
+        {"section_id": 2, "subject_code": "SCI", "teacher_id": 10,
+         "day_key": "monday", "period_index": 1}
+    ]
+    errors = TimetableSolutionValidator().validate(
+        problem=problem, placements=placements,
+        expected_fingerprint="same", current_fingerprint="same",
+    )["errors"]
+    assert "teacher_must_teach_missing" in {item["code"] for item in errors}
 
 
 def test_hard_teacher_rule_conflicting_with_subject_distribution_is_infeasible():
@@ -349,6 +368,156 @@ def test_no_rules_backward_compatibility_and_permission_ui_contract():
     assert "teacher-rule-period-selector" not in template
     assert "teacher-rule-target-scope" not in template
     assert ">First period<" not in template and ">Last period<" not in template
+    assert "function setAllSections(selected)" in template
+    assert "sectionChecks.forEach" in template
+    assert "sectionChecks.every" in template
+    assert "setAllSections(true)" in template
+    assert "updateSelectAll()" in template
+
+
+def test_ui_context_uses_exact_section_summaries_and_current_new_sections(db):
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="must_teach", all_working_days=False,
+        days=["monday"], period_selector="period", periods=[1],
+        target_scope="selected_sections", grades=[], section_ids=[2000, 2001],
+        actor_user_id="U1",
+    )
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1001, rule_type="schedule_within", all_working_days=False,
+        days=["tuesday"], period_selector="period", periods=[2, 3],
+        target_scope="any_assigned", grades=[], section_ids=[], actor_user_id="U1",
+    )
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1001, rule_type="unavailable", all_working_days=False,
+        days=["monday"], period_selector="period", periods=[4],
+        target_scope="any_assigned", grades=[], section_ids=[], actor_user_id="U1",
+    )
+    context = ui_context(db, school_group_id=1, branch_id=10, academic_year_id=100)
+    selected = next(item for item in context["teacher_scheduling_rules"] if item["rule_type"] == "must_teach")
+    window = next(item for item in context["teacher_scheduling_rules"] if item["rule_type"] == "schedule_within")
+    unavailable = next(item for item in context["teacher_scheduling_rules"] if item["rule_type"] == "unavailable")
+    assert selected["target_labels"] == ["Grade 1-A", "Grade 1-B"]
+    assert selected["edit_payload"]["targets"] == [
+        {"target_type": "section", "grade_level": None, "planning_section_id": 2000},
+        {"target_type": "section", "grade_level": None, "planning_section_id": 2001},
+    ]
+    assert window["scope_label"] == "All assigned sections"
+    assert unavailable["scope_label"] == "All classes"
+    assert context["teacher_rule_sections"] == [
+        {"id": 2000, "label": "Grade 1-A"},
+        {"id": 2001, "label": "Grade 1-B"},
+    ]
+
+
+def test_manual_edit_rejects_unavailable_and_outside_selected_section_window(db):
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="unavailable", all_working_days=False,
+        days=["monday"], period_selector="period", periods=[1],
+        target_scope="any_assigned", grades=[], section_ids=[], actor_user_id="U1",
+    )
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="schedule_within", all_working_days=False,
+        days=["monday"], period_selector="period", periods=[2],
+        target_scope="selected_sections", grades=[], section_ids=[2000], actor_user_id="U1",
+    )
+    draft = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100, actor_user_id="U1",
+    )
+    db.commit()
+    with pytest.raises(TimetableVersionError) as exc:
+        mutate_draft_placement(
+            db, version=draft, planning_section_id=2000, day_key="monday",
+            period_index=1, subject_code="MAT", teacher_id=1000,
+        )
+    assert exc.value.code == "teacher_unavailable_violated"
+    db.rollback()
+    draft = db.query(models.TimetableVersion).filter_by(id=draft.id).one()
+    with pytest.raises(TimetableVersionError) as exc:
+        mutate_draft_placement(
+            db, version=draft, planning_section_id=2000, day_key="tuesday",
+            period_index=2, subject_code="MAT", teacher_id=1000,
+        )
+    assert exc.value.code == "teacher_schedule_window_violated"
+
+
+def test_complete_draft_rule_validation_is_hard_only_and_checks_selected_section(db):
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="must_teach", all_working_days=False,
+        days=["monday"], period_selector="period", periods=[1],
+        target_scope="selected_sections", grades=[], section_ids=[2000], actor_user_id="U1",
+    )
+    soft = models.TeacherSchedulingRule(
+        school_group_id=1, branch_id=10, academic_year_id=100, teacher_id=1000,
+        rule_type="prefer_free", restrict_to_window=False, target_scope="any_assigned",
+        strictness="soft", is_active=True,
+    )
+    db.add(soft); db.flush()
+    db.add(models.TeacherSchedulingRuleSlot(
+        rule_id=soft.id, day_key="monday", period_selector="period", period_index=2,
+    )); db.commit()
+    wrong_section = [{
+        "teacher_id": 1000, "section_id": 2001,
+        "day_key": "monday", "period_index": 1,
+    }]
+    issues = validate_draft_entries(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        entries=wrong_section,
+    )
+    assert {item["code"] for item in issues} == {"teacher_must_teach_missing"}
+    matching = [{
+        "teacher_id": 1000, "section_id": 2000,
+        "day_key": "monday", "period_index": 1,
+    }]
+    assert validate_draft_entries(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        entries=matching,
+    ) == []
+
+
+def test_hard_rule_violation_blocks_draft_approval_and_publication(db):
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="unavailable", all_working_days=False,
+        days=["monday"], period_selector="period", periods=[1],
+        target_scope="any_assigned", grades=[], section_ids=[], actor_user_id="U1",
+    )
+    draft = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100, actor_user_id="U1",
+    )
+    db.add(models.TimetableEntry(
+        timetable_version_id=draft.id, branch_id=10, academic_year_id=100,
+        planning_section_id=2000, subject_code="MAT", teacher_id=1000,
+        day_key="monday", period_index=1,
+    ))
+    db.flush()
+    validation = TimetableDraftValidationService(db).validate(
+        version=draft, transition=True, actor_user_id="U1",
+    )
+    assert validation["valid"] is False
+    assert "teacher_unavailable_violated" in {
+        item["code"] for item in validation["blockers"]
+    }
+    assert draft.lifecycle_status == "draft"
+    assert draft.approved_at is None
+
+    draft.lifecycle_status = "publication_ready"
+    draft.approved_at = datetime.utcnow()
+    draft.approved_by_user_id = "U1"
+    db.flush()
+    with pytest.raises(TimetableVersionError) as exc:
+        TimetablePublicationService(db).publish(
+            version_id=draft.id, school_group_id=1, branch_id=10,
+            academic_year_id=100, actor_user_id="U1",
+            expected_edit_revision=draft.edit_revision, expected_pointer_revision=0,
+        )
+    assert exc.value.code == "publication_validation_failed"
+    assert "unavailable" in str(exc.value).lower()
 
 
 def test_migration_order_and_idempotency_without_local_database():

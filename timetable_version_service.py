@@ -640,6 +640,24 @@ def mutate_draft_placement(
                 "teacher_scope_mismatch",
                 "The assigned teacher is outside the timetable version scope.",
             )
+        from teacher_scheduling_rules import validate_manual_placement
+
+        teacher_rule_violation = validate_manual_placement(
+            db,
+            school_group_id=int(version.school_group_id),
+            branch_id=int(version.branch_id),
+            academic_year_id=int(version.academic_year_id),
+            teacher_id=int(teacher_id),
+            planning_section_id=int(planning_section_id),
+            grade_level=str(section.grade_level or ""),
+            day_key=str(day_key),
+            period_index=int(period_index),
+        )
+        if teacher_rule_violation:
+            raise TimetableVersionError(
+                teacher_rule_violation["code"],
+                teacher_rule_violation["message"],
+            )
         if existing is not None and existing.is_locked and (
             str(existing.subject_code or "").strip().upper() != normalized_subject_code
             or int(existing.teacher_id or 0) != int(teacher_id or 0)

@@ -22,6 +22,11 @@ keeps all pre-existing Must-teach rows unchanged.
 Readiness and the problem builder reject deterministic conflicts, and the
 OR-Tools-independent validator repeats hard checks. Rule changes invalidate only
 unpublished Draft authority; active published versions remain immutable.
+Manual Draft mutation reuses current canonical hard rules to reject teacher-wide
+Unavailable slots and applicable Schedule-within violations without requiring
+temporary Must-teach completeness. The complete Draft validator is the lifecycle
+boundary: it checks Unavailable, Schedule-within, and Must-teach section targets,
+and approval/publication reuse that result. Soft rules do not block either path.
 
 ## Context
 

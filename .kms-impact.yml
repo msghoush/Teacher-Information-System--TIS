@@ -1,10 +1,7 @@
 knowledge_impact: yes
-summary: Simplify teacher-rule configuration and add explicit allowed-window scheduling semantics without changing Planning demand or existing must-teach rules.
+summary: Finalize teacher-rule section-selection and summaries, enforce hard rules during manual Draft edits, and block approval/publication on complete-Draft hard-rule violations.
 affected_areas:
   - architecture
-  - database
-  - migrations
-  - permissions
   - timetable
   - solver
   - workflow
@@ -13,7 +10,6 @@ affected_areas:
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
   - docs/history/workforce-planning/2026-08-30-teacher-scheduling-rules.md
 no_impact_reason:
