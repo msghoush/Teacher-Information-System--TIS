@@ -24,6 +24,13 @@ ordered, idempotent migration, preserving the production migration sequence on
 PostgreSQL and SQLite. No backfill occurs: absence of rules preserves existing
 generation behavior.
 
+Migration `20260830_002_teacher_scheduling_window_semantics` adds the additive
+`restrict_to_window` discriminator. Existing rows default false and retain their
+original Must-teach occupancy meaning. New Schedule-within rules store the same
+validated hard-rule family with the discriminator true and serialize canonically
+as `schedule_within`; this avoids rebuilding SQLite check constraints and prevents
+silent reinterpretation of deployed rows.
+
 ## Curriculum Adjustment Audit And Transaction
 
 Migration `20260829_001_curriculum_adjustment_apply_foundation` adds

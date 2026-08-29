@@ -15,6 +15,10 @@ locks and not Planning demand. Schema-v4 snapshots resolve and freeze Must teach
 Unavailable, Prefer teaching, and Prefer free rules, including all/selected days,
 numbered/first/last periods, and assigned-class/grade/section targets. Must teach
 and Unavailable are hard CP-SAT constraints; preferences are objective terms.
+The simplified administrator workflow also exposes Schedule within: it restricts
+existing eligible assigned demand to selected numbered-period slots but does not
+require every allowed slot to be occupied. An additive semantic discriminator
+keeps all pre-existing Must-teach rows unchanged.
 Readiness and the problem builder reject deterministic conflicts, and the
 OR-Tools-independent validator repeats hard checks. Rule changes invalidate only
 unpublished Draft authority; active published versions remain immutable.

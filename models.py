@@ -908,6 +908,7 @@ class TeacherSchedulingRule(Base):
     academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
     teacher_id = Column(Integer, nullable=False)
     rule_type = Column(String(24), nullable=False)
+    restrict_to_window = Column(Boolean, nullable=False, default=False)
     target_scope = Column(String(24), nullable=False, default="any_assigned")
     strictness = Column(String(8), nullable=False)
     is_active = Column(Boolean, nullable=False, default=True)

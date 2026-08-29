@@ -215,6 +215,20 @@ class TimetableProblemBuilder:
         for demand in demands:
             demands_by_teacher.setdefault(int(demand["teacher_id"]), []).append(demand)
         hard_by_teacher_slot = {}
+        demand_periods_by_id = {
+            item["demand_id"]: int(item["required_weekly_periods"])
+            for item in demands
+        }
+
+        def effective_slot_demand(demand_ids) -> int:
+            selected_ids = set(demand_ids)
+            total = sum(demand_periods_by_id[item] for item in selected_ids)
+            for group in grouped_activities:
+                selected_members = selected_ids & set(group.get("demand_ids") or [])
+                if len(selected_members) > 1:
+                    total -= (len(selected_members) - 1) * int(group["required_weekly_periods"])
+            return total
+
         for raw_rule in (snapshot.get("constraints") or {}).get("teacher_scheduling_rules") or []:
             teacher_id = int(raw_rule.get("teacher_id") or 0)
             teacher_demands = demands_by_teacher.get(teacher_id) or []
@@ -282,6 +296,35 @@ class TimetableProblemBuilder:
                 matching_total = sum(int(item["required_weekly_periods"]) for item in demands if item["demand_id"] in rule["eligible_demand_ids"])
                 if len(rule["resolved_slots"]) > matching_total:
                     raise TimetableProblemError("teacher_rule_target_workload_infeasible", "Required class periods exceed matching assigned demand.")
+            elif rule["rule_type"] == "schedule_within":
+                allowed = {
+                    (slot["day_key"], slot["period_index"])
+                    for slot in rule["resolved_slots"]
+                }
+                unavailable = {
+                    (slot["day_key"], slot["period_index"])
+                    for other in teacher_rules
+                    if other["teacher_id"] == rule["teacher_id"]
+                    and other["rule_type"] == "unavailable"
+                    for slot in other["resolved_slots"]
+                }
+                matching_total = effective_slot_demand(rule["eligible_demand_ids"])
+                if matching_total > len(allowed - unavailable):
+                    raise TimetableProblemError(
+                        "teacher_rule_window_capacity_insufficient",
+                        "The selected period window is too small for the teacher's existing assigned workload.",
+                    )
+                for required_rule in teacher_rules:
+                    if required_rule["teacher_id"] != rule["teacher_id"] or required_rule["rule_type"] != "must_teach":
+                        continue
+                    if set(required_rule["eligible_demand_ids"]).issubset(set(rule["eligible_demand_ids"])) and any(
+                        (slot["day_key"], slot["period_index"]) not in allowed
+                        for slot in required_rule["resolved_slots"]
+                    ):
+                        raise TimetableProblemError(
+                            "teacher_rule_window_required_conflict",
+                            "A required teaching period falls outside the configured scheduling window.",
+                        )
 
         # Final defense-in-depth: an invalid resolved distribution rule must
         # fail cleanly here rather than reach CP-SAT with an unsatisfiable or
@@ -343,6 +386,10 @@ class TimetableProblemBuilder:
                     (item["day_key"], item["period_index"]) == slot_key for item in rule["resolved_slots"]
                 ) and demand_by_key[key]["demand_id"] not in rule["eligible_demand_ids"]:
                     raise TimetableProblemError("teacher_rule_lock_conflict", "A locked lesson prevents a required teacher class in the same period.")
+                if rule["teacher_id"] == normalized["teacher_id"] and rule["rule_type"] == "schedule_within" and demand_by_key[key]["demand_id"] in rule["eligible_demand_ids"] and not any(
+                    (item["day_key"], item["period_index"]) == slot_key for item in rule["resolved_slots"]
+                ):
+                    raise TimetableProblemError("teacher_rule_lock_conflict", "A locked lesson falls outside the teacher's configured scheduling window.")
             section_slot = (normalized["section_id"], *slot_key)
             teacher_slot = (normalized["teacher_id"], *slot_key)
             group_key = grouped_member_keys.get(key)

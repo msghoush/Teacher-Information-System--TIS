@@ -98,6 +98,18 @@ class TimetableSolutionValidator:
         teacher_preference_satisfied = 0
         for rule in problem.get("teacher_scheduling_rules") or []:
             eligible_ids = set(rule.get("eligible_demand_ids") or [])
+            allowed_slots = {
+                (slot["day_key"], int(slot["period_index"]))
+                for slot in rule.get("resolved_slots") or []
+            }
+            if rule["rule_type"] == "schedule_within":
+                if any(
+                    demand_id_by_key.get(demand_key(item)) in eligible_ids
+                    and (str(item.get("day_key") or "").lower(), int(item.get("period_index") or 0)) not in allowed_slots
+                    for item in placements
+                ):
+                    add("teacher_schedule_window_violated", "A teacher lesson was scheduled outside its required period window.")
+                continue
             for slot in rule.get("resolved_slots") or []:
                 matching = sum(
                     1 for item in placements

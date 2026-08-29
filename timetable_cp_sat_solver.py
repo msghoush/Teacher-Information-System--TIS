@@ -97,6 +97,16 @@ def solve_timetable(
             grouped_representative.get(demand_id, demand_id)
             for demand_id in rule.get("eligible_demand_ids") or []
         })
+        allowed_slots = {
+            (slot["day_key"], slot["period_index"])
+            for slot in rule.get("resolved_slots") or []
+        }
+        if rule["rule_type"] == "schedule_within":
+            for slot in problem["slots"]:
+                if (slot["day_key"], slot["period_index"]) not in allowed_slots:
+                    for demand_id in demand_ids:
+                        model.add(variables[(demand_id, slot["day_key"], slot["period_index"])] == 0)
+            continue
         for slot in rule.get("resolved_slots") or []:
             values = [
                 variables[(demand_id, slot["day_key"], slot["period_index"])]
