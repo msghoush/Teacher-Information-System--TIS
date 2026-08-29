@@ -81,3 +81,22 @@ def test_customer_facing_original_period_label_replaces_catalog_default():
     assert "Original weekly periods" in SUBJECTS_TEMPLATE
     assert "Catalog default" not in SUBJECTS_TEMPLATE
     assert "Original weekly periods" in EDIT_SUBJECT_TEMPLATE
+
+
+def test_adjustment_summary_keeps_reduce_only_subject_visible_on_steps_three_to_five():
+    assert 'id="adjustmentSummary"' in TEMPLATE
+    assert "![3,4,5].includes(step)" in TEMPLATE
+    assert "renderAdjustmentSummary(preview)" in TEMPLATE
+    assert "Reduce periods only" in TEMPLATE
+    assert "subjectLabel(preview.request.source_subject_code)" in TEMPLATE
+    assert "periodSummary(preview,'source')" in TEMPLATE
+    assert "scopeLabel(preview)" in TEMPLATE
+
+
+def test_adjustment_summary_and_final_review_name_transfer_subjects():
+    assert "subjectLabel(preview.request.target_subject_code)" in TEMPLATE
+    assert "requested_transfer_periods" in TEMPLATE
+    assert "subjectLabel(item.source.subject_code)" in TEMPLATE
+    assert "subjectLabel(item.target.subject_code)" in TEMPLATE
+    assert "<th>Source subject</th>" in TEMPLATE
+    assert "<th>Target subject</th>" in TEMPLATE

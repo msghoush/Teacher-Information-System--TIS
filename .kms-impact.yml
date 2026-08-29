@@ -1,20 +1,8 @@
-knowledge_impact: yes
-summary: Add reduce-only curriculum adjustments and subject-detail prefill while preserving Planning demand authority.
+knowledge_impact: no
+summary: Keep selected subject names, scope, and period changes visible throughout curriculum adjustment review steps.
 affected_areas:
-  - planning
-  - teachers
   - ui
-  - workflows
-  - business_rules
   - tests
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/engineering/TIS_MODULE_MAP.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/CHANGE_HISTORY.md
-  - docs/history/workforce-planning/README.md
-  - docs/history/workforce-planning/2026-08-29-reduce-only-curriculum-adjustment.md
-no_impact_reason:
+no_impact_reason: Presentation-only continuity improvement using existing preview payload; no authority, API, permission, scope, transaction, or workflow behavior changed.
 major_change_override: no
