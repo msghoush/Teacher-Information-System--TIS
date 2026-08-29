@@ -18,6 +18,9 @@ Related files:
 
 History entries:
 
+- `2026-08-29-curriculum-adjustment-preview.md` — read-only scoped transfer preview,
+  teacher/capacity options, rule/grouped warnings, Draft impact, and stale guard.
+
 - `2026-08-28-planning-subject-demand-consumers.md` — live Planning, workload,
   timetable, scheduling-rule, and required-hours report consumers adopt explicit
   per-section demand authority with missing-row legacy fallback.

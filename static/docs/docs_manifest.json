@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-28T22:42:41.073971+03:00",
+  "generated_at": "2026-08-29T12:17:27.555382+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "839f5a4",
+  "commit_sha": "d742327",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "a825cd30f259b62217bee35c198cbb13fd50d12d7a62a7c04a9e7b749929130e",
-  "pdf_size_bytes": 997452,
+  "pdf_sha256": "2960a700a040a0adae6bd9eb866b63ce118d26c7cd189b8a1355f66dad3f2aca",
+  "pdf_size_bytes": 1004691,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-28T22:40:40.713145+03:00",
-      "size_bytes": 76677,
-      "sha256": "989dbe8085e64b6c2e1a1ec4c061506f319352ef0692bdb2b30d93f929e88513",
+      "modified_at": "2026-08-29T12:15:36.249914+03:00",
+      "size_bytes": 77547,
+      "sha256": "daf54520c1e8b0144e94513fd543a2224554161ef75f534612339bf0b0345999",
       "pdf_page": 15
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-08-28T22:40:40.713145+03:00",
-      "size_bytes": 70642,
-      "sha256": "c08f3ef4b87c8db478b4c0bf3f1103e201dafa50a4d8eb0e5625f97014e86844",
+      "modified_at": "2026-08-29T12:15:36.250615+03:00",
+      "size_bytes": 71786,
+      "sha256": "b290694eb00ccee64b51a00f042e7e684e91ee4d3551cfaec0bcc8d0c5b842c4",
       "pdf_page": 38
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-28T22:40:40.713145+03:00",
-      "size_bytes": 61982,
-      "sha256": "dc1ffee7166d25f6ed56a75b77013fd86350bf416af91d6095ae81a8ce555206",
+      "modified_at": "2026-08-29T12:15:36.250615+03:00",
+      "size_bytes": 62706,
+      "sha256": "9ae6615fd802f4cf8aaebd1d3767f067f12877d7a49fa942a27a238a446922fd",
       "pdf_page": 60
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-28T22:41:11.053359+03:00",
-      "size_bytes": 116269,
-      "sha256": "3fb9014bd386da066606b98caedf9f341a23b3fbd27fe3590f8973356907b5db",
+      "modified_at": "2026-08-29T12:15:36.254099+03:00",
+      "size_bytes": 116832,
+      "sha256": "ddd97dc1188122a545eb143a3a636aaceabba208b3efee50e610bfd9dfffb8fa",
       "pdf_page": 79
     },
     {
@@ -74,9 +74,9 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-08-28T22:40:40.717479+03:00",
-      "size_bytes": 33051,
-      "sha256": "e9cc54ed7820196096ba31836306b12f3034249cf1417ae5c33daa4a43b79cd3",
+      "modified_at": "2026-08-29T12:15:36.253176+03:00",
+      "size_bytes": 33597,
+      "sha256": "f006fc3b30fdb1ff6842a2d8aff9210af740fcc53167fa9478fada5d2fadefe5",
       "pdf_page": 124
     },
     {
@@ -88,16 +88,16 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-08-28T06:02:16.609738+03:00",
-      "size_bytes": 60138,
-      "sha256": "def5b4d3f252d5a893d88aaa39c4a84abbd2c5b8840367068c3df83ece1b378a",
+      "modified_at": "2026-08-29T12:15:36.254099+03:00",
+      "size_bytes": 60977,
+      "sha256": "9bc12c2c9979eed6a94effee218ef812bd5316f83a6ea11d59d7365408557ae9",
       "pdf_page": 156
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-08-28T22:40:40.713145+03:00",
-      "size_bytes": 36217,
-      "sha256": "1b647c1236bd7632ce8fa0a7fb16e2e162a79db6d81aa0dc2986ebeca08b2555",
+      "modified_at": "2026-08-29T12:15:46.621725+03:00",
+      "size_bytes": 36813,
+      "sha256": "db763c582dc228046d14c8b94a5b958f76e90dd09c2e74a2ebac988a67d4f711",
       "pdf_page": 181
     },
     {
@@ -375,9 +375,9 @@
     },
     {
       "path": "docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md",
-      "modified_at": "2026-08-28T22:41:11.052359+03:00",
-      "size_bytes": 11291,
-      "sha256": "708264bcb27ca2dd894d7f2f2de5f13efdccf95ed6ed793bc0fe087815b4aafb",
+      "modified_at": "2026-08-29T12:15:46.619681+03:00",
+      "size_bytes": 11758,
+      "sha256": "afd01dd3ae516dfc366014b3195243b3a1947685d11003165f7e4a7485fd2cc8",
       "pdf_page": 285
     },
     {
@@ -619,39 +619,46 @@
       "pdf_page": 346
     },
     {
-      "path": "docs/history/workforce-planning/README.md",
-      "modified_at": "2026-08-28T22:41:14.663754+03:00",
-      "size_bytes": 1584,
-      "sha256": "240a5d41aefba41cbfc18c36cf8876ada4e929385d7ba81eb3178b0042e0b4c7",
+      "path": "docs/history/workforce-planning/2026-08-29-curriculum-adjustment-preview.md",
+      "modified_at": "2026-08-29T12:15:36.256115+03:00",
+      "size_bytes": 913,
+      "sha256": "8389dfcde074547ad652be6475b7cf1fde0ecee809baf5bed45e0779c61f15b3",
       "pdf_page": 347
+    },
+    {
+      "path": "docs/history/workforce-planning/README.md",
+      "modified_at": "2026-08-29T12:15:36.256115+03:00",
+      "size_bytes": 1754,
+      "sha256": "a18f34279ae80e367f422f1a9a7deb5220cff5bfb1b75cb6f4ac649acb8c9794",
+      "pdf_page": 348
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 348
+      "pdf_page": 349
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 2012,
       "sha256": "d901b0ac33d921ff6041334e6580949f167b159c01c7840b48b1c2cf437c16f2",
-      "pdf_page": 349
+      "pdf_page": 350
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-08-22T02:52:50.590506+03:00",
       "size_bytes": 22759,
       "sha256": "e66b791e2798281fb0ee2a30768c48a27403a01bdfb12724ae004b3c98063ed7",
-      "pdf_page": 350
+      "pdf_page": 351
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 358
+      "pdf_page": 359
     }
   ]
 }

@@ -7,6 +7,19 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Read-Only Curriculum Adjustment Preview
+
+Stage 3 adds `curriculum_adjustment_preview_service.py` and permissioned JSON route
+`POST /planning/curriculum-adjustments/preview`. The service previews source-demand
+reduction and transfer to a target subject for one grade, selected Current/New
+sections, or every active source use in one exact SchoolGroup/branch/year. It reads
+explicit-first `PlanningSubjectDemand`, current Planning/HRT teachers, teacher loads
+and capacity, normalized Subject Scheduling Rules, grouped legacy configuration,
+and the current mutable Draft Timetable revision. It returns per-section before/
+after periods, teacher options, blockers/warnings, Draft stale/regeneration impact,
+and a deterministic fingerprint that can be rebuilt before a future apply action.
+It writes nothing, never assigns a teacher, and never changes timetable history.
+
 ## Explicit Planning Subject Demand Foundation
 
 Migration `20260828_004_planning_subject_demands_foundation` adds

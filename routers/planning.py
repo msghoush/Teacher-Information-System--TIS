@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -22,6 +22,11 @@ from teacher_qualifications import (
 )
 from teacher_capacity import get_teacher_international_capacity_hours
 from planning_subject_demand_service import resolve_scope_subject_demands
+from curriculum_adjustment_preview_service import (
+    CurriculumAdjustmentPreviewError,
+    CurriculumAdjustmentPreviewRequest,
+    build_curriculum_adjustment_preview,
+)
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 from subject_colors import build_subject_theme, resolve_subject_color
@@ -86,6 +91,48 @@ def _normalize_class_status(value) -> str:
     if cleaned == "new":
         return "New"
     return ""
+
+
+@router.post("/curriculum-adjustments/preview")
+async def curriculum_adjustment_preview(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    current_user, denied_response = authorization.require_permission(
+        request, db, "planning.edit_section", current_user=current_user, page_key="planning"
+    )
+    if denied_response:
+        return denied_response
+    try:
+        payload = await request.json()
+    except ValueError:
+        return JSONResponse({"error": "invalid_json", "message": "Submit a valid JSON preview request."}, status_code=400)
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    school_group_id = getattr(current_user, "scope_school_group_id", None) or auth.get_user_school_group_id(db, current_user)
+    try:
+        preview_request = CurriculumAdjustmentPreviewRequest(
+            scope_type=payload.get("scope_type", ""),
+            source_subject_code=payload.get("source_subject_code", ""),
+            target_subject_code=payload.get("target_subject_code", ""),
+            grade_level=payload.get("grade_level"),
+            section_ids=tuple(payload.get("section_ids") or ()),
+            source_after_weekly_periods=int(payload.get("source_after_weekly_periods", 0)),
+        )
+        result = build_curriculum_adjustment_preview(
+            db,
+            school_group_id=int(school_group_id or 0),
+            branch_id=int(branch_id or 0),
+            academic_year_id=int(academic_year_id or 0),
+            request=preview_request,
+        )
+    except (TypeError, ValueError) as exc:
+        if isinstance(exc, CurriculumAdjustmentPreviewError):
+            return JSONResponse({"error": exc.code, "message": str(exc)}, status_code=400)
+        return JSONResponse({"error": "invalid_request", "message": "Preview values are invalid."}, status_code=400)
+    return JSONResponse(result)
 
 
 def _grade_sort_value(grade_level: str) -> int:

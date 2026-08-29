@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Curriculum Adjustment Preview
+
+- `curriculum_adjustment_preview_service.py`: read-only scope selection, demand
+  transfer projection, teacher/capacity suggestions, rule/grouped warnings, Draft
+  impact, and deterministic stale-confirmation fingerprint.
+- `routers/planning.py`: permissioned JSON preview endpoint; no apply endpoint.
+- `authorization.py`: `planning.edit_section` protects the preview route.
+- Existing demand, assignment, timetable version, active pointer, and published
+  placement models remain read-only inputs in Stage 3.
+
 ## Explicit Planning Subject Demand Foundation
 
 - `models.PlanningSubjectDemand`: future section-subject weekly-period authority,

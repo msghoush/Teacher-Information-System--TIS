@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Read-Only Curriculum Adjustment Preview
+
+1. An authorized Planning editor selects grade, selected sections, or all active
+   source uses and identifies source/target subjects plus proposed source periods.
+2. The service resolves only Current/New sections in the selected SchoolGroup,
+   branch, and academic year and reads explicit-first section demand.
+3. It projects released/target periods, current teachers, uncommitted teacher
+   options and capacity, scheduling-rule arithmetic, grouped warnings, and Draft
+   stale/regeneration impact.
+4. It returns blockers/warnings and a deterministic preview fingerprint. No row is
+   changed and no teacher is automatically selected.
+5. A future apply stage must rebuild and compare the fingerprint before any atomic
+   mutation. Published timetable history remains outside the write path.
+
 ## Simplified Timetable And Official Visibility
 
 1. A manager creates or opens the exact-scope Draft Timetable and configures inputs until Ready to Generate.

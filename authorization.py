@@ -87,6 +87,7 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/planning/?", ("GET",), ("planning.view",), "planning"),
     PermissionRule(r"/planning/?", ("POST",), ("planning.create_section",), "planning"),
     PermissionRule(r"/planning/copy-from-year", ("POST",), ("planning.copy_year_data",), "planning"),
+    PermissionRule(r"/planning/curriculum-adjustments/preview", ("POST",), ("planning.edit_section",), "planning"),
     PermissionRule(r"/planning/edit/\d+", ("GET", "POST"), ("planning.edit_section",), "planning"),
     PermissionRule(r"/planning/delete/\d+", ("GET",), ("planning.delete_section",), "planning"),
     PermissionRule(r"/timetable/?", ("GET",), ("timetable.view",), "timetable"),
