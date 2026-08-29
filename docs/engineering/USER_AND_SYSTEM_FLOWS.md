@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Guided Curriculum Adjustment UI
+
+1. A user with `curriculum.adjust` opens **Adjust Curriculum** from Planning or Subjects.
+2. The user chooses grade, selected Current/New sections, or all active source uses, then chooses source, target, and the proposed source reduction.
+3. The browser requests the Stage 3 preview and presents section demand changes, teacher/capacity impact, rule and grouped warnings, blockers, and Draft regeneration impact.
+4. The user explicitly chooses an eligible, within-capacity teacher or **Leave unassigned** for every affected section. Nothing is preconfirmed.
+5. Final review requires confirmation and submits the unchanged preview fingerprint to Stage 4 apply.
+6. If Planning changed, the preview is refreshed and the user reviews again; compatible teacher selections are preserved where possible.
+7. Success reports affected sections and Draft status and offers Timetable/regeneration links. Regeneration is never automatic.
+
 ## Atomic Curriculum Adjustment Apply
 
 1. A user with `curriculum.adjust` submits the exact reviewed request, Stage 3

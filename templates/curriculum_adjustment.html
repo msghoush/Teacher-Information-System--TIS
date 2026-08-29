@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+
+{% block title %}Adjust Curriculum | TIS{% endblock %}
+
+{% block page_styles %}
+<style>
+.curriculum-page{max-width:1120px;margin:0 auto;color:#1f2737}.wizard-head,.wizard-card{background:#fff;border:1px solid #d8e2f0;border-radius:16px;box-shadow:0 10px 24px rgba(15,23,42,.07)}.wizard-head{padding:18px;margin-bottom:12px;display:flex;justify-content:space-between;gap:16px;align-items:flex-start}.wizard-head h1{margin:0;font-size:25px}.wizard-head p{margin:5px 0 0;color:#5d6b82}.back-link,.button{border:0;border-radius:10px;padding:10px 14px;font-weight:750;font-size:14px;text-decoration:none;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px}.back-link,.button.secondary{background:#eef3f9;color:#29415f}.button.primary{background:#0a4ea3;color:#fff}.button.danger{background:#b42318;color:#fff}.button:disabled{opacity:.5;cursor:not-allowed}.stepper{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin-bottom:12px}.step-chip{padding:10px 8px;border:1px solid #d8e2f0;border-radius:12px;background:#fff;color:#66758c;text-align:center;font-size:12px;font-weight:750}.step-chip.active{background:#eaf3ff;border-color:#0a4ea3;color:#073a7d}.step-chip.done{background:#eef9f3;border-color:#8bd2ac;color:#027a48}.wizard-card{padding:18px}.wizard-card h2{margin:0 0 5px;font-size:20px}.intro{color:#5d6b82;margin:0 0 16px}.step-panel[hidden]{display:none}.scope-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.scope-option{display:block;border:1px solid #d8e2f0;border-radius:13px;padding:14px;cursor:pointer}.scope-option:has(input:checked){border-color:#0a4ea3;background:#f2f7ff}.scope-option strong{display:block;margin-bottom:4px}.scope-option small{color:#5d6b82;line-height:1.35}.scope-option input{margin-right:7px}.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.field{display:grid;gap:6px}.field.wide{grid-column:1/-1}.field label{font-weight:750;font-size:13px}.field select,.field input{width:100%;border:1px solid #b9c8db;border-radius:10px;padding:10px;background:#fff;color:#1f2737}.section-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;max-height:260px;overflow:auto;border:1px solid #d8e2f0;border-radius:12px;padding:10px}.section-check{display:flex;gap:8px;align-items:center;padding:8px;border-radius:8px;background:#f7f9fc}.guide{border-left:4px solid #0a4ea3;background:#f2f7ff;padding:10px 12px;border-radius:8px;color:#29415f;font-size:13px}.wizard-actions{display:flex;justify-content:space-between;gap:10px;margin-top:18px;flex-wrap:wrap}.impact-list{display:grid;gap:10px}.impact-card{border:1px solid #d8e2f0;border-radius:13px;padding:13px}.impact-title{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-bottom:9px}.impact-title strong{font-size:16px}.status-pill{font-size:11px;padding:4px 8px;border-radius:999px;background:#eef3f9;color:#42566f}.period-grid,.teacher-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.period-box,.teacher-box{background:#f7f9fc;border-radius:10px;padding:10px}.period-box span,.teacher-box span{display:block;color:#66758c;font-size:12px;margin-bottom:3px}.period-box strong{font-size:18px}.finding{padding:10px 12px;border-radius:10px;margin:8px 0;font-size:13px}.finding.blocker{background:#fff0f0;border:1px solid #f3b4b4;color:#8f1717}.finding.warning{background:#fff8e8;border:1px solid #efd18b;color:#7a4a00}.finding.info{background:#eef6ff;border:1px solid #b7d4f5;color:#174b7f}.teacher-decision{display:grid;grid-template-columns:minmax(220px,1fr) minmax(260px,1.2fr);gap:12px;align-items:center;border:1px solid #d8e2f0;border-radius:12px;padding:12px;margin-bottom:9px}.teacher-decision select{width:100%;padding:10px;border:1px solid #b9c8db;border-radius:10px}.review-table{width:100%;border-collapse:collapse}.review-table th,.review-table td{text-align:left;padding:10px;border-bottom:1px solid #e3e9f1;font-size:13px}.confirm-box{display:flex;gap:9px;align-items:flex-start;border:1px solid #b8cce6;background:#f5f9ff;border-radius:12px;padding:12px;margin-top:14px}.success-state{text-align:center;padding:24px 12px}.success-mark{width:58px;height:58px;border-radius:50%;margin:0 auto 12px;background:#e6f7ee;color:#027a48;display:grid;place-items:center;font-size:28px;font-weight:900}.success-actions{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:18px}.loading{opacity:.65;pointer-events:none}.page-message{margin-bottom:12px}.muted{color:#66758c}.hidden{display:none!important}
+@media(max-width:760px){.wizard-head{flex-direction:column}.stepper{grid-template-columns:1fr}.step-chip:not(.active){display:none}.scope-grid,.form-grid,.period-grid,.teacher-grid,.teacher-decision,.section-picker{grid-template-columns:1fr}.review-table{display:block;overflow-x:auto}.wizard-actions .button{flex:1}}
+</style>
+{% endblock %}
+
+{% block content %}
+<main class="curriculum-page" id="curriculumWizard">
+  <header class="wizard-head">
+    <div><h1>Adjust Curriculum</h1><p>Review every Planning, teacher, and Draft Timetable impact before applying a change.</p></div>
+    <a class="back-link" href="/planning/">{{ icon("planning", "icon") }} Back to Planning</a>
+  </header>
+
+  <div class="stepper" aria-label="Adjustment progress">
+    {% for label in ["1. Scope","2. Change","3. Preview","4. Teachers","5. Review"] %}<div class="step-chip{% if loop.first %} active{% endif %}" data-step-chip="{{ loop.index }}">{{ label }}</div>{% endfor %}
+  </div>
+  <div id="pageMessage" class="page-message" aria-live="polite"></div>
+
+  <section class="wizard-card step-panel" data-step="1">
+    <h2>Select where the change applies</h2><p class="intro">Only Current and New Planning sections in the selected branch and academic year are available.</p>
+    <div class="scope-grid">
+      <label class="scope-option"><span><input type="radio" name="scope_type" value="grade" checked><strong>One grade</strong></span><small>Apply the reviewed change to every Current/New section in one grade.</small></label>
+      <label class="scope-option"><span><input type="radio" name="scope_type" value="selected_sections"><strong>Selected sections</strong></span><small>Choose the exact sections that should change.</small></label>
+      <label class="scope-option"><span><input type="radio" name="scope_type" value="all_active_uses"><strong>All active uses</strong></span><small>Use every Current/New section where the source subject is currently active.</small></label>
+    </div>
+    <div class="form-grid" style="margin-top:14px">
+      <div class="field" id="gradeField"><label for="gradeSelect">Grade</label><select id="gradeSelect">{% for grade in grades %}<option value="{{ grade }}">{% if grade == "KG" %}Kindergarten{% else %}Grade {{ grade }}{% endif %}</option>{% endfor %}</select></div>
+      <div class="field wide hidden" id="sectionsField"><label>Sections</label><div class="section-picker">{% for section in sections %}<label class="section-check"><input type="checkbox" name="section_id" value="{{ section.id }}"><span>{{ section.label }}</span></label>{% endfor %}</div></div>
+    </div>
+    <div class="wizard-actions"><span></span><button class="button primary" type="button" data-next="2">Continue</button></div>
+  </section>
+
+  <section class="wizard-card step-panel" data-step="2" hidden>
+    <h2>Choose the curriculum change</h2><p class="intro">Select the subject releasing periods and the subject receiving them.</p>
+    <div class="form-grid">
+      <div class="field"><label for="sourceSubject">Source subject</label><select id="sourceSubject"><option value="">Select subject</option>{% for subject in subjects %}<option value="{{ subject.code }}" data-periods="{{ subject.weekly_periods }}">{{ subject.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="targetSubject">Target subject</label><select id="targetSubject"><option value="">Select subject</option>{% for subject in subjects %}<option value="{{ subject.code }}">{{ subject.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="transferPeriods">Periods to transfer or reduce</label><input id="transferPeriods" type="number" min="1" step="1" value="1"></div>
+      <div class="field"><label>Current catalog guide</label><div class="guide" id="periodGuide">Select a source subject to see its current weekly guide.</div></div>
+    </div>
+    <div class="guide" style="margin-top:12px">Planning is authoritative. The next step will show the exact current and proposed periods for every affected section.</div>
+    <div class="wizard-actions"><button class="button secondary" type="button" data-back="1">Back</button><button class="button primary" id="previewButton" type="button">Preview impact</button></div>
+  </section>
+
+  <section class="wizard-card step-panel" data-step="3" hidden>
+    <h2>Preview the impact</h2><p class="intro">Nothing has changed yet. Review blockers and warnings for each section.</p>
+    <div id="previewFindings"></div><div id="impactList" class="impact-list"></div>
+    <div class="wizard-actions"><button class="button secondary" type="button" data-back="2">Back</button><button class="button primary" id="teachersButton" type="button">Continue to teachers</button></div>
+  </section>
+
+  <section class="wizard-card step-panel" data-step="4" hidden>
+    <h2>Confirm teacher decisions</h2><p class="intro">Choose deliberately for every affected section. No teacher change is selected automatically.</p>
+    <div id="teacherDecisions"></div>
+    <div class="wizard-actions"><button class="button secondary" type="button" data-back="3">Back</button><button class="button primary" id="reviewButton" type="button">Review adjustment</button></div>
+  </section>
+
+  <section class="wizard-card step-panel" data-step="5" hidden>
+    <h2>Final review</h2><p class="intro">Confirm the exact subject and teacher changes before applying them.</p>
+    <div id="finalReview"></div>
+    <label class="confirm-box"><input id="confirmApply" type="checkbox"><span>I confirm these curriculum and teacher-allocation changes. I understand the Draft Timetable will need to be regenerated.</span></label>
+    <div class="wizard-actions"><button class="button secondary" type="button" data-back="4">Back</button><button class="button danger" id="applyButton" type="button" disabled>Apply adjustment</button></div>
+  </section>
+
+  <section class="wizard-card step-panel" data-step="6" hidden><div class="success-state"><div class="success-mark">✓</div><h2>Curriculum adjustment applied</h2><p id="successSummary" class="muted"></p><div class="finding warning" id="successDraft"></div><div class="success-actions"><a class="button secondary" href="/planning/">Back to Planning</a><a class="button primary" href="/timetable/">Go to Timetable</a><a class="button primary" href="/timetable/?action=regenerate">Regenerate Draft</a></div></div></section>
+</main>
+
+<script>
+(() => {
+  const wizard = document.getElementById('curriculumWizard');
+  const state = {step:1, preview:null, teacherDecisions:{}};
+  const message = document.getElementById('pageMessage');
+  const esc = value => String(value ?? '').replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+  const subjectLabel = code => document.querySelector(`#sourceSubject option[value="${CSS.escape(code)}"],#targetSubject option[value="${CSS.escape(code)}"]`)?.textContent?.trim() || 'Selected subject';
+  const showMessage = (text, kind='info') => { message.innerHTML = text ? `<div class="finding ${kind}">${esc(text)}</div>` : ''; };
+  const showStep = step => { state.step=step; document.querySelectorAll('.step-panel').forEach(panel => panel.hidden=Number(panel.dataset.step)!==step); document.querySelectorAll('[data-step-chip]').forEach(chip => {const value=Number(chip.dataset.stepChip);chip.classList.toggle('active',value===step);chip.classList.toggle('done',value<step);}); window.scrollTo({top:0,behavior:'smooth'}); };
+  const scopeType = () => document.querySelector('input[name="scope_type"]:checked').value;
+  const requestPayload = () => {
+    const source = document.getElementById('sourceSubject');
+    const guide = Number(source.selectedOptions[0]?.dataset.periods || 0);
+    const transfer = Number(document.getElementById('transferPeriods').value || 0);
+    return {scope_type:scopeType(),grade_level:scopeType()==='grade'?document.getElementById('gradeSelect').value:null,section_ids:scopeType()==='selected_sections'?[...document.querySelectorAll('input[name="section_id"]:checked')].map(item=>Number(item.value)):[],source_subject_code:source.value,target_subject_code:document.getElementById('targetSubject').value,source_after_weekly_periods:Math.max(guide-transfer,0)};
+  };
+  document.querySelectorAll('input[name="scope_type"]').forEach(input => input.addEventListener('change', () => {const type=scopeType();document.getElementById('gradeField').classList.toggle('hidden',type!=='grade');document.getElementById('sectionsField').classList.toggle('hidden',type!=='selected_sections');}));
+  document.getElementById('sourceSubject').addEventListener('change', event => {const periods=event.target.selectedOptions[0]?.dataset.periods;document.getElementById('periodGuide').textContent=periods!==undefined?`${periods} weekly period${Number(periods)===1?'':'s'} in the subject catalog.`:'Select a source subject to see its current weekly guide.';});
+  document.querySelectorAll('[data-next]').forEach(button=>button.addEventListener('click',()=>{if(scopeType()==='selected_sections'&&!document.querySelector('input[name="section_id"]:checked')){showMessage('Select at least one section.','blocker');return;}showMessage('');showStep(Number(button.dataset.next));}));
+  document.querySelectorAll('[data-back]').forEach(button=>button.addEventListener('click',()=>{showMessage('');showStep(Number(button.dataset.back));}));
+  const findingHtml = (item,kind) => `<div class="finding ${kind}">${esc(item.message)}</div>`;
+  const renderPreview = preview => {
+    const findings=document.getElementById('previewFindings');
+    findings.innerHTML=(preview.blockers||[]).map(item=>findingHtml(item,'blocker')).join('')+(preview.warnings||[]).map(item=>findingHtml(item,'warning')).join('')+(preview.timetable_impact?.regeneration_required_after_apply?'<div class="finding info">The current Draft Timetable will need to be regenerated after this adjustment.</div>':'');
+    document.getElementById('impactList').innerHTML=preview.sections.map(item=>`<article class="impact-card"><div class="impact-title"><strong>${esc(item.section.grade_level==='KG'?'Kindergarten':`Grade ${item.section.grade_level}`)} · Section ${esc(item.section.section_name)}</strong><span class="status-pill">${esc(item.section.class_status)}</span></div><div class="period-grid"><div class="period-box"><span>${esc(subjectLabel(item.source.subject_code))}</span><strong>${item.source.current_weekly_periods} → ${item.source.after_weekly_periods}</strong></div><div class="period-box"><span>${esc(subjectLabel(item.target.subject_code))}</span><strong>${item.target.current_weekly_periods} → ${item.target.after_weekly_periods}</strong></div></div><div class="teacher-grid" style="margin-top:8px"><div class="teacher-box"><span>Current source teacher</span><strong>${esc(item.current_source_teacher.teacher?.name||'Unassigned')}</strong></div><div class="teacher-box"><span>Current target teacher</span><strong>${esc(item.current_target_teacher.teacher?.name||'Unassigned')}</strong></div></div>${(item.suggested_teacher_options||[]).map(option=>`<div class="finding ${option.over_capacity?'warning':'info'}">${esc(option.teacher.name)}: ${option.current_load} current → ${option.projected_load} projected periods; capacity ${option.capacity}.</div>`).join('')}${(item.subject_scheduling_rule_impact||[]).flatMap(rule=>rule.validation_errors||[]).map(error=>findingHtml(error,'blocker')).join('')}${(item.grouped_legacy_warnings||[]).map(warning=>findingHtml(warning,'warning')).join('')}</article>`).join('');
+    document.getElementById('teachersButton').disabled=Boolean(preview.blockers?.length);
+  };
+  async function runPreview(staleMessage='') {
+    const payload=requestPayload();
+    if(!payload.source_subject_code||!payload.target_subject_code||payload.source_subject_code===payload.target_subject_code){showMessage('Select two different subjects.','blocker');return;}
+    if(Number(document.getElementById('transferPeriods').value||0)<1){showMessage('Enter at least one period to transfer or reduce.','blocker');return;}
+    wizard.classList.add('loading');
+    try{const response=await fetch('/planning/curriculum-adjustments/preview',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok)throw new Error(data.message||'Preview could not be prepared.');state.preview=data;renderPreview(data);showStep(3);showMessage(staleMessage||'Preview refreshed from current Planning.','info');}
+    catch(error){showMessage(error.message,'blocker');}
+    finally{wizard.classList.remove('loading');}
+  }
+  document.getElementById('previewButton').addEventListener('click',()=>runPreview());
+  document.getElementById('teachersButton').addEventListener('click',()=>{const previous={...state.teacherDecisions};state.teacherDecisions={};document.getElementById('teacherDecisions').innerHTML=state.preview.sections.map(item=>{const id=item.section.id;const options=(item.suggested_teacher_options||[]).filter(option=>option.eligible_for_target&&!option.over_capacity);return `<div class="teacher-decision"><div><strong>${item.section.grade_level==='KG'?'Kindergarten':`Grade ${esc(item.section.grade_level)}`} · Section ${esc(item.section.section_name)}</strong><div class="muted">Target becomes ${item.target.after_weekly_periods} weekly periods</div></div><select data-teacher-section="${id}"><option value="">Choose a teacher decision</option>${options.map(option=>`<option value="${option.teacher.id}">${esc(option.teacher.name)} · ${option.projected_load}/${option.capacity} periods${option.reason==='current_target_teacher'?' · Current target teacher':option.reason==='current_source_teacher'?' · Current source teacher':''}</option>`).join('')}<option value="unassigned">Leave unassigned</option></select></div>`;}).join('');document.querySelectorAll('[data-teacher-section]').forEach(select=>{const old=previous[select.dataset.teacherSection];if(old!==undefined)select.value=old===null?'unassigned':String(old);select.addEventListener('change',()=>{state.teacherDecisions[select.dataset.teacherSection]=select.value==='unassigned'?null:(select.value?Number(select.value):undefined);});if(select.value)select.dispatchEvent(new Event('change'));});showMessage('');showStep(4);});
+  document.getElementById('reviewButton').addEventListener('click',()=>{const missing=state.preview.sections.some(item=>state.teacherDecisions[String(item.section.id)]===undefined);if(missing){showMessage('Choose a teacher decision for every affected section.','blocker');return;}const rows=state.preview.sections.map(item=>{const choice=state.teacherDecisions[String(item.section.id)];const option=(item.suggested_teacher_options||[]).find(candidate=>candidate.teacher.id===choice);return `<tr><td>${item.section.grade_level==='KG'?'Kindergarten':`Grade ${esc(item.section.grade_level)}`} · Section ${esc(item.section.section_name)}</td><td>${item.source.current_weekly_periods} → ${item.source.after_weekly_periods}</td><td>${item.target.current_weekly_periods} → ${item.target.after_weekly_periods}</td><td>${esc(choice===null?'Unassigned':option?.teacher.name||'Selected teacher')}</td></tr>`;}).join('');document.getElementById('finalReview').innerHTML=`<table class="review-table"><thead><tr><th>Section</th><th>Source</th><th>Target</th><th>Teacher decision</th></tr></thead><tbody>${rows}</tbody></table>${(state.preview.warnings||[]).map(item=>findingHtml(item,'warning')).join('')}<div class="finding info">${state.preview.affected_section_count} section${state.preview.affected_section_count===1?'':'s'} will change. The Draft Timetable will require regeneration after apply.</div>`;document.getElementById('confirmApply').checked=false;document.getElementById('applyButton').disabled=true;showMessage('');showStep(5);});
+  document.getElementById('confirmApply').addEventListener('change',event=>document.getElementById('applyButton').disabled=!event.target.checked);
+  document.getElementById('applyButton').addEventListener('click',async()=>{const payload={...requestPayload(),preview_fingerprint:state.preview.preview_fingerprint,teacher_decisions:state.teacherDecisions};wizard.classList.add('loading');try{const response=await fetch('/planning/curriculum-adjustments/apply',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const data=await response.json();if(!response.ok){if(data.error==='stale_preview'){await runPreview('Planning changed while you were reviewing. Please check the refreshed preview before continuing.');return;}throw new Error(data.message||'The adjustment could not be applied.');}document.getElementById('successSummary').textContent=`Adjustment applied to ${data.affected_sections.length} section${data.affected_sections.length===1?'':'s'}.`;document.getElementById('successDraft').textContent=data.regeneration_required?'The Draft Timetable is now out of date. Regenerate it before approval or publication.':'No Draft Timetable regeneration is currently required.';showMessage('');showStep(6);}catch(error){showMessage(error.message,'blocker');}finally{wizard.classList.remove('loading');}});
+})();
+</script>
+{% endblock %}

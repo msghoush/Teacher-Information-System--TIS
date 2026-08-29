@@ -273,6 +273,7 @@ def _render_subjects_page(
     can_edit = auth.has_permission(db, current_user, "subjects.edit")
     can_delete = auth.has_permission(db, current_user, "subjects.delete")
     can_copy_year_data = auth.has_permission(db, current_user, "subjects.copy_year_data")
+    can_adjust_curriculum = auth.has_permission(db, current_user, "curriculum.adjust")
     subjects = db.query(models.Subject).filter(
         models.Subject.branch_id == branch_id,
         models.Subject.academic_year_id == academic_year_id
@@ -322,6 +323,7 @@ def _render_subjects_page(
             "can_edit": can_edit,
             "can_delete": can_delete,
             "can_copy_year_data": can_copy_year_data,
+            "can_adjust_curriculum": can_adjust_curriculum,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],

@@ -229,6 +229,7 @@ def build_curriculum_adjustment_preview(
             capacity = int(get_teacher_international_capacity_hours(teacher))
             suggestions.append({
                 "teacher": _teacher_payload(teacher),
+                "eligible_for_target": teacher_id in qualified_target_ids,
                 "reason": "current_target_teacher" if teacher_id == target_teacher_id else ("current_source_teacher" if teacher_id == source_teacher_id else "target_subject_allocation"),
                 "current_load": current,
                 "projected_load": projected,

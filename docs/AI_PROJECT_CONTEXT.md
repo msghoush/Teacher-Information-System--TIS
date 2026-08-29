@@ -7,6 +7,10 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Guided Curriculum Adjustment UI
+
+Administrators with `curriculum.adjust` can enter a five-step, page-based workflow from Planning or Subjects. The UI selects Current/New scope, prepares the existing read-only preview, separates blockers from warnings, requires an explicit eligible teacher decision for every section, and submits the reviewed fingerprint to the atomic apply endpoint. A changed Planning state refreshes the preview without exposing revision terminology. Success links to Timetable and regeneration, but never starts generation automatically.
+
 ## Atomic Curriculum Adjustment Apply
 
 Stage 4 adds `curriculum_adjustment_apply_service.py` and permissioned

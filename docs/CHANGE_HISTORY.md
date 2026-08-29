@@ -7,6 +7,12 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-29 - Guided Curriculum Adjustment UI
+
+- Added a professional five-step administrator workflow for scope, change, preview, teacher decisions, final review, and success.
+- Added permission-gated Planning and Subjects entry points and customer-safe stale-review recovery.
+- Reused the Stage 3 preview and Stage 4 atomic apply authority; no solver, published-history, or automatic-regeneration behavior changed.
+
 ## 2026-08-29 - Atomic Curriculum Adjustment Apply
 
 - Added dedicated `curriculum.adjust` and a fingerprint-required apply endpoint.

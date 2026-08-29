@@ -106,8 +106,9 @@ async def curriculum_adjustment_preview(
     current_user = get_current_user(request, db)
     if not current_user:
         return JSONResponse({"error": "authentication_required"}, status_code=401)
-    current_user, denied_response = authorization.require_permission(
-        request, db, "planning.edit_section", current_user=current_user, page_key="planning"
+    current_user, denied_response = authorization.require_any_permission(
+        request, db, "planning.edit_section", "curriculum.adjust",
+        current_user=current_user, page_key="planning"
     )
     if denied_response:
         return denied_response
@@ -138,6 +139,67 @@ async def curriculum_adjustment_preview(
             return JSONResponse({"error": exc.code, "message": str(exc)}, status_code=400)
         return JSONResponse({"error": "invalid_request", "message": "Preview values are invalid."}, status_code=400)
     return JSONResponse(result)
+
+
+@router.get("/curriculum-adjustments")
+def curriculum_adjustment_page(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+    current_user, denied_response = authorization.require_permission(
+        request, db, "curriculum.adjust", current_user=current_user, page_key="planning"
+    )
+    if denied_response:
+        return denied_response
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == branch_id,
+        models.PlanningSection.academic_year_id == academic_year_id,
+        models.PlanningSection.class_status.in_(("Current", "New")),
+    ).order_by(models.PlanningSection.grade_level.asc(), models.PlanningSection.section_name.asc()).all()
+    subjects = db.query(models.Subject).filter(
+        models.Subject.branch_id == branch_id,
+        models.Subject.academic_year_id == academic_year_id,
+    ).order_by(models.Subject.grade.asc(), models.Subject.subject_name.asc()).all()
+    section_items = [
+        {
+            "id": int(section.id),
+            "grade_level": _normalize_grade_level(section.grade_level),
+            "section_name": str(section.section_name or "").strip(),
+            "class_status": str(section.class_status or ""),
+            "label": f"Grade {_normalize_grade_level(section.grade_level)} · Section {str(section.section_name or '').strip()} · {section.class_status}",
+        }
+        for section in sections
+    ]
+    subject_items = [
+        {
+            "code": str(subject.subject_code or "").strip().upper(),
+            "name": str(subject.subject_name or "").strip(),
+            "grade_level": _normalize_grade_level(subject.grade),
+            "weekly_periods": int(subject.weekly_hours or 0),
+            "label": f"{str(subject.subject_name or '').strip()} · Grade {_normalize_grade_level(subject.grade)}",
+        }
+        for subject in subjects if str(subject.subject_code or "").strip()
+    ]
+    grades = sorted(
+        {item["grade_level"] for item in section_items},
+        key=_grade_sort_value,
+    )
+    return templates.TemplateResponse(
+        request,
+        "curriculum_adjustment.html",
+        {
+            "request": request,
+            "user": current_user,
+            "grades": grades,
+            "sections": section_items,
+            "subjects": subject_items,
+            **build_shell_context(request, db, current_user, page_key="planning"),
+        },
+    )
 
 
 @router.post("/curriculum-adjustments/apply")
@@ -714,6 +776,7 @@ def _render_planning_page(
     can_edit = auth.has_permission(db, current_user, "planning.edit_section")
     can_delete = auth.has_permission(db, current_user, "planning.delete_section")
     can_copy_year_data = auth.has_permission(db, current_user, "planning.copy_year_data")
+    can_adjust_curriculum = auth.has_permission(db, current_user, "curriculum.adjust")
     copy_year_choices = (
         get_copy_year_choices(db, academic_year_id)
         if can_copy_year_data
@@ -800,6 +863,7 @@ def _render_planning_page(
             "can_edit": can_edit,
             "can_delete": can_delete,
             "can_copy_year_data": can_copy_year_data,
+            "can_adjust_curriculum": can_adjust_curriculum,
             "error": error,
             "success": success,
             "detail_errors": detail_errors or [],
