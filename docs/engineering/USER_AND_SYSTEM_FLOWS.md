@@ -29,6 +29,13 @@ source_of_truth: true
 6. The independent validator repeats window, required-occupancy, and
    unavailability checks and reports preference satisfaction. Only a valid,
    current-fingerprint candidate may become a new unpublished Draft.
+7. Select All mirrors every visible Current/New section and saved-rule summaries
+   show either exact grade-section names, All assigned sections, or All classes
+   for teacher-wide Unavailable rules. Editing restores the same literal scope.
+8. Manual Draft placement rejects hard Unavailable and Schedule-within violations
+   before writing. Complete Draft validation also detects missing Must-teach
+   occupancy and wrong selected-section occupancy; these hard blockers prevent
+   approval and publication, while preferences never block lifecycle actions.
 
 ## Guided Curriculum Adjustment UI
 

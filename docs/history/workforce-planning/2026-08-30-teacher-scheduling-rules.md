@@ -33,3 +33,16 @@ semantic through migration `20260830_002_teacher_scheduling_window_semantics`:
 existing assigned lessons must fit inside the selected window, but selected slots
 do not create or imply extra lessons. Existing Must-teach, first/last, grade-target,
 and preference rows retain their original meaning.
+
+Final administrator polish made Select All bidirectionally synchronize the exact
+visible Current/New section checkboxes, restored those targets during edit, and
+made saved summaries display grade-section names, All assigned sections, or All
+classes as appropriate. Selected-section targets remain intact through snapshots,
+the problem builder, CP-SAT, and independent validation.
+
+Manual Draft edits now reject hard Unavailable placements and lessons outside an
+applicable Schedule-within window. Missing Must-teach occupancy remains permissible
+while editing, but complete Draft validation detects it along with unavailable,
+window, and selected-section target violations. That shared hard validation blocks
+approval and publication; soft preferences remain non-blocking and published
+history is unchanged.
