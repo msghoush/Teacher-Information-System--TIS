@@ -25,6 +25,13 @@ semantics do not change.
 
 Planning remains authoritative for section demand, subject requirements, assigned teachers, and HRT fallback. A placement represents one teaching period, not a literal 60-minute hour. `PlanningSubjectDemand.weekly_periods` supplies explicit per-section requirements, with `Subject.weekly_hours` retained only as missing-row compatibility fallback. HRT fallback resolves the real section-subject demands; no generic HRT lesson replaces them.
 
+Stage 3 introduces a read-only curriculum-adjustment preview before any future
+late-stage demand mutation. It scopes Current/New sections by grade, explicit IDs,
+or all active source uses; projects demand, teacher capacity, distribution rules,
+grouped configuration, and mutable Draft impact; and returns a deterministic
+authority fingerprint for future stale confirmation. It cannot write demand,
+reassign teachers, regenerate a Draft, or mutate published history.
+
 The timetable is a versioned aggregate scoped by SchoolGroup, Branch, and Academic Year. `TimetableVersion` owns placements, provenance, input authority, staleness, lifecycle, manual-edit, quality, and future solver metadata. Draft and non-active publication-ready versions may be edited. Active, superseded, and archived versions are immutable. `TimetableActiveVersion` is the sole active-selection authority and enforces one exact-scope pointer; active is not duplicated as a Boolean on a version.
 
 The existing live timetable is imported exactly once per populated scope with `origin=imported`, a compatibility input snapshot, and an active pointer. Its placement fields are not repaired or normalized. Deterministically detectable inconsistencies are retained and recorded as safe version-level stale evidence. No historical publisher or approval is fabricated. A settings-only scope receives no empty imported version.

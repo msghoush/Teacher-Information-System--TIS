@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Read-Only Late-Stage Curriculum Adjustment Preview
+
+`curriculum_adjustment_preview_service.py` is the Stage 3 analysis boundary for
+future late-stage subject retirement/reduction/transfer workflows. It accepts only
+an exact SchoolGroup, branch, and academic year and selects Current/New Planning
+sections by grade, explicit section IDs, or active source-subject use. The preview
+uses `PlanningSubjectDemand`, retains missing-row fallback through the existing
+resolver, and performs no mutation.
+
+Each section reports source/target before and proposed periods, current explicit or
+HRT-resolved teachers, ranked but uncommitted teacher options, projected capacity,
+Subject Scheduling Rule arithmetic, grouped legacy warnings, and blockers. A mutable
+Draft is reported as becoming stale and requiring regeneration only after a future
+apply; published history is never selected for mutation. The preview fingerprint
+covers scope, request, resolved section analysis, teacher/rule/configuration inputs,
+and Draft identity/revision/authority so later confirmation can fail closed after
+authority changes. The API requires `planning.edit_section`.
+
 ## Explicit Section Subject Demand Transition
 
 `PlanningSubjectDemand` is the normalized future authority for one section's

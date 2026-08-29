@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## Curriculum Adjustment Preview Implemented
+
+Stage 3 provides a read-only curriculum adjustment preview service and
+`POST /planning/curriculum-adjustments/preview`. Grade, selected-section, and all-
+active-use scopes are exact-tenant and Current/New only. Preview output includes
+per-section demand transfer, current and suggested teachers, capacity projections,
+scheduling-rule and grouped-configuration impacts, blockers/warnings, Draft stale/
+regeneration impact, and a deterministic stale-confirmation fingerprint.
+
+No demand, teacher assignment, timetable version, placement, active pointer, or
+published history is changed. Apply, teacher confirmation, atomic write, and
+regeneration workflows remain future stages.
+
 ## Explicit Planning Subject Demand Foundation Implemented
 
 Migration `20260828_004_planning_subject_demands_foundation` adds normalized

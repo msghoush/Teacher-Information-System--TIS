@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Curriculum Adjustment Preview Read Boundary
+
+Stage 3 adds no table or migration. The preview reads exact-scope Current/New
+`PlanningSection`, resolved `PlanningSubjectDemand`, scoped Subjects and Teachers,
+section assignments, teacher subject allocations, Subject Distribution Rules,
+Timetable Settings grouped configuration, and the newest mutable Draft Timetable.
+Its SHA-256 fingerprint binds the canonical analysis and Draft revision/authority;
+it is returned to the caller but is not persisted. Published versions, active
+pointers, demands, and assignments are never mutated by preview.
+
 ## Planning Subject Demand Foundation
 
 `planning_subject_demands` normalizes future weekly-period authority at the

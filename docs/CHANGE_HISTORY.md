@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-29 - Read-Only Curriculum Adjustment Preview
+
+- Added exact-scope preview for grade, selected-section, and all-active-use subject
+  demand transfers using `PlanningSubjectDemand` authority.
+- Added current/suggested teacher and capacity projections, Subject Scheduling Rule
+  validation, grouped legacy warnings, Draft stale/regeneration impact, and a
+  deterministic stale-confirmation fingerprint.
+- Added a `planning.edit_section`-protected JSON API without adding any apply,
+  assignment, regeneration, publication, or database mutation behavior.
+
 ## 2026-08-28 - Planning Subject Demand Consumer Transition
 
 - Routed live Planning totals, teacher workload, timetable readiness/workspace/
