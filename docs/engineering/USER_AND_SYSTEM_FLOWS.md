@@ -19,6 +19,8 @@ source_of_truth: true
 
 The period count entered in step 2 is the transfer amount for every selected section. Preview rejects zero/negative transfers and any section whose current source demand is smaller than the request. A partial transfer leaves its remaining source demand active. After apply, Subjects shows the effective Planning value when uniform; differing section values show **Varies** and can be expanded by section. Catalog weekly hours remain secondary defaults.
 
+For **Reduce periods only**, the user selects no target subject. Preview shows the source before/after demand, source teacher load reduction, rule/grouped warnings, and Draft impact. No teacher reassignment is requested. Apply changes only the selected source demands, retires only zero results, and otherwise follows the same fingerprinted atomic transaction. Subject Details can open this flow prefilled for its one grade-specific subject. Multi-grade selection remains outside this single-subject workflow.
+
 ## Atomic Curriculum Adjustment Apply
 
 1. A user with `curriculum.adjust` submits the exact reviewed request, Stage 3

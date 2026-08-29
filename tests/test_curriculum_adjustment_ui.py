@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE = (ROOT / "templates" / "curriculum_adjustment.html").read_text(encoding="utf-8")
 PLANNING_TEMPLATE = (ROOT / "templates" / "planning.html").read_text(encoding="utf-8")
 SUBJECTS_TEMPLATE = (ROOT / "templates" / "subjects.html").read_text(encoding="utf-8")
+EDIT_SUBJECT_TEMPLATE = (ROOT / "templates" / "edit_subject.html").read_text(encoding="utf-8")
 
 
 def test_curriculum_adjustment_page_and_apply_require_dedicated_permission():
@@ -63,3 +64,20 @@ def test_success_state_has_required_summary_and_timetable_actions():
     assert "Draft Timetable" in TEMPLATE
     assert "Go to Timetable" in TEMPLATE
     assert "Regenerate Draft" in TEMPLATE
+
+
+def test_reduce_only_ui_requires_no_target_and_subject_details_prefill_it():
+    assert 'value="reduce_only"' in TEMPLATE
+    assert "adjustment_type:adjustmentType()" in TEMPLATE
+    assert "adjustmentType()==='transfer'?document.getElementById('targetSubject').value:''" in TEMPLATE
+    assert "No teacher reassignment is required." in TEMPLATE
+    assert "Adjust Weekly Periods" in EDIT_SUBJECT_TEMPLATE
+    assert "action=reduce" in EDIT_SUBJECT_TEMPLATE
+    assert "source_subject_code={{ subject.subject_code }}" in EDIT_SUBJECT_TEMPLATE
+    assert "grade_level={{ subject.grade }}" in EDIT_SUBJECT_TEMPLATE
+
+
+def test_customer_facing_original_period_label_replaces_catalog_default():
+    assert "Original weekly periods" in SUBJECTS_TEMPLATE
+    assert "Catalog default" not in SUBJECTS_TEMPLATE
+    assert "Original weekly periods" in EDIT_SUBJECT_TEMPLATE

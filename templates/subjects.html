@@ -853,7 +853,7 @@
                                         </div>
                                     </details>
                                     {% elif subject.effective_weekly_periods is not none and subject.effective_weekly_periods != subject.weekly_hours %}
-                                    <div style="font-size:12px;color:var(--muted);">Catalog default: {{ subject.weekly_hours }}</div>
+                                    <div style="font-size:12px;color:var(--muted);">Original weekly periods: {{ subject.weekly_hours }}</div>
                                     {% endif %}
                                 </td>
                                 <td>{{ "KG" if subject.grade == 0 else subject.grade }}</td>

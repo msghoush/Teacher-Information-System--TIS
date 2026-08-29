@@ -13,6 +13,8 @@ Stage 5 adds the permission-gated administrator workflow from Planning and Subje
 
 The transfer contract now carries the requested period count instead of deriving an absolute source result from `Subject.weekly_hours`. Subjects also reflects effective Planning weekly periods for Current/New sections, including a section breakdown when values differ.
 
+Curriculum Adjustment now also supports reduction without transfer. Subject Details exposes effective Planning periods and a permissioned prefilled reduction entry point; original catalog periods remain separately editable defaults and are not operational Planning authority.
+
 ## Atomic Curriculum Adjustment Apply Implemented
 
 Stage 4 implements a service-owned, one-commit curriculum adjustment transaction

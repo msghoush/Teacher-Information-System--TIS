@@ -13,6 +13,8 @@ Administrators with `curriculum.adjust` can enter a five-step, page-based workfl
 
 The entered transfer period count is authoritative: preview computes each section's source and target result from its effective `PlanningSubjectDemand`, rejects non-positive or excessive transfers, and apply persists exactly that reviewed result. Subjects presents those same Current/New Planning values for the active branch/year: a uniform grade-subject demand is shown directly, while section differences display as **Varies** with a section breakdown. `Subject.weekly_hours` remains a catalog/default value and is not rewritten by scoped adjustments.
 
+The same workflow supports `reduce_only`: no target subject or teacher reassignment is required, the requested reduction is applied to each selected source demand, and all existing preview, fingerprint, transaction, Draft invalidation, lock, rule, and publication safeguards remain in force. Subject Details shows current effective Planning periods and offers a permission-gated **Adjust Weekly Periods** link prefilled for that grade-specific subject. Multi-grade reduction is intentionally not combined because subject codes and the atomic review/audit contract are single-subject identities.
+
 ## Atomic Curriculum Adjustment Apply
 
 Stage 4 adds `curriculum_adjustment_apply_service.py` and permissioned

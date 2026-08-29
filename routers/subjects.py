@@ -192,6 +192,7 @@ def _decorate_effective_planning_periods(
         setattr(subject, "effective_weekly_periods", effective)
         setattr(subject, "effective_weekly_periods_varies", varies)
         setattr(subject, "effective_weekly_periods_sections", section_values)
+        setattr(subject, "has_active_planning_demand", any(item["weekly_periods"] > 0 for item in section_values))
         setattr(
             subject,
             "effective_weekly_periods_display",
@@ -1054,6 +1055,12 @@ def edit_subject_page(
         return RedirectResponse(url="/subjects")
 
     _decorate_subject_record(subject)
+    _decorate_effective_planning_periods(
+        db,
+        subjects=[subject],
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
 
     return templates.TemplateResponse(
         request,
@@ -1061,6 +1068,7 @@ def edit_subject_page(
         {
             "request": request,
             "subject": subject,
+            "can_adjust_curriculum": auth.has_permission(db, current_user, "curriculum.adjust"),
             "user": current_user,
             "error": "",
             **build_shell_context(
@@ -1110,6 +1118,12 @@ def update_subject(
         return RedirectResponse(url="/subjects")
 
     _decorate_subject_record(subject)
+    _decorate_effective_planning_periods(
+        db,
+        subjects=[subject],
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
 
     subject_code = _normalize_subject_code(subject_code)
     subject_name = _normalize_subject_name(subject_name)

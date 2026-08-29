@@ -13,6 +13,8 @@ The administrator workflow at `/planning/curriculum-adjustments` is gated by `cu
 
 `requested_transfer_periods` is the preview/apply request authority. Per affected section, source after equals source before minus that count and target after equals target before plus it. Partial transfers retain active source demand; only zero retires it. The Subjects list resolves exact-scope Current/New section demand through the explicit-first service and shows either the uniform effective value or **Varies** with section values, without mutating catalog defaults.
 
+`adjustment_type` distinguishes `transfer` from `reduce_only`. Reduce-only omits the target, changes only source demand, reduces the assigned source teacher's calculated load, and requires no teacher decision payload. The workflow retains one grade, selected sections, or all active uses of one exact subject code; it does not merge grade-specific subjects into one multi-grade transaction.
+
 ## Atomic Late-Stage Curriculum Adjustment Application
 
 `curriculum_adjustment_apply_service.py` owns the Stage 4 write transaction. Apply

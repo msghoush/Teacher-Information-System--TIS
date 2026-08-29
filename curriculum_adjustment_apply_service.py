@@ -170,11 +170,18 @@ def apply_curriculum_adjustment(
             raise CurriculumAdjustmentApplyError("preview_blocked", "The reviewed adjustment has unresolved blockers.")
 
         affected_ids = {int(item["section"]["id"]) for item in preview["sections"]}
+        adjustment_type = str(request.preview_request.adjustment_type or "transfer").strip().lower()
+        is_transfer = adjustment_type == "transfer"
         decisions = {int(key): (int(value) if value is not None else None) for key, value in request.teacher_decisions.items()}
-        if set(decisions) != affected_ids:
+        if is_transfer and set(decisions) != affected_ids:
             raise CurriculumAdjustmentApplyError(
                 "teacher_decisions_incomplete",
                 "Confirm one target-teacher decision, including unassigned when intended, for every affected section.",
+            )
+        if not is_transfer and decisions:
+            raise CurriculumAdjustmentApplyError(
+                "teacher_decisions_not_applicable",
+                "Teacher decisions are not applicable when reducing periods only.",
             )
 
         teachers = db.query(models.Teacher).filter(
@@ -183,12 +190,14 @@ def apply_curriculum_adjustment(
         ).with_for_update().all()
         teachers_by_id = {int(row.id): row for row in teachers}
         target_code = str(request.preview_request.target_subject_code).strip().upper()
+        if not is_transfer:
+            target_code = ""
         qualified_ids = {
             int(row.teacher_id) for row in db.query(models.TeacherSubjectAllocation).filter(
                 models.TeacherSubjectAllocation.teacher_id.in_(list(teachers_by_id) or [0]),
                 models.TeacherSubjectAllocation.subject_code == target_code,
             ).all()
-        }
+        } if is_transfer else set()
         for section_id, teacher_id in decisions.items():
             if teacher_id is None:
                 continue
@@ -218,16 +227,16 @@ def apply_curriculum_adjustment(
         projected_loads.update({int(key): int(value) for key, value in current_loads.items()})
         for item in preview["sections"]:
             source_teacher = (item["current_source_teacher"]["teacher"] or {}).get("id")
-            target_teacher = (item["current_target_teacher"]["teacher"] or {}).get("id")
+            target_teacher = (item["current_target_teacher"]["teacher"] or {}).get("id") if is_transfer else None
             source_before = int(item["source"]["current_weekly_periods"])
             source_after = int(item["source"]["after_weekly_periods"])
-            target_before = int(item["target"]["current_weekly_periods"])
-            target_after = int(item["target"]["after_weekly_periods"])
+            target_before = int(item["target"]["current_weekly_periods"]) if is_transfer else 0
+            target_after = int(item["target"]["after_weekly_periods"]) if is_transfer else 0
             if source_teacher is not None:
                 projected_loads[int(source_teacher)] -= source_before - source_after
             if target_teacher is not None:
                 projected_loads[int(target_teacher)] -= target_before
-            chosen = decisions[int(item["section"]["id"])]
+            chosen = decisions[int(item["section"]["id"])] if is_transfer else None
             if chosen is not None:
                 projected_loads[chosen] += target_after
         for teacher_id in {value for value in decisions.values() if value is not None}:
@@ -252,7 +261,7 @@ def apply_curriculum_adjustment(
                 models.TimetableEntry.timetable_version_id == draft.id,
                 models.TimetableEntry.planning_section_id.in_(sorted(affected_ids)),
                 models.TimetableEntry.is_locked.is_(True),
-                models.TimetableEntry.subject_code.in_((source_code, target_code)),
+                models.TimetableEntry.subject_code.in_((source_code, target_code) if is_transfer else (source_code,)),
             ).with_for_update().all()
             locked_by_key = {}
             for entry in locked_entries:
@@ -262,8 +271,8 @@ def apply_curriculum_adjustment(
                 section_id = int(item["section"]["id"])
                 if locked_by_key.get((section_id, source_code), 0) > int(item["source"]["after_weekly_periods"]):
                     raise CurriculumAdjustmentApplyError("invalid_locked_placement", "A Draft lock references source demand that would be retired or reduced below the locked count.")
-                old_target_teacher = (item["current_target_teacher"]["teacher"] or {}).get("id")
-                if locked_by_key.get((section_id, target_code), 0) and decisions[section_id] != old_target_teacher:
+                old_target_teacher = (item["current_target_teacher"]["teacher"] or {}).get("id") if is_transfer else None
+                if is_transfer and locked_by_key.get((section_id, target_code), 0) and decisions[section_id] != old_target_teacher:
                     raise CurriculumAdjustmentApplyError("invalid_locked_placement", "A locked target lesson conflicts with the confirmed teacher decision.")
 
         per_section_audit = []
@@ -272,17 +281,18 @@ def apply_curriculum_adjustment(
         for item in preview["sections"]:
             section_id = int(item["section"]["id"])
             source_after = int(item["source"]["after_weekly_periods"])
-            target_after = int(item["target"]["after_weekly_periods"])
+            target_after = int(item["target"]["after_weekly_periods"]) if is_transfer else None
             _set_demand(
                 db, branch_id=branch_id, academic_year_id=academic_year_id,
                 section_id=section_id, subject_code=source_code,
                 weekly_periods=source_after, actor_user_id=actor_user_id, retire_zero=True,
             )
-            _set_demand(
-                db, branch_id=branch_id, academic_year_id=academic_year_id,
-                section_id=section_id, subject_code=target_code,
-                weekly_periods=target_after, actor_user_id=actor_user_id, retire_zero=False,
-            )
+            if is_transfer:
+                _set_demand(
+                    db, branch_id=branch_id, academic_year_id=academic_year_id,
+                    section_id=section_id, subject_code=target_code,
+                    weekly_periods=target_after, actor_user_id=actor_user_id, retire_zero=False,
+                )
             if source_after == 0:
                 db.query(models.TeacherSectionAssignment).filter(
                     models.TeacherSectionAssignment.planning_section_id == section_id,
@@ -303,23 +313,24 @@ def apply_curriculum_adjustment(
             target_assignment = db.query(models.TeacherSectionAssignment).filter(
                 models.TeacherSectionAssignment.planning_section_id == section_id,
                 models.TeacherSectionAssignment.subject_code == target_code,
-            ).first()
-            chosen_teacher = decisions[section_id]
-            if chosen_teacher is None:
-                if target_assignment is not None:
-                    db.delete(target_assignment)
-            elif target_assignment is None:
-                db.add(models.TeacherSectionAssignment(
-                    teacher_id=chosen_teacher, planning_section_id=section_id,
-                    subject_code=target_code,
-                ))
-            else:
-                target_assignment.teacher_id = chosen_teacher
+            ).first() if is_transfer else None
+            chosen_teacher = decisions[section_id] if is_transfer else None
+            if is_transfer:
+                if chosen_teacher is None:
+                    if target_assignment is not None:
+                        db.delete(target_assignment)
+                elif target_assignment is None:
+                    db.add(models.TeacherSectionAssignment(
+                        teacher_id=chosen_teacher, planning_section_id=section_id,
+                        subject_code=target_code,
+                    ))
+                else:
+                    target_assignment.teacher_id = chosen_teacher
             per_section_audit.append({
                 "section_id": section_id,
                 "source_before": int(item["source"]["current_weekly_periods"]),
                 "source_after": source_after,
-                "target_before": int(item["target"]["current_weekly_periods"]),
+                "target_before": int(item["target"]["current_weekly_periods"]) if is_transfer else None,
                 "target_after": target_after,
                 "target_teacher_id": chosen_teacher,
             })
