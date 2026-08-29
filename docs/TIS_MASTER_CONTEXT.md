@@ -7,6 +7,10 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Guided Late-Stage Curriculum Adjustment
+
+The administrator workflow at `/planning/curriculum-adjustments` is gated by `curriculum.adjust` and consumes the established preview/apply contracts. It supports grade, selected-section, and all-active-use scopes, displays section demand, teachers, capacity, scheduling rules, grouped configuration, and Draft impact, then requires explicit teacher selections and confirmation. Stale review responses return the user to a refreshed preview. Applying does not regenerate the Draft or change published history.
+
 ## Atomic Late-Stage Curriculum Adjustment Application
 
 `curriculum_adjustment_apply_service.py` owns the Stage 4 write transaction. Apply

@@ -625,6 +625,13 @@
 {% endblock %}
 
 {% block content %}
+{% if can_adjust_curriculum %}
+        <section class="card" style="margin-bottom:12px;border-color:#a9c8ee;background:linear-gradient(135deg,#f8fbff,#eef6ff);">
+            <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("settings", "icon") }}</span>Adjust Curriculum</span></h2>
+            <p>Change active subject periods through a guided review that protects Planning and the Draft Timetable.</p>
+            <a class="btn-save" href="/planning/curriculum-adjustments" style="display:inline-flex;text-decoration:none;">Adjust Curriculum</a>
+        </section>
+{% endif %}
 <section class="stats tis-kpi-grid">
             <div class="stat tis-kpi-card">
                 <span>{{ icon("subjects", "icon") }} Total Subjects</span>

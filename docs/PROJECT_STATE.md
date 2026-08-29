@@ -7,6 +7,10 @@ source_of_truth: true
 
 # TIS Project State
 
+## Guided Curriculum Adjustment UI Implemented
+
+Stage 5 adds the permission-gated administrator workflow from Planning and Subjects through scope, change, preview, teacher decisions, final confirmation, and success. It reuses the deployed Stage 3 preview and Stage 4 atomic apply APIs, preserves selections where safe after a refreshed review, and offers timetable/regeneration navigation without automatic generation.
+
 ## Atomic Curriculum Adjustment Apply Implemented
 
 Stage 4 implements a service-owned, one-commit curriculum adjustment transaction

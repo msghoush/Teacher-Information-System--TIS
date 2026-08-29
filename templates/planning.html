@@ -707,6 +707,13 @@
 
 {% block content %}
 <section class="layout">
+            {% if can_adjust_curriculum %}
+            <article class="card" style="border-color:#a9c8ee;background:linear-gradient(135deg,#f8fbff,#eef6ff);">
+                <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("settings", "icon") }}</span>Adjust Curriculum</span></h2>
+                <p>Safely review subject-period changes, teacher impact, and Draft Timetable consequences before applying them.</p>
+                <a class="btn-save" href="/planning/curriculum-adjustments" style="display:inline-flex;text-decoration:none;">Adjust Curriculum</a>
+            </article>
+            {% endif %}
             {% if can_copy_year_data %}
             <article class="card">
                 <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("copy", "icon") }}</span>Copy From Academic Year</span></h2>

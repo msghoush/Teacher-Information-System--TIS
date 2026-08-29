@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Guided Curriculum Adjustment UI
+
+- `routers/planning.py`: serves the exact-scope wizard page and continues to own preview/apply HTTP adapters.
+- `templates/curriculum_adjustment.html`: five-step selection, impact, teacher-decision, review, and success experience.
+- `templates/planning.html` and `templates/subjects.html`: permission-gated entry points.
+- `authorization.py`: protects the page and apply operation with `curriculum.adjust`; preview accepts either the established Planning edit permission or the dedicated adjustment permission.
+- `curriculum_adjustment_preview_service.py`: exposes target eligibility on teacher suggestions for safe selector filtering.
+
 ## Atomic Curriculum Adjustment Apply
 
 - `curriculum_adjustment_apply_service.py`: transaction owner for locking, stale
