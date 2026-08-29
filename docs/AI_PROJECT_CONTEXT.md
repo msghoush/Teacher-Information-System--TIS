@@ -11,18 +11,22 @@ recommended_first_read: true
 
 Administrators with `timetable.manage_teacher_rules` configure teacher-specific
 timing policy in Timetable Settings without changing Planning demand or teacher
-allocation. Normalized rules support Must teach, Unavailable, Prefer teaching,
-and Prefer free across all or selected working days, numbered/first/last periods,
-and any assigned class or selected Current/New grades/sections. Required rules
-are hard and never relax; preferences contribute only to CP-SAT quality.
+allocation. The normal form asks only for teacher, rule, days, numbered periods,
+and optional Current/New sections with Select All. **Schedule within these
+periods** constrains existing eligible lessons to an allowed window without
+creating occupancy or demand; **Must teach these periods** requires occupancy in
+every selected slot; **Unavailable** prohibits all teacher lessons in those slots.
+Existing first/last, grade-target, and preference rules remain compatible but are
+not exposed in the simplified normal form.
 
 Schema-v4 immutable snapshots capture canonical resolved teacher rules in the
 constraint fingerprint. Rule changes mark unpublished Drafts stale, clear Draft
 approval, and require regeneration while published history remains untouched.
-Readiness and the problem builder reject deterministic workload, target, lock,
-slot, and contradictory hard-rule conflicts; CP-SAT enforces hard timing and
-scores preferences; the independent validator repeats hard-rule checks. With no
-rules, generation behavior is backward compatible.
+Readiness and the problem builder reject deterministic workload, allowed-window
+capacity, target, lock, slot, and contradictory hard-rule conflicts; CP-SAT
+enforces hard timing and scores existing preferences; the independent validator
+repeats hard-rule and window checks. With no rules, generation behavior is
+backward compatible.
 
 ## Guided Curriculum Adjustment UI
 

@@ -11,7 +11,8 @@ from timetable_version_service import clear_draft_approval
 
 
 RULE_TYPES = {
-    "must_teach": ("Must teach", "hard"),
+    "schedule_within": ("Schedule within these periods", "hard"),
+    "must_teach": ("Must teach these periods", "hard"),
     "unavailable": ("Unavailable", "hard"),
     "prefer_teaching": ("Prefer teaching", "soft"),
     "prefer_free": ("Prefer free", "soft"),
@@ -44,9 +45,14 @@ def _serialize_rule(db: Session, rule: models.TeacherSchedulingRule) -> dict:
         models.TeacherSchedulingRuleTarget.grade_level.asc(),
         models.TeacherSchedulingRuleTarget.planning_section_id.asc(),
     ).all()
+    effective_rule_type = (
+        "schedule_within"
+        if rule.rule_type == "must_teach" and bool(rule.restrict_to_window)
+        else rule.rule_type
+    )
     return {
         "id": int(rule.id), "teacher_id": int(rule.teacher_id),
-        "rule_type": rule.rule_type, "strictness": rule.strictness,
+        "rule_type": effective_rule_type, "strictness": rule.strictness,
         "target_scope": rule.target_scope,
         "slots": [{
             "day_key": slot.day_key,
@@ -161,14 +167,17 @@ def save_rule(db: Session, *, school_group_id: int, branch_id: int, academic_yea
             raise TeacherSchedulingRuleError("rule_scope_mismatch", "The selected rule was not found in this timetable scope.")
         db.query(models.TeacherSchedulingRuleSlot).filter_by(rule_id=rule.id).delete(synchronize_session=False)
         db.query(models.TeacherSchedulingRuleTarget).filter_by(rule_id=rule.id).delete(synchronize_session=False)
-        rule.teacher_id = teacher_id; rule.rule_type = rule_type
+        rule.teacher_id = teacher_id
+        rule.rule_type = "must_teach" if rule_type == "schedule_within" else rule_type
+        rule.restrict_to_window = rule_type == "schedule_within"
         rule.target_scope = target_scope; rule.strictness = RULE_TYPES[rule_type][1]
         rule.updated_by_user_id = actor_user_id; rule.updated_at = datetime.utcnow()
     else:
         rule = models.TeacherSchedulingRule(
             school_group_id=school_group_id, branch_id=branch_id,
             academic_year_id=academic_year_id, teacher_id=teacher_id,
-            rule_type=rule_type, target_scope=target_scope,
+            rule_type="must_teach" if rule_type == "schedule_within" else rule_type,
+            restrict_to_window=rule_type == "schedule_within", target_scope=target_scope,
             strictness=RULE_TYPES[rule_type][1], created_by_user_id=actor_user_id,
             updated_by_user_id=actor_user_id,
         )
@@ -260,6 +269,11 @@ def ui_context(db: Session, *, school_group_id: int, branch_id: int, academic_ye
     teacher_map = {int(row.id): build_teacher_display_name(row) for row in teachers}
     section_map = {int(row.id): format_section_label(row) for row in sections}
     for rule in rules:
+        rule["is_simple_editable"] = (
+            rule["rule_type"] in {"schedule_within", "must_teach", "unavailable"}
+            and rule["target_scope"] in {"any_assigned", "selected_sections"}
+            and all(slot["period_selector"] == "period" for slot in rule["slots"])
+        )
         rule["edit_payload"] = {
             key: rule[key] for key in (
                 "id", "teacher_id", "rule_type", "target_scope", "slots", "targets"
@@ -279,5 +293,4 @@ def ui_context(db: Session, *, school_group_id: int, branch_id: int, academic_ye
         "teacher_scheduling_rules": rules,
         "teacher_rule_teachers": [{"id": int(row.id), "name": teacher_map[int(row.id)]} for row in teachers],
         "teacher_rule_sections": [{"id": int(row.id), "label": section_map[int(row.id)], "grade": str(row.grade_level)} for row in sections],
-        "teacher_rule_grades": sorted({str(row.grade_level) for row in sections}),
     }

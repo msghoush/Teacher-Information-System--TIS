@@ -2,7 +2,7 @@ import json
 from datetime import datetime
 
 import pytest
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 import db_migrations
 import models
@@ -11,6 +11,7 @@ from teacher_scheduling_rules import (
     TeacherSchedulingRuleError, canonical_rules, list_rules, save_rule,
 )
 from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
+from timetable_readiness_service import TimetableReadinessService
 from timetable_snapshot_service import build_current_snapshot_data
 from timetable_solution_validator import TimetableSolutionValidator
 from timetable_version_service import create_manual_draft
@@ -38,7 +39,7 @@ def _problem(rule_type=None, *, target_section=None):
         eligible = [demands[0]["demand_id"]] if target_section else [item["demand_id"] for item in demands]
         rules.append({
             "id": 1, "teacher_id": 10, "rule_type": rule_type,
-            "strictness": "hard" if rule_type in {"must_teach", "unavailable"} else "soft",
+            "strictness": "hard" if rule_type in {"schedule_within", "must_teach", "unavailable"} else "soft",
             "target_scope": "selected_sections" if target_section else "any_assigned",
             "eligible_demand_ids": eligible,
             "resolved_slots": [{"day_key": "monday", "period_index": 1}],
@@ -83,6 +84,46 @@ def test_solver_enforces_selected_section_and_unavailable():
     unavailable_problem = _problem("unavailable")
     unavailable_result = _solve(unavailable_problem)
     assert all(item["period_index"] != 1 for item in unavailable_result["placements"])
+
+
+def test_schedule_within_places_existing_workload_without_creating_demand_and_validator_matches():
+    days = ["sunday", "monday", "tuesday", "wednesday", "thursday"]
+    problem = _problem("schedule_within")
+    problem["working_days"] = days
+    problem["slots"] = [
+        {"slot_id": f"{day}:{period}", "day_key": day, "period_index": period}
+        for day in days for period in range(1, 9)
+    ]
+    problem["demands"] = [_demand(1, "MAT", 10, 18)]
+    problem["teacher_scheduling_rules"][0]["eligible_demand_ids"] = [problem["demands"][0]["demand_id"]]
+    problem["teacher_scheduling_rules"][0]["resolved_slots"] = [
+        {"day_key": day, "period_index": period}
+        for day in days for period in range(4, 9)
+    ]
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    assert len(result["placements"]) == 18
+    assert {item["period_index"] for item in result["placements"]} <= {4, 5, 6, 7, 8}
+    assert TimetableSolutionValidator().validate(
+        problem=problem, placements=result["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
+    invalid = [dict(result["placements"][0], period_index=1), *result["placements"][1:]]
+    errors = TimetableSolutionValidator().validate(
+        problem=problem, placements=invalid,
+        expected_fingerprint="same", current_fingerprint="same",
+    )["errors"]
+    assert "teacher_schedule_window_violated" in {item["code"] for item in errors}
+
+
+def test_schedule_within_selected_section_does_not_restrict_other_sections():
+    problem = _problem("schedule_within", target_section=1)
+    problem["teacher_scheduling_rules"][0]["resolved_slots"] = [
+        {"day_key": "monday", "period_index": 2}
+    ]
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    assert next(item for item in result["placements"] if item["section_id"] == 1)["period_index"] == 2
 
 
 def test_hard_teacher_rule_conflicting_with_subject_distribution_is_infeasible():
@@ -164,6 +205,29 @@ def test_service_scope_first_last_snapshot_fingerprint_and_draft_stale(db):
     assert last["resolved_slots"][0]["period_index"] == 4
 
 
+def test_schedule_within_storage_is_explicit_and_existing_must_teach_is_unchanged(db):
+    saved = save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="schedule_within", all_working_days=True,
+        days=[], period_selector="period", periods=[2, 3, 4],
+        target_scope="any_assigned", grades=[], section_ids=[], actor_user_id="U1",
+    )
+    assert saved.rule_type == "must_teach"
+    assert saved.restrict_to_window is True
+    assert list_rules(db, school_group_id=1, branch_id=10, academic_year_id=100)[0]["rule_type"] == "schedule_within"
+    existing = models.TeacherSchedulingRule(
+        school_group_id=1, branch_id=10, academic_year_id=100, teacher_id=1001,
+        rule_type="must_teach", restrict_to_window=False, target_scope="any_assigned",
+        strictness="hard", is_active=True,
+    )
+    db.add(existing); db.flush()
+    db.add(models.TeacherSchedulingRuleSlot(
+        rule_id=existing.id, day_key="monday", period_selector="period", period_index=1,
+    )); db.commit()
+    rules = list_rules(db, school_group_id=1, branch_id=10, academic_year_id=100)
+    assert next(rule for rule in rules if rule["id"] == existing.id)["rule_type"] == "must_teach"
+
+
 def test_service_rejects_cross_tenant_teacher_and_hard_conflict(db):
     db.add(models.Teacher(
         id=9000, teacher_id="OTHER", first_name="Other", last_name="Teacher",
@@ -227,6 +291,50 @@ def test_problem_builder_rejects_workload_and_lock_conflicts():
     assert exc.value.code == "teacher_rule_availability_infeasible"
 
 
+def test_problem_builder_blocks_insufficient_schedule_window_capacity():
+    snapshot = {
+        "schema_version": 4,
+        "scope": {"school_group_id": 1, "branch_id": 10, "academic_year_id": 100},
+        "planning": {
+            "sections": [{"id": 1, "grade_level": "5", "class_status": "Current"}],
+            "valid_teacher_ids": [10],
+            "demands": [{"section_id": 1, "subject_id": 1, "subject_code": "MAT", "assigned_teacher_id": 10, "required_weekly_periods": 2}],
+        },
+        "period_configuration": {
+            "settings": {"quality_rules": {}},
+            "canonical_slot_projection": {"working_day_keys": ["sunday"], "timelines": [{"day_key": "sunday", "items": [
+                {"type": "teaching", "schedulable": True, "day_key": "sunday", "period_index": 1},
+                {"type": "teaching", "schedulable": True, "day_key": "sunday", "period_index": 2},
+            ]}]},
+        },
+        "constraints": {"teacher_scheduling_rules": [{
+            "id": 1, "teacher_id": 10, "rule_type": "schedule_within", "strictness": "hard",
+            "target_scope": "any_assigned", "targets": [],
+            "resolved_slots": [{"day_key": "sunday", "period_index": 2}],
+        }]}, "locks": [],
+    }
+    with pytest.raises(TimetableProblemError) as exc:
+        TimetableProblemBuilder().build(json.dumps(snapshot))
+    assert exc.value.code == "teacher_rule_window_capacity_insufficient"
+
+
+def test_readiness_reports_schedule_window_capacity_blocker(db):
+    db.add(models.TeacherSectionAssignment(
+        teacher_id=1001, planning_section_id=2001, subject_code="MAT",
+    ))
+    db.flush()
+    save_rule(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        teacher_id=1000, rule_type="schedule_within", all_working_days=True,
+        days=[], period_selector="period", periods=[4], target_scope="any_assigned",
+        grades=[], section_ids=[], actor_user_id="U1",
+    )
+    result = TimetableReadinessService(db).evaluate(1, 10, 100)
+    assert "teacher_rule_window_capacity_insufficient" in {
+        item["code"] for item in result["blockers"]
+    }
+
+
 def test_no_rules_backward_compatibility_and_permission_ui_contract():
     problem = _problem()
     assert _solve(problem)["outcome"] == "feasible"
@@ -235,6 +343,12 @@ def test_no_rules_backward_compatibility_and_permission_ui_contract():
     template = open("templates/system_configuration_timetable.html", encoding="utf-8").read()
     assert "Teacher Scheduling Rules" in template
     assert "timetable.manage_teacher_rules" in template
+    assert "Schedule within these periods" in template
+    assert 'name="select_all_sections"' in template
+    assert 'name="grades"' not in template
+    assert "teacher-rule-period-selector" not in template
+    assert "teacher-rule-target-scope" not in template
+    assert ">First period<" not in template and ">Last period<" not in template
 
 
 def test_migration_order_and_idempotency_without_local_database():
@@ -245,9 +359,25 @@ def test_migration_order_and_idempotency_without_local_database():
     ])
     with engine.begin() as connection:
         db_migrations._teacher_scheduling_rules_foundation(engine, connection)
+        db_migrations._teacher_scheduling_window_semantics(engine, connection)
     with engine.begin() as connection:
         db_migrations._teacher_scheduling_rules_foundation(engine, connection)
+        db_migrations._teacher_scheduling_window_semantics(engine, connection)
     names = set(inspect(engine).get_table_names())
     assert deferred <= names
     assert any(index["name"] == "uq_teachers_id_scope" for index in inspect(engine).get_indexes("teachers"))
+    assert "restrict_to_window" in {column["name"] for column in inspect(engine).get_columns("teacher_scheduling_rules")}
+    engine.dispose()
+
+
+def test_window_semantics_migration_adds_column_to_existing_table_idempotently():
+    engine = create_engine("sqlite:///:memory:")
+    with engine.begin() as connection:
+        connection.execute(text(
+            "CREATE TABLE teacher_scheduling_rules (id INTEGER PRIMARY KEY)"
+        ))
+        db_migrations._teacher_scheduling_window_semantics(engine, connection)
+        db_migrations._teacher_scheduling_window_semantics(engine, connection)
+    columns = {column["name"] for column in inspect(engine).get_columns("teacher_scheduling_rules")}
+    assert "restrict_to_window" in columns
     engine.dispose()

@@ -117,12 +117,15 @@ def test_teacher_rule_migration_is_safe_after_baseline_metadata_and_idempotent()
         assert not inspector.has_table("teacher_scheduling_rules")
         with engine.begin() as connection:
             db_migrations._teacher_scheduling_rules_foundation(engine, connection)
+            db_migrations._teacher_scheduling_window_semantics(engine, connection)
         with engine.begin() as connection:
             db_migrations._teacher_scheduling_rules_foundation(engine, connection)
+            db_migrations._teacher_scheduling_window_semantics(engine, connection)
         inspector = inspect(engine)
         assert inspector.has_table("teacher_scheduling_rules")
         assert inspector.has_table("teacher_scheduling_rule_slots")
         assert inspector.has_table("teacher_scheduling_rule_targets")
+        assert "restrict_to_window" in {column["name"] for column in inspector.get_columns("teacher_scheduling_rules")}
         teacher_unique = {tuple(item.get("column_names") or []) for item in inspector.get_unique_constraints("teachers")}
         assert ("id", "branch_id", "academic_year_id") in teacher_unique
         rule_fks = {tuple(item.get("constrained_columns") or []) for item in inspector.get_foreign_keys("teacher_scheduling_rules")}

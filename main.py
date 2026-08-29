@@ -13679,10 +13679,8 @@ def save_teacher_scheduling_rule(
     rule_type: str = Form(...),
     all_working_days: str | None = Form(None),
     days: list[str] = Form([]),
-    period_selector: str = Form("period"),
     periods: list[int] = Form([]),
-    target_scope: str = Form("any_assigned"),
-    grades: list[str] = Form([]),
+    select_all_sections: str | None = Form(None),
     section_ids: list[int] = Form([]),
     return_to: str = Form("/system-configuration/timetable-settings#teacher-scheduling-rules"),
     db: Session = Depends(get_db),
@@ -13699,13 +13697,18 @@ def save_teacher_scheduling_rule(
     branch_id = int(getattr(current_user, "scope_branch_id", current_user.branch_id))
     academic_year_id = int(getattr(current_user, "scope_academic_year_id", current_user.academic_year_id))
     school_group_id = auth.get_user_school_group_id(db, current_user)
+    target_scope = (
+        "any_assigned"
+        if rule_type == "unavailable" or bool(select_all_sections)
+        else "selected_sections"
+    )
     try:
         teacher_scheduling_rules.save_rule(
             db, school_group_id=int(school_group_id), branch_id=branch_id,
             academic_year_id=academic_year_id, teacher_id=teacher_id,
             rule_type=rule_type, all_working_days=bool(all_working_days), days=days,
-            period_selector=period_selector, periods=periods, target_scope=target_scope,
-            grades=grades, section_ids=section_ids, actor_user_id=current_user.user_id,
+            period_selector="period", periods=periods, target_scope=target_scope,
+            grades=[], section_ids=section_ids, actor_user_id=current_user.user_id,
             rule_id=int(rule_id) if str(rule_id).strip().isdigit() else None,
         )
     except teacher_scheduling_rules.TeacherSchedulingRuleError as exc:

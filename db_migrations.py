@@ -6248,6 +6248,16 @@ def _teacher_scheduling_rules_foundation(engine, connection):
         Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
 
 
+def _teacher_scheduling_window_semantics(engine, connection):
+    """Distinguish allowed windows without reinterpreting existing hard rules."""
+    if not _table_exists(connection, "teacher_scheduling_rules"):
+        return
+    _add_column_if_missing(
+        connection, connection, "teacher_scheduling_rules", "restrict_to_window",
+        "restrict_to_window BOOLEAN NOT NULL DEFAULT false",
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6508,6 +6518,11 @@ MIGRATIONS = (
         migration_id="20260830_001_teacher_scheduling_rules",
         description="Add normalized teacher-specific timetable timing rules",
         apply=_teacher_scheduling_rules_foundation,
+    ),
+    Migration(
+        migration_id="20260830_002_teacher_scheduling_window_semantics",
+        description="Distinguish teacher allowed windows from required occupancy",
+        apply=_teacher_scheduling_window_semantics,
     ),
 )
 

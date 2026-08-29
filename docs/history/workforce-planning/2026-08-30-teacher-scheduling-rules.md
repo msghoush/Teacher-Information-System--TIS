@@ -24,3 +24,12 @@ reports deterministic rule, workload, availability, target, and lock conflicts.
 Rule changes stale unpublished Drafts and clear approval; published timetable
 history, Planning demand, and teacher allocation are unchanged. No configured
 rules retains the previous generation behavior.
+
+The administrator form was subsequently simplified to Teacher, Rule, Days,
+Periods, optional Sections, and Save. It directly displays P1…Pn, uses Current/New
+section labels with Select All, and removes normal grade, class-scope, and
+first/last controls. Schedule within these periods was added as a distinct hard
+semantic through migration `20260830_002_teacher_scheduling_window_semantics`:
+existing assigned lessons must fit inside the selected window, but selected slots
+do not create or imply extra lessons. Existing Must-teach, first/last, grade-target,
+and preference rows retain their original meaning.
