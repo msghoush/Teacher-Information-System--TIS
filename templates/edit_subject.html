@@ -196,6 +196,23 @@
 <h2 class="panel-title section-heading"><span class="section-heading-icon">{{ icon("subjects", "icon") }}</span>Subject Details</h2>
         <p class="sub">Update subject details for this branch and year.</p>
 
+        {% if subject.effective_weekly_periods_sections %}
+        <div class="field-note" style="margin:0 0 18px;padding:12px;border:1px solid #b8cce6;border-radius:10px;background:#f5f9ff;">
+            <strong>Current effective Planning weekly periods: {{ subject.effective_weekly_periods_display }}</strong>
+            {% if subject.effective_weekly_periods_varies %}
+            <div style="margin-top:6px;">
+                {% for item in subject.effective_weekly_periods_sections %}
+                <div>Section {{ item.section_name }} ({{ item.class_status }}): {{ item.weekly_periods }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            <div style="margin-top:6px;">Original weekly periods: {{ subject.weekly_hours }}</div>
+            {% if can_adjust_curriculum and subject.has_active_planning_demand %}
+            <a class="btn btn-save" style="display:inline-flex;margin-top:10px;text-decoration:none;" href="/planning/curriculum-adjustments?action=reduce&amp;source_subject_code={{ subject.subject_code }}&amp;grade_level={{ subject.grade }}">Adjust Weekly Periods</a>
+            {% endif %}
+        </div>
+        {% endif %}
+
         {% if error %}
         <div class="error">{{ error }}</div>
         {% endif %}
@@ -226,8 +243,9 @@
                 </div>
 
                 <div class="field field-wide">
-                    <label for="weekly_hours">Weekly Hours</label>
+                    <label for="weekly_hours">Original weekly periods</label>
                     <input id="weekly_hours" type="number" name="weekly_hours" value="{{ subject.weekly_hours }}" min="1" required>
+                    <div class="field-note">Planning demand is adjusted through Adjust Weekly Periods and is not overwritten here.</div>
                 </div>
             </div>
 

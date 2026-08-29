@@ -120,6 +120,7 @@ async def curriculum_adjustment_preview(
     school_group_id = getattr(current_user, "scope_school_group_id", None) or auth.get_user_school_group_id(db, current_user)
     try:
         preview_request = CurriculumAdjustmentPreviewRequest(
+            adjustment_type=payload.get("adjustment_type", "transfer"),
             scope_type=payload.get("scope_type", ""),
             source_subject_code=payload.get("source_subject_code", ""),
             target_subject_code=payload.get("target_subject_code", ""),
@@ -144,6 +145,9 @@ async def curriculum_adjustment_preview(
 @router.get("/curriculum-adjustments")
 def curriculum_adjustment_page(
     request: Request,
+    action: str = "",
+    source_subject_code: str = "",
+    grade_level: str = "",
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -188,6 +192,12 @@ def curriculum_adjustment_page(
         {item["grade_level"] for item in section_items},
         key=_grade_sort_value,
     )
+    requested_source_code = str(source_subject_code or "").strip().upper()
+    requested_grade = _normalize_grade_level(grade_level)
+    valid_prefill = next((
+        subject for subject in subject_items
+        if subject["code"] == requested_source_code and subject["grade_level"] == requested_grade
+    ), None)
     return templates.TemplateResponse(
         request,
         "curriculum_adjustment.html",
@@ -197,6 +207,9 @@ def curriculum_adjustment_page(
             "grades": grades,
             "sections": section_items,
             "subjects": subject_items,
+            "prefill_adjustment_type": "reduce_only" if action == "reduce" and valid_prefill else "transfer",
+            "prefill_source_subject_code": valid_prefill["code"] if valid_prefill else "",
+            "prefill_grade_level": requested_grade if valid_prefill else "",
             **build_shell_context(request, db, current_user, page_key="planning"),
         },
     )
@@ -218,6 +231,7 @@ async def curriculum_adjustment_apply(
     try:
         payload = await request.json()
         preview_request = CurriculumAdjustmentPreviewRequest(
+            adjustment_type=payload.get("adjustment_type", "transfer"),
             scope_type=payload.get("scope_type", ""),
             source_subject_code=payload.get("source_subject_code", ""),
             target_subject_code=payload.get("target_subject_code", ""),

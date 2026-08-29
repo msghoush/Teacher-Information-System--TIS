@@ -101,6 +101,61 @@ def test_partial_transfer_keeps_source_active_and_matches_reviewed_preview():
     assert (target.weekly_periods, target.is_active) == (2, True)
 
 
+def test_reduce_only_two_to_one_is_atomic_without_target_or_teacher_decision():
+    db = _ready_db()
+    _demand(db, 3000, "SOC3").weekly_periods = 2
+    db.commit()
+    request = _request(
+        "selected_sections", section_ids=(3000,), adjustment_type="reduce_only",
+        target_subject_code="",
+    )
+    request, preview = _review(db, request)
+    _apply(db, request, preview, {})
+    source = _demand(db, 3000, "SOC3")
+    assert (source.weekly_periods, source.is_active) == (1, True)
+    assert _demand(db, 3000, "WEL3").weekly_periods == 1
+    assert db.query(models.TeacherSectionAssignment).filter_by(
+        planning_section_id=3000, subject_code="SOC3"
+    ).one().teacher_id == 5000
+
+
+def test_reduce_only_one_to_zero_retires_source_without_touching_target():
+    db = _ready_db()
+    request = _request(
+        "selected_sections", section_ids=(3000,), adjustment_type="reduce_only",
+        target_subject_code="",
+    )
+    request, preview = _review(db, request)
+    _apply(db, request, preview, {})
+    assert (_demand(db, 3000, "SOC3").weekly_periods, _demand(db, 3000, "SOC3").is_active) == (0, False)
+    assert _demand(db, 3000, "WEL3").weekly_periods == 1
+    assert db.query(models.TeacherSectionAssignment).filter_by(
+        planning_section_id=3000, subject_code="SOC3"
+    ).first() is None
+
+
+def test_reduce_only_selected_section_invalidates_draft_and_preserves_published_history():
+    db = _ready_db(); _add_draft(db)
+    published = models.TimetableVersion(
+        id=7200, school_group_id=1, branch_id=10, academic_year_id=100,
+        version_number=2, lifecycle_status="publication_ready", origin="manual",
+        input_snapshot_id=7000, authority_fingerprint="b" * 64,
+        published_at=datetime.utcnow(), published_by_user_id="U1",
+    )
+    db.add(published); db.commit()
+    request = _request(
+        "selected_sections", section_ids=(3000,), adjustment_type="reduce_only",
+        target_subject_code="",
+    )
+    request, preview = _review(db, request)
+    result = _apply(db, request, preview, {})
+    draft = db.get(models.TimetableVersion, 7100)
+    db.refresh(published)
+    assert result["draft_stale"] is True and result["regeneration_required"] is True
+    assert draft.is_stale is True and draft.approved_at is None
+    assert published.is_stale is False and published.edit_revision == 0
+
+
 @pytest.mark.parametrize("teacher_id", [5001, 5000, None])
 def test_confirmed_target_teacher_can_be_unchanged_changed_or_unassigned(teacher_id):
     db = _ready_db(); request, preview = _review(db)

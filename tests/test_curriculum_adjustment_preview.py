@@ -63,8 +63,9 @@ def _seed(db):
 
 
 def _request(scope_type, **kwargs):
+    target_subject_code = kwargs.pop("target_subject_code", "WEL3")
     return CurriculumAdjustmentPreviewRequest(
-        scope_type=scope_type, source_subject_code="SOC3", target_subject_code="WEL3",
+        scope_type=scope_type, source_subject_code="SOC3", target_subject_code=target_subject_code,
         requested_transfer_periods=kwargs.pop("requested_transfer_periods", 1), **kwargs
     )
 
@@ -105,6 +106,39 @@ def test_transfer_must_be_positive_and_cannot_exceed_section_source_demand():
     assert getattr(exc.value, "code", None) == "invalid_transfer_periods"
     result = _preview(db, _request("selected_sections", section_ids=(3000,), requested_transfer_periods=2))
     assert {item["code"] for item in result["blockers"]} == {"transfer_exceeds_source_demand"}
+
+
+def test_reduce_only_two_to_one_needs_no_target_and_reports_source_load():
+    db = _db(); _seed(db)
+    db.query(models.PlanningSubjectDemand).filter_by(
+        planning_section_id=3000, subject_code="SOC3"
+    ).one().weekly_periods = 2
+    db.commit()
+    result = _preview(db, _request(
+        "selected_sections", section_ids=(3000,), adjustment_type="reduce_only",
+        target_subject_code="",
+    ))
+    item = result["sections"][0]
+    assert result["request"]["adjustment_type"] == "reduce_only"
+    assert (item["source"]["current_weekly_periods"], item["source"]["after_weekly_periods"]) == (2, 1)
+    assert item["target"] is None
+    assert item["suggested_teacher_options"] == []
+    assert item["source_teacher_load_impact"]["current_load"] == 2
+    assert item["source_teacher_load_impact"]["projected_load"] == 1
+
+
+def test_reduce_only_one_to_zero_and_over_reduction_blocker():
+    db = _db(); _seed(db)
+    full = _preview(db, _request(
+        "selected_sections", section_ids=(3000,), adjustment_type="reduce_only",
+        target_subject_code="",
+    ))
+    assert full["sections"][0]["source"]["after_weekly_periods"] == 0
+    excessive = _preview(db, _request(
+        "selected_sections", section_ids=(3000,), adjustment_type="reduce_only",
+        target_subject_code="", requested_transfer_periods=2,
+    ))
+    assert {item["code"] for item in excessive["blockers"]} == {"transfer_exceeds_source_demand"}
 
 
 def test_selected_section_scope_changes_only_requested_section():

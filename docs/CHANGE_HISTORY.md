@@ -7,6 +7,13 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-29 - Reduce-Only Curriculum Adjustment
+
+- Added transfer and reduce-only adjustment action types to the guided preview/apply workflow.
+- Reduce-only requires no target subject or teacher decision and preserves all atomic, Draft, rule, lock, publication, permission, and tenant safeguards.
+- Subject Details now shows effective Planning weekly periods and links to a prefilled grade-specific reduction flow.
+- Replaced customer-facing catalog-default wording with **Original weekly periods**.
+
 ## 2026-08-29 - Curriculum Transfer and Subjects Display Correction
 
 - Made the administrator-entered transfer count authoritative across UI, preview fingerprint, and atomic apply.

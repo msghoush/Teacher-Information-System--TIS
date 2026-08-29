@@ -17,6 +17,8 @@ source_of_truth: true
 
 The preview request carries `requested_transfer_periods`; the preview derives section-specific after values from Planning authority, and apply consumes those fingerprinted values unchanged. `routers/subjects.py` decorates exact-scope catalog rows with effective Current/New Planning demand using `planning_subject_demand_service.py`; `templates/subjects.html` renders uniform values or a **Varies** section breakdown.
 
+`adjustment_type="reduce_only"` uses the same preview/apply services with no target demand or target teacher mutation. `templates/edit_subject.html` and the exact-scope subject route expose effective Planning demand plus a prefilled reduction link when `curriculum.adjust` is allowed.
+
 ## Atomic Curriculum Adjustment Apply
 
 - `curriculum_adjustment_apply_service.py`: transaction owner for locking, stale

@@ -26,7 +26,8 @@ class CurriculumAdjustmentPreviewError(ValueError):
 class CurriculumAdjustmentPreviewRequest:
     scope_type: str
     source_subject_code: str
-    target_subject_code: str
+    target_subject_code: str = ""
+    adjustment_type: str = "transfer"
     grade_level: str | None = None
     section_ids: tuple[int, ...] = ()
     requested_transfer_periods: int = 0
@@ -118,11 +119,19 @@ def build_curriculum_adjustment_preview(
         raise CurriculumAdjustmentPreviewError("invalid_scope_type", "Select grade, selected sections, or all active uses.")
     source_code = str(request.source_subject_code or "").strip().upper()
     target_code = str(request.target_subject_code or "").strip().upper()
-    if not source_code or not target_code or source_code == target_code:
+    adjustment_type = str(request.adjustment_type or "transfer").strip().lower()
+    if adjustment_type not in {"transfer", "reduce_only"}:
+        raise CurriculumAdjustmentPreviewError("invalid_adjustment_type", "Select transfer periods or reduce periods only.")
+    if not source_code:
+        raise CurriculumAdjustmentPreviewError("invalid_subjects", "Select a source subject.")
+    if adjustment_type == "transfer" and (not target_code or source_code == target_code):
         raise CurriculumAdjustmentPreviewError("invalid_subjects", "Select two different source and target subjects.")
+    if adjustment_type == "reduce_only":
+        target_code = ""
     requested_transfer = int(request.requested_transfer_periods)
     if requested_transfer <= 0:
-        raise CurriculumAdjustmentPreviewError("invalid_transfer_periods", "Transfer periods must be greater than zero.")
+        label = "Reduction" if adjustment_type == "reduce_only" else "Transfer"
+        raise CurriculumAdjustmentPreviewError("invalid_transfer_periods", f"{label} periods must be greater than zero.")
 
     all_sections = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == branch_id,
@@ -137,8 +146,8 @@ def build_curriculum_adjustment_preview(
         str(subject.subject_code or "").strip().upper(): subject for subject in subjects
         if str(subject.subject_code or "").strip()
     }
-    if source_code not in subjects_by_code or target_code not in subjects_by_code:
-        raise CurriculumAdjustmentPreviewError("subject_not_found", "Both subjects must exist in the selected branch/year.")
+    if source_code not in subjects_by_code or (target_code and target_code not in subjects_by_code):
+        raise CurriculumAdjustmentPreviewError("subject_not_found", "Selected subjects must exist in the branch/year.")
 
     all_demands, resolved_teachers, current_loads = _current_teacher_loads(
         db, branch_id=branch_id, academic_year_id=academic_year_id,
@@ -173,7 +182,7 @@ def build_curriculum_adjustment_preview(
             models.TeacherSubjectAllocation.teacher_id.in_(list(teachers_by_id) or [0]),
             models.TeacherSubjectAllocation.subject_code == target_code,
         ).all()
-    }
+    } if target_code else set()
 
     setting = db.query(models.TimetableSetting).filter(
         models.TimetableSetting.branch_id == branch_id,
@@ -198,7 +207,7 @@ def build_curriculum_adjustment_preview(
         section_id = int(section.id)
         demand_by_code = {row.subject_code: row for row in all_demands.get(section_id, [])}
         source = demand_by_code.get(source_code)
-        target = demand_by_code.get(target_code)
+        target = demand_by_code.get(target_code) if target_code else None
         source_before = int(source.weekly_periods) if source and source.is_active else 0
         target_before = int(target.weekly_periods) if target and target.is_active else 0
         blockers = []
@@ -206,19 +215,21 @@ def build_curriculum_adjustment_preview(
         if source is None or not source.is_active or source_before <= 0:
             blockers.append({"code": "source_demand_inactive", "message": "Source subject has no active demand in this section."})
         elif requested_transfer > source_before:
-            blockers.append({"code": "transfer_exceeds_source_demand", "message": "Transfer periods exceed current source demand in this section."})
+            label = "Reduction" if adjustment_type == "reduce_only" else "Transfer"
+            blockers.append({"code": "transfer_exceeds_source_demand", "message": f"{label} periods exceed current source demand in this section."})
         source_change_valid = not blockers
         released = requested_transfer if source_change_valid else 0
         source_after = source_before - released
-        target_after = target_before + released
+        target_after = target_before + released if target_code else None
 
         source_teacher_id, source_assignment = resolved_teachers.get((section_id, source_code), (None, "unassigned"))
-        target_teacher_id, target_assignment = resolved_teachers.get((section_id, target_code), (None, "unassigned"))
+        target_teacher_id, target_assignment = resolved_teachers.get((section_id, target_code), (None, "unassigned")) if target_code else (None, "not_applicable")
         candidate_ids = []
-        for teacher_id in (target_teacher_id, source_teacher_id):
-            if teacher_id is not None and teacher_id not in candidate_ids:
-                candidate_ids.append(teacher_id)
-        candidate_ids.extend(sorted(qualified_target_ids - set(candidate_ids)))
+        if target_code:
+            for teacher_id in (target_teacher_id, source_teacher_id):
+                if teacher_id is not None and teacher_id not in candidate_ids:
+                    candidate_ids.append(teacher_id)
+            candidate_ids.extend(sorted(qualified_target_ids - set(candidate_ids)))
         suggestions = []
         for teacher_id in candidate_ids:
             teacher = teachers_by_id.get(teacher_id)
@@ -238,7 +249,7 @@ def build_curriculum_adjustment_preview(
                 "remaining_capacity": capacity - projected,
                 "over_capacity": projected > capacity,
             })
-        if target_teacher_id is None:
+        if target_code and target_teacher_id is None:
             warnings.append({"code": "target_teacher_unassigned", "message": "The target subject has no current teacher; allocation must be confirmed later."})
         if suggestions and all(item["over_capacity"] for item in suggestions):
             blockers.append({"code": "teacher_capacity_exceeded", "message": "Every suggested teacher would exceed capacity."})
@@ -246,7 +257,10 @@ def build_curriculum_adjustment_preview(
             warnings.append({"code": "teacher_capacity_warning", "message": "Some teacher options would exceed capacity."})
 
         rule_impacts = []
-        for code, before, after in ((source_code, source_before, source_after), (target_code, target_before, target_after)):
+        rule_changes = [(source_code, source_before, source_after)]
+        if target_code:
+            rule_changes.append((target_code, target_before, target_after))
+        for code, before, after in rule_changes:
             rule = resolve_subject_distribution_rule(
                 db, branch_id=branch_id, academic_year_id=academic_year_id,
                 grade_level=_grade(section.grade_level), subject_code=code, section_id=section_id,
@@ -266,7 +280,7 @@ def build_curriculum_adjustment_preview(
 
         grouped_warnings = []
         for group in grouped:
-            if str(group.get("subject_code") or "").upper() in {source_code, target_code} and section_id in set(group.get("section_ids") or []):
+            if str(group.get("subject_code") or "").upper() in ({source_code, target_code} if target_code else {source_code}) and section_id in set(group.get("section_ids") or []):
                 grouped_warnings.append({"code": "grouped_activity_review_required", "group_key": group.get("key"), "message": "This section/subject participates in grouped legacy timetable configuration."})
         warnings.extend(grouped_warnings)
         all_blockers.extend({**item, "section_id": section_id} for item in blockers)
@@ -274,10 +288,16 @@ def build_curriculum_adjustment_preview(
         section_results.append({
             "section": {"id": section_id, "grade_level": _grade(section.grade_level), "section_name": str(section.section_name or ""), "class_status": str(section.class_status or "")},
             "source": {"subject_code": source_code, "current_weekly_periods": source_before, "after_weekly_periods": source_after if source_change_valid else source_before, "authority": source.authority if source else None, "is_active": bool(source and source.is_active)},
-            "target": {"subject_code": target_code, "current_weekly_periods": target_before, "after_weekly_periods": target_after, "authority": target.authority if target else None, "is_active": bool(target and target.is_active)},
+            "target": {"subject_code": target_code, "current_weekly_periods": target_before, "after_weekly_periods": target_after, "authority": target.authority if target else None, "is_active": bool(target and target.is_active)} if target_code else None,
             "released_weekly_periods": released,
             "current_source_teacher": {"teacher": _teacher_payload(teachers_by_id.get(source_teacher_id)), "assignment_source": source_assignment},
             "current_target_teacher": {"teacher": _teacher_payload(teachers_by_id.get(target_teacher_id)), "assignment_source": target_assignment},
+            "source_teacher_load_impact": {
+                "teacher": _teacher_payload(teachers_by_id.get(source_teacher_id)),
+                "current_load": int(current_loads.get(source_teacher_id, 0)) if source_teacher_id is not None else None,
+                "projected_load": int(current_loads.get(source_teacher_id, 0)) - released if source_teacher_id is not None else None,
+                "capacity": int(get_teacher_international_capacity_hours(teachers_by_id[source_teacher_id])) if source_teacher_id in teachers_by_id else None,
+            },
             "suggested_teacher_options": suggestions,
             "subject_scheduling_rule_impact": rule_impacts,
             "grouped_legacy_warnings": grouped_warnings,
@@ -287,7 +307,7 @@ def build_curriculum_adjustment_preview(
 
     authority = {
         "scope": {"school_group_id": int(school_group_id), "branch_id": int(branch_id), "academic_year_id": int(academic_year_id)},
-        "request": {"scope_type": scope_type, "grade_level": _grade(request.grade_level), "section_ids": sorted(int(value) for value in request.section_ids), "source_subject_code": source_code, "target_subject_code": target_code, "requested_transfer_periods": requested_transfer},
+        "request": {"adjustment_type": adjustment_type, "scope_type": scope_type, "grade_level": _grade(request.grade_level), "section_ids": sorted(int(value) for value in request.section_ids), "source_subject_code": source_code, "target_subject_code": target_code, "requested_transfer_periods": requested_transfer},
         "sections": section_results,
         "draft": {"id": int(draft.id), "edit_revision": int(draft.edit_revision or 0), "authority_fingerprint": str(draft.authority_fingerprint or "")} if draft else None,
     }
