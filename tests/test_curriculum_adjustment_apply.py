@@ -87,6 +87,20 @@ def test_successful_balanced_transfer_is_atomic_audited_and_section_isolated():
     assert audit.actor_user_id == "U1" and audit.status == "applied"
 
 
+def test_partial_transfer_keeps_source_active_and_matches_reviewed_preview():
+    db = _ready_db()
+    _demand(db, 3000, "SOC3").weekly_periods = 2
+    db.commit()
+    request, preview = _review(db)
+    assert preview["sections"][0]["source"]["after_weekly_periods"] == 1
+    assert preview["sections"][0]["target"]["after_weekly_periods"] == 2
+    _apply(db, request, preview, {3000: 5001})
+    source = _demand(db, 3000, "SOC3")
+    target = _demand(db, 3000, "WEL3")
+    assert (source.weekly_periods, source.is_active) == (1, True)
+    assert (target.weekly_periods, target.is_active) == (2, True)
+
+
 @pytest.mark.parametrize("teacher_id", [5001, 5000, None])
 def test_confirmed_target_teacher_can_be_unchanged_changed_or_unassigned(teacher_id):
     db = _ready_db(); request, preview = _review(db)

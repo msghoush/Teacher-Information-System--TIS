@@ -82,9 +82,8 @@
   const scopeType = () => document.querySelector('input[name="scope_type"]:checked').value;
   const requestPayload = () => {
     const source = document.getElementById('sourceSubject');
-    const guide = Number(source.selectedOptions[0]?.dataset.periods || 0);
     const transfer = Number(document.getElementById('transferPeriods').value || 0);
-    return {scope_type:scopeType(),grade_level:scopeType()==='grade'?document.getElementById('gradeSelect').value:null,section_ids:scopeType()==='selected_sections'?[...document.querySelectorAll('input[name="section_id"]:checked')].map(item=>Number(item.value)):[],source_subject_code:source.value,target_subject_code:document.getElementById('targetSubject').value,source_after_weekly_periods:Math.max(guide-transfer,0)};
+    return {scope_type:scopeType(),grade_level:scopeType()==='grade'?document.getElementById('gradeSelect').value:null,section_ids:scopeType()==='selected_sections'?[...document.querySelectorAll('input[name="section_id"]:checked')].map(item=>Number(item.value)):[],source_subject_code:source.value,target_subject_code:document.getElementById('targetSubject').value,requested_transfer_periods:transfer};
   };
   document.querySelectorAll('input[name="scope_type"]').forEach(input => input.addEventListener('change', () => {const type=scopeType();document.getElementById('gradeField').classList.toggle('hidden',type!=='grade');document.getElementById('sectionsField').classList.toggle('hidden',type!=='selected_sections');}));
   document.getElementById('sourceSubject').addEventListener('change', event => {const periods=event.target.selectedOptions[0]?.dataset.periods;document.getElementById('periodGuide').textContent=periods!==undefined?`${periods} weekly period${Number(periods)===1?'':'s'} in the subject catalog.`:'Select a source subject to see its current weekly guide.';});

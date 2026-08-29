@@ -20,6 +20,7 @@ from homeroom_defaults import (
     get_effective_subject_count,
     get_homeroom_bundle_subject_labels,
 )
+from planning_subject_demand_service import resolve_scope_subject_demands
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 from subject_colors import (
@@ -135,6 +136,67 @@ def _decorate_subject_record(subject):
     setattr(subject, "display_color_border", theme["border"])
     setattr(subject, "display_color_text", theme["text"])
     return subject
+
+
+def _planning_grade_label(value) -> str:
+    text = str(value or "").strip().upper()
+    return "KG" if text in {"0", "K", "KG", "KINDERGARTEN"} else text
+
+
+def _decorate_effective_planning_periods(
+    db: Session,
+    *,
+    subjects,
+    branch_id: int,
+    academic_year_id: int,
+) -> None:
+    """Attach exact-scope Current/New Planning demand summaries for Subjects UI."""
+    sections = db.query(models.PlanningSection).filter(
+        models.PlanningSection.branch_id == branch_id,
+        models.PlanningSection.academic_year_id == academic_year_id,
+        models.PlanningSection.class_status.in_(("Current", "New")),
+    ).order_by(
+        models.PlanningSection.grade_level.asc(),
+        models.PlanningSection.section_name.asc(),
+        models.PlanningSection.id.asc(),
+    ).all()
+    demands_by_section = resolve_scope_subject_demands(
+        db,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        planning_section_ids=[int(section.id) for section in sections],
+    ) if sections else {}
+    sections_by_grade = {}
+    for section in sections:
+        sections_by_grade.setdefault(_planning_grade_label(section.grade_level), []).append(section)
+
+    for subject in subjects:
+        code = str(subject.subject_code or "").strip().upper()
+        grade_sections = sections_by_grade.get(_planning_grade_label(subject.grade), [])
+        section_values = []
+        for section in grade_sections:
+            demand = next(
+                (item for item in demands_by_section.get(int(section.id), []) if item.subject_code == code),
+                None,
+            )
+            periods = int(demand.weekly_periods) if demand is not None and demand.is_active else 0
+            section_values.append({
+                "section_id": int(section.id),
+                "section_name": str(section.section_name or "").strip(),
+                "class_status": str(section.class_status or ""),
+                "weekly_periods": periods,
+            })
+        distinct_values = sorted({item["weekly_periods"] for item in section_values})
+        varies = len(distinct_values) > 1
+        effective = distinct_values[0] if len(distinct_values) == 1 else None
+        setattr(subject, "effective_weekly_periods", effective)
+        setattr(subject, "effective_weekly_periods_varies", varies)
+        setattr(subject, "effective_weekly_periods_sections", section_values)
+        setattr(
+            subject,
+            "effective_weekly_periods_display",
+            "Varies" if varies else str(effective if effective is not None else int(subject.weekly_hours or 0)),
+        )
 
 
 def _apply_sheet_header_style(sheet, fill_color: str):
@@ -282,6 +344,12 @@ def _render_subjects_page(
         models.Subject.subject_code.asc(),
         models.Subject.id.asc(),
     ).all()
+    _decorate_effective_planning_periods(
+        db,
+        subjects=subjects,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
     subject_grade_counts = Counter()
     subject_total_count = 0
     for subject in subjects:

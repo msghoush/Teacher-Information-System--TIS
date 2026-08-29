@@ -7,6 +7,12 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-29 - Curriculum Transfer and Subjects Display Correction
+
+- Made the administrator-entered transfer count authoritative across UI, preview fingerprint, and atomic apply.
+- Corrected partial transfer arithmetic and retained source demand unless its reviewed result is zero.
+- Updated Subjects to show exact-scope effective Current/New Planning periods, with **Varies** and section detail when demand differs.
+
 ## 2026-08-29 - Guided Curriculum Adjustment UI
 
 - Added a professional five-step administrator workflow for scope, change, preview, teacher decisions, final review, and success.

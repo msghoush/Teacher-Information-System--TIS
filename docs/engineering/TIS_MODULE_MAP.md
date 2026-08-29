@@ -15,6 +15,8 @@ source_of_truth: true
 - `authorization.py`: protects the page and apply operation with `curriculum.adjust`; preview accepts either the established Planning edit permission or the dedicated adjustment permission.
 - `curriculum_adjustment_preview_service.py`: exposes target eligibility on teacher suggestions for safe selector filtering.
 
+The preview request carries `requested_transfer_periods`; the preview derives section-specific after values from Planning authority, and apply consumes those fingerprinted values unchanged. `routers/subjects.py` decorates exact-scope catalog rows with effective Current/New Planning demand using `planning_subject_demand_service.py`; `templates/subjects.html` renders uniform values or a **Varies** section breakdown.
+
 ## Atomic Curriculum Adjustment Apply
 
 - `curriculum_adjustment_apply_service.py`: transaction owner for locking, stale

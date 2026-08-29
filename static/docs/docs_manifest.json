@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-29T14:58:07.883343+03:00",
+  "generated_at": "2026-08-29T18:20:26.152239+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "966cf96",
+  "commit_sha": "13c101b",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "e43ff164a8b5862f9fcd0ae152b06184ddc3ca46c2803f8b77d53ce50fc6ce1b",
-  "pdf_size_bytes": 1020782,
+  "pdf_sha256": "d27152ea3f0922c2a80389e1c194d23c3ee7846d05240a214d7cc7e25ab7141f",
+  "pdf_size_bytes": 1025285,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-29T14:57:02.223759+03:00",
-      "size_bytes": 79012,
-      "sha256": "c8a30bdcd745202e560a28decb79b693e32dc45fb62ebc86050f85f8f6258c41",
+      "modified_at": "2026-08-29T18:19:47.581730+03:00",
+      "size_bytes": 79568,
+      "sha256": "6e945956675eaa3042990936f38d67f68bb97d3a087b7543f3dfc353421e0fe6",
       "pdf_page": 15
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-08-29T14:57:02.224760+03:00",
-      "size_bytes": 73628,
-      "sha256": "b4dde64ead94b85aaf9893f69d6762e7712938b104f17d83f3f85aa61ba96b2d",
+      "modified_at": "2026-08-29T18:19:47.581730+03:00",
+      "size_bytes": 74103,
+      "sha256": "99ea3c5a448529d7a6c38fc3bb3efde587633000ad0edeb9fb54deb0169a2e64",
       "pdf_page": 39
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-29T14:57:02.227761+03:00",
-      "size_bytes": 63897,
-      "sha256": "5f36154bd9ab5f98dd54c45896d65c6558a9a31f165d916cdd15c0c6295fc012",
+      "modified_at": "2026-08-29T18:19:47.590314+03:00",
+      "size_bytes": 64167,
+      "sha256": "ce41cf4bf10df0f8b7fa029061628f46a47c6e25b84aea0172bc4091426ce422",
       "pdf_page": 62
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-29T14:57:02.232496+03:00",
-      "size_bytes": 117851,
-      "sha256": "869c9213b72247d0117080f18b255474c6e8835457ddf386e734d0851273119b",
+      "modified_at": "2026-08-29T18:19:47.593490+03:00",
+      "size_bytes": 118271,
+      "sha256": "24af370766a17ea649b191f02fa43ec6de57a983589dc4c9bf7c08652b843868",
       "pdf_page": 82
     },
     {
@@ -74,9 +74,9 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-08-29T14:57:02.228756+03:00",
-      "size_bytes": 34900,
-      "sha256": "d18cf5fa295ab580a3692b24284077d2292a09fca6679ea448c8b4bb567697b8",
+      "modified_at": "2026-08-29T18:19:47.591481+03:00",
+      "size_bytes": 35319,
+      "sha256": "56dba71b948a7ec6ddb8cc52476f9f490894088960ea7f69b62490695ec85325",
       "pdf_page": 127
     },
     {
@@ -88,9 +88,9 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-08-29T14:57:02.230622+03:00",
-      "size_bytes": 62994,
-      "sha256": "b8d675bb098daec404524e9d72d3c3fd44d576196ebc95f19c09cf1eb5925821",
+      "modified_at": "2026-08-29T18:19:47.591481+03:00",
+      "size_bytes": 63448,
+      "sha256": "e5232e2949c6c65c8426e9ef83bd86a4e8d0801a3c348226e502b9791881bd18",
       "pdf_page": 160
     },
     {
@@ -633,46 +633,53 @@
       "pdf_page": 353
     },
     {
+      "path": "docs/history/workforce-planning/2026-08-29-curriculum-transfer-and-subjects-display-fix.md",
+      "modified_at": "2026-08-29T18:19:47.605219+03:00",
+      "size_bytes": 890,
+      "sha256": "2dea751607608f4455c6182fc7506897c639ad2c4e801424f53d996ff6973a43",
+      "pdf_page": 354
+    },
+    {
       "path": "docs/history/workforce-planning/2026-08-29-guided-curriculum-adjustment-ui.md",
       "modified_at": "2026-08-29T14:57:02.233496+03:00",
       "size_bytes": 736,
       "sha256": "f1b1c4d87546d4de605182712c8f9f6b5234344cbd1c08ccc0d4e8fafd76affb",
-      "pdf_page": 354
+      "pdf_page": 355
     },
     {
       "path": "docs/history/workforce-planning/README.md",
-      "modified_at": "2026-08-29T14:57:02.232496+03:00",
-      "size_bytes": 2006,
-      "sha256": "d3c34ed6b9150274368a0d006eb7e67a29144aed9580d4d979e320e508e846ab",
-      "pdf_page": 355
+      "modified_at": "2026-08-29T18:19:47.599219+03:00",
+      "size_bytes": 2133,
+      "sha256": "92662159f30fd06a6401eb5e3d70cef0c8317472f2b7d352f3fcb645515080c4",
+      "pdf_page": 356
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 356
+      "pdf_page": 357
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 2012,
       "sha256": "d901b0ac33d921ff6041334e6580949f167b159c01c7840b48b1c2cf437c16f2",
-      "pdf_page": 357
+      "pdf_page": 358
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-08-22T02:52:50.590506+03:00",
       "size_bytes": 22759,
       "sha256": "e66b791e2798281fb0ee2a30768c48a27403a01bdfb12724ae004b3c98063ed7",
-      "pdf_page": 358
+      "pdf_page": 359
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 366
+      "pdf_page": 367
     }
   ]
 }
