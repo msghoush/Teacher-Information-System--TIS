@@ -115,6 +115,7 @@ from timetable_logic import (
 )
 from timetable_slot_service import build_canonical_slot_projection
 import subject_distribution_rules_ui
+import teacher_scheduling_rules
 
 # ---------------------------------------
 # App Initialization
@@ -1320,6 +1321,7 @@ CONFIGURATION_MODULES = (
             "configuration.manage_degrees",
             "configuration.manage_specializations",
             "timetable.manage_settings",
+            "timetable.manage_teacher_rules",
             "timetable.manage_blocks",
             "calendar.manage_event_types",
         ),
@@ -1386,7 +1388,7 @@ CONFIGURATION_MODULES = (
         "href": "/system-configuration/timetable-settings",
         "icon": "timetable",
         "description": "Configure school days, periods, and blocked times.",
-        "permission_keys": ("timetable.manage_settings", "timetable.manage_blocks"),
+        "permission_keys": ("timetable.manage_settings", "timetable.manage_teacher_rules", "timetable.manage_blocks"),
         "permission_mode": "any",
     },
     {
@@ -11929,6 +11931,7 @@ def _get_configuration_access(request: Request, db: Session):
         "configuration.manage_degrees",
         "configuration.manage_specializations",
         "timetable.manage_settings",
+        "timetable.manage_teacher_rules",
         "timetable.manage_blocks",
         "calendar.manage_event_types",
     )
@@ -12072,6 +12075,14 @@ def _build_timetable_settings_module_context(
         scoped_branch_id,
         scoped_academic_year_id,
     )
+    school_group_id = auth.get_user_school_group_id(db, current_user)
+    teacher_rule_context = teacher_scheduling_rules.ui_context(
+        db, school_group_id=int(school_group_id), branch_id=int(scoped_branch_id),
+        academic_year_id=int(scoped_academic_year_id),
+    ) if school_group_id else {
+        "teacher_scheduling_rules": [], "teacher_rule_teachers": [],
+        "teacher_rule_sections": [], "teacher_rule_grades": [],
+    }
     return {
         "timetable_settings": timetable_settings,
         "working_day_options": list(WORKING_DAY_OPTIONS),
@@ -12088,6 +12099,7 @@ def _build_timetable_settings_module_context(
         ),
         "daily_coverage_options": list(subject_distribution_rules_ui.DAILY_COVERAGE_OPTIONS),
         "strictness_options": list(subject_distribution_rules_ui.STRICTNESS_OPTIONS),
+        **teacher_rule_context,
     }
 
 
@@ -13657,6 +13669,77 @@ def save_subject_scheduling_rule(
     return _redirect_with_notice(
         safe_return_to, f"Scheduling rule saved for Grade {grade_level} {subject_code.upper()}.",
     )
+
+
+@app.post("/system-configuration/timetable-settings/teacher-rules")
+def save_teacher_scheduling_rule(
+    request: Request,
+    rule_id: str = Form(""),
+    teacher_id: int = Form(...),
+    rule_type: str = Form(...),
+    all_working_days: str | None = Form(None),
+    days: list[str] = Form([]),
+    period_selector: str = Form("period"),
+    periods: list[int] = Form([]),
+    target_scope: str = Form("any_assigned"),
+    grades: list[str] = Form([]),
+    section_ids: list[int] = Form([]),
+    return_to: str = Form("/system-configuration/timetable-settings#teacher-scheduling-rules"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_teacher_rules"):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("timetable.manage_teacher_rules",), page_key="system-configuration",
+        )
+    safe_return_to = _safe_redirect_path(return_to)
+    branch_id = int(getattr(current_user, "scope_branch_id", current_user.branch_id))
+    academic_year_id = int(getattr(current_user, "scope_academic_year_id", current_user.academic_year_id))
+    school_group_id = auth.get_user_school_group_id(db, current_user)
+    try:
+        teacher_scheduling_rules.save_rule(
+            db, school_group_id=int(school_group_id), branch_id=branch_id,
+            academic_year_id=academic_year_id, teacher_id=teacher_id,
+            rule_type=rule_type, all_working_days=bool(all_working_days), days=days,
+            period_selector=period_selector, periods=periods, target_scope=target_scope,
+            grades=grades, section_ids=section_ids, actor_user_id=current_user.user_id,
+            rule_id=int(rule_id) if str(rule_id).strip().isdigit() else None,
+        )
+    except teacher_scheduling_rules.TeacherSchedulingRuleError as exc:
+        db.rollback()
+        return _redirect_with_error(safe_return_to, exc.message)
+    return _redirect_with_notice(safe_return_to, "Teacher scheduling rule saved. The Draft Timetable requires regeneration.")
+
+
+@app.post("/system-configuration/timetable-settings/teacher-rules/{rule_id}/delete")
+def delete_teacher_scheduling_rule(
+    rule_id: int, request: Request,
+    return_to: str = Form("/system-configuration/timetable-settings#teacher-scheduling-rules"),
+    db: Session = Depends(get_db),
+):
+    current_user = auth.get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/", status_code=302)
+    if not auth.has_permission(db, current_user, "timetable.manage_teacher_rules"):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("timetable.manage_teacher_rules",), page_key="system-configuration",
+        )
+    branch_id = int(getattr(current_user, "scope_branch_id", current_user.branch_id))
+    academic_year_id = int(getattr(current_user, "scope_academic_year_id", current_user.academic_year_id))
+    school_group_id = auth.get_user_school_group_id(db, current_user)
+    try:
+        teacher_scheduling_rules.delete_rule(
+            db, school_group_id=int(school_group_id), branch_id=branch_id,
+            academic_year_id=academic_year_id, rule_id=rule_id,
+        )
+    except teacher_scheduling_rules.TeacherSchedulingRuleError as exc:
+        db.rollback()
+        return _redirect_with_error(_safe_redirect_path(return_to), exc.message)
+    return _redirect_with_notice(_safe_redirect_path(return_to), "Teacher scheduling rule removed. The Draft Timetable requires regeneration.")
 
 
 @app.post("/system-configuration/timetable-settings/subject-rules/reset")

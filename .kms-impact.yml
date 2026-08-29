@@ -1,8 +1,22 @@
-knowledge_impact: no
-summary: Keep selected subject names, scope, and period changes visible throughout curriculum adjustment review steps.
+knowledge_impact: yes
+summary: Add normalized teacher-specific timetable timing rules across configuration, snapshot authority, readiness, CP-SAT, and independent validation.
 affected_areas:
+  - architecture
+  - database
+  - migrations
+  - permissions
+  - timetable
+  - solver
+  - workflow
   - ui
   - tests
 kms_files_updated:
-no_impact_reason: Presentation-only continuity improvement using existing preview payload; no authority, API, permission, scope, transaction, or workflow behavior changed.
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
+  - docs/history/workforce-planning/README.md
+  - docs/history/workforce-planning/2026-08-30-teacher-scheduling-rules.md
+no_impact_reason:
 major_change_override: no

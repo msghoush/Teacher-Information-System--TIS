@@ -6215,6 +6215,39 @@ def _curriculum_adjustment_apply_foundation(engine, connection):
     )
 
 
+def _teacher_scheduling_rules_foundation(engine, connection):
+    """Create normalized teacher timing rules after exact-scope parents exist."""
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+
+    if not all(_table_exists(connection, name) for name in (
+        "teachers", "planning_sections", "branches", "academic_years",
+    )):
+        return
+    if engine.dialect.name == "postgresql":
+        teacher_unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("teachers")
+        }
+        if ("id", "branch_id", "academic_year_id") not in teacher_unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE teachers ADD CONSTRAINT "
+                "uq_teachers_id_scope UNIQUE (id, branch_id, academic_year_id)",
+            )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "teachers", "uq_teachers_id_scope",
+            "id, branch_id, academic_year_id",
+        )
+    for table_name in (
+        "teacher_scheduling_rules",
+        "teacher_scheduling_rule_slots",
+        "teacher_scheduling_rule_targets",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6470,6 +6503,11 @@ MIGRATIONS = (
         migration_id="20260829_001_curriculum_adjustment_apply_foundation",
         description="Add durable audit authority for atomic curriculum adjustments",
         apply=_curriculum_adjustment_apply_foundation,
+    ),
+    Migration(
+        migration_id="20260830_001_teacher_scheduling_rules",
+        description="Add normalized teacher-specific timetable timing rules",
+        apply=_teacher_scheduling_rules_foundation,
     ),
 )
 

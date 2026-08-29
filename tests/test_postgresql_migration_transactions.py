@@ -102,6 +102,42 @@ def test_planning_subject_demand_migration_creates_fk_target_constraints_first()
     not POSTGRESQL_URL.startswith("postgresql"),
     reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
 )
+def test_teacher_rule_migration_is_safe_after_baseline_metadata_and_idempotent():
+    schema_name = f"tis_teacher_rules_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        models.Base.metadata.create_all(engine, tables=run_migrations._baseline_metadata_tables())
+        inspector = inspect(engine)
+        assert not inspector.has_table("teacher_scheduling_rules")
+        with engine.begin() as connection:
+            db_migrations._teacher_scheduling_rules_foundation(engine, connection)
+        with engine.begin() as connection:
+            db_migrations._teacher_scheduling_rules_foundation(engine, connection)
+        inspector = inspect(engine)
+        assert inspector.has_table("teacher_scheduling_rules")
+        assert inspector.has_table("teacher_scheduling_rule_slots")
+        assert inspector.has_table("teacher_scheduling_rule_targets")
+        teacher_unique = {tuple(item.get("column_names") or []) for item in inspector.get_unique_constraints("teachers")}
+        assert ("id", "branch_id", "academic_year_id") in teacher_unique
+        rule_fks = {tuple(item.get("constrained_columns") or []) for item in inspector.get_foreign_keys("teacher_scheduling_rules")}
+        assert ("teacher_id", "branch_id", "academic_year_id") in rule_fks
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
 def test_m8b7_repeated_system_notification_inspection_uses_transaction_connection():
     schema_name = f"tis_m8b7_{uuid.uuid4().hex}"
     admin_engine = create_engine(POSTGRESQL_URL)

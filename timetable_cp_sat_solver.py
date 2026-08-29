@@ -92,6 +92,27 @@ def solve_timetable(
     avoid_consecutive = {str(code).upper() for code in quality.get("avoid_consecutive_subject_codes") or []}
     allow_double = {str(code).upper() for code in quality.get("allow_double_period_subject_codes") or []}
     objective_terms = []
+    for rule in problem.get("teacher_scheduling_rules") or []:
+        demand_ids = sorted({
+            grouped_representative.get(demand_id, demand_id)
+            for demand_id in rule.get("eligible_demand_ids") or []
+        })
+        for slot in rule.get("resolved_slots") or []:
+            values = [
+                variables[(demand_id, slot["day_key"], slot["period_index"])]
+                for demand_id in demand_ids
+            ]
+            occupancy = sum(values)
+            if rule["rule_type"] == "must_teach":
+                model.add(occupancy == 1)
+            elif rule["rule_type"] == "unavailable":
+                model.add(occupancy == 0)
+            elif rule["rule_type"] in {"prefer_teaching", "prefer_free"}:
+                occupied = model.new_bool_var(
+                    f"teacher_preference|{rule['id']}|{slot['day_key']}|{slot['period_index']}"
+                )
+                model.add_max_equality(occupied, values)
+                objective_terms.append((12 if rule["rule_type"] == "prefer_teaching" else -12) * occupied)
     slots_by_day = defaultdict(list)
     for slot in problem["slots"]:
         slots_by_day[slot["day_key"]].append(slot)

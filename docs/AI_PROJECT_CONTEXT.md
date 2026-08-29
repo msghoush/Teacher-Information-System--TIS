@@ -7,6 +7,23 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Teacher Scheduling Rules
+
+Administrators with `timetable.manage_teacher_rules` configure teacher-specific
+timing policy in Timetable Settings without changing Planning demand or teacher
+allocation. Normalized rules support Must teach, Unavailable, Prefer teaching,
+and Prefer free across all or selected working days, numbered/first/last periods,
+and any assigned class or selected Current/New grades/sections. Required rules
+are hard and never relax; preferences contribute only to CP-SAT quality.
+
+Schema-v4 immutable snapshots capture canonical resolved teacher rules in the
+constraint fingerprint. Rule changes mark unpublished Drafts stale, clear Draft
+approval, and require regeneration while published history remains untouched.
+Readiness and the problem builder reject deterministic workload, target, lock,
+slot, and contradictory hard-rule conflicts; CP-SAT enforces hard timing and
+scores preferences; the independent validator repeats hard-rule checks. With no
+rules, generation behavior is backward compatible.
+
 ## Guided Curriculum Adjustment UI
 
 Administrators with `curriculum.adjust` can enter a five-step, page-based workflow from Planning or Subjects. The UI selects Current/New scope, prepares the existing read-only preview, separates blockers from warnings, requires an explicit eligible teacher decision for every section, and submits the reviewed fingerprint to the atomic apply endpoint. A changed Planning state refreshes the preview without exposing revision terminology. Success links to Timetable and regeneration, but never starts generation automatically.

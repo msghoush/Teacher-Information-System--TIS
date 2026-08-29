@@ -53,6 +53,9 @@ def test_pre_migration_metadata_defers_planning_subject_demands():
     assert "planning_sections" in table_names
     assert "subjects" in table_names
     assert "planning_subject_demands" not in table_names
+    assert "teacher_scheduling_rules" not in table_names
+    assert "teacher_scheduling_rule_slots" not in table_names
+    assert "teacher_scheduling_rule_targets" not in table_names
 
 
 def test_fastapi_startup_does_not_run_migrations(monkeypatch):

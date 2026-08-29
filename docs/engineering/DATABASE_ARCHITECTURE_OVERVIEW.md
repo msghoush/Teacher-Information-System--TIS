@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Teacher Scheduling Rules
+
+Migration `20260830_001_teacher_scheduling_rules` adds
+`teacher_scheduling_rules`, `teacher_scheduling_rule_slots`, and
+`teacher_scheduling_rule_targets`. The header carries exact SchoolGroup,
+branch, academic-year, and teacher scope plus rule type, hard/soft semantics,
+target scope, active state, actor metadata, and timestamps. Slot children
+normalize all/selected days with numbered, first, or last period selectors;
+target children normalize selected grades or composite-scoped Planning sections.
+
+The migration adds or verifies `(teachers.id, branch_id, academic_year_id)` as a
+composite parent key before creating the dependent rule table. All three new
+tables are excluded from baseline `metadata.create_all()` and created by the
+ordered, idempotent migration, preserving the production migration sequence on
+PostgreSQL and SQLite. No backfill occurs: absence of rules preserves existing
+generation behavior.
+
 ## Curriculum Adjustment Audit And Transaction
 
 Migration `20260829_001_curriculum_adjustment_apply_foundation` adds

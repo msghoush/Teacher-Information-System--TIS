@@ -209,6 +209,80 @@ class TimetableProblemBuilder:
                 "insufficient_teaching_slots", "No canonical teaching slots are available."
             )
 
+        slot_keys = {(item["day_key"], item["period_index"]) for item in slots}
+        teacher_rules = []
+        demands_by_teacher = {}
+        for demand in demands:
+            demands_by_teacher.setdefault(int(demand["teacher_id"]), []).append(demand)
+        hard_by_teacher_slot = {}
+        for raw_rule in (snapshot.get("constraints") or {}).get("teacher_scheduling_rules") or []:
+            teacher_id = int(raw_rule.get("teacher_id") or 0)
+            teacher_demands = demands_by_teacher.get(teacher_id) or []
+            if not teacher_demands:
+                raise TimetableProblemError("teacher_rule_no_demand", "A teacher scheduling rule has no assigned Planning demand.")
+            target_scope = str(raw_rule.get("target_scope") or "any_assigned")
+            targets = raw_rule.get("targets") or []
+            eligible = list(teacher_demands)
+            if target_scope == "selected_sections":
+                target_ids = {int(item.get("planning_section_id") or 0) for item in targets}
+                eligible = [item for item in eligible if int(item["section_id"]) in target_ids]
+            elif target_scope == "selected_grades":
+                grades = {str(item.get("grade_level") or "").strip().upper() for item in targets}
+                eligible = [item for item in eligible if str(eligible_sections[item["section_id"]].get("grade_level") or "").strip().upper() in grades]
+            if not eligible:
+                raise TimetableProblemError("teacher_rule_target_unassigned", "A teacher scheduling rule target has no assigned Planning demand.")
+            resolved_slots = sorted({
+                (str(item.get("day_key") or "").lower(), int(item.get("period_index") or 0))
+                for item in raw_rule.get("resolved_slots") or []
+            })
+            if not resolved_slots or any(slot not in slot_keys for slot in resolved_slots):
+                raise TimetableProblemError("teacher_rule_slot_invalid", "A teacher scheduling rule uses an unavailable period.")
+            rule = {
+                "id": int(raw_rule.get("id") or 0), "teacher_id": teacher_id,
+                "rule_type": str(raw_rule.get("rule_type") or ""),
+                "strictness": str(raw_rule.get("strictness") or ""),
+                "target_scope": target_scope,
+                "eligible_demand_ids": sorted(item["demand_id"] for item in eligible),
+                "resolved_slots": [{"day_key": day, "period_index": period} for day, period in resolved_slots],
+            }
+            if rule["rule_type"] in {"must_teach", "unavailable"}:
+                for slot in resolved_slots:
+                    key = (teacher_id, *slot)
+                    existing = hard_by_teacher_slot.setdefault(key, [])
+                    if rule["rule_type"] == "unavailable" and any(item["rule_type"] == "must_teach" for item in existing):
+                        raise TimetableProblemError("teacher_rule_conflict", "A teacher is both required and unavailable in the same period.")
+                    if rule["rule_type"] == "must_teach":
+                        if any(item["rule_type"] == "unavailable" for item in existing):
+                            raise TimetableProblemError("teacher_rule_conflict", "A teacher is both required and unavailable in the same period.")
+                        for item in existing:
+                            if item["rule_type"] == "must_teach" and not set(item["eligible_demand_ids"]) & set(rule["eligible_demand_ids"]):
+                                raise TimetableProblemError("teacher_rule_conflict", "A teacher is required in different classes in the same period.")
+                    existing.append(rule)
+            teacher_rules.append(rule)
+        for teacher_id, teacher_demands in demands_by_teacher.items():
+            if not any(rule["teacher_id"] == teacher_id for rule in teacher_rules):
+                continue
+            workload = sum(int(item["required_weekly_periods"]) for item in teacher_demands)
+            unavailable = {
+                (slot["day_key"], slot["period_index"])
+                for rule in teacher_rules if rule["teacher_id"] == teacher_id and rule["rule_type"] == "unavailable"
+                for slot in rule["resolved_slots"]
+            }
+            required = {
+                (slot["day_key"], slot["period_index"])
+                for rule in teacher_rules if rule["teacher_id"] == teacher_id and rule["rule_type"] == "must_teach"
+                for slot in rule["resolved_slots"]
+            }
+            if len(required) > workload:
+                raise TimetableProblemError("teacher_rule_workload_infeasible", "Required teaching periods exceed the teacher's assigned weekly workload.")
+            if workload > len(slot_keys - unavailable):
+                raise TimetableProblemError("teacher_rule_availability_infeasible", "The teacher's workload does not fit around unavailable periods.")
+        for rule in teacher_rules:
+            if rule["rule_type"] == "must_teach":
+                matching_total = sum(int(item["required_weekly_periods"]) for item in demands if item["demand_id"] in rule["eligible_demand_ids"])
+                if len(rule["resolved_slots"]) > matching_total:
+                    raise TimetableProblemError("teacher_rule_target_workload_infeasible", "Required class periods exceed matching assigned demand.")
+
         # Final defense-in-depth: an invalid resolved distribution rule must
         # fail cleanly here rather than reach CP-SAT with an unsatisfiable or
         # nonsensical configuration.
@@ -233,7 +307,6 @@ class TimetableProblemBuilder:
             (item["section_id"], item["subject_code"], item["teacher_id"]): item
             for item in demands
         }
-        slot_keys = {(item["day_key"], item["period_index"]) for item in slots}
         locks = []
         lock_demand_counts = Counter()
         section_slots = set()
@@ -261,6 +334,15 @@ class TimetableProblemBuilder:
                 raise TimetableProblemError(
                     "lock_slot_invalid", "A locked lesson uses an unavailable slot."
                 )
+            for rule in teacher_rules:
+                if rule["teacher_id"] == normalized["teacher_id"] and rule["rule_type"] == "unavailable" and any(
+                    (item["day_key"], item["period_index"]) == slot_key for item in rule["resolved_slots"]
+                ):
+                    raise TimetableProblemError("teacher_rule_lock_conflict", "A locked lesson conflicts with a teacher unavailable rule.")
+                if rule["teacher_id"] == normalized["teacher_id"] and rule["rule_type"] == "must_teach" and any(
+                    (item["day_key"], item["period_index"]) == slot_key for item in rule["resolved_slots"]
+                ) and demand_by_key[key]["demand_id"] not in rule["eligible_demand_ids"]:
+                    raise TimetableProblemError("teacher_rule_lock_conflict", "A locked lesson prevents a required teacher class in the same period.")
             section_slot = (normalized["section_id"], *slot_key)
             teacher_slot = (normalized["teacher_id"], *slot_key)
             group_key = grouped_member_keys.get(key)
@@ -338,4 +420,5 @@ class TimetableProblemBuilder:
             "minimum_difference": minimum_difference,
             "quality_rules": quality_rules,
             "grouped_activities": grouped_activities,
+            "teacher_scheduling_rules": teacher_rules,
         }

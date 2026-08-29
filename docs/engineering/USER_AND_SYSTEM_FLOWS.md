@@ -7,6 +7,27 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Configure And Generate With Teacher Scheduling Rules
+
+1. An administrator with `timetable.manage_teacher_rules` opens System
+   Configuration → Timetable Settings → Teacher Scheduling Rules in one exact
+   SchoolGroup, branch, and academic-year scope.
+2. The administrator selects a teacher, Must teach/Unavailable/Prefer
+   teaching/Prefer free, all or selected working days, numbered/first/last
+   periods, and any assigned class or selected Current/New grades/sections.
+3. The service validates scope and rule shape, rejects deterministic hard
+   contradictions, persists normalized rule/slot/target rows, and marks only
+   unpublished Drafts stale while clearing approval. Published history is not
+   modified.
+4. Generate or Regenerate captures canonical rules in a schema-v4 immutable
+   snapshot. Readiness and the problem builder reject invalid targets, impossible
+   workload/availability, conflicting hard rules, and unavailable-period locks.
+5. CP-SAT enforces Must teach and Unavailable as hard constraints and scores
+   teaching/free preferences. Hard rules never relax.
+6. The independent validator repeats required occupancy and unavailability
+   checks and reports preference satisfaction. Only a valid, current-fingerprint
+   candidate may become a new unpublished Draft.
+
 ## Guided Curriculum Adjustment UI
 
 1. A user with `curriculum.adjust` opens **Adjust Curriculum** from Planning or Subjects.

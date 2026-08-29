@@ -8,6 +8,17 @@ module: workforce-planning
 
 # ADR 0026: Versioned, Constraint-Based Smart Timetable Generation
 
+## Teacher-specific timing constraints
+
+Teacher Scheduling Rules are normalized branch/year configuration, not timetable
+locks and not Planning demand. Schema-v4 snapshots resolve and freeze Must teach,
+Unavailable, Prefer teaching, and Prefer free rules, including all/selected days,
+numbered/first/last periods, and assigned-class/grade/section targets. Must teach
+and Unavailable are hard CP-SAT constraints; preferences are objective terms.
+Readiness and the problem builder reject deterministic conflicts, and the
+OR-Tools-independent validator repeats hard checks. Rule changes invalidate only
+unpublished Draft authority; active published versions remain immutable.
+
 ## Context
 
 The original Timetable stored one mutable set of placements per branch and academic year. It had no durable draft/history boundary, active-version authority, reproducible input snapshot, regeneration locks, or generation-run record. Automatic generation therefore could not be introduced safely without first separating Planning authority, timetable history, publication, and future solver execution.

@@ -93,6 +93,36 @@ class TimetableSolutionValidator:
             if placement_key(lock) not in candidate_keys:
                 add("lock_missing", "A locked lesson was not preserved.")
 
+        demand_id_by_key = {demand_key(item): item["demand_id"] for item in problem["demands"]}
+        teacher_preference_total = 0
+        teacher_preference_satisfied = 0
+        for rule in problem.get("teacher_scheduling_rules") or []:
+            eligible_ids = set(rule.get("eligible_demand_ids") or [])
+            for slot in rule.get("resolved_slots") or []:
+                matching = sum(
+                    1 for item in placements
+                    if int(item.get("teacher_id") or 0) == int(rule["teacher_id"])
+                    and str(item.get("day_key") or "").lower() == slot["day_key"]
+                    and int(item.get("period_index") or 0) == int(slot["period_index"])
+                    and demand_id_by_key.get(demand_key(item)) in eligible_ids
+                )
+                any_teacher = sum(
+                    1 for item in placements
+                    if int(item.get("teacher_id") or 0) == int(rule["teacher_id"])
+                    and str(item.get("day_key") or "").lower() == slot["day_key"]
+                    and int(item.get("period_index") or 0) == int(slot["period_index"])
+                )
+                if rule["rule_type"] == "must_teach" and matching != 1:
+                    add("teacher_must_teach_missing", "A required teacher scheduling rule was not satisfied.")
+                elif rule["rule_type"] == "unavailable" and any_teacher:
+                    add("teacher_unavailable_violated", "A teacher was scheduled during a required unavailable period.")
+                elif rule["rule_type"] in {"prefer_teaching", "prefer_free"}:
+                    teacher_preference_total += 1
+                    if (rule["rule_type"] == "prefer_teaching" and matching) or (
+                        rule["rule_type"] == "prefer_free" and not any_teacher
+                    ):
+                        teacher_preference_satisfied += 1
+
         quality = problem.get("quality_rules") or {}
         core_codes = {
             str(code).upper()
@@ -201,5 +231,7 @@ class TimetableSolutionValidator:
                 "required": sum(demand_counts.values()),
                 "placements": len(placements),
                 "locks": len(problem["locks"]),
+                "teacher_preferences": teacher_preference_total,
+                "teacher_preferences_satisfied": teacher_preference_satisfied,
             },
         }

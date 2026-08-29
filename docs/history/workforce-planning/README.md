@@ -6,6 +6,7 @@ last_updated: 2026-06-26
 
 # Workforce Planning History
 
+- [2026-08-30 teacher scheduling rules](2026-08-30-teacher-scheduling-rules.md)
 - [2026-08-29 reduce-only curriculum adjustment](2026-08-29-reduce-only-curriculum-adjustment.md)
 - [2026-08-29 curriculum transfer and Subjects display correction](2026-08-29-curriculum-transfer-and-subjects-display-fix.md)
 - [2026-08-29 guided curriculum adjustment UI](2026-08-29-guided-curriculum-adjustment-ui.md)

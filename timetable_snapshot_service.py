@@ -13,7 +13,7 @@ from planning_subject_demand_service import resolve_scope_subject_demands
 from subject_distribution_rules import resolve_subject_distribution_rule
 
 
-SNAPSHOT_SCHEMA_VERSION = 3
+SNAPSHOT_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True)
@@ -251,7 +251,21 @@ def build_current_snapshot_data(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
-    constraints = constraint_configuration or {"stage": 2, "rules": []}
+    constraints = dict(constraint_configuration or {"stage": 2, "rules": []})
+    from teacher_scheduling_rules import canonical_rules
+    projection = period_configuration.get("canonical_slot_projection") or {}
+    canonical_slots = [
+        {"day_key": item.get("day_key") or timeline.get("day_key"),
+         "period_index": item.get("period_index")}
+        for timeline in projection.get("timelines") or []
+        for item in timeline.get("items") or []
+        if item.get("type") == "teaching" and item.get("schedulable", True)
+    ]
+    constraints["teacher_scheduling_rules"] = canonical_rules(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        working_days=list(projection.get("working_day_keys") or []), slots=canonical_slots,
+    )
     normalized_locks = _normalize_locks(locks)
     scope = {
         "school_group_id": int(school_group_id),
