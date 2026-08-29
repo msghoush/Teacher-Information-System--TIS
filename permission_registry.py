@@ -99,6 +99,7 @@ PERMISSION_GROUPS = (
             ("planning.copy_year_data", "Copy planning between years"),
             ("planning.import", "Import planning data"),
             ("planning.export", "Export planning"),
+            ("curriculum.adjust", "Apply curriculum adjustments"),
         ),
     },
     {

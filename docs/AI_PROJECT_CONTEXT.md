@@ -7,6 +7,20 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Atomic Curriculum Adjustment Apply
+
+Stage 4 adds `curriculum_adjustment_apply_service.py` and permissioned
+`POST /planning/curriculum-adjustments/apply`. The service requires a Stage 3
+fingerprint and an explicit target-teacher decision, including intentional
+unassigned, for every affected section. In one owned transaction it locks and
+revalidates exact-scope Current/New Planning authority, rejects active generation,
+stale previews, qualification/capacity failures, rule conflicts, and invalid Draft
+locks, then updates source/target demands and assignments and writes one durable
+audit. Zero source demand is retired and its active section rule is inactivated.
+The current unpublished Draft is preserved but marked stale, approval is cleared,
+and later regeneration is required. Published versions and the active pointer are
+never mutated. `curriculum.adjust` is a dedicated apply permission.
+
 ## Read-Only Curriculum Adjustment Preview
 
 Stage 3 adds `curriculum_adjustment_preview_service.py` and permissioned JSON route

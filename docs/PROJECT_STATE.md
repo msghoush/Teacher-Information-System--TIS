@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## Atomic Curriculum Adjustment Apply Implemented
+
+Stage 4 implements a service-owned, one-commit curriculum adjustment transaction
+behind dedicated `curriculum.adjust`. It revalidates the reviewed preview fingerprint
+under exact-scope locks, rejects active timetable generation and all unresolved
+teacher/rule/lock conflicts, applies section-specific source/target demand and the
+explicit teacher decision, retires zero demand and its section rule, marks the
+unpublished Draft stale, clears approval, and records a durable audit.
+
+Migration `20260829_001_curriculum_adjustment_apply_foundation` adds the audit ledger
+and duplicate-fingerprint guard. No guided UI or automatic regeneration is included;
+published timetable versions and the active pointer are untouched.
+
 ## Curriculum Adjustment Preview Implemented
 
 Stage 3 provides a read-only curriculum adjustment preview service and

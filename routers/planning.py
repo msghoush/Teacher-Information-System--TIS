@@ -27,6 +27,11 @@ from curriculum_adjustment_preview_service import (
     CurriculumAdjustmentPreviewRequest,
     build_curriculum_adjustment_preview,
 )
+from curriculum_adjustment_apply_service import (
+    CurriculumAdjustmentApplyError,
+    CurriculumAdjustmentApplyRequest,
+    apply_curriculum_adjustment,
+)
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 from subject_colors import build_subject_theme, resolve_subject_color
@@ -132,6 +137,52 @@ async def curriculum_adjustment_preview(
         if isinstance(exc, CurriculumAdjustmentPreviewError):
             return JSONResponse({"error": exc.code, "message": str(exc)}, status_code=400)
         return JSONResponse({"error": "invalid_request", "message": "Preview values are invalid."}, status_code=400)
+    return JSONResponse(result)
+
+
+@router.post("/curriculum-adjustments/apply")
+async def curriculum_adjustment_apply(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return JSONResponse({"error": "authentication_required"}, status_code=401)
+    current_user, denied_response = authorization.require_permission(
+        request, db, "curriculum.adjust", current_user=current_user, page_key="planning"
+    )
+    if denied_response:
+        return denied_response
+    try:
+        payload = await request.json()
+        preview_request = CurriculumAdjustmentPreviewRequest(
+            scope_type=payload.get("scope_type", ""),
+            source_subject_code=payload.get("source_subject_code", ""),
+            target_subject_code=payload.get("target_subject_code", ""),
+            grade_level=payload.get("grade_level"),
+            section_ids=tuple(payload.get("section_ids") or ()),
+            source_after_weekly_periods=int(payload.get("source_after_weekly_periods", 0)),
+        )
+        raw_decisions = payload.get("teacher_decisions")
+        if not isinstance(raw_decisions, dict):
+            raise ValueError("teacher_decisions")
+        apply_request = CurriculumAdjustmentApplyRequest(
+            preview_request=preview_request,
+            preview_fingerprint=str(payload.get("preview_fingerprint") or ""),
+            teacher_decisions={int(key): (int(value) if value is not None else None) for key, value in raw_decisions.items()},
+        )
+    except (TypeError, ValueError):
+        return JSONResponse({"error": "invalid_request", "message": "Apply values are invalid."}, status_code=400)
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    school_group_id = getattr(current_user, "scope_school_group_id", None) or auth.get_user_school_group_id(db, current_user)
+    try:
+        result = apply_curriculum_adjustment(
+            db, school_group_id=int(school_group_id or 0), branch_id=int(branch_id or 0),
+            academic_year_id=int(academic_year_id or 0), actor_user_id=str(current_user.user_id),
+            request=apply_request,
+        )
+    except (CurriculumAdjustmentApplyError, CurriculumAdjustmentPreviewError) as exc:
+        return JSONResponse({"error": exc.code, "message": str(exc)}, status_code=409 if exc.code in {"stale_preview", "active_generation_conflict"} else 400)
     return JSONResponse(result)
 
 

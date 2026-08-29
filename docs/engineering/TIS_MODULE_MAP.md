@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Atomic Curriculum Adjustment Apply
+
+- `curriculum_adjustment_apply_service.py`: transaction owner for locking, stale
+  revalidation, demand/assignment/rule reconciliation, Draft invalidation, audit,
+  concurrency rejection, rollback, and duplicate protection.
+- `models.CurriculumAdjustmentAudit` and migration
+  `20260829_001_curriculum_adjustment_apply_foundation`: durable applied outcome and
+  unique reviewed-fingerprint authority.
+- `routers/planning.py`: apply JSON endpoint protected by `curriculum.adjust`.
+- `permission_registry.py` and `authorization.py`: dedicated permission registration
+  and route enforcement.
+
 ## Curriculum Adjustment Preview
 
 - `curriculum_adjustment_preview_service.py`: read-only scope selection, demand

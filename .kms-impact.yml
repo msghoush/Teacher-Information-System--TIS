@@ -1,10 +1,12 @@
 knowledge_impact: yes
-summary: Add a read-only, exact-scope curriculum adjustment preview with teacher capacity, scheduling-rule, grouped-configuration, draft-impact, and stale-confirmation analysis.
+summary: Add permissioned, fingerprint-guarded, atomic curriculum adjustment application with durable audit and Draft invalidation.
 affected_areas:
   - planning
   - teachers
   - timetable
   - reporting
+  - database
+  - migrations
   - workflows
   - permissions
   - tests
@@ -18,6 +20,6 @@ kms_files_updated:
   - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
   - docs/CHANGE_HISTORY.md
   - docs/history/workforce-planning/README.md
-  - docs/history/workforce-planning/2026-08-29-curriculum-adjustment-preview.md
+  - docs/history/workforce-planning/2026-08-29-curriculum-adjustment-apply.md
 no_impact_reason:
 major_change_override: no
