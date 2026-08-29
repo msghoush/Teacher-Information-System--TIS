@@ -125,7 +125,7 @@ async def curriculum_adjustment_preview(
             target_subject_code=payload.get("target_subject_code", ""),
             grade_level=payload.get("grade_level"),
             section_ids=tuple(payload.get("section_ids") or ()),
-            source_after_weekly_periods=int(payload.get("source_after_weekly_periods", 0)),
+            requested_transfer_periods=int(payload.get("requested_transfer_periods", 0)),
         )
         result = build_curriculum_adjustment_preview(
             db,
@@ -223,7 +223,7 @@ async def curriculum_adjustment_apply(
             target_subject_code=payload.get("target_subject_code", ""),
             grade_level=payload.get("grade_level"),
             section_ids=tuple(payload.get("section_ids") or ()),
-            source_after_weekly_periods=int(payload.get("source_after_weekly_periods", 0)),
+            requested_transfer_periods=int(payload.get("requested_transfer_periods", 0)),
         )
         raw_decisions = payload.get("teacher_decisions")
         if not isinstance(raw_decisions, dict):

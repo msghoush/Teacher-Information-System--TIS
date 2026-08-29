@@ -48,6 +48,13 @@ def test_importing_main_does_not_run_migrations(tmp_path):
     assert not database_path.exists()
 
 
+def test_pre_migration_metadata_defers_planning_subject_demands():
+    table_names = {table.name for table in run_migrations._baseline_metadata_tables()}
+    assert "planning_sections" in table_names
+    assert "subjects" in table_names
+    assert "planning_subject_demands" not in table_names
+
+
 def test_fastapi_startup_does_not_run_migrations(monkeypatch):
     monkeypatch.setenv(
         "TIS_SESSION_SECRET",

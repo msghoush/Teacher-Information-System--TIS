@@ -17,6 +17,8 @@ source_of_truth: true
 6. If Planning changed, the preview is refreshed and the user reviews again; compatible teacher selections are preserved where possible.
 7. Success reports affected sections and Draft status and offers Timetable/regeneration links. Regeneration is never automatic.
 
+The period count entered in step 2 is the transfer amount for every selected section. Preview rejects zero/negative transfers and any section whose current source demand is smaller than the request. A partial transfer leaves its remaining source demand active. After apply, Subjects shows the effective Planning value when uniform; differing section values show **Varies** and can be expanded by section. Catalog weekly hours remain secondary defaults.
+
 ## Atomic Curriculum Adjustment Apply
 
 1. A user with `curriculum.adjust` submits the exact reviewed request, Stage 3

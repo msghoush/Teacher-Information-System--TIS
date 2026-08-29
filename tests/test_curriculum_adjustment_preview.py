@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
+import pytest
 
 import models
 from curriculum_adjustment_preview_service import (
@@ -63,7 +64,8 @@ def _seed(db):
 
 def _request(scope_type, **kwargs):
     return CurriculumAdjustmentPreviewRequest(
-        scope_type=scope_type, source_subject_code="SOC3", target_subject_code="WEL3", **kwargs
+        scope_type=scope_type, source_subject_code="SOC3", target_subject_code="WEL3",
+        requested_transfer_periods=kwargs.pop("requested_transfer_periods", 1), **kwargs
     )
 
 
@@ -80,6 +82,29 @@ def test_grade_scope_is_current_new_only_and_increases_target_demand():
     assert all(item["source"]["current_weekly_periods"] == 1 for item in result["sections"])
     assert all(item["source"]["after_weekly_periods"] == 0 for item in result["sections"])
     assert all(item["target"]["after_weekly_periods"] == 2 for item in result["sections"])
+
+
+def test_partial_transfer_uses_requested_amount_not_catalog_default():
+    db = _db(); _seed(db)
+    source = db.query(models.PlanningSubjectDemand).filter_by(
+        planning_section_id=3000, subject_code="SOC3"
+    ).one()
+    source.weekly_periods = 2
+    db.commit()
+    result = _preview(db, _request("selected_sections", section_ids=(3000,)))
+    item = result["sections"][0]
+    assert (item["source"]["current_weekly_periods"], item["source"]["after_weekly_periods"]) == (2, 1)
+    assert (item["target"]["current_weekly_periods"], item["target"]["after_weekly_periods"]) == (1, 2)
+    assert item["released_weekly_periods"] == 1
+
+
+def test_transfer_must_be_positive_and_cannot_exceed_section_source_demand():
+    db = _db(); _seed(db)
+    with pytest.raises(ValueError) as exc:
+        _preview(db, _request("selected_sections", section_ids=(3000,), requested_transfer_periods=0))
+    assert getattr(exc.value, "code", None) == "invalid_transfer_periods"
+    result = _preview(db, _request("selected_sections", section_ids=(3000,), requested_transfer_periods=2))
+    assert {item["code"] for item in result["blockers"]} == {"transfer_exceeds_source_demand"}
 
 
 def test_selected_section_scope_changes_only_requested_section():

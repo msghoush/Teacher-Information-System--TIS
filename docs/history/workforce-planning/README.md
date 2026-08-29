@@ -6,6 +6,7 @@ last_updated: 2026-06-26
 
 # Workforce Planning History
 
+- [2026-08-29 curriculum transfer and Subjects display correction](2026-08-29-curriculum-transfer-and-subjects-display-fix.md)
 - [2026-08-29 guided curriculum adjustment UI](2026-08-29-guided-curriculum-adjustment-ui.md)
 
 This folder tracks meaningful changes to teacher information, workload planning, staffing gaps, planning sections, timetable relationships, and related reports.

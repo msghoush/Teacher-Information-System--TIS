@@ -11,6 +11,8 @@ source_of_truth: true
 
 Stage 5 adds the permission-gated administrator workflow from Planning and Subjects through scope, change, preview, teacher decisions, final confirmation, and success. It reuses the deployed Stage 3 preview and Stage 4 atomic apply APIs, preserves selections where safe after a refreshed review, and offers timetable/regeneration navigation without automatic generation.
 
+The transfer contract now carries the requested period count instead of deriving an absolute source result from `Subject.weekly_hours`. Subjects also reflects effective Planning weekly periods for Current/New sections, including a section breakdown when values differ.
+
 ## Atomic Curriculum Adjustment Apply Implemented
 
 Stage 4 implements a service-owned, one-commit curriculum adjustment transaction

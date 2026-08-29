@@ -11,6 +11,8 @@ recommended_first_read: true
 
 Administrators with `curriculum.adjust` can enter a five-step, page-based workflow from Planning or Subjects. The UI selects Current/New scope, prepares the existing read-only preview, separates blockers from warnings, requires an explicit eligible teacher decision for every section, and submits the reviewed fingerprint to the atomic apply endpoint. A changed Planning state refreshes the preview without exposing revision terminology. Success links to Timetable and regeneration, but never starts generation automatically.
 
+The entered transfer period count is authoritative: preview computes each section's source and target result from its effective `PlanningSubjectDemand`, rejects non-positive or excessive transfers, and apply persists exactly that reviewed result. Subjects presents those same Current/New Planning values for the active branch/year: a uniform grade-subject demand is shown directly, while section differences display as **Varies** with a section breakdown. `Subject.weekly_hours` remains a catalog/default value and is not rewritten by scoped adjustments.
+
 ## Atomic Curriculum Adjustment Apply
 
 Stage 4 adds `curriculum_adjustment_apply_service.py` and permissioned

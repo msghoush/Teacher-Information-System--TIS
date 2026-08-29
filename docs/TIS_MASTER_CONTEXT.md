@@ -11,6 +11,8 @@ source_of_truth: true
 
 The administrator workflow at `/planning/curriculum-adjustments` is gated by `curriculum.adjust` and consumes the established preview/apply contracts. It supports grade, selected-section, and all-active-use scopes, displays section demand, teachers, capacity, scheduling rules, grouped configuration, and Draft impact, then requires explicit teacher selections and confirmation. Stale review responses return the user to a refreshed preview. Applying does not regenerate the Draft or change published history.
 
+`requested_transfer_periods` is the preview/apply request authority. Per affected section, source after equals source before minus that count and target after equals target before plus it. Partial transfers retain active source demand; only zero retires it. The Subjects list resolves exact-scope Current/New section demand through the explicit-first service and shows either the uniform effective value or **Varies** with section values, without mutating catalog defaults.
+
 ## Atomic Late-Stage Curriculum Adjustment Application
 
 `curriculum_adjustment_apply_service.py` owns the Stage 4 write transaction. Apply

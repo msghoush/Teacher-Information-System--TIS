@@ -29,7 +29,7 @@ class CurriculumAdjustmentPreviewRequest:
     target_subject_code: str
     grade_level: str | None = None
     section_ids: tuple[int, ...] = ()
-    source_after_weekly_periods: int = 0
+    requested_transfer_periods: int = 0
 
 
 def _canonical(value) -> str:
@@ -120,9 +120,9 @@ def build_curriculum_adjustment_preview(
     target_code = str(request.target_subject_code or "").strip().upper()
     if not source_code or not target_code or source_code == target_code:
         raise CurriculumAdjustmentPreviewError("invalid_subjects", "Select two different source and target subjects.")
-    source_after = int(request.source_after_weekly_periods)
-    if source_after < 0:
-        raise CurriculumAdjustmentPreviewError("invalid_source_periods", "Source periods cannot be negative.")
+    requested_transfer = int(request.requested_transfer_periods)
+    if requested_transfer <= 0:
+        raise CurriculumAdjustmentPreviewError("invalid_transfer_periods", "Transfer periods must be greater than zero.")
 
     all_sections = db.query(models.PlanningSection).filter(
         models.PlanningSection.branch_id == branch_id,
@@ -205,10 +205,11 @@ def build_curriculum_adjustment_preview(
         warnings = []
         if source is None or not source.is_active or source_before <= 0:
             blockers.append({"code": "source_demand_inactive", "message": "Source subject has no active demand in this section."})
-        if source_after > source_before:
-            blockers.append({"code": "source_after_exceeds_current", "message": "Source periods after adjustment exceed current demand."})
+        elif requested_transfer > source_before:
+            blockers.append({"code": "transfer_exceeds_source_demand", "message": "Transfer periods exceed current source demand in this section."})
         source_change_valid = not blockers
-        released = max(source_before - source_after, 0) if source_change_valid else 0
+        released = requested_transfer if source_change_valid else 0
+        source_after = source_before - released
         target_after = target_before + released
 
         source_teacher_id, source_assignment = resolved_teachers.get((section_id, source_code), (None, "unassigned"))
@@ -286,7 +287,7 @@ def build_curriculum_adjustment_preview(
 
     authority = {
         "scope": {"school_group_id": int(school_group_id), "branch_id": int(branch_id), "academic_year_id": int(academic_year_id)},
-        "request": {"scope_type": scope_type, "grade_level": _grade(request.grade_level), "section_ids": sorted(int(value) for value in request.section_ids), "source_subject_code": source_code, "target_subject_code": target_code, "source_after_weekly_periods": source_after},
+        "request": {"scope_type": scope_type, "grade_level": _grade(request.grade_level), "section_ids": sorted(int(value) for value in request.section_ids), "source_subject_code": source_code, "target_subject_code": target_code, "requested_transfer_periods": requested_transfer},
         "sections": section_results,
         "draft": {"id": int(draft.id), "edit_revision": int(draft.edit_revision or 0), "authority_fingerprint": str(draft.authority_fingerprint or "")} if draft else None,
     }

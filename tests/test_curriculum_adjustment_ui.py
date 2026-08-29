@@ -46,6 +46,8 @@ def test_teacher_decisions_are_explicit_dropdown_choices():
 
 
 def test_apply_uses_preview_revision_handles_refresh_and_never_regenerates():
+    assert "requested_transfer_periods:transfer" in TEMPLATE
+    assert "source_after_weekly_periods" not in TEMPLATE
     assert "preview_fingerprint:state.preview.preview_fingerprint" in TEMPLATE
     assert "data.error==='stale_preview'" in TEMPLATE
     assert "Planning changed while you were reviewing." in TEMPLATE
