@@ -22,7 +22,12 @@ logger = logging.getLogger("tis.migrations")
 POSTGRES_CONNECT_TIMEOUT_SECONDS = 10
 POSTGRES_LOCK_TIMEOUT = "5s"
 POSTGRES_STATEMENT_TIMEOUT = "30s"
-DEFERRED_METADATA_TABLES = frozenset({"planning_subject_demands"})
+DEFERRED_METADATA_TABLES = frozenset({
+    "planning_subject_demands",
+    "teacher_scheduling_rules",
+    "teacher_scheduling_rule_slots",
+    "teacher_scheduling_rule_targets",
+})
 
 
 def _progress(message: str, *args) -> None:

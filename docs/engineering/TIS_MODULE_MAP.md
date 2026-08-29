@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Teacher Scheduling Rules Components
+
+- `teacher_scheduling_rules.py`: exact-scope normalized CRUD, rule-shape and
+  deterministic conflict validation, canonical slot/target resolution, UI data,
+  and unpublished Draft invalidation.
+- `models.py` and migration `20260830_001_teacher_scheduling_rules`: rule headers,
+  normalized slots and grade/section targets, composite teacher/section scope
+  integrity, and migration-order-safe deferred metadata creation.
+- `templates/system_configuration_timetable.html` and `main.py`: permissioned
+  Teacher Scheduling Rules configuration under Timetable Settings.
+- `timetable_snapshot_service.py`: schema-v4 immutable teacher-rule authority and
+  constraint fingerprinting.
+- `timetable_readiness_service.py` and `timetable_problem_builder.py`: deterministic
+  target, workload, availability, hard-conflict, and lock defenses.
+- `timetable_cp_sat_solver.py` and `timetable_solution_validator.py`: hard timing
+  enforcement, soft preference scoring, and solver-independent parity.
+
 ## Guided Curriculum Adjustment UI
 
 - `routers/planning.py`: serves the exact-scope wizard page and continues to own preview/apply HTTP adapters.

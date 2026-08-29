@@ -131,7 +131,7 @@ def test_stage51_snapshot_contract_preserves_hrt_and_excludes_display_names(db):
     )
     problem = TimetableProblemBuilder().build(snapshot.canonical_json)
     payload = json.loads(snapshot.canonical_json)
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["scope"] == {
         "school_group_id": 1, "branch_id": 10, "academic_year_id": 100
     }

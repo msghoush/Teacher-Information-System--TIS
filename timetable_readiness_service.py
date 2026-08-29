@@ -13,6 +13,7 @@ from subject_distribution_validator import validate_subject_distribution_rule
 from teacher_capacity import get_teacher_international_capacity_hours
 from timetable_logic import build_teacher_display_name, format_section_label, get_timetable_settings_payload
 from timetable_snapshot_service import build_current_snapshot_data
+from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
 from timetable_version_service import resolve_operational_version
 
 
@@ -232,6 +233,14 @@ class TimetableReadinessService:
 
         snapshot = build_current_snapshot_data(self.db, school_group_id=school_group_id, branch_id=branch_id, academic_year_id=academic_year_id, locks=locks)
         authority_fingerprint = snapshot.authority_fingerprint
+        try:
+            TimetableProblemBuilder().build(snapshot.canonical_json)
+        except TimetableProblemError as exc:
+            if exc.code.startswith("teacher_rule"):
+                blockers.append(self._finding(
+                    exc.code, exc.message, "teacher_rule", "Teacher scheduling rule",
+                    "Timetable Configuration",
+                ))
         if operational is not None and str(operational.authority_fingerprint or "") != authority_fingerprint:
             blockers.append(self._finding("input_changed", "Planning assignments, timetable configuration, or locked lessons changed after the current draft was created.", corrective_area="Timetable"))
 

@@ -478,6 +478,10 @@ class Subject(Base):
 class Teacher(Base):
     __tablename__ = "teachers"
     __table_args__ = (
+        UniqueConstraint(
+            "id", "branch_id", "academic_year_id",
+            name="uq_teachers_id_scope",
+        ),
         Index(
             "uq_teachers_scope_teacher_id",
             "branch_id",
@@ -869,6 +873,105 @@ class TimetableNonTeachingBlock(Base):
     placement_mode = Column(String(24), nullable=False, default="fixed_time")
     insert_after_period = Column(Integer, nullable=True)
     duration_minutes = Column(Integer, nullable=True)
+
+
+class TeacherSchedulingRule(Base):
+    __tablename__ = "teacher_scheduling_rules"
+    __table_args__ = (
+        CheckConstraint(
+            "rule_type IN ('must_teach','unavailable','prefer_teaching','prefer_free')",
+            name="ck_teacher_scheduling_rules_type",
+        ),
+        CheckConstraint(
+            "target_scope IN ('any_assigned','selected_grades','selected_sections')",
+            name="ck_teacher_scheduling_rules_target_scope",
+        ),
+        CheckConstraint(
+            "(rule_type IN ('must_teach','unavailable') AND strictness = 'hard') OR "
+            "(rule_type IN ('prefer_teaching','prefer_free') AND strictness = 'soft')",
+            name="ck_teacher_scheduling_rules_semantics",
+        ),
+        ForeignKeyConstraint(
+            ["teacher_id", "branch_id", "academic_year_id"],
+            ["teachers.id", "teachers.branch_id", "teachers.academic_year_id"],
+            name="fk_teacher_scheduling_rules_teacher_scope",
+        ),
+        Index(
+            "ix_teacher_scheduling_rules_scope_teacher",
+            "school_group_id", "branch_id", "academic_year_id", "teacher_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    teacher_id = Column(Integer, nullable=False)
+    rule_type = Column(String(24), nullable=False)
+    target_scope = Column(String(24), nullable=False, default="any_assigned")
+    strictness = Column(String(8), nullable=False)
+    is_active = Column(Boolean, nullable=False, default=True)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TeacherSchedulingRuleSlot(Base):
+    __tablename__ = "teacher_scheduling_rule_slots"
+    __table_args__ = (
+        CheckConstraint(
+            "period_selector IN ('period','first','last')",
+            name="ck_teacher_scheduling_rule_slots_selector",
+        ),
+        CheckConstraint(
+            "(period_selector = 'period' AND period_index IS NOT NULL AND period_index > 0) OR "
+            "(period_selector IN ('first','last') AND period_index IS NULL)",
+            name="ck_teacher_scheduling_rule_slots_shape",
+        ),
+        UniqueConstraint(
+            "rule_id", "day_key", "period_selector", "period_index",
+            name="uq_teacher_scheduling_rule_slots_identity",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    rule_id = Column(Integer, ForeignKey("teacher_scheduling_rules.id", ondelete="CASCADE"), nullable=False)
+    day_key = Column(String(16), nullable=True)
+    period_selector = Column(String(8), nullable=False, default="period")
+    period_index = Column(Integer, nullable=True)
+
+
+class TeacherSchedulingRuleTarget(Base):
+    __tablename__ = "teacher_scheduling_rule_targets"
+    __table_args__ = (
+        CheckConstraint(
+            "target_type IN ('grade','section')",
+            name="ck_teacher_scheduling_rule_targets_type",
+        ),
+        CheckConstraint(
+            "(target_type = 'grade' AND grade_level IS NOT NULL AND planning_section_id IS NULL) OR "
+            "(target_type = 'section' AND planning_section_id IS NOT NULL AND grade_level IS NULL)",
+            name="ck_teacher_scheduling_rule_targets_shape",
+        ),
+        ForeignKeyConstraint(
+            ["planning_section_id", "branch_id", "academic_year_id"],
+            ["planning_sections.id", "planning_sections.branch_id", "planning_sections.academic_year_id"],
+            name="fk_teacher_scheduling_rule_targets_section_scope",
+        ),
+        UniqueConstraint(
+            "rule_id", "target_type", "grade_level", "planning_section_id",
+            name="uq_teacher_scheduling_rule_targets_identity",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    rule_id = Column(Integer, ForeignKey("teacher_scheduling_rules.id", ondelete="CASCADE"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    target_type = Column(String(12), nullable=False)
+    grade_level = Column(String(8), nullable=True)
+    planning_section_id = Column(Integer, nullable=True)
 
 
 class SubjectDistributionRule(Base):
