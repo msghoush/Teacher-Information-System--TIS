@@ -18,6 +18,9 @@ Related files:
 
 History entries:
 
+- `2026-08-29-curriculum-adjustment-apply.md` — permissioned fingerprint guard,
+  atomic apply/audit, explicit teacher decisions, and Draft invalidation.
+
 - `2026-08-29-curriculum-adjustment-preview.md` — read-only scoped transfer preview,
   teacher/capacity options, rule/grouped warnings, Draft impact, and stale guard.
 

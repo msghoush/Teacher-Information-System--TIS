@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Curriculum Adjustment Audit And Transaction
+
+Migration `20260829_001_curriculum_adjustment_apply_foundation` adds
+`curriculum_adjustment_audits`. Each applied record carries UUID identity, exact
+SchoolGroup/branch/year, actor/time, scope and source/target subjects, reviewed
+fingerprint and request, per-section before/after periods and teacher decision,
+warnings, Draft linkage/stale state, regeneration requirement, and applied status.
+A unique scope+fingerprint constraint prevents duplicate apply.
+
+The apply service locks and revalidates scoped Planning sections/demands,
+assignments, rules, timetable versions, and active generation state. Demand,
+assignment, section-rule retirement, Draft stale/approval state, and audit insert
+commit together or roll back together. Snapshots, published versions, placements,
+and `TimetableActiveVersion` are not rewritten.
+
 ## Curriculum Adjustment Preview Read Boundary
 
 Stage 3 adds no table or migration. The preview reads exact-scope Current/New

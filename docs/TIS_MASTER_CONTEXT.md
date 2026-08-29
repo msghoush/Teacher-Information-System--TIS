@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Atomic Late-Stage Curriculum Adjustment Application
+
+`curriculum_adjustment_apply_service.py` owns the Stage 4 write transaction. Apply
+requires the exact Stage 3 request and fingerprint plus one explicit target-teacher
+decision per affected section. Duplicate successful fingerprints resolve through
+the audit ledger without applying twice. The service locks scoped Planning demand,
+assignments, rules, timetable versions, and active generation state before rebuilding
+the preview; any drift or blocker aborts before mutation.
+
+Successful apply changes only the selected Current/New section demands. Source zero
+is retained as inactive retirement evidence, target demand becomes explicit, source
+assignment is removed only when retired, and target assignment follows only the
+confirmed teacher or unassigned decision. Chosen teachers must be exact-scope,
+target-allocated/qualified, and within final international capacity. Active source
+section rules are retired with zero demand; unresolved target rule arithmetic fails
+closed. Invalid source/teacher locks block apply. The unpublished Draft retains its
+snapshot and placements but becomes stale, loses approval, advances revision, and
+requires later regeneration. Published history and `TimetableActiveVersion` remain
+immutable.
+
 ## Read-Only Late-Stage Curriculum Adjustment Preview
 
 `curriculum_adjustment_preview_service.py` is the Stage 3 analysis boundary for

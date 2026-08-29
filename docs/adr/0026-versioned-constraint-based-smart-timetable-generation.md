@@ -32,6 +32,14 @@ grouped configuration, and mutable Draft impact; and returns a deterministic
 authority fingerprint for future stale confirmation. It cannot write demand,
 reassign teachers, regenerate a Draft, or mutate published history.
 
+Stage 4 makes apply a separate `curriculum.adjust` capability and one atomic service
+transaction. It locks and rebuilds the reviewed fingerprint, rejects active
+generation and unresolved teacher/rule/lock conflicts, changes only selected
+Current/New demand and explicitly confirmed assignment state, records a durable
+deduplicated audit, and invalidates—but does not rewrite—the unpublished Draft.
+Regeneration remains explicit. Published versions and the active pointer stay
+immutable.
+
 The timetable is a versioned aggregate scoped by SchoolGroup, Branch, and Academic Year. `TimetableVersion` owns placements, provenance, input authority, staleness, lifecycle, manual-edit, quality, and future solver metadata. Draft and non-active publication-ready versions may be edited. Active, superseded, and archived versions are immutable. `TimetableActiveVersion` is the sole active-selection authority and enforces one exact-scope pointer; active is not duplicated as a Boolean on a version.
 
 The existing live timetable is imported exactly once per populated scope with `origin=imported`, a compatibility input snapshot, and an active pointer. Its placement fields are not repaired or normalized. Deterministically detectable inconsistencies are retained and recorded as safe version-level stale evidence. No historical publisher or approval is fabricated. A settings-only scope receives no empty imported version.

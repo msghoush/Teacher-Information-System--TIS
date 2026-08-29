@@ -249,10 +249,16 @@ def build_curriculum_adjustment_preview(
                 db, branch_id=branch_id, academic_year_id=academic_year_id,
                 grade_level=_grade(section.grade_level), subject_code=code, section_id=section_id,
             )
+            retiring_source = code == source_code and after == 0
             errors = validate_subject_distribution_rule(
                 rule, planning_weekly_periods=after, available_teaching_days=available_days
-            ) if rule else []
-            rule_impacts.append({"subject_code": code, "before_weekly_periods": before, "after_weekly_periods": after, "rule": rule, "validation_errors": errors})
+            ) if rule and not retiring_source else []
+            rule_impacts.append({
+                "subject_code": code, "before_weekly_periods": before,
+                "after_weekly_periods": after, "rule": rule,
+                "reconciliation": "retire_active_section_rule" if retiring_source and rule and rule.get("source_scope_level") == "section" else "validate_unchanged",
+                "validation_errors": errors,
+            })
             if errors:
                 blockers.append({"code": "subject_distribution_rule_invalid", "subject_code": code, "message": "The current Subject Scheduling Rule does not fit the proposed demand."})
 

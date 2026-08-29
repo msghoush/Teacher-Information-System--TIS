@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-29 - Atomic Curriculum Adjustment Apply
+
+- Added dedicated `curriculum.adjust` and a fingerprint-required apply endpoint.
+- Added exact-scope locking, active-generation rejection, qualification/capacity,
+  scheduling-rule and Draft-lock validation, atomic demand/assignment/rule/Draft
+  updates, and complete rollback on failure.
+- Added durable applied audits and duplicate-fingerprint protection through migration
+  `20260829_001_curriculum_adjustment_apply_foundation`.
+- Preserved snapshots, placements, published history, active pointer, and explicit
+  later-regeneration behavior.
+
 ## 2026-08-29 - Read-Only Curriculum Adjustment Preview
 
 - Added exact-scope preview for grade, selected-section, and all-active-use subject

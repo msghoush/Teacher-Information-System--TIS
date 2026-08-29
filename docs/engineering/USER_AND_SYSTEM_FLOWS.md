@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Atomic Curriculum Adjustment Apply
+
+1. A user with `curriculum.adjust` submits the exact reviewed request, Stage 3
+   fingerprint, and one explicit target-teacher decision per section.
+2. The service owns one transaction, locks exact SchoolGroup/branch/year authority,
+   and rejects an active generation run.
+3. It rebuilds the preview and rejects stale fingerprints, preview blockers,
+   incomplete decisions, invalid qualification/capacity, rule conflicts, or Draft
+   locks that cannot survive the proposed demand/teacher state.
+4. It updates only selected Current/New source/target demands and confirmed teacher
+   assignments. Source zero becomes inactive retirement evidence and any active
+   source section rule is inactivated.
+5. It marks only the current unpublished Draft stale, clears approval, preserves its
+   snapshot/placements/history, and records one durable applied audit.
+6. All changes commit together. Any failure rolls back the entire adjustment.
+   Regeneration remains a later explicit action; published history is untouched.
+
 ## Read-Only Curriculum Adjustment Preview
 
 1. An authorized Planning editor selects grade, selected sections, or all active

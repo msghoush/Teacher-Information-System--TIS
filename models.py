@@ -781,6 +781,43 @@ class PlanningSubjectDemand(Base):
     updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
 
 
+class CurriculumAdjustmentAudit(Base):
+    __tablename__ = "curriculum_adjustment_audits"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('applied')",
+            name="ck_curriculum_adjustment_audits_status",
+        ),
+        UniqueConstraint(
+            "school_group_id", "branch_id", "academic_year_id", "preview_fingerprint",
+            name="uq_curriculum_adjustment_audits_scope_preview",
+        ),
+        Index(
+            "ix_curriculum_adjustment_audits_scope_created",
+            "school_group_id", "branch_id", "academic_year_id", "created_at",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    actor_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=False)
+    scope_type = Column(String(32), nullable=False)
+    source_subject_code = Column(String, nullable=False)
+    target_subject_code = Column(String, nullable=False)
+    preview_fingerprint = Column(String(64), nullable=False)
+    request_json = Column(Text, nullable=False)
+    per_section_json = Column(Text, nullable=False)
+    warnings_json = Column(Text, nullable=False, default="[]")
+    status = Column(String(16), nullable=False, default="applied")
+    draft_version_id = Column(Integer, ForeignKey("timetable_versions.id"), nullable=True)
+    draft_marked_stale = Column(Boolean, nullable=False, default=False)
+    regeneration_required = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class TimetableSetting(Base):
     __tablename__ = "timetable_settings"
     __table_args__ = (

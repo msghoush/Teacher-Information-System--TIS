@@ -6205,6 +6205,16 @@ def _planning_subject_demands_foundation(engine, connection):
     )
 
 
+def _curriculum_adjustment_apply_foundation(engine, connection):
+    """Create the durable audit ledger for atomic curriculum adjustments."""
+    from database import Base
+    import models  # noqa: F401 - register operational metadata
+
+    Base.metadata.tables["curriculum_adjustment_audits"].create(
+        bind=connection, checkfirst=True
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6455,6 +6465,11 @@ MIGRATIONS = (
         migration_id="20260828_004_planning_subject_demands_foundation",
         description="Add explicit section subject demand and backfill current Planning authority",
         apply=_planning_subject_demands_foundation,
+    ),
+    Migration(
+        migration_id="20260829_001_curriculum_adjustment_apply_foundation",
+        description="Add durable audit authority for atomic curriculum adjustments",
+        apply=_curriculum_adjustment_apply_foundation,
     ),
 )
 
