@@ -154,7 +154,9 @@ def test_readiness_detects_invalid_block_cross_scope_teacher_and_changed_input(d
     draft = create_manual_draft(db, school_group_id=1, branch_id=10, academic_year_id=100)
     db.query(models.Subject).filter_by(id=3000).one().weekly_hours = 5
     changed = TimetableReadinessService(db).evaluate(1, 10, 100)
-    assert changed["status"] == "stale_input"
+    assert changed["status"] == "allocation_incomplete"
+    assert changed["verification_eligible"] is False
+    assert changed["inputs_stale"] is True
     assert "input_changed" in {item["code"] for item in changed["blockers"]}
 
 

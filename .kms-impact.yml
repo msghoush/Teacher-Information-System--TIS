@@ -1,15 +1,16 @@
 knowledge_impact: yes
-summary: Define and implement exact partitioned double-block and single-session semantics for Subject Distribution Rules in CP-SAT and independent validation.
+summary: Separate stale Draft lifecycle state from structural readiness so current inputs can be verified and safely regenerated without weakening version or publication protection.
 affected_areas:
   - architecture
   - timetable
-  - solver
-  - business_rules
+  - workflow
+  - ui
   - tests
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
   - docs/PROJECT_STATE.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/CHANGE_HISTORY.md
 no_impact_reason:
 major_change_override: no

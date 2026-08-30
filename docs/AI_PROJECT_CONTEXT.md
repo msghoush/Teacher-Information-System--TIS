@@ -1140,3 +1140,9 @@ SchoolGroup, branch, academic year, immutable snapshot, and full input
 fingerprint. Generate is permitted only for an exact verified fingerprint. The
 validated placements are reused as an optimization hint and as the independently
 validated timeout fallback; soft objectives do not participate in verification.
+`stale_input` is an orthogonal Draft lifecycle state, not structural
+incompleteness: when it is the only finding, current inputs remain eligible for a
+fresh feasibility verification. The old Draft stays stale and unpublishable;
+after the current fingerprint is verified, Regenerate creates a new version from
+that protected source. Historical runs from older authority fingerprints remain
+auditable but do not drive the current action state.

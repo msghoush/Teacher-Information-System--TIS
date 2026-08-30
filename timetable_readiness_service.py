@@ -281,14 +281,17 @@ class TimetableReadinessService:
     @staticmethod
     def _result(scope, blockers, warnings, counts, authority_fingerprint):
         codes = {item["code"] for item in blockers}
+        non_stale_codes = codes - STALE_CODES
         if codes & CONFIGURATION_CODES:
             status = "configuration_incomplete"
+        elif non_stale_codes:
+            status = "structurally_ready" if non_stale_codes == {"active_generation_exists"} else "allocation_incomplete"
         elif codes & STALE_CODES:
             status = "stale_input"
-        elif blockers:
-            status = "structurally_ready" if codes == {"active_generation_exists"} else "allocation_incomplete"
         else:
             status = "configuration_complete"
+        configuration_complete = status in {"configuration_complete", "stale_input"}
+        verification_eligible = configuration_complete and not non_stale_codes
         counts["blockers"] = len(blockers)
         counts["warnings"] = len(warnings)
         required = counts["required_periods"]
@@ -296,7 +299,9 @@ class TimetableReadinessService:
         return {
             "scope": scope, "status": status,
             "ready": status == "configuration_complete",
-            "configuration_complete": status == "configuration_complete",
+            "configuration_complete": configuration_complete,
+            "verification_eligible": verification_eligible,
+            "inputs_stale": bool(codes & STALE_CODES),
             "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
             "authority_fingerprint": authority_fingerprint,
             "blockers": blockers, "warnings": warnings, "counts": counts,
