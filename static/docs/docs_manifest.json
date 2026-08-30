@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-30T21:07:16.469112+03:00",
+  "generated_at": "2026-08-30T23:33:54.188830+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "a7ed2ab",
+  "commit_sha": "80e5111",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "23c2fd59b2f9081e49f755195bb22190e4afeee9b2eefa7b206af83aa47bd988",
-  "pdf_size_bytes": 1047320,
+  "pdf_sha256": "e31ad5a4a2c105071285f27bde2a8205e4059f4dccbf40e7168e7b03589fdeed",
+  "pdf_size_bytes": 1049180,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-30T20:57:38.827945+03:00",
-      "size_bytes": 84145,
-      "sha256": "bcb5765920e3be04789c677fb67a6a72b4fc5263fbdd70e8d2f86abea8b1cf77",
+      "modified_at": "2026-08-30T23:33:09.191344+03:00",
+      "size_bytes": 84672,
+      "sha256": "52e9e1a9fc95b906d069812a799691739b7036740f2a22d25a84933eac9d44eb",
       "pdf_page": 15
     },
     {
@@ -46,16 +46,16 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-08-30T20:57:31.250504+03:00",
-      "size_bytes": 64906,
-      "sha256": "35122402419355c66b42ac14ab3647b0782b662448d0dee923a1660c30ae83b7",
+      "modified_at": "2026-08-30T23:33:09.191849+03:00",
+      "size_bytes": 65341,
+      "sha256": "76a233eb11874e484fb9e184808b0ad64864fb97fcca61b1ae1d2dbbe1e38c1d",
       "pdf_page": 63
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-08-29T19:16:10.133352+03:00",
-      "size_bytes": 118775,
-      "sha256": "c64eda2a571aedd4089d84006d0279cec0868ce3f4a52274beab628bb21c3160",
+      "modified_at": "2026-08-30T23:33:09.193952+03:00",
+      "size_bytes": 119262,
+      "sha256": "acce0e2e946604ebf6725a85bd5c8434444b775580a3287bc27cf5f0c7e65574",
       "pdf_page": 83
     },
     {
@@ -375,9 +375,9 @@
     },
     {
       "path": "docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md",
-      "modified_at": "2026-08-30T20:57:31.251516+03:00",
-      "size_bytes": 15688,
-      "sha256": "a98148f81a3d5660acdc1416122f6e5c41bd7c355d532f812f2da8582b48d0bd",
+      "modified_at": "2026-08-30T23:33:09.192855+03:00",
+      "size_bytes": 16602,
+      "sha256": "acc8054299368ebdf4dd9b5949b7363cfda2d2c71de914dccd16475337b9c6af",
       "pdf_page": 294
     },
     {

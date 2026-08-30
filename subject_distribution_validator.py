@@ -72,6 +72,27 @@ def validate_subject_distribution_rule(
                     "Weekly demand exceeds the configured maximum periods per day across "
                     "available teaching days.",
                 ))
+        if (
+            planning_weekly_periods is not None
+            and str(rule.get("require_daily_coverage") or "auto") != "never"
+            and int(planning_weekly_periods) >= int(available_teaching_days)
+            and int(block_count or 0) + int(single_count or 0)
+                < int(available_teaching_days)
+        ):
+            errors.append(_error(
+                "daily_session_count_infeasible",
+                "Daily coverage requires at least one configured block or single session "
+                "for every teaching day.",
+            ))
+        if (
+            int(block_count or 0) > 0
+            and max_periods_per_day is not None
+            and int(max_periods_per_day) < int(block_length or 0)
+        ):
+            errors.append(_error(
+                "block_exceeds_daily_maximum",
+                "The configured maximum periods per day is shorter than a required block.",
+            ))
 
     return errors
 

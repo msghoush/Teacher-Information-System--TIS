@@ -181,13 +181,34 @@ def solve_timetable(
             if "subject_distribution_rules" in enabled else None
         )
         day_used = []
+        day_loads = {}
         for day in working_days:
             day_vars = [variables[(demand_id, day, slot["period_index"])] for slot in slots_by_day[day]]
             if not day_vars:
                 continue
-            used = model.new_bool_var(f"day_used|{demand_id}|{day}")
-            model.add_max_equality(used, day_vars)
-            day_used.append(used)
+            day_load = model.new_int_var(0, len(day_vars), f"day_load|{demand_id}|{day}")
+            model.add(day_load == sum(day_vars))
+            day_loads[day] = day_load
+
+            normalized_day_used_needed = bool(
+                rule is not None and (
+                    (rule["strictness"] == "hard" and rule.get("min_teaching_days"))
+                    or (
+                        optimize_soft_constraints
+                        and rule.get("spread_distinct_days")
+                        and rule.get("require_daily_coverage") != "never"
+                    )
+                )
+            )
+            legacy_day_used_needed = bool(
+                rule is None and optimize_soft_constraints
+                and (code in core_codes or code in spread_codes or code in ict_codes)
+            )
+            used = None
+            if normalized_day_used_needed or legacy_day_used_needed:
+                used = model.new_bool_var(f"day_used|{demand_id}|{day}")
+                model.add_max_equality(used, day_vars)
+                day_used.append(used)
 
             if rule is not None:
                 # Generalized Subject Distribution Rule replaces the flat
@@ -195,7 +216,7 @@ def solve_timetable(
                 coverage_mode = rule["require_daily_coverage"]
                 if coverage_mode != "never" and int(demand["required_weekly_periods"]) >= num_days:
                     model.add(sum(day_vars) >= 1)
-                if rule["spread_distinct_days"] and coverage_mode != "never":
+                if used is not None and rule["spread_distinct_days"] and coverage_mode != "never":
                     objective_terms.append(20 * used)
                 max_per_day = rule["max_periods_per_day"]
                 if max_per_day:
@@ -226,7 +247,7 @@ def solve_timetable(
                     model.add(sum(day_vars) >= 1)
                 if code in ict_codes and quality.get("ict_hard_one_per_day") and int(demand["required_weekly_periods"]) <= num_days:
                     model.add(sum(day_vars) <= 1)
-                if code in core_codes or code in spread_codes or code in ict_codes:
+                if used is not None and (code in core_codes or code in spread_codes or code in ict_codes):
                     objective_terms.append(20 * used)
                 if code in avoid_consecutive and code not in allow_double:
                     ordered = sorted(slots_by_day[day], key=lambda item: item["period_index"])
@@ -250,30 +271,66 @@ def solve_timetable(
             if rule["strictness"] == "hard" and rule.get("min_teaching_days"):
                 model.add(sum(day_used) >= int(rule["min_teaching_days"]))
             if rule["block_count"] > 0:
-                # Exactly ``block_count`` true consecutive block_length-period
-                # blocks must exist; a period may belong to at most one
-                # counted block so overlapping runs cannot fake extra blocks.
-                pair_vars = []
+                # Partition the demand into explicit double-block and single
+                # sessions. Separate sessions may touch, but every occupied
+                # period belongs to exactly one selected session.
+                block_starts = []
+                blocks_by_day = defaultdict(list)
                 covering_by_slot = defaultdict(list)
                 for day in working_days:
                     ordered = sorted(slots_by_day[day], key=lambda item: item["period_index"])
                     for left, right in zip(ordered, ordered[1:]):
                         if not left.get("next_period_physically_adjacent"):
                             continue
-                        pair_var = model.new_bool_var(
+                        block_start = model.new_bool_var(
                             f"block|{demand_id}|{day}|{left['period_index']}"
                         )
-                        model.add_multiplication_equality(pair_var, [
-                            variables[(demand_id, day, left["period_index"])],
-                            variables[(demand_id, day, right["period_index"])],
-                        ])
-                        pair_vars.append(pair_var)
-                        covering_by_slot[(day, left["period_index"])].append(pair_var)
-                        covering_by_slot[(day, right["period_index"])].append(pair_var)
-                for covering in covering_by_slot.values():
-                    if len(covering) > 1:
-                        model.add(sum(covering) <= 1)
-                model.add(sum(pair_vars) == int(rule["block_count"]))
+                        block_starts.append(block_start)
+                        blocks_by_day[day].append(block_start)
+                        covering_by_slot[(day, left["period_index"])].append(block_start)
+                        covering_by_slot[(day, right["period_index"])].append(block_start)
+
+                singles = []
+                singles_by_day = defaultdict(list)
+                for slot in problem["slots"]:
+                    day = slot["day_key"]
+                    period = slot["period_index"]
+                    single = model.new_bool_var(
+                        f"single|{demand_id}|{day}|{period}"
+                    )
+                    singles.append(single)
+                    singles_by_day[day].append(single)
+                    model.add(
+                        variables[(demand_id, day, period)]
+                        == single + sum(covering_by_slot[(day, period)])
+                    )
+
+                block_count = int(rule["block_count"])
+                single_count = int(rule.get("single_count") or 0)
+                model.add(sum(block_starts) == block_count)
+                model.add(sum(singles) == single_count)
+
+                for day in working_days:
+                    # Redundant channeling materially strengthens propagation
+                    # between daily coverage and the exact session partition.
+                    model.add(
+                        day_loads[day]
+                        == 2 * sum(blocks_by_day[day]) + sum(singles_by_day[day])
+                    )
+
+                coverage_mode = rule["require_daily_coverage"]
+                required_periods = int(demand["required_weekly_periods"])
+                if (
+                    coverage_mode != "never"
+                    and required_periods >= num_days
+                    and block_count + single_count == num_days
+                ):
+                    # Daily coverage plus exactly one configured session per
+                    # teaching day implies one block or single on every day.
+                    for day in working_days:
+                        model.add(
+                            sum(blocks_by_day[day]) + sum(singles_by_day[day]) == 1
+                        )
         elif day_used and int(demand["required_weekly_periods"]) < num_days and code in core_codes:
             objective_terms.extend(30 * used for used in day_used)
 

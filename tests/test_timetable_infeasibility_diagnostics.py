@@ -1,6 +1,7 @@
 import pytest
 
 from timetable_cp_sat_solver import diagnose_infeasible_problem, solve_timetable
+from timetable_solution_validator import TimetableSolutionValidator
 
 
 pytest.importorskip("ortools")
@@ -147,7 +148,7 @@ def test_six_section_full_utilization_with_distribution_and_teacher_rules_is_fea
         for day in days for period in range(1, 9)
     ]
     distribution = {
-        "block_length": 2, "block_count": 1, "single_count": 6,
+        "block_length": 2, "block_count": 3, "single_count": 2,
         "min_teaching_days": 5, "max_periods_per_day": 2,
         "require_daily_coverage": "always", "spread_distinct_days": False,
         "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard",
@@ -158,10 +159,15 @@ def test_six_section_full_utilization_with_distribution_and_teacher_rules_is_fea
     ]
     baseline = _problem(demands, slots)
     first = solve_timetable(
-        baseline, timeout_seconds=20, seed=13, search_workers=1,
+        baseline, timeout_seconds=20, seed=47498178, search_workers=1,
+        optimize_soft_constraints=False,
     )
     assert first["outcome"] == "feasible"
     assert len(first["placements"]) == 240
+    assert TimetableSolutionValidator().validate(
+        problem=baseline, placements=first["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
 
     required = first["placements"][0]
     demand_id = next(

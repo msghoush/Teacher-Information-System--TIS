@@ -102,8 +102,13 @@ the schema-v3 snapshot at creation time; a later rule change never alters an
 already-created snapshot. The problem builder carries the resolved rule per
 demand, exposes true physical period adjacency per slot, and runs the
 arithmetic/feasibility validator as a final pre-solve defense
-(`distribution_rule_invalid`). CP-SAT enforces exact non-overlapping
-intentional blocks, generalized daily-coverage/spread/max-per-day/
+(`distribution_rule_invalid`). CP-SAT now models explicit double-block starts
+and single sessions, channels every occupied period to exactly one session,
+and enforces the configured block and single counts exactly. Separate sessions
+may touch (including double-plus-single three-period runs and two-double
+four-period runs), while physical interruptions break doubles and overlapping
+session membership remains impossible. Redundant daily session/load channeling
+strengthens daily-coverage propagation. CP-SAT also enforces generalized daily-coverage/spread/max-per-day/
 min-teaching-days behavior (hard only when explicitly configured hard), and
 exempts declared blocks from the consecutive-avoidance penalty; demands
 without a resolved rule keep the exact legacy `quality_rules_json` behavior.

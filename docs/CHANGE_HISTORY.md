@@ -7,6 +7,15 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-30 - Partitioned Subject Sessions
+
+- Replaced overlapping occupied-pair inference with explicit double-block and
+  single-session partitioning in CP-SAT.
+- Allowed separate sessions to touch while ensuring each lesson period belongs
+  to exactly one session and physical timeline interruptions still break doubles.
+- Strengthened daily-coverage propagation through daily session/load channeling
+  and aligned the independent validator with the same exact partition contract.
+
 ## 2026-08-29 - Reduce-Only Curriculum Adjustment
 
 - Added transfer and reduce-only adjustment action types to the guided preview/apply workflow.

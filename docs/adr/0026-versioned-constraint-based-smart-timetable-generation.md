@@ -35,6 +35,19 @@ independent validator consume the same map. A deterministic bipartite capacity
 check counts grouped demands once and rejects combined teacher-window conflicts,
 while demand-level checks prove daily-coverage, hard max-per-day/minimum-day, and
 double-block incompatibilities before solver invocation.
+
+Subject Distribution Rules use a **Partitioned Sessions** contract. Weekly
+subject placements are partitioned into exactly the configured number of
+two-period double sessions and one-period single sessions. CP-SAT selects
+explicit physically-adjacent block starts and explicit singles and channels
+each occupied period to exactly one selected session. Different sessions may
+touch: a three-period run may be double plus single, and a four-period run may
+be two touching doubles. No period may belong to two sessions, and a Break,
+Prayer, or other physical timeline interruption prevents a double from crossing
+it. Daily load/session channeling strengthens hard daily coverage; it does not
+weaken or reinterpret max/day, minimum-day, collision, lock, or teacher rules.
+The independent validator proves that the placements admit the same exact
+partition. Block lengths above two remain unsupported and fail closed.
 Post-solve infeasibility diagnosis uses the same immutable problem and solver but
 enables controlled hard-family profiles. These profiles are explanatory only:
 they can identify base collision infeasibility, locks, grouped resources, Subject
