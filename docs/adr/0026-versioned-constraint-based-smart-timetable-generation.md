@@ -41,6 +41,11 @@ they can identify base collision infeasibility, locks, grouped resources, Subjec
 Distribution Rules, Teacher Scheduling Rules, or subject/teacher interaction,
 but their placements are never persisted. The original complete solve remains the
 sole generation authority. Diagnostic timeouts fail closed as inconclusive.
+Isolation has a dedicated Workflow timeout,
+`TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS`, with a 60-second default per profile;
+it is not capped by or derived from the primary solver timeout. Profiles stop at
+the first proven family transition and omit lock/group branches when those inputs
+are absent.
 
 ## Context
 

@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Add controlled CP-SAT hard-family isolation and persist actionable infeasibility categories for timetable generation without relaxing production constraints.
+summary: Give CP-SAT infeasibility isolation an independent configurable timeout and skip absent lock/group profiles so production diagnostics can finish without changing the full model.
 affected_areas:
   - architecture
   - timetable

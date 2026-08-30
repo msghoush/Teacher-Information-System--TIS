@@ -358,16 +358,78 @@ def diagnose_infeasible_problem(
     search_workers: int = 1,
 ) -> dict:
     """Isolate a proven infeasible hard-constraint family without relaxing the real run."""
-    profiles = [
-        ("base", frozenset()),
-        ("locks", frozenset({"locks"})),
-        ("grouped_activities", frozenset({"grouped_activities"})),
-        ("subject_distribution_rules", frozenset({"subject_distribution_rules"})),
-        ("teacher_scheduling_rules", frozenset({"teacher_scheduling_rules"})),
-        ("subject_teacher_interaction", frozenset({
-            "subject_distribution_rules", "teacher_scheduling_rules",
-        })),
+    demands = problem.get("demands") or []
+    teacher_rules = problem.get("teacher_scheduling_rules") or []
+    subject_rule_demands = [item for item in demands if item.get("distribution_rule")]
+    teacher_ids = {int(item.get("teacher_id") or 0) for item in demands}
+    window_sizes = [
+        len(slots)
+        for slots in (problem.get("teacher_schedule_windows_by_demand") or {}).values()
     ]
+    daily_rule_count = sum(
+        1 for item in subject_rule_demands
+        if str((item.get("distribution_rule") or {}).get("require_daily_coverage") or "never") != "never"
+    )
+    block_rule_count = sum(
+        1 for item in subject_rule_demands
+        if int((item.get("distribution_rule") or {}).get("block_count") or 0) > 0
+    )
+    max_day_rule_count = sum(
+        1 for item in subject_rule_demands
+        if (item.get("distribution_rule") or {}).get("max_periods_per_day") is not None
+    )
+
+    def details_summary(category: str) -> str:
+        base = (
+            f"The model contains {len(problem.get('sections') or [])} section(s), "
+            f"{len(demands)} demand(s), {sum(int(item.get('required_weekly_periods') or 0) for item in demands)} "
+            f"required periods, and {len(teacher_ids)} assigned teacher(s)."
+        )
+        if category == "base":
+            return base
+        subject = (
+            f"{len(subject_rule_demands)} demand(s) use Subject Distribution Rules: "
+            f"{daily_rule_count} daily-coverage, {block_rule_count} block, and "
+            f"{max_day_rule_count} maximum-per-day rule(s)."
+        )
+        teacher = f"{len(teacher_rules)} Teacher Scheduling Rule(s) are active."
+        if window_sizes:
+            teacher += (
+                f" Selected demand windows contain {min(window_sizes)} to "
+                f"{max(window_sizes)} allowed slots."
+            )
+        if category == "subject_distribution_rules":
+            return subject
+        if category == "teacher_scheduling_rules":
+            return teacher
+        if category == "subject_teacher_interaction":
+            return f"{subject} {teacher}"
+        return base
+
+    profiles = [("base", frozenset())]
+    if problem.get("locks"):
+        profiles.insert(1, ("locks", frozenset({"locks"})))
+    if problem.get("grouped_activities"):
+        profiles.insert(
+            2 if problem.get("locks") else 1,
+            ("grouped_activities", frozenset({"grouped_activities"})),
+        )
+    if subject_rule_demands:
+        profiles.append((
+            "subject_distribution_rules",
+            frozenset({"subject_distribution_rules"}),
+        ))
+    if teacher_rules or problem.get("teacher_schedule_windows_by_demand"):
+        profiles.append((
+            "teacher_scheduling_rules",
+            frozenset({"teacher_scheduling_rules"}),
+        ))
+    if subject_rule_demands and (
+        teacher_rules or problem.get("teacher_schedule_windows_by_demand")
+    ):
+        profiles.append(("subject_teacher_interaction", frozenset({
+            "subject_distribution_rules", "teacher_scheduling_rules",
+        })))
     outcomes = {}
     for name, families in profiles:
         result = solve_timetable(
@@ -399,6 +461,7 @@ def diagnose_infeasible_problem(
             return {
                 "category": name,
                 "message": messages[name],
+                "details_summary": details_summary(name),
                 "outcomes": outcomes,
                 "lock_count": len(problem.get("locks") or []),
                 "grouped_activity_count": len(problem.get("grouped_activities") or []),
@@ -413,6 +476,7 @@ def diagnose_infeasible_problem(
             if inconclusive else
             "The conflict requires a combination involving locks, grouped activities, or multiple hard-rule families."
         ),
+        "details_summary": details_summary("base"),
         "outcomes": outcomes,
         "lock_count": len(problem.get("locks") or []),
         "grouped_activity_count": len(problem.get("grouped_activities") or []),

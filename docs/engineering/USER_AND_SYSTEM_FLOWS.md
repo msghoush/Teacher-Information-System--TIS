@@ -46,6 +46,8 @@ source_of_truth: true
     subject rules, teacher rules, and their interaction. It persists the proven
     customer-safe category and lock/group counts on the same Generation Run; it
     never saves a relaxed candidate or changes the original hard constraints.
+    The Workflow uses `TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS` (default 60)
+    independently from the primary solve and skips absent lock/group profiles.
 
 ## Guided Curriculum Adjustment UI
 

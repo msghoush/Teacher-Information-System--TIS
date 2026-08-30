@@ -50,6 +50,7 @@ class WorkerSettings:
     heartbeat_seconds: int = 15
     max_attempts: int = 2
     solver_timeout_seconds: int = 60
+    diagnostic_timeout_seconds: int = 60
     cp_sat_workers: int = 1
 
     @classmethod
@@ -60,6 +61,9 @@ class WorkerSettings:
             heartbeat_seconds=_positive_int("TIS_TIMETABLE_HEARTBEAT_SECONDS", 15),
             max_attempts=_positive_int("TIS_TIMETABLE_MAX_ATTEMPTS", 2),
             solver_timeout_seconds=_positive_int("TIS_TIMETABLE_SOLVER_TIMEOUT_SECONDS", 60),
+            diagnostic_timeout_seconds=_positive_int(
+                "TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS", 60
+            ),
             cp_sat_workers=_positive_int("TIS_TIMETABLE_CP_SAT_WORKERS", 1),
         )
 
@@ -95,7 +99,7 @@ def _mark_infeasible(
     settings = settings or WorkerSettings()
     diagnostic = diagnose_infeasible_problem(
         problem,
-        timeout_seconds=min(settings.solver_timeout_seconds, 10),
+        timeout_seconds=settings.diagnostic_timeout_seconds,
         seed=13,
         search_workers=settings.cp_sat_workers,
     )
@@ -106,6 +110,7 @@ def _mark_infeasible(
     )
     message = (
         f"{diagnostic['message']} "
+        f"{diagnostic.get('details_summary', '')} "
         f"This {diagnostic.get('request_mode', 'generate')} run used "
         f"{diagnostic['lock_count']} intentional lesson lock(s) from {lock_source} and "
         f"{diagnostic['grouped_activity_count']} grouped activity configuration(s)."
