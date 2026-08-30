@@ -9,7 +9,7 @@ import models
 from permission_registry import ALL_PERMISSION_KEYS, get_default_permissions_for_role
 from teacher_scheduling_rules import (
     TeacherSchedulingRuleError, canonical_rules, list_rules, save_rule, ui_context,
-    validate_draft_entries,
+    validate_draft_entries, validate_manual_placement,
 )
 from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
 from timetable_readiness_service import TimetableReadinessService
@@ -17,6 +17,7 @@ from timetable_publication_service import (
     TimetableDraftValidationService, TimetablePublicationService,
 )
 from timetable_snapshot_service import build_current_snapshot_data
+from timetable_generation_worker import _problem_error_status
 from timetable_solution_validator import TimetableSolutionValidator
 from timetable_version_service import (
     TimetableVersionError, create_manual_draft, mutate_draft_placement,
@@ -130,6 +131,77 @@ def test_schedule_within_selected_section_does_not_restrict_other_sections():
     result = _solve(problem)
     assert result["outcome"] == "feasible"
     assert next(item for item in result["placements"] if item["section_id"] == 1)["period_index"] == 2
+
+
+def test_multiple_schedule_windows_union_for_same_demand_and_validator_parity():
+    problem = _problem()
+    problem["demands"] = [_demand(1, "MAT", 10, 2)]
+    problem["teacher_scheduling_rules"] = [
+        {
+            "id": 1, "teacher_id": 10, "rule_type": "schedule_within",
+            "strictness": "hard", "target_scope": "any_assigned",
+            "eligible_demand_ids": [problem["demands"][0]["demand_id"]],
+            "resolved_slots": [{"day_key": "monday", "period_index": 1}],
+        },
+        {
+            "id": 2, "teacher_id": 10, "rule_type": "schedule_within",
+            "strictness": "hard", "target_scope": "any_assigned",
+            "eligible_demand_ids": [problem["demands"][0]["demand_id"]],
+            "resolved_slots": [{"day_key": "monday", "period_index": 2}],
+        },
+    ]
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    assert {item["period_index"] for item in result["placements"]} == {1, 2}
+    assert TimetableSolutionValidator().validate(
+        problem=problem, placements=result["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
+
+
+def test_must_teach_and_schedule_window_union_are_compatible():
+    problem = _problem()
+    problem["demands"] = [_demand(1, "MAT", 10, 1)]
+    demand_id = problem["demands"][0]["demand_id"]
+    problem["teacher_scheduling_rules"] = [
+        {
+            "id": 1, "teacher_id": 10, "rule_type": "schedule_within",
+            "strictness": "hard", "target_scope": "any_assigned",
+            "eligible_demand_ids": [demand_id],
+            "resolved_slots": [{"day_key": "monday", "period_index": 1}],
+        },
+        {
+            "id": 2, "teacher_id": 10, "rule_type": "must_teach",
+            "strictness": "hard", "target_scope": "any_assigned",
+            "eligible_demand_ids": [demand_id],
+            "resolved_slots": [{"day_key": "monday", "period_index": 1}],
+        },
+    ]
+    assert _solve(problem)["outcome"] == "feasible"
+
+
+def test_grouped_activity_schedule_windows_union_without_double_counting_teacher():
+    problem = _problem()
+    problem["demands"] = [_demand(1, "SWI", 10, 1), _demand(2, "SWI", 10, 1)]
+    demand_ids = [item["demand_id"] for item in problem["demands"]]
+    problem["grouped_activities"] = [{
+        "key": "swim", "demand_ids": demand_ids, "section_ids": [1, 2],
+        "subject_code": "SWI", "teacher_id": 10, "required_weekly_periods": 1,
+        "resource_key": "pool", "resource_capacity": 1,
+    }]
+    problem["teacher_scheduling_rules"] = [
+        {
+            "id": index, "teacher_id": 10, "rule_type": "schedule_within",
+            "strictness": "hard", "target_scope": "selected_sections",
+            "eligible_demand_ids": [demand_id],
+            "resolved_slots": [{"day_key": "monday", "period_index": index}],
+        }
+        for index, demand_id in enumerate(demand_ids, 1)
+    ]
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    assert len(result["placements"]) == 2
+    assert len({item["period_index"] for item in result["placements"]}) == 1
 
 
 def test_must_teach_selected_section_rejects_wrong_section_in_validator():
@@ -337,6 +409,118 @@ def test_problem_builder_blocks_insufficient_schedule_window_capacity():
     assert exc.value.code == "teacher_rule_window_capacity_insufficient"
 
 
+def test_problem_builder_unions_multiple_schedule_windows_before_solver():
+    snapshot = _distribution_window_snapshot(
+        periods=2,
+        allowed_slots=[("sunday", 1), ("monday", 2)],
+        distribution_rule={
+            "block_length": 1, "block_count": 0, "single_count": 2,
+            "min_teaching_days": None, "max_periods_per_day": None,
+            "require_daily_coverage": "never", "spread_distinct_days": False,
+            "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard",
+        },
+    )
+    snapshot["constraints"]["teacher_scheduling_rules"].append({
+        **snapshot["constraints"]["teacher_scheduling_rules"][0],
+        "id": 2,
+        "resolved_slots": [
+            {"day_key": "monday", "period_index": 2},
+            {"day_key": "tuesday", "period_index": 3},
+        ],
+    })
+    problem = TimetableProblemBuilder().build(json.dumps(snapshot))
+    demand_id = problem["demands"][0]["demand_id"]
+    assert problem["teacher_schedule_windows_by_demand"][demand_id] == [
+        {"day_key": "monday", "period_index": 2},
+        {"day_key": "sunday", "period_index": 1},
+        {"day_key": "tuesday", "period_index": 3},
+    ]
+    assert _solve(problem)["outcome"] == "feasible"
+
+
+def _distribution_window_snapshot(*, periods, allowed_slots, distribution_rule):
+    days = ["sunday", "monday", "tuesday"]
+    timelines = []
+    for day in days:
+        timelines.append({"day_key": day, "items": [
+            {
+                "type": "teaching", "schedulable": True, "day_key": day,
+                "period_index": period,
+                "next_period_physically_adjacent": period in {1, 2},
+            }
+            for period in (1, 2, 3)
+        ]})
+    return {
+        "schema_version": 4,
+        "scope": {"school_group_id": 1, "branch_id": 10, "academic_year_id": 100},
+        "planning": {
+            "sections": [{"id": 1, "grade": "5", "section_name": "A", "class_status": "Current"}],
+            "valid_teacher_ids": [10],
+            "demands": [{
+                "section_id": 1, "subject_id": 1, "subject_code": "MAT",
+                "assigned_teacher_id": 10, "required_weekly_periods": periods,
+                "distribution_rule": distribution_rule,
+            }],
+        },
+        "period_configuration": {
+            "settings": {"quality_rules": {}},
+            "canonical_slot_projection": {
+                "working_day_keys": days, "timelines": timelines,
+            },
+        },
+        "constraints": {"teacher_scheduling_rules": [{
+            "id": 1, "teacher_id": 10, "rule_type": "schedule_within",
+            "strictness": "hard", "target_scope": "any_assigned", "targets": [],
+            "resolved_slots": [
+                {"day_key": day, "period_index": period}
+                for day, period in allowed_slots
+            ],
+        }]},
+        "locks": [],
+    }
+
+
+@pytest.mark.parametrize("periods,allowed_slots,rule,expected_code", [
+    (
+        3, [("sunday", 1), ("sunday", 2), ("sunday", 3)],
+        {"block_length": 1, "block_count": 0, "single_count": 3,
+         "min_teaching_days": None, "max_periods_per_day": None,
+         "require_daily_coverage": "always", "spread_distinct_days": False,
+         "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard"},
+        "teacher_rule_daily_coverage_conflict",
+    ),
+    (
+        3, [("sunday", 1), ("sunday", 2), ("monday", 1)],
+        {"block_length": 1, "block_count": 0, "single_count": 3,
+         "min_teaching_days": None, "max_periods_per_day": 1,
+         "require_daily_coverage": "never", "spread_distinct_days": False,
+         "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard"},
+        "teacher_rule_max_per_day_conflict",
+    ),
+    (
+        2, [("sunday", 1), ("monday", 1)],
+        {"block_length": 2, "block_count": 1, "single_count": 0,
+         "min_teaching_days": None, "max_periods_per_day": None,
+         "require_daily_coverage": "never", "spread_distinct_days": False,
+         "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard"},
+        "teacher_rule_double_block_conflict",
+    ),
+])
+def test_deterministic_teacher_window_distribution_conflicts_are_explained(
+    periods, allowed_slots, rule, expected_code,
+):
+    snapshot = _distribution_window_snapshot(
+        periods=periods, allowed_slots=allowed_slots, distribution_rule=rule,
+    )
+    with pytest.raises(TimetableProblemError) as exc:
+        TimetableProblemBuilder().build(json.dumps(snapshot))
+    assert exc.value.code == expected_code
+    assert exc.value.details["teacher_id"] == 10
+    assert exc.value.details["section_id"] == 1
+    assert exc.value.details["subject_code"] == "MAT"
+    assert _problem_error_status(expected_code) == "infeasible"
+
+
 def test_readiness_reports_schedule_window_capacity_blocker(db):
     db.add(models.TeacherSectionAssignment(
         teacher_id=1001, planning_section_id=2001, subject_code="MAT",
@@ -443,6 +627,30 @@ def test_manual_edit_rejects_unavailable_and_outside_selected_section_window(db)
             period_index=2, subject_code="MAT", teacher_id=1000,
         )
     assert exc.value.code == "teacher_schedule_window_violated"
+
+
+def test_manual_and_complete_validation_union_multiple_schedule_windows(db):
+    for day, period in (("monday", 1), ("tuesday", 2)):
+        save_rule(
+            db, school_group_id=1, branch_id=10, academic_year_id=100,
+            teacher_id=1000, rule_type="schedule_within", all_working_days=False,
+            days=[day], period_selector="period", periods=[period],
+            target_scope="selected_sections", grades=[], section_ids=[2000],
+            actor_user_id="U1",
+        )
+    for day, period in (("monday", 1), ("tuesday", 2)):
+        assert validate_manual_placement(
+            db, school_group_id=1, branch_id=10, academic_year_id=100,
+            teacher_id=1000, planning_section_id=2000, grade_level="1",
+            day_key=day, period_index=period,
+        ) is None
+    entries = [
+        {"teacher_id": 1000, "section_id": 2000, "day_key": "monday", "period_index": 1},
+        {"teacher_id": 1000, "section_id": 2000, "day_key": "tuesday", "period_index": 2},
+    ]
+    assert validate_draft_entries(
+        db, school_group_id=1, branch_id=10, academic_year_id=100, entries=entries,
+    ) == []
 
 
 def test_complete_draft_rule_validation_is_hard_only_and_checks_selected_section(db):

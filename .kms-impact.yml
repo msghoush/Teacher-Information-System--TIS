@@ -1,9 +1,10 @@
 knowledge_impact: yes
-summary: Finalize teacher-rule section-selection and summaries, enforce hard rules during manual Draft edits, and block approval/publication on complete-Draft hard-rule violations.
+summary: Fix intersected Schedule-within rules by composing per-demand window unions and add deterministic teacher-window/distribution infeasibility diagnostics.
 affected_areas:
   - architecture
   - timetable
   - solver
+  - background_processes
   - workflow
   - ui
   - tests

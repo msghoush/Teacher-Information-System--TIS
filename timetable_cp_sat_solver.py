@@ -92,6 +92,30 @@ def solve_timetable(
     avoid_consecutive = {str(code).upper() for code in quality.get("avoid_consecutive_subject_codes") or []}
     allow_double = {str(code).upper() for code in quality.get("allow_double_period_subject_codes") or []}
     objective_terms = []
+    schedule_windows = {
+        demand_id: {
+            (slot["day_key"], int(slot["period_index"])) for slot in allowed
+        }
+        for demand_id, allowed in (
+            problem.get("teacher_schedule_windows_by_demand") or {}
+        ).items()
+    }
+    if not schedule_windows:
+        for rule in problem.get("teacher_scheduling_rules") or []:
+            if rule["rule_type"] != "schedule_within":
+                continue
+            allowed = {
+                (slot["day_key"], int(slot["period_index"]))
+                for slot in rule.get("resolved_slots") or []
+            }
+            for demand_id in rule.get("eligible_demand_ids") or []:
+                representative = grouped_representative.get(demand_id, demand_id)
+                schedule_windows.setdefault(representative, set()).update(allowed)
+    for demand_id, allowed_slots in schedule_windows.items():
+        for slot in problem["slots"]:
+            if (slot["day_key"], slot["period_index"]) not in allowed_slots:
+                model.add(variables[(demand_id, slot["day_key"], slot["period_index"])] == 0)
+
     for rule in problem.get("teacher_scheduling_rules") or []:
         demand_ids = sorted({
             grouped_representative.get(demand_id, demand_id)
@@ -102,10 +126,6 @@ def solve_timetable(
             for slot in rule.get("resolved_slots") or []
         }
         if rule["rule_type"] == "schedule_within":
-            for slot in problem["slots"]:
-                if (slot["day_key"], slot["period_index"]) not in allowed_slots:
-                    for demand_id in demand_ids:
-                        model.add(variables[(demand_id, slot["day_key"], slot["period_index"])] == 0)
             continue
         for slot in rule.get("resolved_slots") or []:
             values = [

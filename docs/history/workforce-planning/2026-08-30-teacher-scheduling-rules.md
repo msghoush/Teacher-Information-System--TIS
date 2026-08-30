@@ -46,3 +46,17 @@ while editing, but complete Draft validation detects it along with unavailable,
 window, and selected-section target violations. That shared hard validation blocks
 approval and publication; soft preferences remain non-blocking and published
 history is unchanged.
+
+An infeasibility investigation then found that multiple Schedule-within records
+covering the same demand were each prohibiting every slot outside their own row.
+That intersected the rows in CP-SAT even though readiness checked them separately,
+allowing a zero-blocker scope to fail as infeasible. Applicable rows now compose
+as a per-demand union consistently in manual edits, complete-Draft validation,
+problem construction, CP-SAT, and independent solution validation.
+
+Pre-solve diagnostics now use exact teacher demand-to-slot matching over combined
+windows and unavailable periods, counting grouped activity teacher occupancy once.
+They also identify provable Must-teach/window, daily-coverage, hard maximum-per-day,
+minimum-teaching-day, and double-block conflicts with required-versus-available
+guidance. No hard rule is relaxed and no Planning, allocation, lock, Draft, or
+published-history authority is changed.

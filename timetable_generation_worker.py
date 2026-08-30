@@ -25,6 +25,17 @@ from timetable_solution_validator import TimetableSolutionValidator
 logger = logging.getLogger("tis.timetable_generation_worker")
 
 
+def _problem_error_status(code: str) -> str:
+    if code.startswith("teacher_rule") or code.startswith("distribution_rule"):
+        return "infeasible"
+    if code in {
+        "insufficient_teaching_slots", "lock_conflict", "locked_count_exceeds_demand",
+        "lock_slot_invalid", "lock_authority_invalid",
+    }:
+        return "infeasible"
+    return "internal_error"
+
+
 def _positive_int(name: str, default: int, minimum: int = 1) -> int:
     try:
         return max(int(os.getenv(name, str(default))), minimum)
@@ -205,11 +216,7 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
         else:
             logger.info("Run %s stopped after %s.", run_id, exc.code)
     except TimetableProblemError as exc:
-        status = "infeasible" if exc.code in {
-            "insufficient_teaching_slots", "lock_conflict", "locked_count_exceeds_demand",
-            "lock_slot_invalid", "lock_authority_invalid",
-        } else "internal_error"
-        _terminal(run_id, owner, status, exc.code, exc.message)
+        _terminal(run_id, owner, _problem_error_status(exc.code), exc.code, exc.message)
     except Exception:
         logger.exception("Run %s failed.", run_id)
         _terminal(run_id, owner, "internal_error", "worker_error", "Generation failed.")
