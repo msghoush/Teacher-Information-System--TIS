@@ -7,6 +7,10 @@ from ortools.sat.python import cp_model
 
 
 SOLVER_NAME = "OR-Tools CP-SAT"
+HARD_CONSTRAINT_FAMILIES = frozenset({
+    "locks", "grouped_activities", "subject_distribution_rules",
+    "teacher_scheduling_rules", "regeneration_diversity",
+})
 
 
 def solve_timetable(
@@ -16,15 +20,24 @@ def solve_timetable(
     seed: int,
     search_workers: int,
     cancel_event: Event | None = None,
+    enabled_constraint_families: set[str] | frozenset[str] | None = None,
 ) -> dict:
     """Solve one immutable timetable problem. Imported only by the worker."""
     model = cp_model.CpModel()
+    enabled = (
+        HARD_CONSTRAINT_FAMILIES
+        if enabled_constraint_families is None
+        else frozenset(enabled_constraint_families)
+    )
     variables = {}
     by_section_slot = defaultdict(list)
     by_teacher_slot = defaultdict(list)
     grouped_representative = {}
     grouped_by_key = {}
-    for group in problem.get("grouped_activities") or []:
+    for group in (
+        problem.get("grouped_activities") or []
+        if "grouped_activities" in enabled else []
+    ):
         demand_ids = list(group.get("demand_ids") or [])
         if not demand_ids:
             continue
@@ -75,13 +88,16 @@ def solve_timetable(
         (item["section_id"], item["subject_code"], item["teacher_id"]): item["demand_id"]
         for item in problem["demands"]
     }
-    for lock in problem["locks"]:
+    for lock in problem["locks"] if "locks" in enabled else []:
         demand_id = demand_id_by_key[(
             lock["section_id"], lock["subject_code"], lock["teacher_id"]
         )]
         model.add(variables[(demand_id, lock["day_key"], lock["period_index"])] == 1)
 
-    quality = problem.get("quality_rules") or {}
+    quality = (
+        problem.get("quality_rules") or {}
+        if "subject_distribution_rules" in enabled else {}
+    )
     core_codes = {
         str(code).upper()
         for values in (quality.get("core_subject_codes") or {}).values()
@@ -97,11 +113,15 @@ def solve_timetable(
             (slot["day_key"], int(slot["period_index"])) for slot in allowed
         }
         for demand_id, allowed in (
-            problem.get("teacher_schedule_windows_by_demand") or {}
+            (problem.get("teacher_schedule_windows_by_demand") or {})
+            if "teacher_scheduling_rules" in enabled else {}
         ).items()
     }
     if not schedule_windows:
-        for rule in problem.get("teacher_scheduling_rules") or []:
+        for rule in (
+            problem.get("teacher_scheduling_rules") or []
+            if "teacher_scheduling_rules" in enabled else []
+        ):
             if rule["rule_type"] != "schedule_within":
                 continue
             allowed = {
@@ -116,7 +136,10 @@ def solve_timetable(
             if (slot["day_key"], slot["period_index"]) not in allowed_slots:
                 model.add(variables[(demand_id, slot["day_key"], slot["period_index"])] == 0)
 
-    for rule in problem.get("teacher_scheduling_rules") or []:
+    for rule in (
+        problem.get("teacher_scheduling_rules") or []
+        if "teacher_scheduling_rules" in enabled else []
+    ):
         demand_ids = sorted({
             grouped_representative.get(demand_id, demand_id)
             for demand_id in rule.get("eligible_demand_ids") or []
@@ -151,7 +174,10 @@ def solve_timetable(
     for demand in problem["demands"]:
         code = demand["subject_code"]
         demand_id = demand["demand_id"]
-        rule = demand.get("distribution_rule")
+        rule = (
+            demand.get("distribution_rule")
+            if "subject_distribution_rules" in enabled else None
+        )
         day_used = []
         for day in working_days:
             day_vars = [variables[(demand_id, day, slot["period_index"])] for slot in slots_by_day[day]]
@@ -249,7 +275,10 @@ def solve_timetable(
         elif day_used and int(demand["required_weekly_periods"]) < num_days and code in core_codes:
             objective_terms.extend(30 * used for used in day_used)
 
-    if problem.get("request_mode") == "regenerate":
+    if (
+        problem.get("request_mode") == "regenerate"
+        and "regeneration_diversity" in enabled
+    ):
 
         same_unlocked = []
         for item in problem.get("source_arrangement") or []:
@@ -321,4 +350,72 @@ def solve_timetable(
         "wall_time_seconds": float(solver.wall_time),
         "status_code": int(status),
         "solver_name": SOLVER_NAME,
+    }
+
+
+def diagnose_infeasible_problem(
+    problem: dict, *, timeout_seconds: float = 10, seed: int = 13,
+    search_workers: int = 1,
+) -> dict:
+    """Isolate a proven infeasible hard-constraint family without relaxing the real run."""
+    profiles = [
+        ("base", frozenset()),
+        ("locks", frozenset({"locks"})),
+        ("grouped_activities", frozenset({"grouped_activities"})),
+        ("subject_distribution_rules", frozenset({"subject_distribution_rules"})),
+        ("teacher_scheduling_rules", frozenset({"teacher_scheduling_rules"})),
+        ("subject_teacher_interaction", frozenset({
+            "subject_distribution_rules", "teacher_scheduling_rules",
+        })),
+    ]
+    outcomes = {}
+    for name, families in profiles:
+        result = solve_timetable(
+            problem,
+            timeout_seconds=max(float(timeout_seconds), 0.01),
+            seed=seed,
+            search_workers=search_workers,
+            enabled_constraint_families=families,
+        )
+        outcomes[name] = result["outcome"]
+        if result["outcome"] == "infeasible":
+            if name != "base" and outcomes.get("base") != "feasible":
+                continue
+            if name == "subject_teacher_interaction" and not all(
+                outcomes.get(component) == "feasible"
+                for component in (
+                    "subject_distribution_rules", "teacher_scheduling_rules",
+                )
+            ):
+                continue
+            messages = {
+                "base": "Base demand cannot fit section and teacher collision constraints even without locks or scheduling rules.",
+                "locks": "The timetable becomes infeasible when current lesson locks are enforced.",
+                "grouped_activities": "The timetable becomes infeasible when grouped activities and shared resources are enforced.",
+                "subject_distribution_rules": "The timetable becomes infeasible when Subject Distribution Rules are enforced.",
+                "teacher_scheduling_rules": "The timetable becomes infeasible when Teacher Scheduling Rules are enforced.",
+                "subject_teacher_interaction": "Subject Distribution Rules and Teacher Scheduling Rules are individually feasible but conflict when enforced together.",
+            }
+            return {
+                "category": name,
+                "message": messages[name],
+                "outcomes": outcomes,
+                "lock_count": len(problem.get("locks") or []),
+                "grouped_activity_count": len(problem.get("grouped_activities") or []),
+                "request_mode": str(problem.get("request_mode") or "generate"),
+                "has_source_version": problem.get("source_version_id") is not None,
+            }
+    inconclusive = any(value == "timed_out" for value in outcomes.values())
+    return {
+        "category": "diagnostic_inconclusive" if inconclusive else "combined_hard_constraints",
+        "message": (
+            "Diagnostic isolation timed out before proving one conflicting family."
+            if inconclusive else
+            "The conflict requires a combination involving locks, grouped activities, or multiple hard-rule families."
+        ),
+        "outcomes": outcomes,
+        "lock_count": len(problem.get("locks") or []),
+        "grouped_activity_count": len(problem.get("grouped_activities") or []),
+        "request_mode": str(problem.get("request_mode") or "generate"),
+        "has_source_version": problem.get("source_version_id") is not None,
     }

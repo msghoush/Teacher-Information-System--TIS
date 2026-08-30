@@ -41,6 +41,11 @@ source_of_truth: true
    teacher's effective workload to those combined windows and reports provable
    capacity or Subject Distribution Rule conflicts, including unavailable slots,
    Must-teach slots, daily coverage, minimum/maximum days, and double blocks.
+10. When the full solver alone proves infeasibility, the Workflow runs bounded
+    family-isolation solves over base collisions, locks, grouped activities,
+    subject rules, teacher rules, and their interaction. It persists the proven
+    customer-safe category and lock/group counts on the same Generation Run; it
+    never saves a relaxed candidate or changes the original hard constraints.
 
 ## Guided Curriculum Adjustment UI
 

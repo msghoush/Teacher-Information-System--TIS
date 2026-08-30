@@ -35,6 +35,12 @@ independent validator consume the same map. A deterministic bipartite capacity
 check counts grouped demands once and rejects combined teacher-window conflicts,
 while demand-level checks prove daily-coverage, hard max-per-day/minimum-day, and
 double-block incompatibilities before solver invocation.
+Post-solve infeasibility diagnosis uses the same immutable problem and solver but
+enables controlled hard-family profiles. These profiles are explanatory only:
+they can identify base collision infeasibility, locks, grouped resources, Subject
+Distribution Rules, Teacher Scheduling Rules, or subject/teacher interaction,
+but their placements are never persisted. The original complete solve remains the
+sole generation authority. Diagnostic timeouts fail closed as inconclusive.
 
 ## Context
 

@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Fix intersected Schedule-within rules by composing per-demand window unions and add deterministic teacher-window/distribution infeasibility diagnostics.
+summary: Add controlled CP-SAT hard-family isolation and persist actionable infeasibility categories for timetable generation without relaxing production constraints.
 affected_areas:
   - architecture
   - timetable

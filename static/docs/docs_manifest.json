@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-30T05:33:44.151940+03:00",
+  "generated_at": "2026-08-30T06:04:41.047380+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "8567a7b",
+  "commit_sha": "8f97bc4",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "bede555a01a3eb68be9b7e635228075b1a847dc87aecabe41549bb3eb7d62bec",
-  "pdf_size_bytes": 1041093,
+  "pdf_sha256": "cd1cc1225a5a689196c3fdd53f92f8491df21f52feaab6d3ab6d926e446b3bc5",
+  "pdf_size_bytes": 1042475,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-30T05:31:50.961735+03:00",
-      "size_bytes": 82714,
-      "sha256": "1f259091e0ea6a6fac36cd0b0e0c20600e28d2bf53fec0ab0bb42855d2579ccf",
+      "modified_at": "2026-08-30T05:54:21.911645+03:00",
+      "size_bytes": 83271,
+      "sha256": "c97a291f9cf3d89c9f6350b8ab091faa44cfc2a51ed1d24d6c29dbcbb9b4dead",
       "pdf_page": 15
     },
     {
@@ -88,9 +88,9 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-08-30T05:31:50.961735+03:00",
-      "size_bytes": 66359,
-      "sha256": "b8ea87b3b7a1a24b83a8fb0db1f95bd3f47a1357f43e917b80c748ac37d90020",
+      "modified_at": "2026-08-30T05:54:21.912601+03:00",
+      "size_bytes": 66753,
+      "sha256": "9dfb3a351a467daa830a7627611209c3ccc42d65114bc7566dda08ad6234e83a",
       "pdf_page": 162
     },
     {
@@ -375,9 +375,9 @@
     },
     {
       "path": "docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md",
-      "modified_at": "2026-08-30T05:31:50.970793+03:00",
-      "size_bytes": 14226,
-      "sha256": "e82aaf185767662882494cbf2d9c70e3ee515ca77ac73b019e4dfd7add11d3ee",
+      "modified_at": "2026-08-30T05:54:21.913108+03:00",
+      "size_bytes": 14704,
+      "sha256": "9ad4adae4d6fd406e1f4c732de0987a532aad751f0de74d1f632269463de5391",
       "pdf_page": 293
     },
     {
@@ -655,9 +655,9 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-08-30-teacher-scheduling-rules.md",
-      "modified_at": "2026-08-30T05:31:50.970793+03:00",
-      "size_bytes": 3655,
-      "sha256": "ffb9d16566316479f441ad29813192525c49f286758f2233f85d651a102fd442",
+      "modified_at": "2026-08-30T05:54:21.914117+03:00",
+      "size_bytes": 4375,
+      "sha256": "3fe4fef1b587b9c210acfd3e49dcfd6a0599f36cfee926193794d5f42ec02e43",
       "pdf_page": 360
     },
     {

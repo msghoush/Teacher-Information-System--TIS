@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 import models
 from database import SessionLocal
-from timetable_cp_sat_solver import solve_timetable
+from timetable_cp_sat_solver import diagnose_infeasible_problem, solve_timetable
 from timetable_generation_service import (
     TimetableGenerationError,
     claim_next_run,
@@ -83,16 +83,35 @@ def _terminal(run_id: int, owner: str, status: str, category: str, message: str)
         session.close()
 
 
-def _mark_infeasible(run_id: int, owner: str, problem: dict) -> None:
+def _mark_infeasible(
+    run_id: int, owner: str, problem: dict, settings: WorkerSettings | None = None,
+) -> None:
     if problem.get("request_mode") == "regenerate":
         _terminal(
             run_id, owner, "infeasible", "regeneration_diversity_unavailable",
             "No sufficiently different valid timetable could be generated while preserving all current requirements and locks.",
         )
         return
+    settings = settings or WorkerSettings()
+    diagnostic = diagnose_infeasible_problem(
+        problem,
+        timeout_seconds=min(settings.solver_timeout_seconds, 10),
+        seed=13,
+        search_workers=settings.cp_sat_workers,
+    )
+    category = diagnostic["category"]
+    lock_source = (
+        "the selected Draft source"
+        if diagnostic.get("has_source_version") else "no Draft source"
+    )
+    message = (
+        f"{diagnostic['message']} "
+        f"This {diagnostic.get('request_mode', 'generate')} run used "
+        f"{diagnostic['lock_count']} intentional lesson lock(s) from {lock_source} and "
+        f"{diagnostic['grouped_activity_count']} grouped activity configuration(s)."
+    )
     _terminal(
-        run_id, owner, "infeasible", "solver_infeasible",
-        "No valid timetable satisfies all current requirements and locks.",
+        run_id, owner, "infeasible", f"solver_infeasible_{category}", message,
     )
 
 
@@ -151,7 +170,7 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
             _terminal(run_id, owner, "cancelled", "cancelled", "Generation was cancelled.")
             return
         if result["outcome"] == "infeasible":
-            _mark_infeasible(run_id, owner, problem)
+            _mark_infeasible(run_id, owner, problem, settings)
             return
         if result["outcome"] == "timed_out":
             _terminal(run_id, owner, "timed_out", "solver_timeout", "Generation timed out.")
