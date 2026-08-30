@@ -106,6 +106,10 @@ For **Reduce periods only**, the user selects no target subject. Preview shows t
    blocker, the state is Draft Needs Regeneration and still permits Verify
    Feasibility against a fresh immutable snapshot. A verified current fingerprint
    then permits Regenerate; the stale source is never rewritten.
+7. The regeneration source is the current populated, mutable, unpublished Draft,
+   whether its origin is manual, generated, or regenerated. An empty starter Draft
+   has no prior arrangement and therefore follows Generate. Active and historical
+   versions cannot be selected directly as regeneration sources.
 2. Generate and Regenerate operate against that current draft context; Regenerate retains Stage 5.1 locks and concurrency.
 3. Approve Draft validates that exact draft and records the reviewing administrator;
    generation alone never grants approval.

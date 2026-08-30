@@ -12,6 +12,7 @@ from timetable_feasibility_service import (
 )
 from timetable_generation_service import (
     TimetableGenerationError, build_generation_state, enqueue_generation,
+    is_eligible_regeneration_source,
 )
 from timetable_readiness_service import TimetableReadinessService
 from test_timetable_versioning import db  # noqa: F401
@@ -174,7 +175,7 @@ def test_verified_current_inputs_can_enqueue_regeneration_without_mutating_stale
     _configuration_complete(db)
     draft = create_manual_draft(
         db, school_group_id=1, branch_id=10, academic_year_id=100,
-        origin="generated",
+        origin="manual",
     )
     db.add(models.TimetableEntry(
         timetable_version_id=draft.id, branch_id=10, academic_year_id=100,
@@ -195,6 +196,12 @@ def test_verified_current_inputs_can_enqueue_regeneration_without_mutating_stale
     verification_run.progress_phase = "complete"
     db.flush()
 
+    state = build_generation_state(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        draft_version_id=draft.id,
+    )
+    assert state["working_candidate"]["public_id"] == draft.public_id
+    assert state["primary_action"] == "regenerate"
     source_fingerprint = draft.authority_fingerprint
     run = enqueue_generation(
         db, school_group_id=1, branch_id=10, academic_year_id=100,
@@ -205,6 +212,39 @@ def test_verified_current_inputs_can_enqueue_regeneration_without_mutating_stale
     assert run.source_version_id == draft.id
     assert db.get(models.TimetableVersion, draft.id).authority_fingerprint == source_fingerprint
     assert db.query(models.TimetableEntry).filter_by(timetable_version_id=draft.id).count() == 1
+
+
+def test_empty_manual_starter_remains_generate_and_historical_draft_is_ineligible(db):
+    _configuration_complete(db)
+    empty = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        origin="manual",
+    )
+    state = build_generation_state(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        draft_version_id=empty.id,
+    )
+    assert state["working_candidate"] is None
+    assert state["primary_action"] == "generate"
+
+    db.add(models.TimetableEntry(
+        timetable_version_id=empty.id, branch_id=10, academic_year_id=100,
+        planning_section_id=2000, subject_code="MAT", teacher_id=1000,
+        day_key="monday", period_index=1,
+    ))
+    newer = create_manual_draft(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        origin="manual",
+    )
+    db.flush()
+    assert is_eligible_regeneration_source(
+        db, version=empty, school_group_id=1, branch_id=10,
+        academic_year_id=100,
+    ) is False
+    assert build_generation_state(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        draft_version_id=newer.id,
+    )["primary_action"] == "generate"
 
 
 def test_inconclusive_verification_can_retry_without_duplicate_active_work(db):
