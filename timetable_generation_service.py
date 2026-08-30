@@ -126,23 +126,56 @@ def resolve_generated_working_candidate(
     branch_id: int,
     academic_year_id: int,
 ) -> models.TimetableVersion | None:
-    pointer = db.query(models.TimetableActiveVersion).filter(
+    version = resolve_operational_version(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    return version if is_eligible_regeneration_source(
+        db, version=version, school_group_id=school_group_id,
+        branch_id=branch_id, academic_year_id=academic_year_id,
+    ) else None
+
+
+def is_eligible_regeneration_source(
+    db: Session,
+    *,
+    version: models.TimetableVersion | None,
+    school_group_id: int,
+    branch_id: int,
+    academic_year_id: int,
+) -> bool:
+    """Return whether a version is the current usable regeneration source."""
+    if version is None:
+        return False
+    if (
+        int(version.school_group_id) != int(school_group_id)
+        or int(version.branch_id) != int(branch_id)
+        or int(version.academic_year_id) != int(academic_year_id)
+        or version.lifecycle_status not in {"draft", "publication_ready"}
+        or version.origin not in {"manual", "generated", "regenerated"}
+        or version.published_at is not None
+    ):
+        return False
+    if db.query(models.TimetableActiveVersion.id).filter(
         models.TimetableActiveVersion.school_group_id == school_group_id,
         models.TimetableActiveVersion.branch_id == branch_id,
         models.TimetableActiveVersion.academic_year_id == academic_year_id,
-    ).first()
-    active_id = int(pointer.timetable_version_id) if pointer else 0
-    return db.query(models.TimetableVersion).filter(
-        models.TimetableVersion.school_group_id == school_group_id,
-        models.TimetableVersion.branch_id == branch_id,
-        models.TimetableVersion.academic_year_id == academic_year_id,
-        models.TimetableVersion.origin.in_(("generated", "regenerated")),
-        models.TimetableVersion.lifecycle_status.in_(("draft", "publication_ready")),
-        models.TimetableVersion.id != active_id,
-    ).order_by(
-        models.TimetableVersion.version_number.desc(),
-        models.TimetableVersion.id.desc(),
-    ).first()
+        models.TimetableActiveVersion.timetable_version_id == version.id,
+    ).first():
+        return False
+    operational = resolve_operational_version(
+        db,
+        school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    if operational is None or int(operational.id) != int(version.id):
+        return False
+    return db.query(models.TimetableEntry.id).filter(
+        models.TimetableEntry.timetable_version_id == version.id,
+        models.TimetableEntry.branch_id == branch_id,
+        models.TimetableEntry.academic_year_id == academic_year_id,
+    ).first() is not None
 
 
 def _active_run_query(db: Session, *, school_group_id: int, branch_id: int, academic_year_id: int):
@@ -184,12 +217,13 @@ def build_generation_state(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
-    candidate = (
-        current_draft
-        if current_draft is not None
-        and current_draft.origin in {"generated", "regenerated"}
-        else None
-    )
+    candidate = current_draft if is_eligible_regeneration_source(
+        db,
+        version=current_draft,
+        school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    ) else None
     active = _active_run_query(
         db,
         school_group_id=school_group_id,
@@ -381,13 +415,13 @@ def enqueue_generation(
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )
-    candidate = (
-        current_draft
-        if current_draft is not None
-        and current_draft.origin in {"generated", "regenerated"}
-        and current_draft.lifecycle_status in {"draft", "publication_ready"}
-        else None
-    )
+    candidate = current_draft if is_eligible_regeneration_source(
+        db,
+        version=current_draft,
+        school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    ) else None
     source = None
     if request_mode == "generate" and source_public_id:
         raise TimetableGenerationError(
@@ -400,14 +434,14 @@ def enqueue_generation(
         )
     if request_mode == "regenerate":
         source = candidate
-        if source is None or source.origin not in {"generated", "regenerated"}:
+        if source is None:
             raise TimetableGenerationError(
-                "regeneration_source_missing", "No generated working timetable is available.", 409
+                "regeneration_source_missing", "No populated Draft Timetable is available to regenerate.", 409
             )
         if source_public_id and source.public_id != source_public_id:
             raise TimetableGenerationError(
                 "regeneration_source_changed",
-                "The generated working timetable changed; reload before regenerating.",
+                "The Draft Timetable changed; reload before regenerating.",
                 409,
             )
     if request_mode == "generate" and source is None:

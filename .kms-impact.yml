@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Separate stale Draft lifecycle state from structural readiness so current inputs can be verified and safely regenerated without weakening version or publication protection.
+summary: Classify regeneration sources by current mutable unpublished lifecycle and populated arrangement instead of creation origin, while preserving Generate for empty starters.
 affected_areas:
   - architecture
   - timetable

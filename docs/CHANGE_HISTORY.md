@@ -14,6 +14,9 @@ source_of_truth: true
   regeneration only after the current authority fingerprint is verified.
 - Preserved stale Draft publication protection and stopped older-authority run
   failures from overriding the current workflow state.
+- Classified the current populated mutable unpublished Draft as the regeneration
+  source regardless of manual/generated/regenerated origin, while retaining
+  Generate for empty starters and excluding active or historical versions.
 
 ## 2026-08-30 - Partitioned Subject Sessions
 

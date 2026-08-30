@@ -181,7 +181,11 @@ complete current inputs. A stale existing Draft is reported as `stale_input` /
 Draft Needs Regeneration without becoming configuration-incomplete: it may run a
 fresh feasibility verification, then regenerate only after the current fingerprint
 is verified. The stale source remains versioned and unpublishable, and obsolete-run
-messages from older authority fingerprints do not replace the current state. A durable hard-only feasibility Workflow uses the same immutable snapshot/problem builder and independent validator before full optimization. Its validated solution is cached in `timetable_feasibility_verifications` by exact tenant scope and full input fingerprint; only Feasibility Verified enables generation. Full CP-SAT optimization uses that solution as a hint and validated timeout fallback, while any authority fingerprint change invalidates reuse. A separate OR-Tools CP-SAT execution environment uses immutable
+messages from older authority fingerprints do not replace the current state.
+Regeneration eligibility is based on the current Draft's lifecycle and populated
+placement arrangement rather than creation origin: eligible manual, generated,
+and regenerated Drafts regenerate, while empty starters generate and active or
+historical versions remain excluded. A durable hard-only feasibility Workflow uses the same immutable snapshot/problem builder and independent validator before full optimization. Its validated solution is cached in `timetable_feasibility_verifications` by exact tenant scope and full input fingerprint; only Feasibility Verified enables generation. Full CP-SAT optimization uses that solution as a hint and validated timeout fallback, while any authority fingerprint change invalidates reuse. A separate OR-Tools CP-SAT execution environment uses immutable
 schema-v3 input, durable lease/heartbeat/recovery state, exact demand and collision
 constraints, Planning/HRT teacher authority, canonical teaching slots, and fixed
 locks. A solver-independent validator and final fingerprint/source-revision check

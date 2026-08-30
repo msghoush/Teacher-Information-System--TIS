@@ -716,6 +716,7 @@ def test_regeneration_persists_separate_version_and_keeps_source_and_lock(db):
         db, run_id=generate.id, lease_owner="worker-generate", problem=problem,
         placements=first_result["placements"], solver_result=first_result,
     )
+    source.origin = "manual"
     db.commit()
     locked = db.query(models.TimetableEntry).filter_by(
         timetable_version_id=source.id

@@ -84,6 +84,10 @@ fresh immutable snapshot; an older fingerprint is never reused. Successful
 verification permits Regenerate from the protected stale source, producing a new
 version without rewriting history. Historical run results remain durable but only
 runs matching current authority may drive current workflow messaging.
+Source eligibility is lifecycle- and arrangement-based rather than origin-based:
+the current populated, mutable, unpublished Draft may be manual, generated, or
+regenerated. Empty starter Drafts remain Generate candidates. Active, superseded,
+archived, published-history, and older mutable versions are excluded.
 
 Migration `20260828_004_planning_subject_demands_foundation` introduces an additive
 explicit per-section subject-demand table as the future Planning authority. Its

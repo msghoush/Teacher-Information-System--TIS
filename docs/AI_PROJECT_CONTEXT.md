@@ -1146,3 +1146,7 @@ fresh feasibility verification. The old Draft stays stale and unpublishable;
 after the current fingerprint is verified, Regenerate creates a new version from
 that protected source. Historical runs from older authority fingerprints remain
 auditable but do not drive the current action state.
+A regeneration source is the current populated, mutable, unpublished Draft with
+a usable placement arrangement, regardless of whether its origin is `manual`,
+`generated`, or `regenerated`. An empty starter Draft remains a Generate candidate;
+active, historical, superseded, and archived versions are never source candidates.
