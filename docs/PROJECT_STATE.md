@@ -172,7 +172,7 @@ adds nullable approval timestamp and actor provenance; solver behavior is unchan
 ## Smart Timetable Stage 5.1 Generator Implemented
 
 Authorized administrators can queue Generate or Regenerate from a
-`generation_ready` timetable. A separate OR-Tools CP-SAT execution environment uses immutable
+`configuration_complete` timetable. A durable hard-only feasibility Workflow uses the same immutable snapshot/problem builder and independent validator before full optimization. Its validated solution is cached in `timetable_feasibility_verifications` by exact tenant scope and full input fingerprint; only Feasibility Verified enables generation. Full CP-SAT optimization uses that solution as a hint and validated timeout fallback, while any authority fingerprint change invalidates reuse. A separate OR-Tools CP-SAT execution environment uses immutable
 schema-v3 input, durable lease/heartbeat/recovery state, exact demand and collision
 constraints, Planning/HRT teacher authority, canonical teaching slots, and fixed
 locks. A solver-independent validator and final fingerprint/source-revision check

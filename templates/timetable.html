@@ -2139,17 +2139,23 @@
         const renderReadiness = () => {
             const readiness = state.payload.readiness || {};
             const counts = readiness.counts || {};
-            const ready = Boolean(readiness.ready);
+            const feasibility = state.payload.feasibility || {};
+            const configurationComplete = Boolean(readiness.configuration_complete || readiness.status === "configuration_complete");
+            const verified = Boolean(feasibility.verified);
             const version = state.payload.version || null;
             const postGeneration = Boolean(version && ["generated", "regenerated"].includes(version.origin));
             readinessStatus.textContent = postGeneration
-                ? (version.is_approved && !version.is_stale ? "Draft Approved" : (ready ? "Ready for Review" : "Draft Needs Review"))
-                : (ready ? "Ready to Generate" : "Not Ready to Generate");
-            readinessStatus.classList.toggle("is-ready", ready);
-            readinessSupport.textContent = ready
-                ? "All required teaching periods are covered and the timetable configuration is complete."
-                : "Resolve the items below before automatic timetable generation can be attempted.";
-            readinessCaveat.textContent = "A valid automatic timetable is not guaranteed until the scheduling engine checks all constraints.";
+                ? (version.is_approved && !version.is_stale ? "Draft Approved" : (version.is_stale ? "Draft Needs Regeneration" : "Draft Generated"))
+                : (verified ? "Feasibility Verified" : (configurationComplete ? "Configuration Complete — Verify Feasibility" : "Configuration Incomplete"));
+            readinessStatus.classList.toggle("is-ready", verified);
+            readinessSupport.textContent = verified
+                ? "All required teaching periods can be distributed without hard conflicts."
+                : (configurationComplete
+                ? "All required periods are covered. Timetable feasibility still needs verification."
+                : "Resolve the items below before automatic timetable generation can be attempted.");
+            readinessCaveat.textContent = feasibility.status === "timed_out"
+                ? "Feasibility could not be verified. Try again after reviewing constraints or increasing the verification time."
+                : "Generation is enabled only after the scheduling engine proves all hard constraints can be satisfied.";
             readinessMetrics.innerHTML = [
                 ["Coverage", `${normalizeInt(counts.coverage_percent)}%`],
                 ["Required Periods", normalizeInt(counts.required_periods)],
@@ -2159,6 +2165,10 @@
             ].map(([label, value]) => `<div class="readiness-metric"><span>${label}</span><strong>${value}</strong></div>`).join("");
             readinessBlockers.innerHTML = (readiness.blockers || []).slice(0, 6)
                 .map((item) => `<li>${escapeHtml(item.message || "Timetable input needs review.")}</li>`).join("");
+            if (!verified && (feasibility.diagnostics || []).length) {
+                readinessBlockers.innerHTML += (feasibility.diagnostics || []).slice(0, 4)
+                    .map((item) => `<li>${escapeHtml(item.message || "A hard timetable conflict was found.")}</li>`).join("");
+            }
         };
 
         const scheduleGenerationPoll = (publicId) => {
@@ -2175,6 +2185,8 @@
                     state.payload.generation = state.payload.generation || {};
                     state.payload.generation.latest_run = result.run;
                     state.payload.generation.active_run = result.run.active ? result.run : null;
+                    if (result.feasibility) state.payload.feasibility = result.feasibility;
+                    renderReadiness();
                     renderGeneration();
                     if (result.run.status === "succeeded" && result.run.result_version_public_id) {
                         window.location.assign(`/timetable?version=${encodeURIComponent(result.run.result_version_public_id)}`);
@@ -2193,14 +2205,18 @@
             const latestRun = generation.latest_run || null;
             const readiness = state.payload.readiness || {};
             const isRegeneration = generation.primary_action === "regenerate";
-            const actionAvailable = Boolean(canGenerateTimetable && readiness.ready && !activeRun && !isRegeneration);
+            const feasibility = state.payload.feasibility || {};
+            const configurationComplete = Boolean(readiness.configuration_complete || readiness.status === "configuration_complete");
+            const verified = Boolean(feasibility.verified);
+            const actionAvailable = Boolean(canGenerateTimetable && configurationComplete && !activeRun && !isRegeneration);
             generationPanel.classList.toggle("is-visible", Boolean(canGenerateTimetable && (activeRun || (!isRegeneration && (readiness.ready || latestRun)) || (isRegeneration && latestRun && latestRun.status !== "succeeded"))));
             generationActionBtn.style.display = actionAvailable ? "inline-flex" : "none";
             generationCancelBtn.style.display = activeRun ? "inline-flex" : "none";
             generationActionBtn.disabled = state.busy;
             generationCancelBtn.disabled = state.busy;
-            generationActionBtn.textContent = generation.primary_action === "regenerate"
-                ? "Regenerate Timetable" : "Generate Timetable";
+            generationActionBtn.textContent = !verified
+                ? "Verify Feasibility"
+                : (generation.primary_action === "regenerate" ? "Regenerate Timetable" : "Generate Timetable");
             if (activeRun) {
                 generationTitle.textContent = activeRun.phase_label || "Generating Timetable";
                 generationMessage.textContent = activeRun.message || "You can leave this page; progress is saved.";
@@ -2212,13 +2228,49 @@
                 generationTitle.textContent = "Draft timetable ready";
                 generationMessage.textContent = "Create a meaningfully different valid timetable while preserving locked lessons.";
             } else {
-                generationTitle.textContent = "Ready to generate";
-                generationMessage.textContent = "Create a complete timetable from current Planning and timetable configuration.";
+                generationTitle.textContent = verified ? "Feasibility verified" : "Configuration complete";
+                generationMessage.textContent = verified
+                    ? "Create and optimize a complete timetable from the verified configuration."
+                    : "Verify that all hard timetable constraints can be satisfied before generation.";
             }
         };
 
         const startGeneration = async () => {
             const generation = state.payload.generation || {};
+            const feasibility = state.payload.feasibility || {};
+            if (!feasibility.verified) {
+                state.busy = true;
+                generationTitle.textContent = "Checking Feasibility";
+                generationMessage.textContent = "The scheduling engine is checking every hard timetable constraint.";
+                generationActionBtn.disabled = true;
+                try {
+                    const response = await fetch("/timetable/api/feasibility-verifications", { method: "POST" });
+                    const result = await response.json();
+                    if (!response.ok || !result.ok) {
+                        setFlash(result.message || "Feasibility could not be verified.", "error");
+                        return;
+                    }
+                    state.payload.feasibility = result.feasibility;
+                    if (result.run) {
+                        state.payload.generation.active_run = result.run;
+                        state.payload.generation.latest_run = result.run;
+                        scheduleGenerationPoll(result.run.public_id);
+                    }
+                    renderReadiness();
+                    renderGeneration();
+                    if (!result.run) setFlash(result.feasibility.verified
+                        ? "Feasibility verified. You can now generate the timetable."
+                        : "A hard timetable conflict must be resolved before generation.",
+                        result.feasibility.verified ? "success" : "error");
+                } catch (error) {
+                    setFlash("Feasibility could not be verified right now.", "error");
+                } finally {
+                    state.busy = false;
+                    renderReadiness();
+                    renderGeneration();
+                }
+                return;
+            }
             const mode = generation.primary_action === "regenerate" ? "regenerate" : "generate";
             const source = generation.working_candidate || null;
             state.busy = true;

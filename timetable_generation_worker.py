@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import json
 import os
 import threading
 from dataclasses import dataclass
@@ -50,6 +51,7 @@ class WorkerSettings:
     heartbeat_seconds: int = 15
     max_attempts: int = 2
     solver_timeout_seconds: int = 60
+    feasibility_timeout_seconds: int = 60
     diagnostic_timeout_seconds: int = 60
     cp_sat_workers: int = 1
 
@@ -61,6 +63,7 @@ class WorkerSettings:
             heartbeat_seconds=_positive_int("TIS_TIMETABLE_HEARTBEAT_SECONDS", 15),
             max_attempts=_positive_int("TIS_TIMETABLE_MAX_ATTEMPTS", 2),
             solver_timeout_seconds=_positive_int("TIS_TIMETABLE_SOLVER_TIMEOUT_SECONDS", 60),
+            feasibility_timeout_seconds=_positive_int("TIS_TIMETABLE_FEASIBILITY_TIMEOUT_SECONDS", 60),
             diagnostic_timeout_seconds=_positive_int(
                 "TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS", 60
             ),
@@ -154,6 +157,11 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
             snapshot = session.get(models.TimetableInputSnapshot, run.input_snapshot_id)
             expected_fingerprint = str(snapshot.full_input_fingerprint)
             seed = int(run.generation_seed or 0)
+            run_metadata = json.loads(run.diversity_configuration_json or "{}")
+            feasibility_verification_id = (
+                run_metadata.get("feasibility_verification_id")
+                if run_metadata.get("verification_run") else None
+            )
         finally:
             session.close()
 
@@ -166,11 +174,85 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
 
         result = solve_timetable(
             problem,
-            timeout_seconds=settings.solver_timeout_seconds,
+            timeout_seconds=(
+                settings.feasibility_timeout_seconds
+                if feasibility_verification_id else settings.solver_timeout_seconds
+            ),
             seed=seed,
             search_workers=settings.cp_sat_workers,
             cancel_event=cancel_event,
+            solution_hint=problem.get("verified_feasible_placements") or None,
+            optimize_soft_constraints=not bool(feasibility_verification_id),
         )
+        if feasibility_verification_id:
+            diagnostics = []
+            status = "internal_error"
+            if result["outcome"] == "feasible":
+                validation = TimetableSolutionValidator().validate(
+                    problem=problem, placements=result["placements"],
+                    expected_fingerprint=expected_fingerprint,
+                    current_fingerprint=expected_fingerprint,
+                    expected_scope=problem.get("scope"), current_scope=problem.get("scope"),
+                )
+                if validation["valid"]:
+                    status = "verified"
+                else:
+                    diagnostics = validation["errors"]
+            elif result["outcome"] == "infeasible":
+                status = "conflict"
+                diagnostic = diagnose_infeasible_problem(
+                    problem, timeout_seconds=settings.diagnostic_timeout_seconds,
+                    seed=13, search_workers=settings.cp_sat_workers,
+                )
+                diagnostics = [{
+                    "code": diagnostic["category"], "message": diagnostic["message"],
+                    "details": diagnostic.get("details_summary", ""),
+                }]
+            elif result["outcome"] == "timed_out":
+                status = "timed_out"
+                diagnostics = [{"code": "verification_timeout", "message": "Feasibility could not be verified within the configured time."}]
+            else:
+                diagnostics = [{"code": "verification_failed", "message": "Feasibility verification could not be completed."}]
+            session = SessionLocal()
+            try:
+                verification = session.query(models.TimetableFeasibilityVerification).filter(
+                    models.TimetableFeasibilityVerification.id == int(feasibility_verification_id),
+                    models.TimetableFeasibilityVerification.input_snapshot_id == run.input_snapshot_id,
+                ).with_for_update().one()
+                verification.status = status
+                verification.feasible_placements_json = (
+                    json.dumps(result["placements"], separators=(",", ":"))
+                    if status == "verified" else None
+                )
+                verification.diagnostics_json = json.dumps(diagnostics, separators=(",", ":"))
+                verification.solver_metadata_json = json.dumps({
+                    "timeout_seconds": settings.feasibility_timeout_seconds,
+                    "objective": "hard_constraints_only",
+                }, separators=(",", ":"))
+                if status == "verified":
+                    from datetime import datetime
+                    verification.verified_at = datetime.utcnow()
+                run_row = session.query(models.TimetableGenerationRun).filter(
+                    models.TimetableGenerationRun.id == run_id,
+                ).with_for_update().one()
+                run_row.status = "succeeded" if status == "verified" else (
+                    "infeasible" if status == "conflict" else (
+                        "timed_out" if status == "timed_out" else "internal_error"
+                    )
+                )
+                run_row.progress_phase = "complete" if status == "verified" else "failed"
+                run_row.safe_failure_details = (
+                    "Feasibility verified." if status == "verified"
+                    else diagnostics[0]["message"]
+                )
+                from datetime import datetime
+                run_row.finished_at = datetime.utcnow()
+                run_row.lease_owner = None
+                run_row.lease_expires_at = None
+                session.commit()
+            finally:
+                session.close()
+            return
         if result["outcome"] == "cancelled":
             _terminal(run_id, owner, "cancelled", "cancelled", "Generation was cancelled.")
             return
@@ -178,8 +260,24 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
             _mark_infeasible(run_id, owner, problem, settings)
             return
         if result["outcome"] == "timed_out":
-            _terminal(run_id, owner, "timed_out", "solver_timeout", "Generation timed out.")
-            return
+            fallback = problem.get("verified_feasible_placements") or []
+            fallback_validation = TimetableSolutionValidator().validate(
+                problem=problem, placements=fallback,
+                expected_fingerprint=expected_fingerprint,
+                current_fingerprint=expected_fingerprint,
+                expected_source_revision=problem.get("source_edit_revision"),
+                current_source_revision=problem.get("source_edit_revision"),
+                expected_scope=problem.get("scope"), current_scope=problem.get("scope"),
+            ) if fallback else {"valid": False}
+            if not fallback_validation["valid"]:
+                _terminal(run_id, owner, "timed_out", "solver_timeout", "Generation timed out.")
+                return
+            result = {
+                **result,
+                "outcome": "feasible",
+                "placements": fallback,
+                "used_verified_fallback": True,
+            }
         if result["outcome"] != "feasible":
             _terminal(run_id, owner, "internal_error", "solver_model_invalid", "Generation failed.")
             return

@@ -6258,6 +6258,16 @@ def _teacher_scheduling_window_semantics(engine, connection):
     )
 
 
+def _timetable_feasibility_verification_foundation(engine, connection):
+    """Persist validated hard-constraint solutions by immutable authority fingerprint."""
+    from database import Base
+    import models  # noqa: F401
+
+    Base.metadata.tables["timetable_feasibility_verifications"].create(
+        bind=connection, checkfirst=True
+    )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6523,6 +6533,11 @@ MIGRATIONS = (
         migration_id="20260830_002_teacher_scheduling_window_semantics",
         description="Distinguish teacher allowed windows from required occupancy",
         apply=_teacher_scheduling_window_semantics,
+    ),
+    Migration(
+        migration_id="20260830_003_timetable_feasibility_verification",
+        description="Persist solver-backed timetable feasibility verification and fallback solutions",
+        apply=_timetable_feasibility_verification_foundation,
     ),
 )
 

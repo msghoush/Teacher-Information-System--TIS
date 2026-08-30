@@ -21,6 +21,8 @@ def solve_timetable(
     search_workers: int,
     cancel_event: Event | None = None,
     enabled_constraint_families: set[str] | frozenset[str] | None = None,
+    optimize_soft_constraints: bool = True,
+    solution_hint: list[dict] | None = None,
 ) -> dict:
     """Solve one immutable timetable problem. Imported only by the worker."""
     model = cp_model.CpModel()
@@ -294,7 +296,25 @@ def solve_timetable(
         if minimum_difference > 0:
             model.add(sum(same_unlocked) <= len(same_unlocked) - minimum_difference)
 
-    if objective_terms:
+    if solution_hint:
+        hinted = {
+            (int(item["section_id"]), str(item["subject_code"]).upper(), int(item["teacher_id"]),
+             str(item["day_key"]).lower(), int(item["period_index"]))
+            for item in solution_hint
+        }
+        for demand in problem["demands"]:
+            for slot in problem["slots"]:
+                key = (
+                    int(demand["section_id"]), str(demand["subject_code"]).upper(),
+                    int(demand["teacher_id"]), str(slot["day_key"]).lower(),
+                    int(slot["period_index"]),
+                )
+                model.add_hint(
+                    variables[(demand["demand_id"], slot["day_key"], slot["period_index"])],
+                    1 if key in hinted else 0,
+                )
+
+    if optimize_soft_constraints and objective_terms:
         model.maximize(sum(objective_terms))
 
     solver = cp_model.CpSolver()

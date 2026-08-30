@@ -63,6 +63,9 @@ from timetable_workflow_dispatch import (
     TimetableWorkflowDispatchError,
     dispatch_timetable_generation,
 )
+from timetable_feasibility_service import latest_feasibility_payload, enqueue_feasibility_verification
+from timetable_readiness_service import TimetableReadinessService
+from timetable_problem_builder import TimetableProblemError
 from tenant_report_branding import get_tenant_report_logos
 from ui_shell import build_shell_context
 
@@ -1961,6 +1964,47 @@ async def create_generation_run(request: Request, db: Session = Depends(get_db))
         return _json_error(str(exc), getattr(exc, "status_code", 400))
 
 
+@router.post("/api/feasibility-verifications")
+def create_feasibility_verification(request: Request, db: Session = Depends(get_db)):
+    current_user, redirect = _get_current_user_or_redirect(request, db)
+    if redirect:
+        return _json_error("Please sign in again to continue.", 401)
+    if not auth.has_permission(db, current_user, "timetable.generate"):
+        return _json_error("You do not have permission to verify timetable feasibility.", 403)
+    branch_id, year_id = get_scope_ids(current_user)
+    try:
+        group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
+        readiness = TimetableReadinessService(db).evaluate(group_id, branch_id, year_id)
+        if readiness["status"] != "configuration_complete":
+            return _json_error("Complete the timetable configuration before verifying feasibility.", 409)
+        row, run = enqueue_feasibility_verification(
+            db, school_group_id=group_id, branch_id=branch_id,
+            academic_year_id=year_id,
+            requested_by_user_id=str(current_user.user_id or "") or None,
+        )
+        db.commit()
+        if run is not None and run.status == "queued":
+            try:
+                dispatch_timetable_generation(run.public_id)
+            except TimetableWorkflowDispatchError:
+                failed = mark_workflow_dispatch_failed(db, run_id=run.id)
+                row.status = "internal_error"
+                row.diagnostics_json = '[{"code":"dispatch_failed","message":"Feasibility verification could not start. Please try again."}]'
+                db.commit()
+                return _json_error("Feasibility verification could not start. Please try again.", 503)
+        payload = latest_feasibility_payload(
+            db, school_group_id=group_id, branch_id=branch_id,
+            academic_year_id=year_id,
+        )
+        return JSONResponse(status_code=202 if run is not None else 200, content={
+            "ok": True, "feasibility": payload,
+            "run": generation_run_payload(run) if run is not None else None,
+        })
+    except (ValueError, TimetableVersionError, TimetableProblemError) as exc:
+        db.rollback()
+        return _json_error(str(exc), 409)
+
+
 @router.get("/api/generation-runs/{public_id}")
 def get_generation_run(public_id: str, request: Request, db: Session = Depends(get_db)):
     current_user, redirect = _get_current_user_or_redirect(request, db)
@@ -1992,7 +2036,11 @@ def get_generation_run(public_id: str, request: Request, db: Session = Depends(g
             models.TimetableVersion.academic_year_id == year_id,
         ).first()
         payload["result_version_public_id"] = version.public_id if version else None
-    return JSONResponse({"ok": True, "run": payload})
+    feasibility = latest_feasibility_payload(
+        db, school_group_id=group_id, branch_id=branch_id,
+        academic_year_id=year_id,
+    )
+    return JSONResponse({"ok": True, "run": payload, "feasibility": feasibility})
 
 
 @router.post("/api/generation-runs/{public_id}/cancel")

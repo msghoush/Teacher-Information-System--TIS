@@ -21,6 +21,7 @@ from timetable_snapshot_service import (
     create_current_input_snapshot,
 )
 from timetable_solution_validator import TimetableSolutionValidator
+from timetable_feasibility_service import latest_feasibility_payload
 from timetable_version_service import (
     TimetableVersionError,
     _allocate_next_version_number,
@@ -206,6 +207,18 @@ def generation_run_payload(run: models.TimetableGenerationRun | None) -> dict | 
         run.progress_phase, "Generation"
     )
     message = run.safe_failure_details or ""
+    metadata = json.loads(run.diversity_configuration_json or "{}")
+    is_feasibility = bool(metadata.get("verification_run"))
+    if is_feasibility:
+        phase_label = {
+            "queued": "Feasibility Check Queued",
+            "running": "Checking Feasibility",
+            "validating": "Validating Feasible Timetable",
+            "succeeded": "Feasibility Verified",
+            "infeasible": "Feasibility Conflict",
+            "timed_out": "Feasibility Could Not Be Verified",
+            "internal_error": "Feasibility Check Failed",
+        }.get(run.status, phase_label)
     if run.status == "queued" and run.queued_at:
         try:
             warning_seconds = max(
@@ -229,6 +242,7 @@ def generation_run_payload(run: models.TimetableGenerationRun | None) -> dict | 
         "attempt_count": int(run.attempt_count or 0),
         "failure_category": run.failure_category or "",
         "message": message,
+        "is_feasibility": is_feasibility,
         "result_version_id": run.result_version_id,
         "queued_at": run.queued_at.isoformat() if run.queued_at else "",
         "started_at": run.started_at.isoformat() if run.started_at else "",
@@ -351,12 +365,22 @@ def enqueue_generation(
     readiness = TimetableReadinessService(db).evaluate(
         school_group_id, branch_id, academic_year_id
     )
-    if readiness["status"] != "generation_ready":
+    if readiness["status"] != "configuration_complete":
         message = (
             readiness["blockers"][0]["message"]
             if readiness.get("blockers") else "Timetable inputs are not ready to generate."
         )
         raise TimetableGenerationError("not_generation_ready", message, 409)
+
+    feasibility = latest_feasibility_payload(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
+    if not feasibility["verified"]:
+        raise TimetableGenerationError(
+            "feasibility_not_verified",
+            "Verify timetable feasibility before starting generation.", 409,
+        )
 
     source_entries = _load_source_entries(db, source)
     locks = [item for item in _serialize_entries(source_entries) if item["is_locked"]]
@@ -389,16 +413,22 @@ def enqueue_generation(
             "diversity_percent": diversity_percent,
         },
     }
-    snapshot = create_current_input_snapshot(
-        db,
-        school_group_id=school_group_id,
-        branch_id=branch_id,
-        academic_year_id=academic_year_id,
-        created_by_user_id=requested_by_user_id,
-        provenance=request_mode,
-        locks=locks,
-        constraint_configuration=constraint_configuration,
-    )
+    verification = db.query(models.TimetableFeasibilityVerification).filter(
+        models.TimetableFeasibilityVerification.public_id == feasibility["public_id"],
+        models.TimetableFeasibilityVerification.school_group_id == school_group_id,
+        models.TimetableFeasibilityVerification.branch_id == branch_id,
+        models.TimetableFeasibilityVerification.academic_year_id == academic_year_id,
+    ).one()
+    # Initial generation consumes the exact verified immutable snapshot. A
+    # regeneration still captures its source/diversity contract separately.
+    snapshot = db.get(models.TimetableInputSnapshot, verification.input_snapshot_id)
+    if request_mode == "regenerate":
+        snapshot = create_current_input_snapshot(
+            db, school_group_id=school_group_id, branch_id=branch_id,
+            academic_year_id=academic_year_id, created_by_user_id=requested_by_user_id,
+            provenance=request_mode, locks=locks,
+            constraint_configuration=constraint_configuration,
+        )
     run = models.TimetableGenerationRun(
         school_group_id=school_group_id,
         branch_id=branch_id,
@@ -419,6 +449,7 @@ def enqueue_generation(
             "unlocked_lessons": unlocked,
             "minimum_difference": minimum_difference,
             "diversity_percent": diversity_percent,
+            "feasibility_verification_id": int(verification.id),
         }, separators=(",", ":")),
         idempotency_key=idempotency_key,
     )
@@ -932,4 +963,16 @@ def load_problem_for_run(db: Session, run_id: int) -> tuple[models.TimetableGene
     snapshot = db.query(models.TimetableInputSnapshot).filter(
         models.TimetableInputSnapshot.id == run.input_snapshot_id,
     ).one()
-    return run, TimetableProblemBuilder().build(snapshot.canonical_snapshot_json)
+    problem = TimetableProblemBuilder().build(snapshot.canonical_snapshot_json)
+    metadata = json.loads(run.diversity_configuration_json or "{}")
+    verification_id = metadata.get("feasibility_verification_id")
+    verification = db.query(models.TimetableFeasibilityVerification).filter(
+        models.TimetableFeasibilityVerification.id == verification_id,
+        models.TimetableFeasibilityVerification.school_group_id == run.school_group_id,
+        models.TimetableFeasibilityVerification.branch_id == run.branch_id,
+        models.TimetableFeasibilityVerification.academic_year_id == run.academic_year_id,
+        models.TimetableFeasibilityVerification.status == "verified",
+    ).first()
+    if verification and verification.feasible_placements_json:
+        problem["verified_feasible_placements"] = json.loads(verification.feasible_placements_json)
+    return run, problem

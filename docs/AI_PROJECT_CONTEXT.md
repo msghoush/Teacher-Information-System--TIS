@@ -1125,3 +1125,11 @@ The public landing implementation is in `tis-landing-website/`. Marketing docs l
 ## Next Planned Work
 
 Review the automatic KMS enforcement baseline, keep M7 subscription documentation synchronized as follow-up fixes evolve, and later consider an explicit owner-only regenerate action. Any regenerate action may rebuild artifacts from reviewed Markdown only and must not rewrite source prose.
+## Timetable feasibility authority (2026-08-30)
+
+Deterministic timetable readiness ends at `configuration_complete`. The
+`timetable_feasibility_verifications` ledger stores a hard-only CP-SAT result by
+SchoolGroup, branch, academic year, immutable snapshot, and full input
+fingerprint. Generate is permitted only for an exact verified fingerprint. The
+validated placements are reused as an optimization hint and as the independently
+validated timeout fallback; soft objectives do not participate in verification.
