@@ -1128,6 +1128,37 @@ class TimetableInputSnapshot(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class TimetableFeasibilityVerification(Base):
+    __tablename__ = "timetable_feasibility_verifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "school_group_id", "branch_id", "academic_year_id", "authority_fingerprint",
+            name="uq_timetable_feasibility_scope_fingerprint",
+        ),
+        CheckConstraint(
+            "status IN ('checking','verified','conflict','timed_out','internal_error')",
+            name="ck_timetable_feasibility_status",
+        ),
+        Index("ix_timetable_feasibility_scope_status", "school_group_id", "branch_id", "academic_year_id", "status"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    branch_id = Column(Integer, ForeignKey("branches.id"), nullable=False)
+    academic_year_id = Column(Integer, ForeignKey("academic_years.id"), nullable=False)
+    input_snapshot_id = Column(Integer, ForeignKey("timetable_input_snapshots.id"), nullable=False)
+    authority_fingerprint = Column(String(64), nullable=False)
+    status = Column(String(24), nullable=False, default="checking")
+    feasible_placements_json = Column(Text, nullable=True)
+    diagnostics_json = Column(Text, nullable=False, default="[]")
+    solver_metadata_json = Column(Text, nullable=False, default="{}")
+    requested_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    verified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TimetableVersion(Base):
     __tablename__ = "timetable_versions"
     __table_args__ = (

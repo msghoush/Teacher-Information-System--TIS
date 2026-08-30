@@ -78,3 +78,11 @@ per attempted profile, and may be raised without changing the main solve timeout
 Zero-lock and zero-group scopes skip those profiles, and successful results include
 safe section, demand, teacher, rule, period, and selected-window counts where
 available.
+## Solver-backed feasibility gate
+
+Timetable readiness now separates configuration completeness from global
+feasibility. A hard-only CP-SAT Workflow verifies and independently validates one
+complete timetable before Generate is enabled. Its placements are retained by
+the exact snapshot fingerprint for reuse as the optimization hint and timeout
+fallback; any teacher-rule or other timetable-authority change requires a new
+verification.

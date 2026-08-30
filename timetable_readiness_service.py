@@ -28,8 +28,8 @@ STALE_CODES = {"input_changed"}
 class TimetableReadinessService:
     """Read-only, tenant-scoped structural readiness evaluation.
 
-    Generation readiness means inputs are coherent enough to attempt solving; it
-    is deliberately not a feasibility claim.
+    Configuration readiness means inputs are coherent enough for a separate
+    solver-backed feasibility verification; it is not itself a feasibility claim.
     """
 
     def __init__(self, db: Session):
@@ -288,16 +288,18 @@ class TimetableReadinessService:
         elif blockers:
             status = "structurally_ready" if codes == {"active_generation_exists"} else "allocation_incomplete"
         else:
-            status = "generation_ready"
+            status = "configuration_complete"
         counts["blockers"] = len(blockers)
         counts["warnings"] = len(warnings)
         required = counts["required_periods"]
         counts["coverage_percent"] = round((counts["covered_periods"] / required) * 100) if required else 0
         return {
-            "scope": scope, "status": status, "ready": status == "generation_ready",
+            "scope": scope, "status": status,
+            "ready": status == "configuration_complete",
+            "configuration_complete": status == "configuration_complete",
             "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
             "authority_fingerprint": authority_fingerprint,
             "blockers": blockers, "warnings": warnings, "counts": counts,
             "affected_entities": [item["display_label"] for item in blockers],
-            "feasibility_notice": "Generation readiness means inputs are complete enough to attempt solving; it does not guarantee a valid global timetable solution.",
+            "feasibility_notice": "Configuration is complete. Timetable feasibility still needs verification.",
         }

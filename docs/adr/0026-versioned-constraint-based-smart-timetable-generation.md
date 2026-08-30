@@ -53,6 +53,16 @@ The original Timetable stored one mutable set of placements per branch and acade
 
 ## Decision
 
+Deterministic readiness establishes only **Configuration Complete**. Before full
+quality optimization, TIS dispatches a hard-only CP-SAT feasibility run against
+the exact immutable snapshot and validates the complete candidate independently.
+The validated placements are persisted by full input fingerprint. Generation is
+blocked unless that exact scope and fingerprint is verified; changed authority
+invalidates the result automatically. Full optimization receives the verified
+placements as a solver hint and may persist them as a validated fallback if its
+quality search times out. Soft objective terms never participate in the
+feasibility gate and hard rules are never relaxed.
+
 Migration `20260828_004_planning_subject_demands_foundation` introduces an additive
 explicit per-section subject-demand table as the future Planning authority. Its
 Stage 1 backfill is limited to grade-matched Subjects for Current/New sections in

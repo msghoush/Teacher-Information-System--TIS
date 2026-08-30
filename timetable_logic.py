@@ -1315,6 +1315,11 @@ def build_timetable_workspace_payload(
         branch_id,
         academic_year_id,
     )
+    from timetable_feasibility_service import latest_feasibility_payload
+    feasibility = latest_feasibility_payload(
+        db, school_group_id=school_group_id, branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    )
     current_authority_fingerprint = readiness.get("authority_fingerprint", "")
     if selected_version is not None:
         from timetable_snapshot_service import build_current_snapshot_data
@@ -1409,6 +1414,7 @@ def build_timetable_workspace_payload(
         },
         "slot_projection": public_slot_projection(settings_payload["slot_projection"]),
         "readiness": readiness,
+        "feasibility": feasibility,
         "working_day_keys": working_day_keys,
         "days": settings_payload["working_days"],
         "time_slots": settings_payload["time_slots"],

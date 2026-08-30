@@ -96,7 +96,11 @@ For **Reduce periods only**, the user selects no target subject. Preview shows t
 
 ## Simplified Timetable And Official Visibility
 
-1. A manager creates or opens the exact-scope Draft Timetable and configures inputs until Ready to Generate.
+1. A manager creates or opens the exact-scope Draft Timetable and configures inputs until Configuration Complete.
+2. The manager runs Verify Feasibility. The durable Workflow solves the exact immutable snapshot with every hard constraint and no soft objective, then independently validates one complete solution.
+3. Only a validated result produces Feasibility Verified and enables Generate Timetable. Infeasibility exposes the isolated hard-rule family; timeout remains inconclusive and cannot enable generation.
+4. The verified placements are retained by full input fingerprint. Any Planning, allocation, rule, slot, lock, grouped-resource, or other snapshot-authority change requires verification again.
+5. Full generation optimizes quality from the verified placement hint. If optimization times out, the worker independently validates and persists the verified placement as the Draft fallback instead of returning no timetable.
 2. Generate and Regenerate operate against that current draft context; Regenerate retains Stage 5.1 locks and concurrency.
 3. Approve Draft validates that exact draft and records the reviewing administrator;
    generation alone never grants approval.

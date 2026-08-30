@@ -1,10 +1,11 @@
 knowledge_impact: yes
-summary: Give CP-SAT infeasibility isolation an independent configurable timeout and skip absent lock/group profiles so production diagnostics can finish without changing the full model.
+summary: Add a solver-backed, fingerprinted feasibility gate that preserves a validated hard-constraint solution and blocks paid timetable optimization until feasibility is proven.
 affected_areas:
   - architecture
   - timetable
   - solver
   - background_processes
+  - database
   - workflow
   - ui
   - tests
@@ -13,5 +14,6 @@ kms_files_updated:
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md
   - docs/history/workforce-planning/2026-08-30-teacher-scheduling-rules.md
+  - docs/PROJECT_STATE.md
 no_impact_reason:
 major_change_override: no
