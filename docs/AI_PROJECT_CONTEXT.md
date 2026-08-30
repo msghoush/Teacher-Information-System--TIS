@@ -38,6 +38,14 @@ minimum-day, and double-block feasibility. Proven conflicts appear as readiness
 blockers with required-versus-available guidance instead of reaching a generic
 solver-infeasible result. Grouped activities count one teacher occupancy.
 
+If CP-SAT still proves the complete model infeasible after deterministic checks,
+the Workflow reruns bounded diagnostic profiles without changing the real run.
+It distinguishes base demand/collisions, locks, grouped activities/resources,
+Subject Distribution Rules, Teacher Scheduling Rules, and subject/teacher-rule
+interaction. The proven family, current lock count, and grouped-activity count are
+stored in the Generation Run's customer-safe failure details. A diagnostic timeout
+is reported as inconclusive rather than mislabeling a constraint family.
+
 The configuration UI keeps section selection literal: Select All synchronizes
 every visible Current/New section, editing restores the exact saved targets, and
 saved summaries name selected grade-section labels instead of collapsing them

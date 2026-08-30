@@ -359,6 +359,36 @@ def test_regeneration_infeasibility_reports_controlled_diversity_result(monkeypa
     }
 
 
+def test_generate_infeasibility_persists_isolated_family_and_input_counts(monkeypatch):
+    import timetable_generation_worker as worker
+
+    terminal = {}
+    monkeypatch.setattr(
+        worker,
+        "diagnose_infeasible_problem",
+        lambda problem, **kwargs: {
+            "category": "subject_teacher_interaction",
+            "message": "Subject Distribution Rules and Teacher Scheduling Rules conflict.",
+            "lock_count": 0,
+            "grouped_activity_count": 2,
+            "request_mode": "generate",
+            "has_source_version": False,
+        },
+    )
+    monkeypatch.setattr(
+        worker,
+        "_terminal",
+        lambda run_id, owner, status, category, message: terminal.update(
+            run_id=run_id, owner=owner, status=status, category=category, message=message
+        ),
+    )
+    worker._mark_infeasible(8, "workflow", {"request_mode": "generate"})
+    assert terminal["status"] == "infeasible"
+    assert terminal["category"] == "solver_infeasible_subject_teacher_interaction"
+    assert "0 intentional lesson lock(s)" in terminal["message"]
+    assert "2 grouped activity" in terminal["message"]
+
+
 def test_validator_rejects_extra_collision_stale_and_insufficient_diversity(db):
     problem, snapshot = _problem(db)
     result = _solve(problem)

@@ -60,3 +60,13 @@ They also identify provable Must-teach/window, daily-coverage, hard maximum-per-
 minimum-teaching-day, and double-block conflicts with required-versus-available
 guidance. No hard rule is relaxed and no Planning, allocation, lock, Draft, or
 published-history authority is changed.
+
+For infeasibility that remains solver-only, the Workflow now performs bounded
+diagnostic solves over isolated hard-constraint families and persists the result
+on the existing Generation Run. The diagnostic differentiates base collisions,
+locks, grouped activities/resources, subject rules, teacher rules, and combined
+subject/teacher-rule conflicts, while recording lock and grouped-activity counts.
+Relaxed diagnostic candidates are never saved and the complete hard model remains
+the only generation authority. A six-section, forty-slot-per-section regression
+with 240 periods, exact double blocks, daily coverage, hard maximum/day, and scoped
+teacher rules proves the full-utilization model itself remains feasible.
