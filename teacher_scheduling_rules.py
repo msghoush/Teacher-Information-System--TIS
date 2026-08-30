@@ -158,10 +158,13 @@ def validate_manual_placement(
     day_key: str, period_index: int,
 ) -> dict | None:
     slot = (str(day_key or "").strip().lower(), int(period_index))
-    for rule in _current_canonical_rules(
+    rules = _current_canonical_rules(
         db, school_group_id=school_group_id, branch_id=branch_id,
         academic_year_id=academic_year_id,
-    ):
+    )
+    schedule_window = set()
+    has_schedule_window = False
+    for rule in rules:
         if int(rule["teacher_id"]) != int(teacher_id) or rule["strictness"] != "hard":
             continue
         configured = {
@@ -176,12 +179,15 @@ def validate_manual_placement(
             }
         if rule["rule_type"] == "schedule_within" and _rule_applies_to_section(
             rule, planning_section_id, grade_level
-        ) and slot not in configured:
-            return {
-                "code": "teacher_schedule_window_violated",
-                "message": f"This lesson falls outside the teacher's required scheduling window on {slot[0].title()} during P{slot[1]}.",
-                "rule_type": rule["rule_type"],
-            }
+        ):
+            has_schedule_window = True
+            schedule_window.update(configured)
+    if has_schedule_window and slot not in schedule_window:
+        return {
+            "code": "teacher_schedule_window_violated",
+            "message": f"This lesson falls outside the teacher's required scheduling window on {slot[0].title()} during P{slot[1]}.",
+            "rule_type": "schedule_within",
+        }
     return None
 
 
@@ -214,10 +220,24 @@ def validate_draft_entries(
         "period_index": int(item.get("period_index") or 0),
     } for item in entries]
     blockers = []
-    for rule in _current_canonical_rules(
+    rules = _current_canonical_rules(
         db, school_group_id=school_group_id, branch_id=branch_id,
         academic_year_id=academic_year_id,
-    ):
+    )
+    schedule_windows: dict[tuple[int, int], set[tuple[str, int]]] = defaultdict(set)
+    schedule_scopes: dict[int, list[dict]] = defaultdict(list)
+    for rule in rules:
+        if rule["strictness"] == "hard" and rule["rule_type"] == "schedule_within":
+            schedule_scopes[int(rule["teacher_id"])].append(rule)
+    for item in normalized:
+        for rule in schedule_scopes.get(item["teacher_id"], []):
+            if _rule_applies_to_section(rule, item["section_id"], item["grade_level"]):
+                schedule_windows[(item["teacher_id"], item["section_id"])].update(
+                    (slot["day_key"], int(slot["period_index"]))
+                    for slot in rule.get("resolved_slots") or []
+                )
+    checked_window_entries = set()
+    for rule in rules:
         if rule["strictness"] != "hard":
             continue
         teacher_id = int(rule["teacher_id"])
@@ -240,8 +260,15 @@ def validate_draft_entries(
             for item in teacher_entries:
                 if not _rule_applies_to_section(rule, item["section_id"], item["grade_level"]):
                     continue
+                entry_key = (
+                    item["teacher_id"], item["section_id"], item["day_key"],
+                    item["period_index"],
+                )
+                if entry_key in checked_window_entries:
+                    continue
+                checked_window_entries.add(entry_key)
                 slot = (item["day_key"], item["period_index"])
-                if slot not in configured:
+                if slot not in schedule_windows[(item["teacher_id"], item["section_id"])]:
                     blockers.append({
                         "code": "teacher_schedule_window_violated",
                         "message": f"{teacher_label} has a lesson outside the required scheduling window on {slot[0].title()} during P{slot[1]}.",

@@ -27,6 +27,14 @@ Unavailable slots and applicable Schedule-within violations without requiring
 temporary Must-teach completeness. The complete Draft validator is the lifecycle
 boundary: it checks Unavailable, Schedule-within, and Must-teach section targets,
 and approval/publication reuse that result. Soft rules do not block either path.
+Multiple applicable Schedule-within records compose additively as a per-demand
+union. Intersecting complete per-rule windows is rejected because it converts two
+valid allowed-window fragments into an unintended prohibition. The problem
+builder materializes the combined windows in solver input; CP-SAT and the
+independent validator consume the same map. A deterministic bipartite capacity
+check counts grouped demands once and rejects combined teacher-window conflicts,
+while demand-level checks prove daily-coverage, hard max-per-day/minimum-day, and
+double-block incompatibilities before solver invocation.
 
 ## Context
 

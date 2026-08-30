@@ -28,6 +28,16 @@ enforces hard timing and scores existing preferences; the independent validator
 repeats hard-rule and window checks. With no rules, generation behavior is
 backward compatible.
 
+When more than one Schedule-within rule targets the same teacher demand, their
+configured slots form one allowed-window union for that demand. They are not
+independent whole-workload restrictions and must not be intersected. The problem
+builder computes this combined authority before CP-SAT and performs exact
+teacher-slot matching plus deterministic checks for window/unavailability
+capacity, Must-teach compatibility, daily coverage, hard maximum-per-day,
+minimum-day, and double-block feasibility. Proven conflicts appear as readiness
+blockers with required-versus-available guidance instead of reaching a generic
+solver-infeasible result. Grouped activities count one teacher occupancy.
+
 The configuration UI keeps section selection literal: Select All synchronizes
 every visible Current/New section, editing restores the exact saved targets, and
 saved summaries name selected grade-section labels instead of collapsing them

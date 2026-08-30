@@ -36,6 +36,11 @@ source_of_truth: true
    before writing. Complete Draft validation also detects missing Must-teach
    occupancy and wrong selected-section occupancy; these hard blockers prevent
    approval and publication, while preferences never block lifecycle actions.
+9. Multiple Schedule-within rows that apply to the same scoped demand contribute
+   slots to one combined allowed window. Before solving, TIS matches every
+   teacher's effective workload to those combined windows and reports provable
+   capacity or Subject Distribution Rule conflicts, including unavailable slots,
+   Must-teach slots, daily coverage, minimum/maximum days, and double blocks.
 
 ## Guided Curriculum Adjustment UI
 

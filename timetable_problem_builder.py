@@ -8,10 +8,38 @@ from subject_distribution_validator import validate_subject_distribution_rule
 
 
 class TimetableProblemError(ValueError):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, details: dict | None = None):
         super().__init__(message)
         self.code = code
         self.message = message
+        self.details = details or {}
+
+
+def _maximum_slot_assignment(
+    required_by_demand: dict[str, int],
+    allowed_by_demand: dict[str, set[tuple[str, int]]],
+) -> int:
+    """Return the exact maximum teacher workload that fits demand/slot windows."""
+    slot_owner: dict[tuple[str, int], tuple[str, int]] = {}
+
+    def place(unit: tuple[str, int], seen: set[tuple[str, int]]) -> bool:
+        demand_id = unit[0]
+        for slot in sorted(allowed_by_demand[demand_id]):
+            if slot in seen:
+                continue
+            seen.add(slot)
+            owner = slot_owner.get(slot)
+            if owner is None or place(owner, seen):
+                slot_owner[slot] = unit
+                return True
+        return False
+
+    assigned = 0
+    for demand_id in sorted(required_by_demand):
+        for ordinal in range(required_by_demand[demand_id]):
+            if place((demand_id, ordinal), set()):
+                assigned += 1
+    return assigned
 
 
 def demand_key(item: dict) -> tuple[int, str, int]:
@@ -215,19 +243,11 @@ class TimetableProblemBuilder:
         for demand in demands:
             demands_by_teacher.setdefault(int(demand["teacher_id"]), []).append(demand)
         hard_by_teacher_slot = {}
-        demand_periods_by_id = {
-            item["demand_id"]: int(item["required_weekly_periods"])
-            for item in demands
-        }
-
-        def effective_slot_demand(demand_ids) -> int:
-            selected_ids = set(demand_ids)
-            total = sum(demand_periods_by_id[item] for item in selected_ids)
-            for group in grouped_activities:
-                selected_members = selected_ids & set(group.get("demand_ids") or [])
-                if len(selected_members) > 1:
-                    total -= (len(selected_members) - 1) * int(group["required_weekly_periods"])
-            return total
+        grouped_representative = {}
+        for group in grouped_activities:
+            representative = group["demand_ids"][0]
+            for demand_id in group["demand_ids"]:
+                grouped_representative[demand_id] = representative
 
         for raw_rule in (snapshot.get("constraints") or {}).get("teacher_scheduling_rules") or []:
             teacher_id = int(raw_rule.get("teacher_id") or 0)
@@ -242,7 +262,14 @@ class TimetableProblemBuilder:
                 eligible = [item for item in eligible if int(item["section_id"]) in target_ids]
             elif target_scope == "selected_grades":
                 grades = {str(item.get("grade_level") or "").strip().upper() for item in targets}
-                eligible = [item for item in eligible if str(eligible_sections[item["section_id"]].get("grade_level") or "").strip().upper() in grades]
+                eligible = [
+                    item for item in eligible
+                    if str(
+                        eligible_sections[item["section_id"]].get("grade")
+                        or eligible_sections[item["section_id"]].get("grade_level")
+                        or ""
+                    ).strip().upper() in grades
+                ]
             if not eligible:
                 raise TimetableProblemError("teacher_rule_target_unassigned", "A teacher scheduling rule target has no assigned Planning demand.")
             resolved_slots = sorted({
@@ -273,10 +300,34 @@ class TimetableProblemBuilder:
                                 raise TimetableProblemError("teacher_rule_conflict", "A teacher is required in different classes in the same period.")
                     existing.append(rule)
             teacher_rules.append(rule)
+
+        # Separate Schedule-within rows are additive pieces of one allowed
+        # window. For each scoped demand, compose their slots as a union. The
+        # previous per-rule enforcement intersected these windows in CP-SAT,
+        # which could make an otherwise valid configuration infeasible.
+        schedule_windows_by_demand: dict[str, set[tuple[str, int]]] = {}
+        for rule in teacher_rules:
+            if rule["rule_type"] != "schedule_within":
+                continue
+            allowed = {
+                (slot["day_key"], slot["period_index"])
+                for slot in rule["resolved_slots"]
+            }
+            for demand_id in rule["eligible_demand_ids"]:
+                representative = grouped_representative.get(demand_id, demand_id)
+                schedule_windows_by_demand.setdefault(representative, set()).update(allowed)
+
         for teacher_id, teacher_demands in demands_by_teacher.items():
             if not any(rule["teacher_id"] == teacher_id for rule in teacher_rules):
                 continue
-            workload = sum(int(item["required_weekly_periods"]) for item in teacher_demands)
+            effective_demands = {
+                grouped_representative.get(item["demand_id"], item["demand_id"]): item
+                for item in teacher_demands
+            }
+            workload = sum(
+                int(item["required_weekly_periods"])
+                for item in effective_demands.values()
+            )
             unavailable = {
                 (slot["day_key"], slot["period_index"])
                 for rule in teacher_rules if rule["teacher_id"] == teacher_id and rule["rule_type"] == "unavailable"
@@ -291,45 +342,77 @@ class TimetableProblemBuilder:
                 raise TimetableProblemError("teacher_rule_workload_infeasible", "Required teaching periods exceed the teacher's assigned weekly workload.")
             if workload > len(slot_keys - unavailable):
                 raise TimetableProblemError("teacher_rule_availability_infeasible", "The teacher's workload does not fit around unavailable periods.")
+
+            required_by_demand = {
+                demand_id: int(item["required_weekly_periods"])
+                for demand_id, item in effective_demands.items()
+            }
+            allowed_by_demand = {
+                demand_id: set(schedule_windows_by_demand.get(demand_id, slot_keys)) - unavailable
+                for demand_id in effective_demands
+            }
+            for demand_id, required_periods in required_by_demand.items():
+                available_periods = len(allowed_by_demand[demand_id])
+                if required_periods > available_periods:
+                    demand = effective_demands[demand_id]
+                    raise TimetableProblemError(
+                        "teacher_rule_window_capacity_insufficient",
+                        f"A teacher has {required_periods} required {demand['subject_code']} periods "
+                        f"for section {demand['section_id']}, but the combined scheduling window "
+                        f"leaves only {available_periods} available slots. Add allowed periods or "
+                        "remove conflicting unavailable periods.",
+                        {"teacher_id": teacher_id, "section_id": demand["section_id"],
+                         "subject_code": demand["subject_code"], "required": required_periods,
+                         "available": available_periods},
+                    )
+            maximum = _maximum_slot_assignment(required_by_demand, allowed_by_demand)
+            if maximum < workload:
+                raise TimetableProblemError(
+                    "teacher_rule_combined_window_capacity_insufficient",
+                    f"A teacher has {workload} assigned periods, but overlapping scheduling "
+                    f"windows and unavailable periods can place at most {maximum}. Widen the "
+                    "allowed windows or remove a conflicting unavailable period.",
+                    {"teacher_id": teacher_id, "required": workload, "available": maximum},
+                )
         for rule in teacher_rules:
             if rule["rule_type"] == "must_teach":
                 matching_total = sum(int(item["required_weekly_periods"]) for item in demands if item["demand_id"] in rule["eligible_demand_ids"])
                 if len(rule["resolved_slots"]) > matching_total:
                     raise TimetableProblemError("teacher_rule_target_workload_infeasible", "Required class periods exceed matching assigned demand.")
-            elif rule["rule_type"] == "schedule_within":
-                allowed = {
-                    (slot["day_key"], slot["period_index"])
-                    for slot in rule["resolved_slots"]
-                }
-                unavailable = {
-                    (slot["day_key"], slot["period_index"])
-                    for other in teacher_rules
-                    if other["teacher_id"] == rule["teacher_id"]
-                    and other["rule_type"] == "unavailable"
-                    for slot in other["resolved_slots"]
-                }
-                matching_total = effective_slot_demand(rule["eligible_demand_ids"])
-                if matching_total > len(allowed - unavailable):
-                    raise TimetableProblemError(
-                        "teacher_rule_window_capacity_insufficient",
-                        "The selected period window is too small for the teacher's existing assigned workload.",
+        for required_rule in teacher_rules:
+            if required_rule["rule_type"] != "must_teach":
+                continue
+            for slot in required_rule["resolved_slots"]:
+                slot_key = (slot["day_key"], slot["period_index"])
+                eligible_at_slot = [
+                    demand_id for demand_id in required_rule["eligible_demand_ids"]
+                    if slot_key in schedule_windows_by_demand.get(
+                        grouped_representative.get(demand_id, demand_id), slot_keys
                     )
-                for required_rule in teacher_rules:
-                    if required_rule["teacher_id"] != rule["teacher_id"] or required_rule["rule_type"] != "must_teach":
-                        continue
-                    if set(required_rule["eligible_demand_ids"]).issubset(set(rule["eligible_demand_ids"])) and any(
-                        (slot["day_key"], slot["period_index"]) not in allowed
-                        for slot in required_rule["resolved_slots"]
-                    ):
-                        raise TimetableProblemError(
-                            "teacher_rule_window_required_conflict",
-                            "A required teaching period falls outside the configured scheduling window.",
-                        )
+                ]
+                if not eligible_at_slot:
+                    raise TimetableProblemError(
+                        "teacher_rule_window_required_conflict",
+                        f"A Must-teach rule requires the teacher on {slot_key[0].title()} "
+                        f"during P{slot_key[1]}, but that slot is outside every matching "
+                        "Schedule-within window. Add the slot to the window or change the rule.",
+                        {"teacher_id": required_rule["teacher_id"], "day_key": slot_key[0],
+                         "period_index": slot_key[1]},
+                    )
 
         # Final defense-in-depth: an invalid resolved distribution rule must
         # fail cleanly here rather than reach CP-SAT with an unsatisfiable or
         # nonsensical configuration.
         available_teaching_days = len(projection.get("working_day_keys") or [])
+        unavailable_by_teacher = {
+            teacher_id: {
+                (slot["day_key"], slot["period_index"])
+                for rule in teacher_rules
+                if rule["teacher_id"] == teacher_id and rule["rule_type"] == "unavailable"
+                for slot in rule["resolved_slots"]
+            }
+            for teacher_id in demands_by_teacher
+        }
         for demand in demands:
             rule = demand.get("distribution_rule")
             if rule is None:
@@ -345,6 +428,90 @@ class TimetableProblemBuilder:
                     f"The {demand['subject_code']} distribution rule for section "
                     f"{demand['section_id']} is invalid: {rule_errors[0]['message']}",
                 )
+            representative = grouped_representative.get(
+                demand["demand_id"], demand["demand_id"]
+            )
+            compatible_slots = set(
+                schedule_windows_by_demand.get(representative, slot_keys)
+            ) - unavailable_by_teacher.get(demand["teacher_id"], set())
+            slots_by_day = {
+                day: sorted(period for slot_day, period in compatible_slots if slot_day == day)
+                for day in projection.get("working_day_keys") or []
+            }
+            required_periods = int(demand["required_weekly_periods"])
+            coverage_mode = rule["require_daily_coverage"]
+            if coverage_mode != "never" and required_periods >= available_teaching_days:
+                missing_days = [day for day, periods in slots_by_day.items() if not periods]
+                if missing_days:
+                    raise TimetableProblemError(
+                        "teacher_rule_daily_coverage_conflict",
+                        f"Section {demand['section_id']} {demand['subject_code']} requires daily "
+                        f"coverage, but the teacher has no allowed slot on "
+                        f"{', '.join(day.title() for day in missing_days)}. Widen the teacher "
+                        "window or change the subject distribution rule.",
+                        {"teacher_id": demand["teacher_id"], "section_id": demand["section_id"],
+                         "subject_code": demand["subject_code"], "days": missing_days},
+                    )
+            available_days = sum(1 for periods in slots_by_day.values() if periods)
+            if (
+                rule["strictness"] == "hard" and rule.get("min_teaching_days")
+                and int(rule["min_teaching_days"]) > available_days
+            ):
+                raise TimetableProblemError(
+                    "teacher_rule_min_days_conflict",
+                    f"Section {demand['section_id']} {demand['subject_code']} requires at least "
+                    f"{rule['min_teaching_days']} teaching days, but the teacher window permits "
+                    f"only {available_days}. Widen the window or reduce the minimum days.",
+                    {"teacher_id": demand["teacher_id"], "section_id": demand["section_id"],
+                     "subject_code": demand["subject_code"], "required": rule["min_teaching_days"],
+                     "available": available_days},
+                )
+            if rule["strictness"] == "hard" and rule.get("max_periods_per_day"):
+                maximum = sum(
+                    min(len(periods), int(rule["max_periods_per_day"]))
+                    for periods in slots_by_day.values()
+                )
+                if required_periods > maximum:
+                    raise TimetableProblemError(
+                        "teacher_rule_max_per_day_conflict",
+                        f"Section {demand['section_id']} {demand['subject_code']} requires "
+                        f"{required_periods} periods, but its teacher window and maximum-per-day "
+                        f"rule can place at most {maximum}. Widen the window or change the maximum.",
+                        {"teacher_id": demand["teacher_id"], "section_id": demand["section_id"],
+                         "subject_code": demand["subject_code"], "required": required_periods,
+                         "available": maximum},
+                    )
+            if int(rule.get("block_count") or 0) > 0:
+                possible_blocks = 0
+                slot_lookup = {
+                    (item["day_key"], item["period_index"]): item for item in slots
+                }
+                for day, periods in slots_by_day.items():
+                    run = 0
+                    previous = None
+                    for period in periods:
+                        if previous is not None and (
+                            period != previous + 1
+                            or not slot_lookup[(day, previous)].get(
+                                "next_period_physically_adjacent"
+                            )
+                        ):
+                            possible_blocks += run // 2
+                            run = 0
+                        run += 1
+                        previous = period
+                    possible_blocks += run // 2
+                if int(rule["block_count"]) > possible_blocks:
+                    raise TimetableProblemError(
+                        "teacher_rule_double_block_conflict",
+                        f"Section {demand['section_id']} {demand['subject_code']} requires "
+                        f"{rule['block_count']} double block(s), but the teacher window contains "
+                        f"room for only {possible_blocks}. Add adjacent allowed periods or change "
+                        "the block rule.",
+                        {"teacher_id": demand["teacher_id"], "section_id": demand["section_id"],
+                         "subject_code": demand["subject_code"], "required": rule["block_count"],
+                         "available": possible_blocks},
+                    )
 
         demand_by_key = {
             (item["section_id"], item["subject_code"], item["teacher_id"]): item
@@ -468,4 +635,11 @@ class TimetableProblemBuilder:
             "quality_rules": quality_rules,
             "grouped_activities": grouped_activities,
             "teacher_scheduling_rules": teacher_rules,
+            "teacher_schedule_windows_by_demand": {
+                demand_id: [
+                    {"day_key": day, "period_index": period}
+                    for day, period in sorted(allowed)
+                ]
+                for demand_id, allowed in sorted(schedule_windows_by_demand.items())
+            },
         }

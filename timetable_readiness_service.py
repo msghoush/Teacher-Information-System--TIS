@@ -237,8 +237,23 @@ class TimetableReadinessService:
             TimetableProblemBuilder().build(snapshot.canonical_json)
         except TimetableProblemError as exc:
             if exc.code.startswith("teacher_rule"):
+                details = exc.details or {}
+                teacher = teacher_map.get(int(details.get("teacher_id") or 0))
+                section = next((
+                    item for item in sections
+                    if int(item.id) == int(details.get("section_id") or 0)
+                ), None)
+                labels = []
+                if teacher is not None:
+                    labels.append(build_teacher_display_name(teacher))
+                if section is not None:
+                    labels.append(format_section_label(section))
+                subject = subject_by_code.get(str(details.get("subject_code") or "").upper())
+                if subject is not None:
+                    labels.append(str(subject.subject_name or subject.subject_code))
                 blockers.append(self._finding(
-                    exc.code, exc.message, "teacher_rule", "Teacher scheduling rule",
+                    exc.code, exc.message, "teacher_rule",
+                    " · ".join(labels) or "Teacher scheduling rule",
                     "Timetable Configuration",
                 ))
         if operational is not None and str(operational.authority_fingerprint or "") != authority_fingerprint:
