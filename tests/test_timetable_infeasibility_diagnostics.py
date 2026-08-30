@@ -153,7 +153,7 @@ def test_six_section_full_utilization_with_distribution_and_teacher_rules_is_fea
         "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard",
     }
     demands = [
-        _demand(section, f"S{subject}", (section + subject) % 6 + 1, 8, distribution)
+        _demand(section, f"S{subject}", section + 1, 8, distribution)
         for section in range(6) for subject in range(5)
     ]
     baseline = _problem(demands, slots)
@@ -193,3 +193,32 @@ def test_six_section_full_utilization_with_distribution_and_teacher_rules_is_fea
         sum(1 for item in result["placements"] if item["section_id"] == section) == 40
         for section in range(6)
     )
+
+
+def test_diagnostic_timeout_is_inconclusive_and_zero_lock_group_profiles_are_skipped(monkeypatch):
+    import timetable_cp_sat_solver as solver
+
+    calls = []
+    monkeypatch.setattr(
+        solver,
+        "solve_timetable",
+        lambda problem, **kwargs: calls.append(kwargs) or {"outcome": "timed_out"},
+    )
+    demand = _demand(1, "A", 10, 1, {
+        "block_length": 1, "block_count": 0, "single_count": 1,
+        "min_teaching_days": None, "max_periods_per_day": None,
+        "require_daily_coverage": "never", "spread_distinct_days": False,
+        "avoid_consecutive": False, "min_day_gap": None, "strictness": "hard",
+    })
+    problem = _problem(
+        [demand], [_slot("sunday", 1)],
+        teacher_scheduling_rules=[{
+            "id": 1, "teacher_id": 10, "rule_type": "must_teach",
+            "strictness": "hard", "eligible_demand_ids": [demand["demand_id"]],
+            "resolved_slots": [{"day_key": "sunday", "period_index": 1}],
+        }],
+    )
+    result = solver.diagnose_infeasible_problem(problem, timeout_seconds=61)
+    assert result["category"] == "diagnostic_inconclusive"
+    assert len(calls) == 4
+    assert {call["timeout_seconds"] for call in calls} == {61}

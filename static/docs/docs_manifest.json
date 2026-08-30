@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-08-30T06:04:41.047380+03:00",
+  "generated_at": "2026-08-30T17:57:04.126310+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "8f97bc4",
+  "commit_sha": "20daca0",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "cd1cc1225a5a689196c3fdd53f92f8491df21f52feaab6d3ab6d926e446b3bc5",
-  "pdf_size_bytes": 1042475,
+  "pdf_sha256": "be3c81036339684ed60b9ce94ac7c398a1fa4cd572207c5a9d81232d0a6d6d25",
+  "pdf_size_bytes": 1044129,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-08-30T05:54:21.911645+03:00",
-      "size_bytes": 83271,
-      "sha256": "c97a291f9cf3d89c9f6350b8ab091faa44cfc2a51ed1d24d6c29dbcbb9b4dead",
+      "modified_at": "2026-08-30T17:55:28.396317+03:00",
+      "size_bytes": 83632,
+      "sha256": "312829306e629df61b29a9b62310f668f7645a609312336a5de12949220b7698",
       "pdf_page": 15
     },
     {
@@ -88,9 +88,9 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-08-30T05:54:21.912601+03:00",
-      "size_bytes": 66753,
-      "sha256": "9dfb3a351a467daa830a7627611209c3ccc42d65114bc7566dda08ad6234e83a",
+      "modified_at": "2026-08-30T17:55:28.396923+03:00",
+      "size_bytes": 66910,
+      "sha256": "3a3e2a673d8503c953409f1ca008fd31c6afce5a32257a041eb41ba0c18ca1e5",
       "pdf_page": 162
     },
     {
@@ -375,9 +375,9 @@
     },
     {
       "path": "docs/adr/0026-versioned-constraint-based-smart-timetable-generation.md",
-      "modified_at": "2026-08-30T05:54:21.913108+03:00",
-      "size_bytes": 14704,
-      "sha256": "9ad4adae4d6fd406e1f4c732de0987a532aad751f0de74d1f632269463de5391",
+      "modified_at": "2026-08-30T17:55:28.397847+03:00",
+      "size_bytes": 15005,
+      "sha256": "a1a7c5ab59c3da88dff96619be61195f8822d261c134e38f6c5a65d1bb9a56ae",
       "pdf_page": 293
     },
     {
@@ -655,9 +655,9 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-08-30-teacher-scheduling-rules.md",
-      "modified_at": "2026-08-30T05:54:21.914117+03:00",
-      "size_bytes": 4375,
-      "sha256": "3fe4fef1b587b9c210acfd3e49dcfd6a0599f36cfee926193794d5f42ec02e43",
+      "modified_at": "2026-08-30T17:55:28.397847+03:00",
+      "size_bytes": 4867,
+      "sha256": "360570ca5734f1a1be976502450278ad939892d6d925adf89b1d8c8c209506f5",
       "pdf_page": 360
     },
     {
@@ -665,35 +665,35 @@
       "modified_at": "2026-08-30T01:10:14.357199+03:00",
       "size_bytes": 2311,
       "sha256": "73a217ee1828becb5032665068efde8723d06adcc35f2e7a441317123889bc66",
-      "pdf_page": 361
+      "pdf_page": 362
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 362
+      "pdf_page": 363
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 2012,
       "sha256": "d901b0ac33d921ff6041334e6580949f167b159c01c7840b48b1c2cf437c16f2",
-      "pdf_page": 363
+      "pdf_page": 364
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-08-22T02:52:50.590506+03:00",
       "size_bytes": 22759,
       "sha256": "e66b791e2798281fb0ee2a30768c48a27403a01bdfb12724ae004b3c98063ed7",
-      "pdf_page": 364
+      "pdf_page": 365
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 372
+      "pdf_page": 373
     }
   ]
 }

@@ -45,6 +45,11 @@ Subject Distribution Rules, Teacher Scheduling Rules, and subject/teacher-rule
 interaction. The proven family, current lock count, and grouped-activity count are
 stored in the Generation Run's customer-safe failure details. A diagnostic timeout
 is reported as inconclusive rather than mislabeling a constraint family.
+Diagnostic profiles use the dedicated
+`TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS` Workflow setting, defaulting to 60
+seconds per attempted profile and independent of the main solver timeout. Profiles
+for locks or grouped activities are skipped when their captured counts are zero;
+successful isolation also reports safe model/rule/window counts where available.
 
 The configuration UI keeps section selection literal: Select All synchronizes
 every visible Current/New section, editing restores the exact saved targets, and

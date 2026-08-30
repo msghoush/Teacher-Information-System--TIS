@@ -389,6 +389,39 @@ def test_generate_infeasibility_persists_isolated_family_and_input_counts(monkey
     assert "2 grouped activity" in terminal["message"]
 
 
+def test_diagnostic_timeout_is_independent_and_not_capped_at_ten_seconds(monkeypatch):
+    import timetable_generation_worker as worker
+
+    captured = {}
+    monkeypatch.setattr(
+        worker,
+        "diagnose_infeasible_problem",
+        lambda problem, **kwargs: captured.update(kwargs) or {
+            "category": "teacher_scheduling_rules",
+            "message": "Teacher Scheduling Rules make the timetable infeasible.",
+            "details_summary": "One hard teacher rule is active.",
+            "lock_count": 0, "grouped_activity_count": 0,
+            "request_mode": "generate", "has_source_version": False,
+        },
+    )
+    monkeypatch.setattr(worker, "_terminal", lambda *args, **kwargs: None)
+    settings = worker.WorkerSettings(
+        solver_timeout_seconds=5, diagnostic_timeout_seconds=73,
+    )
+    worker._mark_infeasible(9, "workflow", {"request_mode": "generate"}, settings)
+    assert captured["timeout_seconds"] == 73
+
+
+def test_worker_settings_honor_dedicated_diagnostic_timeout_environment(monkeypatch):
+    import timetable_generation_worker as worker
+
+    monkeypatch.setenv("TIS_TIMETABLE_SOLVER_TIMEOUT_SECONDS", "120")
+    monkeypatch.setenv("TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS", "181")
+    settings = worker.WorkerSettings.from_environment()
+    assert settings.solver_timeout_seconds == 120
+    assert settings.diagnostic_timeout_seconds == 181
+
+
 def test_validator_rejects_extra_collision_stale_and_insufficient_diversity(db):
     problem, snapshot = _problem(db)
     result = _solve(problem)

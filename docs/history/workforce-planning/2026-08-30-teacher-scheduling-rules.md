@@ -70,3 +70,11 @@ Relaxed diagnostic candidates are never saved and the complete hard model remain
 the only generation authority. A six-section, forty-slot-per-section regression
 with 240 periods, exact double blocks, daily coverage, hard maximum/day, and scoped
 teacher rules proves the full-utilization model itself remains feasible.
+
+Production showed that the initial diagnostic's fixed ten-second cap could itself
+time out before proving a family. Isolation now reads the independent
+`TIS_TIMETABLE_DIAGNOSTIC_TIMEOUT_SECONDS` Workflow setting, defaults to 60 seconds
+per attempted profile, and may be raised without changing the main solve timeout.
+Zero-lock and zero-group scopes skip those profiles, and successful results include
+safe section, demand, teacher, rule, period, and selected-window counts where
+available.
