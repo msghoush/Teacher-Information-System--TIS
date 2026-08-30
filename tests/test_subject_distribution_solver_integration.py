@@ -105,7 +105,7 @@ def test_english_8_periods_two_doubles_four_singles():
     result = _solve(problem)
     assert result["outcome"] == "feasible"
     slot_lookup = {(s["day_key"], s["period_index"]): s for s in problem["slots"]}
-    assert _count_true_blocks(result["placements"], "ENG", slot_lookup) == 2
+    assert _count_true_blocks(result["placements"], "ENG", slot_lookup) >= 2
     assert len(result["placements"]) == 8
     assert TimetableSolutionValidator().validate(
         problem=problem, placements=result["placements"],
@@ -120,6 +120,80 @@ def test_exact_configured_block_count_enforced():
     assert result["outcome"] == "feasible"
     slot_lookup = {(s["day_key"], s["period_index"]): s for s in problem["slots"]}
     assert _count_true_blocks(result["placements"], "SCI", slot_lookup) == 1
+
+
+def test_three_consecutive_periods_partition_as_double_plus_single():
+    rule = _rule(
+        block_count=1, single_count=1, require_daily_coverage="never",
+        spread_distinct_days=False, avoid_consecutive=False,
+    )
+    problem = _problem([_demand(1, "SCI", 11, 3, rule)], periods=3, days=["monday"])
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    assert [item["period_index"] for item in result["placements"]] == [1, 2, 3]
+    assert TimetableSolutionValidator().validate(
+        problem=problem, placements=result["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
+
+
+def test_four_consecutive_periods_partition_as_two_touching_doubles():
+    rule = _rule(
+        block_count=2, single_count=0, require_daily_coverage="never",
+        spread_distinct_days=False, avoid_consecutive=False,
+    )
+    problem = _problem([_demand(1, "SCI", 11, 4, rule)], periods=4, days=["monday"])
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    assert [item["period_index"] for item in result["placements"]] == [1, 2, 3, 4]
+    assert TimetableSolutionValidator().validate(
+        problem=problem, placements=result["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
+
+
+@pytest.mark.parametrize("max_periods_per_day", [None, 2])
+def test_daily_coverage_three_doubles_two_singles_has_required_day_loads(max_periods_per_day):
+    rule = _rule(
+        block_count=3, single_count=2, min_teaching_days=5,
+        max_periods_per_day=max_periods_per_day,
+        require_daily_coverage="always", spread_distinct_days=False,
+        avoid_consecutive=False, strictness="hard",
+    )
+    problem = _problem([_demand(1, "ENG", 11, 8, rule)], periods=8)
+    result = _solve(problem, seed=47498178)
+    assert result["outcome"] == "feasible"
+    loads = sorted(
+        len(_periods_for_day(result["placements"], "ENG", day))
+        for day in problem["working_days"]
+    )
+    assert loads == [1, 1, 2, 2, 2]
+    assert TimetableSolutionValidator().validate(
+        problem=problem, placements=result["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
+
+
+def test_touching_sessions_do_not_overlap_period_membership_with_shared_teacher():
+    rule = _rule(
+        block_count=1, single_count=1, require_daily_coverage="never",
+        spread_distinct_days=False, avoid_consecutive=False,
+    )
+    problem = _problem([
+        _demand(1, "A", 11, 3, rule),
+        _demand(2, "B", 11, 3, rule),
+    ], periods=6, days=["monday"])
+    result = _solve(problem)
+    assert result["outcome"] == "feasible"
+    teacher_slots = [
+        (item["day_key"], item["period_index"])
+        for item in result["placements"] if item["teacher_id"] == 11
+    ]
+    assert len(teacher_slots) == len(set(teacher_slots)) == 6
+    assert TimetableSolutionValidator().validate(
+        problem=problem, placements=result["placements"],
+        expected_fingerprint="same", current_fingerprint="same",
+    )["valid"]
 
 
 def test_break_separated_periods_do_not_satisfy_block():
@@ -325,7 +399,7 @@ def test_regeneration_preserves_hard_distribution_rules_while_reshuffling():
     result = _solve(problem)
     assert result["outcome"] == "feasible"
     slot_lookup = {(s["day_key"], s["period_index"]): s for s in problem["slots"]}
-    assert _count_true_blocks(result["placements"], "ENG", slot_lookup) == 2
+    assert _count_true_blocks(result["placements"], "ENG", slot_lookup) >= 2
     validation = TimetableSolutionValidator().validate(
         problem=problem, placements=result["placements"],
         expected_fingerprint="same", current_fingerprint="same",

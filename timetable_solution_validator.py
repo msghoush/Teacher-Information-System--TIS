@@ -201,20 +201,40 @@ class TimetableSolutionValidator:
                         add("distribution_min_teaching_days_missing", "A configured Subject Distribution Rule requires more distinct teaching days than were scheduled.")
                 block_count = int(rule.get("block_count") or 0)
                 if block_count > 0:
-                    total_blocks = 0
+                    block_length = int(rule.get("block_length") or 0)
+                    single_count = int(rule.get("single_count") or 0)
+                    if block_length != 2:
+                        add(
+                            "distribution_block_length_unsupported",
+                            "A configured Subject Distribution Rule uses an unsupported block length.",
+                        )
+                        continue
+                    maximum_partitioned_blocks = 0
                     for day in working_days:
                         selected = sorted(period for (d, period) in placements_by_demand.get(key, []) if d == day)
-                        consumed = set()
+                        run_length = 0
+                        previous = None
                         for period in selected:
-                            if period in consumed:
-                                continue
-                            if (period + 1) in selected and (period + 1) not in consumed and (
-                                slot_lookup.get((day, period), {}).get("next_period_physically_adjacent")
+                            if previous is not None and (
+                                period != previous + 1
+                                or not slot_lookup.get((day, previous), {}).get(
+                                    "next_period_physically_adjacent"
+                                )
                             ):
-                                total_blocks += 1
-                                consumed.update({period, period + 1})
-                    if total_blocks != block_count:
-                        add("distribution_block_count_mismatch", "A configured Subject Distribution Rule does not contain the exact required number of true consecutive blocks.")
+                                maximum_partitioned_blocks += run_length // 2
+                                run_length = 0
+                            run_length += 1
+                            previous = period
+                        maximum_partitioned_blocks += run_length // 2
+                    placement_count = len(placements_by_demand.get(key, []))
+                    if (
+                        placement_count != block_count * 2 + single_count
+                        or maximum_partitioned_blocks < block_count
+                    ):
+                        add(
+                            "distribution_block_count_mismatch",
+                            "A configured Subject Distribution Rule cannot be partitioned into the exact required double blocks and single sessions.",
+                        )
             else:
                 if code in core_codes and int(demand["required_weekly_periods"]) >= len(working_days):
                     for day in working_days:

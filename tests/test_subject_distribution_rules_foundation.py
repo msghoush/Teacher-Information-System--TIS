@@ -225,6 +225,28 @@ def test_max_periods_per_day_infeasible_for_weekly_demand():
     assert "max_periods_per_day_infeasible" in {item["code"] for item in errors}
 
 
+def test_daily_coverage_requires_enough_partitioned_sessions():
+    rule = {
+        "block_length": 2, "block_count": 3, "single_count": 1,
+        "require_daily_coverage": "always",
+    }
+    errors = validate_subject_distribution_rule(
+        rule, planning_weekly_periods=7, available_teaching_days=5,
+    )
+    assert "daily_session_count_infeasible" in {item["code"] for item in errors}
+
+
+def test_required_double_must_fit_hard_daily_maximum():
+    rule = {
+        "block_length": 2, "block_count": 1, "single_count": 0,
+        "max_periods_per_day": 1,
+    }
+    errors = validate_subject_distribution_rule(
+        rule, planning_weekly_periods=2, available_teaching_days=5,
+    )
+    assert "block_exceeds_daily_maximum" in {item["code"] for item in errors}
+
+
 def test_invalid_max_periods_per_day_value():
     rule = {"block_length": 2, "block_count": 0, "single_count": 1, "max_periods_per_day": 0}
     errors = validate_subject_distribution_rule(rule)

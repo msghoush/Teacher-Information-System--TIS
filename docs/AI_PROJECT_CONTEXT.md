@@ -171,12 +171,19 @@ alters an already-created snapshot. The problem builder carries that resolved
 rule per demand, exposes true physical period adjacency on every slot, and
 runs the arithmetic/feasibility validator as a final pre-solve defense,
 failing cleanly with `distribution_rule_invalid` rather than reaching CP-SAT.
-CP-SAT enforces exact non-overlapping intentional blocks, generalized
+CP-SAT enforces an exact partition into intentional two-period blocks and
+single-period sessions. Explicit block-start and single-session decisions
+channel every occupied period to exactly one session: sessions may touch, so
+three consecutive periods can be one double plus one single and four can be
+two touching doubles, but session membership never overlaps. Physical timeline
+interruptions still break a double. Daily session/load channeling strengthens
+hard daily-coverage propagation without relaxing its meaning. CP-SAT also enforces generalized
 daily-coverage/spread/max-per-day/min-teaching-days hard-or-soft behavior per
 resolved rule, and exempts declared blocks from the consecutive-avoidance
 penalty; demands without a resolved rule keep the exact legacy
 `quality_rules_json` code-list behavior. The independent validator mirrors
-every new hard check (exact block count via true adjacency, hard daily
+every new hard check (existence of the same exact non-overlapping session
+partition via true adjacency, hard daily
 coverage, hard max/day, hard min teaching days) alongside the unchanged
 grouped-activity and collision checks. Readiness now blocks genuinely invalid
 or infeasible normalized configurations before generation while keeping the
