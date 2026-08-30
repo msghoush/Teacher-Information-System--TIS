@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-08-31 - Stale Draft Feasibility And Regeneration Workflow
+
+- Separated stale Draft lifecycle state from current-input structural readiness.
+- Enabled a fresh hard-only feasibility check for stale-only scopes and allowed
+  regeneration only after the current authority fingerprint is verified.
+- Preserved stale Draft publication protection and stopped older-authority run
+  failures from overriding the current workflow state.
+
 ## 2026-08-30 - Partitioned Subject Sessions
 
 - Replaced overlapping occupied-pair inference with explicit double-block and

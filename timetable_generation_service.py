@@ -19,6 +19,7 @@ from timetable_readiness_service import TimetableReadinessService
 from timetable_snapshot_service import (
     build_current_snapshot_data,
     create_current_input_snapshot,
+    fingerprint,
 )
 from timetable_solution_validator import TimetableSolutionValidator
 from timetable_feasibility_service import latest_feasibility_payload
@@ -70,6 +71,20 @@ def _fingerprint_differences(expected, current) -> dict[str, dict[str, str]]:
         for name, field in fields
         if str(getattr(expected, field, "") or "") != str(getattr(current, field, "") or "")
     }
+
+
+def _snapshot_authority_fingerprint(snapshot: models.TimetableInputSnapshot) -> str:
+    return fingerprint({
+        "scope": {
+            "school_group_id": int(snapshot.school_group_id),
+            "branch_id": int(snapshot.branch_id),
+            "academic_year_id": int(snapshot.academic_year_id),
+        },
+        "planning_fingerprint": snapshot.planning_fingerprint,
+        "period_configuration_fingerprint": snapshot.period_configuration_fingerprint,
+        "constraint_fingerprint": snapshot.constraint_fingerprint,
+        "lock_fingerprint": snapshot.lock_fingerprint,
+    })
 
 
 class TimetableGenerationError(ValueError):
@@ -147,17 +162,6 @@ def build_generation_state(
     academic_year_id: int,
     draft_version_id: int | None = None,
 ) -> dict:
-    active = _active_run_query(
-        db,
-        school_group_id=school_group_id,
-        branch_id=branch_id,
-        academic_year_id=academic_year_id,
-    ).order_by(models.TimetableGenerationRun.queued_at.desc()).first()
-    latest = active or db.query(models.TimetableGenerationRun).filter(
-        models.TimetableGenerationRun.school_group_id == school_group_id,
-        models.TimetableGenerationRun.branch_id == branch_id,
-        models.TimetableGenerationRun.academic_year_id == academic_year_id,
-    ).order_by(models.TimetableGenerationRun.created_at.desc()).first()
     current_draft = None
     if draft_version_id is not None:
         current_draft = resolve_version(
@@ -186,6 +190,53 @@ def build_generation_state(
         and current_draft.origin in {"generated", "regenerated"}
         else None
     )
+    active = _active_run_query(
+        db,
+        school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+    ).order_by(models.TimetableGenerationRun.queued_at.desc()).first()
+    current_locks = [
+        item for item in _serialize_entries(_load_source_entries(db, current_draft))
+        if item["is_locked"]
+    ]
+    current_base = build_current_snapshot_data(
+        db,
+        school_group_id=school_group_id,
+        branch_id=branch_id,
+        academic_year_id=academic_year_id,
+        locks=current_locks,
+    )
+    latest = active
+    historical_runs = db.query(
+        models.TimetableGenerationRun, models.TimetableInputSnapshot,
+    ).join(
+        models.TimetableInputSnapshot,
+        models.TimetableInputSnapshot.id == models.TimetableGenerationRun.input_snapshot_id,
+    ).filter(
+        models.TimetableGenerationRun.school_group_id == school_group_id,
+        models.TimetableGenerationRun.branch_id == branch_id,
+        models.TimetableGenerationRun.academic_year_id == academic_year_id,
+        models.TimetableInputSnapshot.planning_fingerprint == current_base.planning_fingerprint,
+        models.TimetableInputSnapshot.period_configuration_fingerprint == current_base.period_configuration_fingerprint,
+        models.TimetableInputSnapshot.lock_fingerprint == current_base.lock_fingerprint,
+    ).order_by(models.TimetableGenerationRun.created_at.desc()).all()
+    if latest is None:
+        for historical_run, historical_snapshot in historical_runs:
+            captured = json.loads(historical_snapshot.canonical_snapshot_json)
+            current_for_run = build_current_snapshot_data(
+                db,
+                school_group_id=school_group_id,
+                branch_id=branch_id,
+                academic_year_id=academic_year_id,
+                locks=current_locks,
+                constraint_configuration=captured.get("constraints") or {},
+            )
+            if current_for_run.authority_fingerprint == _snapshot_authority_fingerprint(
+                historical_snapshot
+            ):
+                latest = historical_run
+                break
     return {
         "active_run": generation_run_payload(active) if active else None,
         "latest_run": generation_run_payload(latest) if latest else None,
@@ -365,7 +416,7 @@ def enqueue_generation(
     readiness = TimetableReadinessService(db).evaluate(
         school_group_id, branch_id, academic_year_id
     )
-    if readiness["status"] != "configuration_complete":
+    if not readiness.get("verification_eligible"):
         message = (
             readiness["blockers"][0]["message"]
             if readiness.get("blockers") else "Timetable inputs are not ready to generate."

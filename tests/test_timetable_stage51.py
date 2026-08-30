@@ -35,7 +35,10 @@ from timetable_generation_service import (
     set_run_progress,
 )
 from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
+from timetable_readiness_service import TimetableReadinessService
 from timetable_snapshot_service import build_current_snapshot_data
+from timetable_feasibility_service import current_feasibility_input, feasibility_constraint_configuration
+from timetable_snapshot_service import create_current_input_snapshot
 from timetable_solution_validator import TimetableSolutionValidator
 from permission_registry import get_default_permissions_for_role
 from timetable_logic import build_timetable_workspace_payload
@@ -55,6 +58,28 @@ def _make_ready(db):
         db.add(models.TeacherSectionAssignment(
             teacher_id=1001, planning_section_id=2001, subject_code="MAT"
         ))
+    db.flush()
+
+
+def _mark_verified(db):
+    current = current_feasibility_input(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+    )
+    if db.query(models.TimetableFeasibilityVerification).filter_by(
+        authority_fingerprint=current.full_input_fingerprint
+    ).first():
+        return
+    snapshot = create_current_input_snapshot(
+        db, school_group_id=1, branch_id=10, academic_year_id=100,
+        created_by_user_id="U1", provenance="test-feasibility",
+        constraint_configuration=feasibility_constraint_configuration(),
+    )
+    db.add(models.TimetableFeasibilityVerification(
+        school_group_id=1, branch_id=10, academic_year_id=100,
+        input_snapshot_id=snapshot.id,
+        authority_fingerprint=current.full_input_fingerprint,
+        status="verified", feasible_placements_json="[]",
+    ))
     db.flush()
 
 
@@ -707,6 +732,12 @@ def test_regeneration_persists_separate_version_and_keeps_source_and_lock(db):
         ).order_by(models.TimetableEntry.id)
     ]
 
+    db.query(models.TimetableSetting).filter_by(id=5000).one().period_duration_minutes = 40
+    db.flush()
+    stale_readiness = TimetableReadinessService(db).evaluate(1, 10, 100)
+    assert stale_readiness["status"] == "stale_input"
+    assert stale_readiness["verification_eligible"] is True
+    _mark_verified(db)
     regenerate = enqueue_generation(
         db, school_group_id=1, branch_id=10, academic_year_id=100,
         requested_by_user_id="U1", request_mode="regenerate",

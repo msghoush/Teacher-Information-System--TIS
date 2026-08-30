@@ -1975,7 +1975,7 @@ def create_feasibility_verification(request: Request, db: Session = Depends(get_
     try:
         group_id = resolve_scope_school_group_id(db, branch_id=branch_id, academic_year_id=year_id)
         readiness = TimetableReadinessService(db).evaluate(group_id, branch_id, year_id)
-        if readiness["status"] != "configuration_complete":
+        if not readiness.get("verification_eligible"):
             return _json_error("Complete the timetable configuration before verifying feasibility.", 409)
         row, run = enqueue_feasibility_verification(
             db, school_group_id=group_id, branch_id=branch_id,

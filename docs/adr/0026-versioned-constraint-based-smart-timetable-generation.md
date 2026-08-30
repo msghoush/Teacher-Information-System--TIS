@@ -76,6 +76,15 @@ placements as a solver hint and may persist them as a validated fallback if its
 quality search times out. Soft objective terms never participate in the
 feasibility gate and hard rules are never relaxed.
 
+Draft staleness is orthogonal to current-input structural completeness.
+`input_changed` keeps the existing Draft stale and outside approval/publication,
+but when no genuine configuration or allocation blocker remains it is eligible
+for a new hard-only feasibility check. That check captures current authority in a
+fresh immutable snapshot; an older fingerprint is never reused. Successful
+verification permits Regenerate from the protected stale source, producing a new
+version without rewriting history. Historical run results remain durable but only
+runs matching current authority may drive current workflow messaging.
+
 Migration `20260828_004_planning_subject_demands_foundation` introduces an additive
 explicit per-section subject-demand table as the future Planning authority. Its
 Stage 1 backfill is limited to grade-matched Subjects for Current/New sections in

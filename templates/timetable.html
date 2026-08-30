@@ -2141,18 +2141,25 @@
             const counts = readiness.counts || {};
             const feasibility = state.payload.feasibility || {};
             const configurationComplete = Boolean(readiness.configuration_complete || readiness.status === "configuration_complete");
+            const staleInput = readiness.status === "stale_input";
             const verified = Boolean(feasibility.verified);
             const version = state.payload.version || null;
             const postGeneration = Boolean(version && ["generated", "regenerated"].includes(version.origin));
-            readinessStatus.textContent = postGeneration
+            readinessStatus.textContent = verified
+                ? "Feasibility Verified"
+                : (staleInput
+                ? "Draft Needs Regeneration"
+                : (postGeneration
                 ? (version.is_approved && !version.is_stale ? "Draft Approved" : (version.is_stale ? "Draft Needs Regeneration" : "Draft Generated"))
-                : (verified ? "Feasibility Verified" : (configurationComplete ? "Configuration Complete — Verify Feasibility" : "Configuration Incomplete"));
+                : (configurationComplete ? "Configuration Complete — Verify Feasibility" : "Configuration Incomplete")));
             readinessStatus.classList.toggle("is-ready", verified);
             readinessSupport.textContent = verified
                 ? "All required teaching periods can be distributed without hard conflicts."
+                : (staleInput
+                ? "Inputs changed after this Draft was created. Verify the current configuration before regenerating it."
                 : (configurationComplete
                 ? "All required periods are covered. Timetable feasibility still needs verification."
-                : "Resolve the items below before automatic timetable generation can be attempted.");
+                : "Resolve the items below before automatic timetable generation can be attempted."));
             readinessCaveat.textContent = feasibility.status === "timed_out"
                 ? "Feasibility could not be verified. Try again after reviewing constraints or increasing the verification time."
                 : "Generation is enabled only after the scheduling engine proves all hard constraints can be satisfied.";
@@ -2206,10 +2213,10 @@
             const readiness = state.payload.readiness || {};
             const isRegeneration = generation.primary_action === "regenerate";
             const feasibility = state.payload.feasibility || {};
-            const configurationComplete = Boolean(readiness.configuration_complete || readiness.status === "configuration_complete");
+            const verificationEligible = Boolean(readiness.verification_eligible);
             const verified = Boolean(feasibility.verified);
-            const actionAvailable = Boolean(canGenerateTimetable && configurationComplete && !activeRun && !isRegeneration);
-            generationPanel.classList.toggle("is-visible", Boolean(canGenerateTimetable && (activeRun || (!isRegeneration && (readiness.ready || latestRun)) || (isRegeneration && latestRun && latestRun.status !== "succeeded"))));
+            const actionAvailable = Boolean(canGenerateTimetable && verificationEligible && !activeRun);
+            generationPanel.classList.toggle("is-visible", Boolean(canGenerateTimetable && (activeRun || actionAvailable || latestRun)));
             generationActionBtn.style.display = actionAvailable ? "inline-flex" : "none";
             generationCancelBtn.style.display = activeRun ? "inline-flex" : "none";
             generationActionBtn.disabled = state.busy;
