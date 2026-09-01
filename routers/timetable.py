@@ -66,6 +66,7 @@ from timetable_workflow_dispatch import (
 from timetable_feasibility_service import latest_feasibility_payload, enqueue_feasibility_verification
 from timetable_readiness_service import TimetableReadinessService
 from timetable_problem_builder import TimetableProblemError
+from timetable_conflicts import conflict_from_legacy
 from tenant_report_branding import get_tenant_report_logos
 from ui_shell import build_shell_context
 
@@ -2044,6 +2045,26 @@ def get_generation_run(public_id: str, request: Request, db: Session = Depends(g
     return JSONResponse({"ok": True, "run": payload, "feasibility": feasibility})
 
 
+def _timetable_conflict_error(
+    code: str, message: str, status_code: int = 409, *, provenance: str = "mutation"
+):
+    conflict = conflict_from_legacy(
+        code, message, evidence_class="RECALCULABLE", provenance=provenance,
+        remediation=(
+            "Refresh the latest timetable and review your change before trying again."
+            if code in {"edit_revision_conflict", "edit_revision_required", "revision_required", "pointer_revision_conflict"}
+            else None
+        ),
+    ).to_public_dict()
+    return _json_error(message, status_code, conflict=conflict)
+
+
+def _version_error_response(exc: TimetableVersionError, status_code: int = 409):
+    return _timetable_conflict_error(
+        exc.code, str(exc), status_code, provenance="version_lifecycle"
+    )
+
+
 @router.post("/api/generation-runs/{public_id}/cancel")
 def cancel_generation_run(public_id: str, request: Request, db: Session = Depends(get_db)):
     current_user, redirect = _get_current_user_or_redirect(request, db)
@@ -2146,7 +2167,7 @@ async def lock_timetable_entry(public_id: str, request: Request, db: Session = D
         db.commit()
         return _json_success(build_timetable_workspace_payload(db, branch_id, year_id, version_id=version.id), message="Lesson locked." if entry.is_locked else "Lesson unlocked.")
     except TimetableVersionError as exc:
-        db.rollback(); return _json_error(str(exc))
+        db.rollback(); return _version_error_response(exc)
 
 
 @router.post("/api/versions/{public_id}/validate")
@@ -2166,7 +2187,7 @@ async def validate_timetable_version(public_id: str, request: Request, db: Sessi
         payload["validation"] = validation
         return _json_success(payload, message="Draft Approved" if validation["valid"] else "Draft approval found issues.")
     except TimetableVersionError as exc:
-        db.rollback(); return _json_error(str(exc))
+        db.rollback(); return _version_error_response(exc)
 
 
 @router.post("/api/versions/{public_id}/publish")
@@ -2190,7 +2211,7 @@ async def publish_timetable_version(public_id: str, request: Request, db: Sessio
             db.commit()
         else:
             db.rollback()
-        return _json_error(str(exc))
+        return _version_error_response(exc)
 
 
 @router.post("/api/versions/{public_id}/archive")
@@ -2206,7 +2227,7 @@ async def archive_timetable_version(public_id: str, request: Request, db: Sessio
         db.commit()
         return _json_success(build_timetable_workspace_payload(db, branch_id, year_id), message=f"Version {version.version_number} archived.")
     except TimetableVersionError as exc:
-        db.rollback(); return _json_error(str(exc))
+        db.rollback(); return _version_error_response(exc)
 
 
 @router.get("/api/versions/compare")
@@ -2244,7 +2265,7 @@ def delete_working_timetable(public_id: str, request: Request, db: Session = Dep
         )
     except TimetableVersionError as exc:
         db.rollback()
-        return _json_error(str(exc))
+        return _version_error_response(exc)
 
 
 @router.post("/api/versions/{public_id}/delete")
@@ -2272,7 +2293,7 @@ def delete_timetable_version(public_id: str, request: Request, db: Session = Dep
         )
     except TimetableVersionError as exc:
         db.rollback()
-        return _json_error(str(exc))
+        return _version_error_response(exc)
 
 
 @router.post("/api/versions/delete-unpublished")
@@ -2339,10 +2360,12 @@ async def move_timetable_lesson(public_id: str, request: Request, db: Session = 
         )
     except TimetableVersionError as exc:
         db.rollback()
-        return _json_error(str(exc))
+        return _version_error_response(exc)
     except IntegrityError:
         db.rollback()
-        return _json_error("This timetable change conflicts with another lesson.")
+        return _timetable_conflict_error(
+            "section_collision", "This timetable change conflicts with another lesson."
+        )
 
 
 @router.post("/api/assign")
@@ -2398,7 +2421,10 @@ async def assign_timetable_slot(
         and int(block_slot.get("period_index") or 0) == period_index
         for block_slot in workspace_payload.get("blocked_slots", [])
     ):
-        return _json_error("That slot is blocked by a break, prayer time, or another non-teaching rule.")
+        return _timetable_conflict_error(
+            "blocked_slot",
+            "That slot is blocked by a break, prayer time, or another non-teaching rule.",
+        )
 
     section_payload = _find_section_by_id(workspace_payload, section_id)
     if not section_payload:
@@ -2447,7 +2473,8 @@ async def assign_timetable_slot(
             ignore_entry_id=existing_entry_payload.get("id") if existing_entry_payload else None,
         )
         if other_entry_for_teacher:
-            return _json_error(
+            return _timetable_conflict_error(
+                "teacher_collision",
                 f"{teacher_payload['teacher_name']} is already teaching "
                 f"{other_entry_for_teacher.get('section_label', 'another section')} in that slot."
             )
@@ -2467,7 +2494,8 @@ async def assign_timetable_slot(
         )
         weekly_hours = int(option_payload.get("weekly_hours") or 0)
         if scheduled_count >= weekly_hours:
-            return _json_error(
+            return _timetable_conflict_error(
+                "demand_mismatch",
                 f"{subject_code} already reached its required {weekly_hours} period"
                 + ("" if weekly_hours == 1 else "s")
                 + f" for {section_payload['section_label']}."
@@ -2492,11 +2520,12 @@ async def assign_timetable_slot(
         db.commit()
     except TimetableVersionError as exc:
         db.rollback()
-        return _json_error(str(exc))
+        return _version_error_response(exc)
     except IntegrityError:
         db.rollback()
-        return _json_error(
-            "This slot could not be saved because it conflicts with another timetable entry. Refresh the timetable and try again."
+        return _timetable_conflict_error(
+            "section_collision",
+            "This slot could not be saved because it conflicts with another timetable entry. Refresh the timetable and try again.",
         )
 
     refreshed_payload = build_timetable_workspace_payload(db, branch_id, academic_year_id, version_id=editable_version.id)

@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Project State
 
+## Professional Timetable Lifecycle UX Implemented
+
+The workspace now identifies CURRENT PUBLISHED, editable working Drafts, and
+read-only history with visible Draft → Validate → Approve → Publish guidance and
+audit facts. Safe actions distinguish copying published/history into a working Draft
+from starting an empty Draft, and Generate/Regenerate language makes Draft-only
+effects explicit. The active pointer remains unchanged until approval and publication
+succeed. Mutation/version errors remain backward-compatible and now add canonical
+conflict evidence plus stale-revision refresh remediation. No schema, solver, or
+Workflow behavior changed.
+
 ## Guided Curriculum Adjustment UI Implemented
 
 Stage 5 adds the permission-gated administrator workflow from Planning and Subjects through scope, change, preview, teacher decisions, final confirmation, and success. It reuses the deployed Stage 3 preview and Stage 4 atomic apply APIs, preserves selections where safe after a refreshed review, and offers timetable/regeneration navigation without automatic generation.

@@ -216,11 +216,11 @@ def test_main_ui_history_drag_drop_and_publish_confirmation_language():
     assert 'Viewing Version ${normalizeInt(version.version_number)}' in template
     assert 'historyMode ? `' in template
     assert 'id="draftWorkflowActions"' in template
-    assert 'addButton(draftWorkflowActions, "Regenerate Timetable"' in template
+    assert 'addButton(draftWorkflowActions, "Regenerate Draft"' in template
     assert 'addButton(draftWorkflowActions, "Approve Draft"' in template
     assert 'addButton(draftWorkflowActions, "Publish Timetable"' in template
     assert 'historyMode && canDeleteVersions' in template
-    for value in ("Source:", "Created", "Published history", "Previous Published Timetable"):
+    for value in ("Source:", "Created", "Published", "Previous Published Timetable"):
         assert value in template
     assert 'remove.textContent = "Delete Timetable"' in template
     assert 'Delete All Unpublished Timetables' in template
@@ -400,8 +400,8 @@ def test_new_empty_manual_draft_is_not_stale_and_generation_action_is_explicit(d
 
     assert payload["version"]["is_stale"] is False
     template = open("templates/timetable.html", encoding="utf-8").read()
-    assert "Generate Timetable" in template
-    assert "Regenerate Timetable" in template
+    assert "Generate Draft" in template
+    assert "Regenerate Draft" in template
 
 
 def test_draft_published_language_and_actions_are_explicit():
