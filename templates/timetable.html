@@ -286,6 +286,17 @@
     .history-version-copy strong { color:var(--tt-ink); }
     .history-version-meta { color:var(--tt-subtle); font-size:12px; line-height:1.4; }
     .history-version-actions { display:flex; flex-wrap:wrap; gap:8px; flex-shrink:0; }
+    .lifecycle-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin-top:14px; }
+    .lifecycle-fact { padding:10px 12px; border:1px solid var(--tt-border); border-radius:10px; background:#fff; }
+    .lifecycle-fact span { display:block; color:var(--tt-subtle); font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+    .lifecycle-fact strong { display:block; margin-top:4px; color:var(--tt-ink); font-size:13px; }
+    .lifecycle-steps { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; padding:0; list-style:none; }
+    .lifecycle-step { border:1px solid var(--tt-border); border-radius:999px; padding:6px 10px; color:var(--tt-subtle); background:#fff; font-size:12px; font-weight:700; }
+    .lifecycle-step.is-complete { border-color:#8bc9b6; color:#176149; background:#eefaf6; }
+    .lifecycle-step.is-current { border-color:#7da8dc; color:#124b8a; background:#eef5fd; }
+    .lifecycle-context { margin-top:12px; padding:12px; border-left:4px solid #7da8dc; border-radius:8px; background:#f4f8fd; color:var(--tt-muted); line-height:1.5; }
+    .lifecycle-context.is-stale { border-left-color:#d99a28; background:#fff8e8; color:#6d4b0d; }
+    .hero-btn:focus-visible, .inspector-btn:focus-visible, .history-version-card a:focus-visible, .history-version-card button:focus-visible { outline:3px solid rgba(10,78,163,.35); outline-offset:2px; }
     .comparison-panel { display:none; margin-top:12px; padding:14px; border:1px solid var(--tt-border); border-radius:12px; background:#fff; }
     .comparison-panel.is-visible { display:block; }
     .comparison-results { margin-top:10px; font-size:12px; }
@@ -1496,6 +1507,9 @@
             </div>
             <div class="version-actions" id="draftWorkflowActions" aria-label="Draft workflow actions"></div>
             <div class="version-actions" id="versionActions"></div>
+            <div class="lifecycle-summary" id="versionLifecycleDetails" aria-live="polite"></div>
+            <ol class="lifecycle-steps" id="versionLifecycleSteps" aria-label="Timetable lifecycle"></ol>
+            <div class="lifecycle-context" id="versionLifecycleContext"></div>
             {% if history_mode and can_delete_versions %}
             <div class="bulk-version-actions">
                 <button type="button" class="hero-btn is-secondary" id="deleteAllUnpublishedBtn">Delete All Unpublished Timetables</button>
@@ -1751,6 +1765,9 @@
         const historyVersionList = document.getElementById("historyVersionList");
         const draftWorkflowActions = document.getElementById("draftWorkflowActions");
         const versionActions = document.getElementById("versionActions");
+        const versionLifecycleDetails = document.getElementById("versionLifecycleDetails");
+        const versionLifecycleSteps = document.getElementById("versionLifecycleSteps");
+        const versionLifecycleContext = document.getElementById("versionLifecycleContext");
         const comparisonPanel = document.getElementById("comparisonPanel");
         const compareLeft = document.getElementById("compareLeft");
         const compareRight = document.getElementById("compareRight");
@@ -2110,7 +2127,7 @@
             }
         };
 
-        const setFlash = (message, tone) => {
+        const setFlash = (message, tone, conflicts = []) => {
             if (!message) {
                 flashNote.className = "flash-note";
                 flashNote.textContent = "";
@@ -2118,6 +2135,16 @@
             }
             flashNote.className = `flash-note is-visible ${tone === "error" ? "is-error" : "is-success"}`;
             flashNote.textContent = message;
+            const refreshCodes = new Set(["STALE_EDIT_REVISION", "STALE_PUBLICATION_POINTER", "STALE_VALIDATION"]);
+            if (tone === "error" && conflicts.some((conflict) => refreshCodes.has(conflict.code))) {
+                const refresh = document.createElement("button");
+                refresh.type = "button";
+                refresh.className = "hero-btn is-secondary";
+                refresh.textContent = "Refresh Latest Timetable";
+                refresh.addEventListener("click", () => window.location.reload());
+                flashNote.appendChild(document.createTextNode(" "));
+                flashNote.appendChild(refresh);
+            }
         };
 
         const setBusy = (busy) => {
@@ -2223,7 +2250,7 @@
             generationCancelBtn.disabled = state.busy;
             generationActionBtn.textContent = !verified
                 ? "Verify Feasibility"
-                : (generation.primary_action === "regenerate" ? "Regenerate Timetable" : "Generate Timetable");
+                : (generation.primary_action === "regenerate" ? "Regenerate Draft" : "Generate Draft");
             if (activeRun) {
                 generationTitle.textContent = activeRun.phase_label || "Generating Timetable";
                 generationMessage.textContent = activeRun.message || "You can leave this page; progress is saved.";
@@ -2351,7 +2378,7 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
-                    setFlash(result.message || "Unable to update this timetable version.", "error");
+                    setFlash(result.message || "Unable to update this timetable version.", "error", result.conflicts || []);
                     return;
                 }
                 state.payload = result.payload;
@@ -2381,10 +2408,27 @@
         };
 
         const friendlyVersionStatus = (item) => {
-            if (item.is_active) return "Published Timetable";
+            if (item.is_active) return "CURRENT PUBLISHED";
             if (item.was_published || item.lifecycle_status === "superseded") return "Previous Published Timetable";
             if (item.lifecycle_status === "publication_ready") return item.is_approved ? "Draft Approved" : "Ready for Review";
             return "Draft Timetable";
+        };
+
+        const formatLifecycleDate = (value) => value ? new Date(value).toLocaleString() : "Not yet";
+
+        const copyHistoryVersion = async (item) => {
+            setBusy(true);
+            try {
+                const response = await fetch(`/timetable/api/versions/${encodeURIComponent(item.public_id)}/copy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+                const result = await response.json();
+                if (!response.ok || !result.ok) { setFlash(result.message || "Unable to create a working draft.", "error", result.conflicts || []); return; }
+                state.payload = result.payload;
+                history.replaceState({}, "", `/timetable?version=${encodeURIComponent(state.payload.version.public_id)}`);
+                ensureSelection();
+                setFlash("Working draft created. The published timetable remains unchanged.", "success");
+                renderAll();
+            } catch (error) { setFlash("Unable to reach the timetable version service right now.", "error"); }
+            finally { setBusy(false); }
         };
 
         const deleteHistoryVersion = async (item) => {
@@ -2432,13 +2476,21 @@
                 const card = document.createElement("article");
                 card.className = `history-version-card${item.public_id === selectedVersion?.public_id ? " is-selected" : ""}`;
                 const source = String(item.origin || "").replace(/\b\w/g, (letter) => letter.toUpperCase());
-                const created = item.created_at ? new Date(item.created_at).toLocaleString() : "Date unavailable";
-                card.innerHTML = `<div class="history-version-copy"><strong>Version ${normalizeInt(item.version_number)} · ${escapeHtml(friendlyVersionStatus(item))}</strong><div class="history-version-meta">Source: ${escapeHtml(source)} · Created ${escapeHtml(created)}${item.was_published ? " · Published history" : ""}${item.is_stale ? " · Needs review" : ""}</div></div><div class="history-version-actions"></div>`;
+                const created = formatLifecycleDate(item.generated_at || item.created_at);
+                const approval = item.approved_at ? ` · Approved ${escapeHtml(formatLifecycleDate(item.approved_at))}` : " · Not approved";
+                const publication = item.published_at ? ` · Published ${escapeHtml(formatLifecycleDate(item.published_at))}` : "";
+                card.innerHTML = `<div class="history-version-copy"><strong>Version ${normalizeInt(item.version_number)} · ${escapeHtml(friendlyVersionStatus(item))}</strong><div class="history-version-meta">Source: ${escapeHtml(source)} · ${escapeHtml(item.is_mutable ? "Editable working draft" : "Read-only version")} · Validation: ${escapeHtml(String(item.validation_state || "not_validated").replaceAll("_", " "))} · Created ${escapeHtml(created)}${approval}${publication}${item.is_stale ? " · Needs review" : ""}</div></div><div class="history-version-actions"></div>`;
                 const actions = card.querySelector(".history-version-actions");
                 const view = document.createElement("a");
                 view.className = "hero-btn is-secondary"; view.textContent = "View";
                 view.href = `/timetable?history=1&version=${encodeURIComponent(item.public_id)}`;
                 actions.appendChild(view);
+                if (canCreateTimetable && !item.is_mutable && !item.is_active) {
+                    const copy = document.createElement("button");
+                    copy.type = "button"; copy.className = "hero-btn is-secondary"; copy.textContent = "Create Draft from This Version";
+                    copy.addEventListener("click", () => copyHistoryVersion(item));
+                    actions.appendChild(copy);
+                }
                 if (canDeleteVersions && item.can_delete) {
                     const remove = document.createElement("button");
                     remove.type = "button"; remove.className = "hero-btn is-primary"; remove.textContent = "Delete Timetable";
@@ -2457,6 +2509,9 @@
                 versionNotice.textContent = "Configure the timetable, then generate a draft timetable.";
                 versionActions.innerHTML = "";
                 draftWorkflowActions.innerHTML = "";
+                versionLifecycleDetails.innerHTML = "";
+                versionLifecycleSteps.innerHTML = "";
+                versionLifecycleContext.textContent = "No timetable version exists yet. Start an empty draft or generate a draft after feasibility is verified.";
                 renderHistoryVersions(versions, null);
                 return;
             }
@@ -2468,9 +2523,29 @@
             ` : `<span>${version.is_active ? "Published Timetable" : "Draft Timetable"}</span>${!version.is_active ? ` <span class="version-badge">${version.is_approved && !version.is_stale ? "Draft Approved" : (version.origin === "generated" || version.origin === "regenerated" ? "Ready for Review" : "Draft Needs Review")}</span>` : ""}`;
             versionNotice.className = `version-notice${version.is_stale ? " is-stale" : ""}`;
             versionNotice.textContent = version.is_stale
-                ? "This timetable is out of date. Planning or timetable configuration has changed since this version was created."
+                ? "This draft was created from older planning inputs. This does not mean the data is corrupt or the timetable is infeasible; verify current feasibility, then regenerate or review the draft."
                 : (version.is_active ? "Published to Users · Official timetable currently visible to authorized users." : (!version.is_mutable ? "This historical timetable is read-only. Create a draft copy to make changes." : "Not Published Yet"));
             renderHistoryVersions(versions, version);
+            const origin = String(version.origin || "manual").replace(/\b\w/g, (letter) => letter.toUpperCase());
+            const lifecycleFacts = [
+                ["Version", `Version ${normalizeInt(version.version_number)}`],
+                ["Lifecycle", friendlyVersionStatus(version)],
+                ["Access", version.is_mutable ? "Editable working draft" : "Read-only"],
+                ["Validation", String(version.validation_state || "not_validated").replaceAll("_", " ")],
+                ["Approval", version.approved_at ? `Approved ${formatLifecycleDate(version.approved_at)}` : "Not approved"],
+                ["Created / Generated", formatLifecycleDate(version.generated_at || version.created_at)],
+                ["Origin", version.source_version_number ? `${origin} from Version ${normalizeInt(version.source_version_number)}` : origin],
+                ["Published", formatLifecycleDate(version.published_at)],
+            ];
+            versionLifecycleDetails.innerHTML = lifecycleFacts.map(([label, value]) => `<div class="lifecycle-fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
+            const currentStep = version.is_active ? 4 : (version.is_approved ? 3 : (version.validation_state === "validated" ? 2 : 1));
+            versionLifecycleSteps.innerHTML = ["Draft", "Validate", "Approve", "Publish"].map((label, index) => `<li class="lifecycle-step${index + 1 < currentStep ? " is-complete" : ""}${index + 1 === currentStep ? " is-current" : ""}"${index + 1 === currentStep ? ' aria-current="step"' : ""}>${index + 1}. ${label}</li>`).join("");
+            versionLifecycleContext.className = `lifecycle-context${version.is_stale ? " is-stale" : ""}`;
+            versionLifecycleContext.textContent = version.is_active
+                ? "This is the official published timetable and is immutable. Creating a working draft will not affect it until that draft is approved and published."
+                : (!version.is_mutable
+                    ? "This historical version is immutable. Create a working draft from it to make changes without affecting the published timetable."
+                    : "Changes apply only to this working draft. The currently published timetable remains unchanged until this draft is approved and published.");
             draftWorkflowActions.innerHTML = "";
             versionActions.innerHTML = "";
             const addButton = (container, label, handler, primary = false) => {
@@ -2480,15 +2555,15 @@
             };
             const submitDraftAction = (path) => { const form = document.createElement("form"); form.method = "POST"; form.action = path; document.body.appendChild(form); form.submit(); };
             if (version.is_active && canCreateTimetable) {
-                addButton(draftWorkflowActions, "Edit This Timetable", () => submitDraftAction("/timetable/drafts/edit-published"), true);
-                addButton(draftWorkflowActions, "Create New Timetable", () => submitDraftAction("/timetable/drafts/new"));
-            } else if (!version.is_mutable && canCreateTimetable && historyMode) addButton(versionActions, "Use as New Draft", () => callVersionAction("copy"), false);
+                addButton(draftWorkflowActions, "Create Working Draft from Published", () => submitDraftAction("/timetable/drafts/edit-published"), true);
+                addButton(draftWorkflowActions, "Start New Empty Draft", () => submitDraftAction("/timetable/drafts/new"));
+            } else if (!version.is_mutable && canCreateTimetable && historyMode) addButton(versionActions, "Create Draft from This Version", () => callVersionAction("copy"), false);
             const generation = state.payload.generation || {};
             const activeRun = generation.active_run || null;
             const readiness = state.payload.readiness || {};
             const generatedDraft = version.is_mutable && ["generated", "regenerated"].includes(version.origin);
             if (!historyMode && generatedDraft && !version.is_approved && canGenerateTimetable && readiness.ready && !activeRun) {
-                addButton(draftWorkflowActions, "Regenerate Timetable", startGeneration, false);
+                addButton(draftWorkflowActions, "Regenerate Draft", startGeneration, false);
             }
             if (!historyMode && version.is_mutable && canModifyTimetable && !version.is_approved) addButton(draftWorkflowActions, "Approve Draft", () => callVersionAction("validate"), true);
             const validation = state.payload.validation || {};
@@ -2995,7 +3070,7 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
-                    setFlash(result.message || "Unable to update the timetable slot.", "error");
+                    setFlash(result.message || "Unable to update the timetable slot.", "error", result.conflicts || []);
                     return;
                 }
                 state.payload = result.payload;
@@ -3030,7 +3105,7 @@
                 });
                 const result = await response.json();
                 if (!response.ok || !result.ok) {
-                    setFlash(result.message || "Unable to move this lesson.", "error");
+                    setFlash(result.message || "Unable to move this lesson.", "error", result.conflicts || []);
                     return;
                 }
                 state.payload = result.payload;
@@ -3054,7 +3129,7 @@
                     body: JSON.stringify({ entry_id: entry.id, is_locked: !entry.is_locked, edit_revision: normalizeInt(version.edit_revision) }),
                 });
                 const result = await response.json();
-                if (!response.ok || !result.ok) { setFlash(result.message || "Unable to change the lesson lock.", "error"); return; }
+                if (!response.ok || !result.ok) { setFlash(result.message || "Unable to change the lesson lock.", "error", result.conflicts || []); return; }
                 state.payload = result.payload; ensureSelection(); setFlash(result.message, "success"); renderAll();
             } catch (error) { setFlash("Unable to reach the lesson lock service.", "error"); }
             finally { setBusy(false); }

@@ -6,6 +6,7 @@ last_updated: 2026-06-26
 
 # Workforce Planning History
 
+- [2026-09-02 professional timetable lifecycle UX](2026-09-02-professional-timetable-lifecycle-ux.md)
 - [2026-09-01 structured timetable conflict evidence](2026-09-01-structured-timetable-conflicts.md)
 - [2026-09-01 timetable Lesson Requirement projection](2026-09-01-timetable-lesson-requirement-projection.md)
 - [2026-09-01 Advanced Timetable Release 1 reconciliation and solver adapter](2026-09-01-advanced-timetable-r1-reconciliation.md)

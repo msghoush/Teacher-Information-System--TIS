@@ -7,6 +7,17 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Professional Timetable Lifecycle UX
+
+The timetable workspace presents Draft, Validate, Approve, and Publish without a
+new durable state. Validation and approval remain one backend transition to
+`publication_ready`; the active pointer identifies the immutable current published
+version. Version facts expose origin, source, created/generated, validation,
+approval, publication, mutability, and active state. Authorized users can create a
+working Draft from current published or immutable history without changing the
+active publication. Lifecycle and mutation failures retain legacy messages and add
+canonical conflicts, with an explicit refresh action for stale revisions.
+
 ## Structured Timetable Conflict Evidence
 
 `timetable_conflicts.py` defines the canonical internal conflict contract used by

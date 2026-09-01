@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-02 - Professional Timetable Lifecycle UX
+
+- Made current publication, editable Draft, validation/approval, and immutable
+  history state explicit in the workspace and version history.
+- Added safe working-Draft creation from current published and historical versions;
+  publication remains unchanged until explicit approval and publication.
+- Clarified empty Draft, Generate Draft, Regenerate Draft, and stale-input language.
+- Added canonical mutation/publication conflict evidence and visible refresh
+  remediation while preserving legacy response messages.
+- Added no schema, migration, solver, or Workflow behavior.
+
 ## 2026-09-01 - Structured Timetable Conflict Evidence
 
 - Added a canonical timetable conflict contract and stable taxonomy across

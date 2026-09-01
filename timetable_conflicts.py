@@ -46,6 +46,18 @@ _CODE_MAP = {
     "solver_model_invalid": "SOLVER_EXECUTION_FAILURE",
     "internal_error": "SOLVER_EXECUTION_FAILURE",
     "dispatch_failed": "SOLVER_EXECUTION_FAILURE",
+    "edit_revision_conflict": "STALE_EDIT_REVISION",
+    "edit_revision_required": "STALE_EDIT_REVISION",
+    "revision_required": "STALE_EDIT_REVISION",
+    "pointer_revision_conflict": "STALE_PUBLICATION_POINTER",
+    "immutable_version": "IMMUTABLE_VERSION_MUTATION",
+    "immutable_active_version": "IMMUTABLE_VERSION_MUTATION",
+    "not_publication_ready": "APPROVAL_REQUIRED",
+    "draft_not_approved": "APPROVAL_REQUIRED",
+    "approval_actor_required": "APPROVAL_REQUIRED",
+    "publication_validation_failed": "STALE_VALIDATION",
+    "copy_source_mutable": "INVALID_LIFECYCLE_TRANSITION",
+    "blocked_slot": "NON_TEACHING_BLOCK_CONFLICT",
 }
 
 

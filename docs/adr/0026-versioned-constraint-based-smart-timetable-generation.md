@@ -8,6 +8,16 @@ module: workforce-planning
 
 # ADR 0026: Versioned, Constraint-Based Smart Timetable Generation
 
+## 2026-09-02 lifecycle presentation clarification
+
+Release 1 presents Draft → Validate → Approve → Publish while retaining the existing
+persistence model: successful validation records approval and transitions the Draft
+to `publication_ready`, and `TimetableActiveVersion` identifies current publication.
+Active, superseded, and archived versions remain immutable. Copying an eligible
+immutable version creates a separate working Draft and cannot change publication.
+Mutation/publication endpoints may add canonical conflict evidence to their existing
+error envelope while retaining legacy message compatibility.
+
 ## Teacher-specific timing constraints
 
 Teacher Scheduling Rules are normalized branch/year configuration, not timetable

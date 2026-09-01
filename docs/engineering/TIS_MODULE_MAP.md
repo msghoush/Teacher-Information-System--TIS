@@ -75,8 +75,12 @@ The preview request carries `requested_transfer_periods`; the preview derives se
 ## Smart Timetable Stage 5.2 Components
 
 - `timetable_visibility_service.py`: active-pointer-only reads and scoped teacher identity.
-- `routers/timetable.py`: simplified workflow, working deletion, and published routes.
-- `templates/timetable.html`: Working Timetable workflow and secondary history.
+- `routers/timetable.py`: simplified workflow, working deletion, published routes,
+  and backward-compatible canonical lifecycle/mutation conflict responses.
+- `timetable_logic.py`: workspace/history lifecycle facts, source linkage,
+  mutability, active identity, and validation/approval/publication timestamps.
+- `templates/timetable.html`: visible lifecycle steps, immutable history actions,
+  Draft-only generation language, and stale concurrency refresh UX.
 - `templates/published_timetable.html`: control-free official lesson view.
 - `timetable_version_service.py`: working resolution and safe archive/discard.
 
