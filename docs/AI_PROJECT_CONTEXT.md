@@ -7,6 +7,49 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Structured Timetable Conflict Evidence
+
+`timetable_conflicts.py` defines the canonical internal conflict contract used by
+readiness, feasibility payloads, generation terminal payloads, and the independent
+validator. Stable machine codes coexist with legacy source codes/messages for API
+and UI compatibility. Conflicts classify HARD/SOFT severity and DURABLE,
+RECALCULABLE, or TRANSIENT evidence without adding a universal conflict table.
+
+Public serialization is authorization-safe: it exposes only already-authorized
+same-scope entity references, redacts unauthorized references, never emits internal
+Lesson Requirement identities or solver clauses, and represents internal
+correlation only as presence flags. Infeasible, timeout, cancellation, stale
+authority, and solver/execution failure remain distinct outcomes. Existing safe
+human-readable generation and feasibility messages remain unchanged.
+
+## Timetable Lesson Requirement Projection
+
+`timetable_requirement_projection.py` is the read-only domain boundary from
+Planning authority to timetable scheduling requirements. It resolves exact
+SchoolGroup/Branch/Academic Year scope, Planning section and subject identity,
+explicit-first `PlanningSubjectDemand`, legacy `Subject.weekly_hours` fallback
+only when no explicit row exists, and the existing Planning/HRT teacher authority.
+Explicit zero or inactive rows remain authoritative suppression evidence.
+
+Each projected requirement has an internal deterministic identity over its
+scope and governing Planning source plus a source fingerprint covering effective
+periods, active state, and teacher assignment authority. Schema-v5 immutable
+snapshots capture both values. Readiness and snapshot creation consume the same
+projection; the problem builder carries it to generation and the independent
+validator verifies the captured requirement contract. Planning remains the only
+editable academic-demand authority, and no Lesson Requirement table or CRUD API
+exists.
+
+## Timetable Solver Adapter Boundary
+
+The timetable Workflow worker consumes the solver-neutral `TimetableSolver`
+contract in `timetable_solver.py`. Release 1 binds that contract only to the
+existing OR-Tools CP-SAT implementation; this boundary does not authorize a
+second solver, relaxed constraints, or a parallel generation architecture.
+Infeasibility diagnosis is part of the same adapter contract. The independent
+domain validator and atomic fingerprint/revision persistence gates remain
+outside the solver and continue to decide whether a candidate may be saved.
+
 ## Teacher Scheduling Rules
 
 Administrators with `timetable.manage_teacher_rules` configure teacher-specific
@@ -19,7 +62,7 @@ every selected slot; **Unavailable** prohibits all teacher lessons in those slot
 Existing first/last, grade-target, and preference rules remain compatible but are
 not exposed in the simplified normal form.
 
-Schema-v4 immutable snapshots capture canonical resolved teacher rules in the
+Schema-v5 immutable snapshots capture canonical resolved teacher rules in the
 constraint fingerprint. Rule changes mark unpublished Drafts stale, clear Draft
 approval, and require regeneration while published history remains untouched.
 Readiness and the problem builder reject deterministic workload, allowed-window

@@ -8,12 +8,11 @@ from typing import Any, Iterable
 from sqlalchemy.orm import Session
 
 import models
-from homeroom_defaults import is_default_homeroom_subject
-from planning_subject_demand_service import resolve_scope_subject_demands
+from timetable_requirement_projection import project_timetable_lesson_requirements
 from subject_distribution_rules import resolve_subject_distribution_rule
 
 
-SNAPSHOT_SCHEMA_VERSION = 4
+SNAPSHOT_SCHEMA_VERSION = 5
 
 
 @dataclass(frozen=True)
@@ -54,6 +53,7 @@ def _grade_label(value: Any) -> str:
 def _build_planning_component(
     db: Session,
     *,
+    school_group_id: int,
     branch_id: int,
     academic_year_id: int,
 ) -> dict:
@@ -73,29 +73,16 @@ def _build_planning_component(
         ).order_by(models.Teacher.id.asc()).all()
     ]
     section_ids = [int(section.id) for section in sections]
-    resolved_demands = resolve_scope_subject_demands(
+    requirements = project_timetable_lesson_requirements(
         db,
+        school_group_id=school_group_id,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
         planning_section_ids=section_ids,
     )
-    assignments = (
-        db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.planning_section_id.in_(section_ids)
-        ).order_by(models.TeacherSectionAssignment.id.asc()).all()
-        if section_ids
-        else []
-    )
-    explicit_teacher = {
-        (
-            int(assignment.planning_section_id),
-            str(assignment.subject_code or "").strip().upper(),
-        ): int(assignment.teacher_id)
-        for assignment in assignments
-        if assignment.planning_section_id is not None
-        and assignment.teacher_id is not None
-        and str(assignment.subject_code or "").strip()
-    }
+    requirements_by_section = {}
+    for requirement in requirements:
+        requirements_by_section.setdefault(requirement.planning_section_id, []).append(requirement)
     subjects_by_code = {
         str(subject.subject_code or "").strip().upper(): subject
         for subject in subjects if str(subject.subject_code or "").strip()
@@ -118,26 +105,13 @@ def _build_planning_component(
                 ),
             }
         )
-        for demand in resolved_demands.get(int(section.id), []):
-            if not demand.is_active or int(demand.weekly_periods or 0) <= 0:
+        for requirement in requirements_by_section.get(int(section.id), []):
+            if not requirement.is_schedulable:
                 continue
-            subject_code = demand.subject_code
+            subject_code = requirement.subject_code
             subject = subjects_by_code.get(subject_code)
             if subject is None:
                 continue
-            teacher_id = explicit_teacher.get((int(section.id), subject_code))
-            assignment_source = "planning"
-            if (
-                teacher_id is None
-                and section.homeroom_teacher_id is not None
-                and is_default_homeroom_subject(
-                    grade_label,
-                    subject_name=str(subject.subject_name or ""),
-                    subject_code=subject_code,
-                )
-            ):
-                teacher_id = int(section.homeroom_teacher_id)
-                assignment_source = "homeroom_default"
             # Resolved once, at snapshot time, so a later rule change never
             # alters an already-created generation snapshot.
             distribution_rule = resolve_subject_distribution_rule(
@@ -151,11 +125,15 @@ def _build_planning_component(
             demand_payloads.append(
                 {
                     "section_id": int(section.id),
-                    "subject_id": int(subject.id),
+                    "subject_id": requirement.subject_id,
                     "subject_code": subject_code,
-                    "required_weekly_periods": int(demand.weekly_periods),
-                    "assigned_teacher_id": teacher_id,
-                    "assignment_source": assignment_source,
+                    "required_weekly_periods": requirement.required_weekly_periods,
+                    "assigned_teacher_id": requirement.assigned_teacher_id,
+                    "assignment_source": requirement.assignment_source,
+                    "requirement_id": requirement.requirement_id,
+                    "requirement_source_fingerprint": requirement.source_fingerprint,
+                    "demand_authority": requirement.demand_authority,
+                    "demand_source_id": requirement.demand_source_id,
                     # None means legacy fallback: no normalized rule is
                     # configured, so quality_rules_json authority applies.
                     "distribution_rule": distribution_rule,
@@ -243,6 +221,7 @@ def build_current_snapshot_data(
 ) -> TimetableSnapshotData:
     planning = _build_planning_component(
         db,
+        school_group_id=school_group_id,
         branch_id=branch_id,
         academic_year_id=academic_year_id,
     )

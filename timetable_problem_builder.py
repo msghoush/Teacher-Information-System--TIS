@@ -95,7 +95,8 @@ class TimetableProblemBuilder:
             raise TimetableProblemError(
                 "snapshot_invalid", "The captured timetable input is invalid."
             ) from exc
-        if int(snapshot.get("schema_version") or 0) < 3:
+        snapshot_schema_version = int(snapshot.get("schema_version") or 0)
+        if snapshot_schema_version < 3:
             raise TimetableProblemError(
                 "snapshot_schema_unsupported",
                 "The captured timetable input predates automatic generation.",
@@ -126,6 +127,7 @@ class TimetableProblemBuilder:
 
         demands = []
         seen_demands = set()
+        seen_requirement_ids = set()
         for item in planning.get("demands") or []:
             section_id = int(item.get("section_id") or 0)
             periods = int(item.get("required_weekly_periods") or 0)
@@ -144,9 +146,31 @@ class TimetableProblemBuilder:
                     "duplicate_demand", "The captured timetable demand is duplicated."
                 )
             seen_demands.add(key)
-            demand_id = f"section:{section_id}|subject:{subject_code}|teacher:{teacher_id}"
+            requirement_id = str(item.get("requirement_id") or "").strip()
+            requirement_source_fingerprint = str(
+                item.get("requirement_source_fingerprint") or ""
+            ).strip()
+            if snapshot_schema_version >= 5 and (
+                not requirement_id or not requirement_source_fingerprint
+            ):
+                raise TimetableProblemError(
+                    "requirement_projection_invalid",
+                    "A captured timetable requirement is missing immutable provenance.",
+                )
+            if requirement_id and requirement_id in seen_requirement_ids:
+                raise TimetableProblemError(
+                    "duplicate_requirement",
+                    "The captured timetable requirement identity is duplicated.",
+                )
+            if requirement_id:
+                seen_requirement_ids.add(requirement_id)
+            demand_id = requirement_id or f"section:{section_id}|subject:{subject_code}|teacher:{teacher_id}"
             demands.append({
                 "demand_id": demand_id,
+                "requirement_id": requirement_id or demand_id,
+                "requirement_source_fingerprint": requirement_source_fingerprint,
+                "demand_authority": str(item.get("demand_authority") or "legacy_snapshot"),
+                "demand_source_id": int(item.get("demand_source_id") or 0),
                 "section_id": section_id,
                 "subject_id": int(item.get("subject_id") or 0),
                 "subject_code": subject_code,

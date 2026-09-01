@@ -6,6 +6,7 @@ import secrets
 from sqlalchemy.orm import Session
 
 import models
+from timetable_conflicts import conflict_from_legacy
 from timetable_snapshot_service import build_current_snapshot_data, create_current_input_snapshot
 from timetable_version_service import resolve_operational_version, resolve_scope_school_group_id
 
@@ -64,12 +65,30 @@ def latest_feasibility_payload(db: Session, *, school_group_id: int, branch_id: 
         models.TimetableFeasibilityVerification.academic_year_id == academic_year_id,
         models.TimetableFeasibilityVerification.authority_fingerprint == current.full_input_fingerprint,
     ).first()
+    diagnostics = json.loads(row.diagnostics_json or "[]") if row else []
+    conflicts = []
+    for diagnostic in diagnostics:
+        source_code = str(diagnostic.get("code") or "verification_failed")
+        if row and row.status == "timed_out":
+            source_code = "verification_timeout"
+        elif row and row.status == "internal_error":
+            source_code = "internal_error"
+        conflicts.append(conflict_from_legacy(
+            source_code,
+            str(diagnostic.get("message") or "A timetable conflict was found."),
+            evidence_class="DURABLE",
+            provenance="feasibility_verification",
+            detected_at=(
+                row.verified_at.isoformat() if row and row.verified_at else None
+            ),
+        ).to_public_dict())
     return {
         "status": row.status if row else "not_checked",
         "verified": bool(row and row.status == "verified"),
         "public_id": row.public_id if row else None,
         "authority_fingerprint": current.full_input_fingerprint,
-        "diagnostics": json.loads(row.diagnostics_json or "[]") if row else [],
+        "diagnostics": diagnostics,
+        "conflicts": conflicts,
         "reusable": bool(row and row.status == "verified"),
     }
 

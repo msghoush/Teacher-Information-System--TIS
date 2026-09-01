@@ -195,6 +195,27 @@ The default regeneration difference is 25 percent of unlocked source placements,
 rounded up. Infeasible diversity is reported explicitly without weakening hard rules.
 The active/published pointer is never changed by generation.
 
+The Workflow worker now reaches the existing CP-SAT solver and its diagnostic
+profiles through `timetable_solver.py`, a solver-neutral adapter boundary. CP-SAT
+remains the only Release 1 production implementation. Problem construction,
+independent validation, and atomic persistence remain separate authorities.
+
+Planning-to-timetable demand now passes through
+`timetable_requirement_projection.py`. The read-only projection preserves
+explicit-first demand, authoritative zero/retirement, legacy fallback only when
+no explicit row exists, scoped teacher authority, and deterministic internal
+identity/provenance. Schema-v5 snapshots freeze the projected requirements;
+schema-v3/v4 generation snapshots remain readable. No new table, editable demand
+authority, API, or migration was added.
+
+Timetable conflict evidence now passes through `timetable_conflicts.py`.
+Readiness exposes additive safe conflicts beside its unchanged blocker/warning
+fields; feasibility exposes them beside unchanged diagnostics; generation-run
+payloads derive durable conflicts from existing terminal status/category/message;
+and the independent validator returns canonical conflicts beside legacy errors.
+Internal requirement and solver correlation never appears in public payloads.
+No conflict persistence table or migration was added.
+
 Migration `20260822_001_smart_timetable_stage51_generator` adds progress, attempts,
 cancellation audit, worker-claim indexing, and one-active-run-per-scope enforcement.
 The page polls real phases and recovers active work after reload. Stage 5.2 UX and

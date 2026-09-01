@@ -7,6 +7,37 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-01 - Structured Timetable Conflict Evidence
+
+- Added a canonical timetable conflict contract and stable taxonomy across
+  readiness, feasibility, generation terminal outcomes, and validation.
+- Added authorization-safe entity serialization and internal requirement/
+  constraint correlation without exposing hashes or solver internals.
+- Preserved legacy blocker, diagnostic, validation-error, generation-message,
+  status, and API envelope behavior through additive `conflicts` fields.
+- Kept infeasible, timeout, cancellation, stale authority, and execution failure
+  distinct without introducing a conflict table or migration.
+
+## 2026-09-01 - Timetable Lesson Requirement Projection
+
+- Added one deterministic, read-only projection from explicit-first Planning
+  demand and existing teacher authority into timetable requirements.
+- Added internal requirement identities and source fingerprints to schema-v5
+  snapshots while retaining schema-v3/v4 problem-builder compatibility.
+- Routed readiness and snapshot generation through the shared projection and
+  carried its provenance through problem construction and independent validation.
+- Added no table, migration, public CRUD API, Room, availability, Resource, or
+  co-teaching behavior.
+
+## 2026-09-01 - Timetable Solver Adapter Boundary
+
+- Added a solver-neutral worker contract for solve and infeasibility-diagnostic
+  operations while retaining OR-Tools CP-SAT as the only Release 1 binding.
+- Kept problem construction, immutable snapshots, independent validation,
+  stale-result protection, and atomic version persistence outside the adapter.
+- Added focused contract-forwarding tests; no schema, API, UI, or deployment
+  topology changed.
+
 ## 2026-08-31 - Stale Draft Feasibility And Regeneration Workflow
 
 - Separated stale Draft lifecycle state from current-input structural readiness.

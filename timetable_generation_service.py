@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import models
+from timetable_conflicts import durable_terminal_conflict
 from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
 from timetable_readiness_service import TimetableReadinessService
 from timetable_snapshot_service import (
@@ -317,6 +318,12 @@ def generation_run_payload(run: models.TimetableGenerationRun | None) -> dict | 
                 "Generation is queued and waiting for compute to start. "
                 "You can leave this page and return later."
             )
+    conflict = durable_terminal_conflict(
+        status=str(run.status or ""),
+        failure_category=run.failure_category,
+        message=message,
+        detected_at=run.finished_at,
+    )
     return {
         "public_id": run.public_id,
         "request_mode": run.request_mode,
@@ -327,6 +334,7 @@ def generation_run_payload(run: models.TimetableGenerationRun | None) -> dict | 
         "attempt_count": int(run.attempt_count or 0),
         "failure_category": run.failure_category or "",
         "message": message,
+        "conflicts": [conflict] if conflict else [],
         "is_feasibility": is_feasibility,
         "result_version_id": run.result_version_id,
         "queued_at": run.queued_at.isoformat() if run.queued_at else "",

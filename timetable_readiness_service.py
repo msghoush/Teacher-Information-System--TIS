@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 import models
 from homeroom_defaults import is_default_homeroom_subject
-from planning_subject_demand_service import resolve_scope_subject_demands
 from subject_distribution_rules import resolve_subject_distribution_rule
 from subject_distribution_validator import validate_subject_distribution_rule
 from teacher_capacity import get_teacher_international_capacity_hours
 from timetable_logic import build_teacher_display_name, format_section_label, get_timetable_settings_payload
 from timetable_snapshot_service import build_current_snapshot_data
 from timetable_problem_builder import TimetableProblemBuilder, TimetableProblemError
+from timetable_conflicts import conflict_from_legacy, safe_entity_reference
+from timetable_requirement_projection import project_timetable_lesson_requirements
 from timetable_version_service import resolve_operational_version
 
 
@@ -36,7 +37,16 @@ class TimetableReadinessService:
         self.db = db
 
     @staticmethod
-    def _finding(code, message, entity_type="timetable", label="Timetable", corrective_area="Timetable Configuration", count=1):
+    def _finding(code, message, entity_type="timetable", label="Timetable", corrective_area="Timetable Configuration", count=1, requirement_id=None):
+        conflict = conflict_from_legacy(
+            code, message,
+            severity="SOFT" if code == "stale_planning_assignment" else "HARD",
+            evidence_class="RECALCULABLE",
+            entities=[safe_entity_reference(kind=entity_type, label=label)],
+            remediation=corrective_area,
+            provenance="readiness",
+            requirement_id=requirement_id,
+        ).to_public_dict()
         return {
             "code": code,
             "severity": "blocker",
@@ -45,6 +55,7 @@ class TimetableReadinessService:
             "display_label": label,
             "count": count,
             "corrective_area": corrective_area,
+            "conflict": conflict,
         }
 
     def evaluate(self, school_group_id, branch_id, academic_year_id) -> dict:
@@ -115,21 +126,22 @@ class TimetableReadinessService:
             for subject in subjects if subject.subject_code
         }
         section_ids = [int(s.id) for s in sections]
-        resolved_demands = resolve_scope_subject_demands(
-            self.db, branch_id=branch_id, academic_year_id=academic_year_id,
+        projected_requirements = project_timetable_lesson_requirements(
+            self.db, school_group_id=school_group_id,
+            branch_id=branch_id, academic_year_id=academic_year_id,
             planning_section_ids=section_ids,
         )
-        assignments = self.db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.planning_section_id.in_(section_ids)
-        ).all() if section_ids else []
-        explicit = {(int(a.planning_section_id), str(a.subject_code or "").strip().upper()): int(a.teacher_id) for a in assignments}
+        requirements_by_section = {}
+        for requirement in projected_requirements:
+            requirements_by_section.setdefault(
+                requirement.planning_section_id, []
+            ).append(requirement)
 
         counts["eligible_sections"] = len(sections)
         if not sections:
             blockers.append(self._finding("sections_missing", "No eligible Current or New Planning sections exist in this scope.", "section", "Planning sections", "Planning"))
         if sections and not any(
-            demand.is_active and demand.weekly_periods > 0
-            for demands in resolved_demands.values() for demand in demands
+            requirement.is_schedulable for requirement in projected_requirements
         ):
             blockers.append(self._finding("subjects_missing", "No subjects with positive weekly periods exist for this scope.", "subject", "Subjects", "Planning"))
 
@@ -147,15 +159,16 @@ class TimetableReadinessService:
                 grade = "KG"
             label = format_section_label(section)
             demands = [
-                demand for demand in resolved_demands.get(int(section.id), [])
-                if demand.is_active and int(demand.weekly_periods or 0) > 0
+                requirement
+                for requirement in requirements_by_section.get(int(section.id), [])
+                if requirement.is_schedulable
             ]
             if not demands:
                 blockers.append(self._finding("demand_missing", f"{label} has no positive timetable demand.", "section", label, "Planning"))
                 continue
             section_demand = 0
             for demand in demands:
-                periods = int(demand.weekly_periods)
+                periods = int(demand.required_weekly_periods)
                 section_demand += periods
                 counts["eligible_demands"] += 1
                 counts["required_periods"] += periods
@@ -177,6 +190,7 @@ class TimetableReadinessService:
                             f"distribution_rule_{error['code']}",
                             f"{label} {subject_label}: {error['message']}",
                             "section_subject", f"{label} {subject_label}", "Timetable Configuration",
+                            requirement_id=demand.requirement_id,
                         ))
                 elif code in core_codes and periods < teaching_day_count:
                     warnings.append({
@@ -184,18 +198,21 @@ class TimetableReadinessService:
                             "core_daily_coverage_impossible",
                             f"{label} {subject_label} has {periods} weekly periods across {teaching_day_count} teaching days; TIS will maximize distinct-day spread instead of requiring daily coverage.",
                             "section_subject", f"{label} {subject_label}", "Timetable Configuration",
+                            requirement_id=demand.requirement_id,
                         ),
                         "severity": "warning",
                     })
-                teacher_id = explicit.get((int(section.id), code))
-                source = "planning"
-                if teacher_id is None and section.homeroom_teacher_id is not None and is_default_homeroom_subject(grade, subject_name=subject_label, subject_code=code):
-                    teacher_id = int(section.homeroom_teacher_id)
-                    source = "homeroom_default"
+                teacher_id = demand.assigned_teacher_id
+                source = demand.assignment_source
                 teacher = teacher_map.get(int(teacher_id or 0))
                 if teacher is None:
-                    blocker_code = "hrt_assignment_invalid" if source == "homeroom_default" or (teacher_id is None and grade in {"1", "2"} and is_default_homeroom_subject(grade, subject_name=subject_label, subject_code=code)) else ("teacher_missing" if teacher_id else "allocation_incomplete")
-                    blockers.append(self._finding(blocker_code, f"{label} {subject_label} has no valid assigned teacher.", "section_subject", f"{label} {subject_label}", "Planning"))
+                    blocker_code = "hrt_assignment_invalid" if source == "homeroom_default" or (source != "planning_invalid" and teacher_id is None and grade in {"1", "2"} and is_default_homeroom_subject(grade, subject_name=subject_label, subject_code=code)) else ("teacher_missing" if source == "planning_invalid" else "allocation_incomplete")
+                    blockers.append(self._finding(
+                        blocker_code,
+                        f"{label} {subject_label} has no valid assigned teacher.",
+                        "section_subject", f"{label} {subject_label}", "Planning",
+                        requirement_id=demand.requirement_id,
+                    ))
                     continue
                 counts["covered_periods"] += periods
                 assigned_teacher_ids.add(int(teacher.id))
@@ -305,6 +322,7 @@ class TimetableReadinessService:
             "evaluated_at": datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
             "authority_fingerprint": authority_fingerprint,
             "blockers": blockers, "warnings": warnings, "counts": counts,
+            "conflicts": [item["conflict"] for item in blockers + warnings],
             "affected_entities": [item["display_label"] for item in blockers],
             "feasibility_notice": "Configuration is complete. Timetable feasibility still needs verification.",
         }

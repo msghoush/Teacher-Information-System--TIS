@@ -66,6 +66,29 @@ The original Timetable stored one mutable set of placements per branch and acade
 
 ## Decision
 
+Timetable conflict evidence uses one canonical domain contract with stable code,
+legacy source code, HARD/SOFT severity, DURABLE/RECALCULABLE/TRANSIENT evidence
+class, safe message key/text, optional safe entities/slots/remediation, provenance,
+and internal correlation. Public serialization removes internal requirement,
+allocation, and constraint identifiers and redacts unauthorized entities. Existing
+readiness fields, validator errors, feasibility diagnostics, and generation-run
+messages remain backward compatible. Infeasibility is never inferred from timeout,
+cancellation, or execution failure. No universal conflict table is introduced.
+
+Lesson Requirement is a deterministic, read-only timetable projection of
+Planning authority, not a second demand model. The projection records exact
+scope, section/subject identity, effective periods, current teacher authority,
+explicit-versus-legacy provenance, a stable internal requirement identity, and
+a source fingerprint. Explicit zero/inactive demand suppresses fallback.
+Schema-v5 snapshots freeze this contract for historical generation; no persisted
+Lesson Requirement table or public CRUD API is introduced.
+
+The Workflow worker depends on a solver-neutral `TimetableSolver` adapter. The
+Release 1 production binding is the existing OR-Tools CP-SAT engine, including
+its bounded infeasibility diagnostics. The adapter is an execution seam only:
+it does not create another scheduling model or move immutable input building,
+independent validation, stale-authority checks, or persistence into the solver.
+
 Deterministic readiness establishes only **Configuration Complete**. Before full
 quality optimization, TIS dispatches a hard-only CP-SAT feasibility run against
 the exact immutable snapshot and validates the complete candidate independently.

@@ -205,12 +205,13 @@ def _find_teacher_conflict(
     )
 
 
-def _json_error(message: str, status_code: int = 400):
+def _json_error(message: str, status_code: int = 400, *, conflict=None):
     return JSONResponse(
         status_code=status_code,
         content={
             "ok": False,
             "message": message,
+            "conflicts": [conflict] if conflict else [],
         },
     )
 
