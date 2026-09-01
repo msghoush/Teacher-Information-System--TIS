@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 
 from timetable_problem_builder import demand_key, placement_key
+from timetable_conflicts import conflict_from_legacy
 
 
 class TimetableSolutionValidator:
@@ -21,9 +22,15 @@ class TimetableSolutionValidator:
         current_scope: dict | None = None,
     ) -> dict:
         errors = []
+        conflicts = []
 
-        def add(code: str, message: str) -> None:
+        def add(code: str, message: str, *, requirement_id: str | None = None) -> None:
             errors.append({"code": code, "message": message})
+            conflicts.append(conflict_from_legacy(
+                code, message, evidence_class="RECALCULABLE",
+                provenance="independent_validator",
+                requirement_id=requirement_id,
+            ).to_public_dict())
 
         if not expected_fingerprint or expected_fingerprint != current_fingerprint:
             add("stale_input", "Timetable inputs changed while generation was running.")
@@ -51,6 +58,21 @@ class TimetableSolutionValidator:
                 int(item["required_weekly_periods"])
             for item in problem["demands"]
         })
+        projected_requirements = [
+            item for item in problem["demands"] if item.get("requirement_id")
+        ]
+        if projected_requirements:
+            requirement_ids = [item["requirement_id"] for item in projected_requirements]
+            if len(requirement_ids) != len(set(requirement_ids)):
+                add("duplicate_requirement", "The captured requirement identity is duplicated.")
+            if any(
+                not str(item.get("requirement_source_fingerprint") or "").strip()
+                for item in projected_requirements
+            ):
+                add(
+                    "requirement_provenance_missing",
+                    "A captured requirement is missing immutable Planning provenance.",
+                )
         candidate_counts = Counter()
         slot_keys = {(item["day_key"], item["period_index"]) for item in problem["slots"]}
         section_slots = set()
@@ -87,7 +109,14 @@ class TimetableSolutionValidator:
             add("total_demand_mismatch", "The candidate does not contain the exact total demand.")
         for key, required in demand_counts.items():
             if candidate_counts[key] != required:
-                add("demand_mismatch", "A section-subject demand is not scheduled exactly.")
+                requirement = next(
+                    (item for item in problem["demands"] if demand_key(item) == key), None
+                )
+                add(
+                    "demand_mismatch",
+                    "A section-subject demand is not scheduled exactly.",
+                    requirement_id=(requirement or {}).get("requirement_id"),
+                )
 
         for lock in problem["locks"]:
             if placement_key(lock) not in candidate_keys:
@@ -286,6 +315,14 @@ class TimetableSolutionValidator:
         return {
             "valid": not unique_errors,
             "errors": unique_errors,
+            "conflicts": [
+                conflict for index, conflict in enumerate(conflicts)
+                if (conflict["source_code"], conflict["message"])
+                not in {
+                    (item["source_code"], item["message"])
+                    for item in conflicts[:index]
+                }
+            ],
             "counts": {
                 "required": sum(demand_counts.values()),
                 "placements": len(placements),

@@ -272,7 +272,7 @@ def test_service_scope_first_last_snapshot_fingerprint_and_draft_stale(db):
     second = build_current_snapshot_data(db, school_group_id=1, branch_id=10, academic_year_id=100)
     payload = json.loads(second.canonical_json)
     assert second.constraint_fingerprint != first.constraint_fingerprint
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     assert payload["constraints"]["teacher_scheduling_rules"][0]["resolved_slots"] == [
         {"day_key": "monday", "period_index": 1},
         {"day_key": "tuesday", "period_index": 1},

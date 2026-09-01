@@ -82,6 +82,10 @@ The preview request carries `requested_transfer_periods`; the preview derives se
 
 ## Smart Timetable Stage 5.1 Components
 
+- `timetable_conflicts.py`: stable conflict taxonomy, evidence classification,
+  safe entity references, public redaction, and legacy adapters.
+- `timetable_requirement_projection.py`: deterministic read-only Planning-to-
+  timetable requirement contract, exact-scope authority, identity, and provenance.
 - `timetable_generation_service.py`: exact-scope enqueue/idempotency, generation
   state, claims, leases, heartbeat, recovery, cancellation, staleness recheck, and
   atomic version persistence; contains no OR-Tools import.
@@ -89,6 +93,8 @@ The preview request carries `requested_transfer_periods`; the preview derives se
   deterministic lesson IDs, canonical slots, Planning/HRT demand, locks, and
   regeneration source contract.
 - `timetable_cp_sat_solver.py`: task-runtime-only CP-SAT model and solve result.
+- `timetable_solver.py`: solver-neutral worker contract and the Release 1 CP-SAT
+  adapter; it owns no scheduling rules or persistence.
 - `timetable_solution_validator.py`: solver-independent hard validation.
 - `timetable_workflow_dispatch.py`: lightweight server-side Render client and
   environment-driven task slug.

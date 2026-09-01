@@ -59,6 +59,7 @@ def _make_ready(db):
             teacher_id=1001, planning_section_id=2001, subject_code="MAT"
         ))
     db.flush()
+    _mark_verified(db)
 
 
 def _mark_verified(db):
@@ -156,7 +157,7 @@ def test_stage51_snapshot_contract_preserves_hrt_and_excludes_display_names(db):
     )
     problem = TimetableProblemBuilder().build(snapshot.canonical_json)
     payload = json.loads(snapshot.canonical_json)
-    assert payload["schema_version"] == 4
+    assert payload["schema_version"] == 5
     assert payload["scope"] == {
         "school_group_id": 1, "branch_id": 10, "academic_year_id": 100
     }
@@ -388,18 +389,16 @@ def test_generate_infeasibility_persists_isolated_family_and_input_counts(monkey
     import timetable_generation_worker as worker
 
     terminal = {}
-    monkeypatch.setattr(
-        worker,
-        "diagnose_infeasible_problem",
-        lambda problem, **kwargs: {
+    class DiagnosticSolver:
+        def diagnose_infeasible(self, problem, **kwargs):
+            return {
             "category": "subject_teacher_interaction",
             "message": "Subject Distribution Rules and Teacher Scheduling Rules conflict.",
             "lock_count": 0,
             "grouped_activity_count": 2,
             "request_mode": "generate",
             "has_source_version": False,
-        },
-    )
+            }
     monkeypatch.setattr(
         worker,
         "_terminal",
@@ -407,7 +406,9 @@ def test_generate_infeasibility_persists_isolated_family_and_input_counts(monkey
             run_id=run_id, owner=owner, status=status, category=category, message=message
         ),
     )
-    worker._mark_infeasible(8, "workflow", {"request_mode": "generate"})
+    worker._mark_infeasible(
+        8, "workflow", {"request_mode": "generate"}, solver=DiagnosticSolver()
+    )
     assert terminal["status"] == "infeasible"
     assert terminal["category"] == "solver_infeasible_subject_teacher_interaction"
     assert "0 intentional lesson lock(s)" in terminal["message"]
@@ -418,22 +419,23 @@ def test_diagnostic_timeout_is_independent_and_not_capped_at_ten_seconds(monkeyp
     import timetable_generation_worker as worker
 
     captured = {}
-    monkeypatch.setattr(
-        worker,
-        "diagnose_infeasible_problem",
-        lambda problem, **kwargs: captured.update(kwargs) or {
+    class DiagnosticSolver:
+        def diagnose_infeasible(self, problem, **kwargs):
+            captured.update(kwargs)
+            return {
             "category": "teacher_scheduling_rules",
             "message": "Teacher Scheduling Rules make the timetable infeasible.",
             "details_summary": "One hard teacher rule is active.",
             "lock_count": 0, "grouped_activity_count": 0,
             "request_mode": "generate", "has_source_version": False,
-        },
-    )
+            }
     monkeypatch.setattr(worker, "_terminal", lambda *args, **kwargs: None)
     settings = worker.WorkerSettings(
         solver_timeout_seconds=5, diagnostic_timeout_seconds=73,
     )
-    worker._mark_infeasible(9, "workflow", {"request_mode": "generate"}, settings)
+    worker._mark_infeasible(
+        9, "workflow", {"request_mode": "generate"}, settings, DiagnosticSolver()
+    )
     assert captured["timeout_seconds"] == 73
 
 
@@ -921,6 +923,7 @@ def test_240_period_generation_persists_reloads_and_renders_complete_ui(db):
     set_imported_active_pointer(db, version=published)
     db.commit()
 
+    _mark_verified(db)
     run = enqueue_generation(
         db, school_group_id=1, branch_id=10, academic_year_id=100,
         requested_by_user_id="U1", request_mode="generate",

@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 import models
 from database import SessionLocal
-from timetable_cp_sat_solver import diagnose_infeasible_problem, solve_timetable
 from timetable_generation_service import (
     TimetableGenerationError,
     claim_next_run,
@@ -21,6 +20,7 @@ from timetable_generation_service import (
 )
 from timetable_problem_builder import TimetableProblemError
 from timetable_solution_validator import TimetableSolutionValidator
+from timetable_solver import DEFAULT_TIMETABLE_SOLVER, TimetableSolver
 
 
 logger = logging.getLogger("tis.timetable_generation_worker")
@@ -92,6 +92,7 @@ def _terminal(run_id: int, owner: str, status: str, category: str, message: str)
 
 def _mark_infeasible(
     run_id: int, owner: str, problem: dict, settings: WorkerSettings | None = None,
+    solver: TimetableSolver = DEFAULT_TIMETABLE_SOLVER,
 ) -> None:
     if problem.get("request_mode") == "regenerate":
         _terminal(
@@ -100,7 +101,7 @@ def _mark_infeasible(
         )
         return
     settings = settings or WorkerSettings()
-    diagnostic = diagnose_infeasible_problem(
+    diagnostic = solver.diagnose_infeasible(
         problem,
         timeout_seconds=settings.diagnostic_timeout_seconds,
         seed=13,
@@ -123,7 +124,12 @@ def _mark_infeasible(
     )
 
 
-def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
+def process_run(
+    run_id: int,
+    owner: str,
+    settings: WorkerSettings,
+    solver: TimetableSolver = DEFAULT_TIMETABLE_SOLVER,
+) -> None:
     cancel_event = threading.Event()
     stop_heartbeat = threading.Event()
 
@@ -172,7 +178,7 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
         finally:
             session.close()
 
-        result = solve_timetable(
+        result = solver.solve(
             problem,
             timeout_seconds=(
                 settings.feasibility_timeout_seconds
@@ -200,7 +206,7 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
                     diagnostics = validation["errors"]
             elif result["outcome"] == "infeasible":
                 status = "conflict"
-                diagnostic = diagnose_infeasible_problem(
+                diagnostic = solver.diagnose_infeasible(
                     problem, timeout_seconds=settings.diagnostic_timeout_seconds,
                     seed=13, search_workers=settings.cp_sat_workers,
                 )
@@ -257,7 +263,7 @@ def process_run(run_id: int, owner: str, settings: WorkerSettings) -> None:
             _terminal(run_id, owner, "cancelled", "cancelled", "Generation was cancelled.")
             return
         if result["outcome"] == "infeasible":
-            _mark_infeasible(run_id, owner, problem, settings)
+            _mark_infeasible(run_id, owner, problem, settings, solver)
             return
         if result["outcome"] == "timed_out":
             fallback = problem.get("verified_feasible_placements") or []
