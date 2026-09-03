@@ -1,11 +1,34 @@
 ---
 title: TIS Change History
 documentation_version: 3.3
-last_updated: 2026-08-26
+last_updated: 2026-09-03
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-03 - Planning And Subject Delete Dependency Guards
+
+- Added a read-only dependency check before Planning section and Subject
+  deletion so every blocking category is named in a customer-safe message
+  instead of raising an unhandled `IntegrityError`.
+- `TeacherSectionAssignment` is now a blocker like every other Planning
+  section dependency instead of being silently auto-deleted; no documented
+  product rule required that cascade.
+- Extended Subject delete/Bulk Delete to also check `TimetableEntry`,
+  `CurriculumAdjustmentAudit`, and `SubjectDistributionRule` references, which
+  previously had no application-level check and could be silently orphaned.
+- Bulk Subject delete is atomic: any blocked Subject in the selection stops
+  the whole batch and names every blocked Subject with its reason.
+- Split Planning subject demand into removable and permanent using the
+  existing `updated_by_user_id` column (set by Curriculum Adjustment, never
+  by the one-time setup backfill) and added a new, narrowly scoped
+  `GET /planning/subject-demand/delete/{demand_id}` action ("Remove demand"
+  on the Planning page) that hard-deletes an untouched row so the section or
+  subject can then be deleted; a touched row remains a permanent, honestly
+  explained blocker.
+- Added no archive/closed/inactive lifecycle, broad schema change, migration,
+  or cascade deletion.
 
 ## 2026-09-02 - Professional Timetable Lifecycle UX
 

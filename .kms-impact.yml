@@ -1,10 +1,18 @@
-knowledge_impact: no
-summary: Fix unhandled IntegrityError on Planning section delete with a safe read-only pre-check; correct its message and the Subjects delete message so neither falsely promises that retiring Planning demand makes the record deletable, since retirement never deletes the row and the FK still blocks either way.
+knowledge_impact: yes
+summary: Split the Planning-subject-demand delete blocker into removable (untouched setup scaffolding) and permanent (Curriculum-Adjustment-touched) cases using the existing updated_by_user_id column, and add a narrowly scoped new action that hard-deletes an untouched demand row so Planning section and Subject deletion have a real, actionable path instead of a permanent dead end.
 affected_areas:
   - planning
   - subjects
-  - error-handling
+  - lifecycle
+  - user-workflow
+  - api
   - tests
 kms_files_updated:
-no_impact_reason: Isolated bug fix plus a messaging-precision improvement inside routers/planning.py and routers/subjects.py. No architecture, schema, migration, permission, tenant/branch/year-scoping, or business-rule change; every existing FK protection, deletion policy, and the authoritative Curriculum Adjustment retirement workflow are unchanged, only surfaced safely instead of raising an unhandled 500. routers/ is conservatively auto-classified as major, hence this override.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/history/workforce-planning/README.md
+  - docs/history/workforce-planning/2026-09-03-planning-and-subject-delete-dependency-guards.md
+no_impact_reason:
+major_change_override: no

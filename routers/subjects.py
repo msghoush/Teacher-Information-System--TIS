@@ -5,6 +5,7 @@ import re
 
 from fastapi import APIRouter, Request, Form, Depends, UploadFile, File
 from fastapi.responses import RedirectResponse, StreamingResponse
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.exc import IntegrityError
@@ -276,124 +277,136 @@ def _get_existing_subject_codes_in_scope(db: Session, subject_codes, branch_id: 
     return sorted({code for (code,) in existing_codes if code})
 
 
-def _has_subject_assignment_in_scope(
+def _get_subject_demand_status(
     db: Session,
-    subject_codes,
+    subject_code: str,
     branch_id: int,
     academic_year_id: int,
 ):
-    normalized_codes = [code for code in subject_codes if code]
-    if not normalized_codes:
-        return False
+    """Classify this subject's Planning demand as None, "removable", or "permanent".
 
-    has_teacher_reference = db.query(models.Teacher).filter(
-        models.Teacher.subject_code.in_(normalized_codes),
+    Mirrors routers.planning._get_planning_section_demand_status: a row with
+    no updated_by_user_id has never been acted on via Curriculum Adjustment
+    and is pure setup scaffolding from the one-time backfill migration,
+    removable through routers.planning.delete_planning_subject_demand. Any
+    touched row (active or retired) is genuine history preserved forever.
+    """
+    rows = db.query(models.PlanningSubjectDemand.updated_by_user_id).filter(
+        models.PlanningSubjectDemand.subject_code == subject_code,
+        models.PlanningSubjectDemand.branch_id == branch_id,
+        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
+    ).all()
+    if not rows:
+        return None
+    if any(updated_by is not None for (updated_by,) in rows):
+        return "permanent"
+    return "removable"
+
+
+def _get_subject_delete_blockers(
+    db: Session,
+    subject_code: str,
+    branch_id: int,
+    academic_year_id: int,
+):
+    """Read-only, per-subject list of customer-safe reasons blocking hard delete.
+
+    Every reason mirrors a real reference to this subject_code within the
+    caller's branch/year scope. This never deletes or modifies anything.
+
+    One category is split into an actionable and a permanent case:
+    - PlanningSubjectDemand: a row Curriculum Adjustment has never touched
+      (`updated_by_user_id IS NULL` - only the one-time setup backfill
+      created it) is pure setup scaffolding and can be hard-deleted through
+      `routers.planning.delete_planning_subject_demand`. A row Curriculum
+      Adjustment has ever created or modified is genuine history TIS
+      preserves permanently (retirement never deletes the row - only
+      `is_active`/`retired_at` change), so it blocks deletion forever.
+
+    TimetableEntry is not split the same way: entries in a published/active/
+    superseded/archived version are immutable and cannot be individually
+    removed; only entries in a mutable, unpublished Draft can be edited away.
+    """
+    reasons = []
+    code = str(subject_code or "").strip()
+    if not code:
+        return reasons
+
+    if db.query(models.Teacher.id).filter(
+        models.Teacher.subject_code == code,
         models.Teacher.branch_id == branch_id,
         models.Teacher.academic_year_id == academic_year_id,
-    ).first()
-    if has_teacher_reference:
-        return True
+    ).first():
+        reasons.append("still assigned to a teacher as their primary subject")
 
-    has_allocation_reference = (
-        db.query(models.TeacherSubjectAllocation)
-        .join(models.Teacher, models.Teacher.id == models.TeacherSubjectAllocation.teacher_id)
-        .filter(
-            models.TeacherSubjectAllocation.subject_code.in_(normalized_codes),
-            models.Teacher.branch_id == branch_id,
-            models.Teacher.academic_year_id == academic_year_id,
+    if db.query(models.TeacherSubjectAllocation.id).join(
+        models.Teacher, models.Teacher.id == models.TeacherSubjectAllocation.teacher_id
+    ).filter(
+        models.TeacherSubjectAllocation.subject_code == code,
+        models.Teacher.branch_id == branch_id,
+        models.Teacher.academic_year_id == academic_year_id,
+    ).first():
+        reasons.append("still allocated to a teacher")
+
+    if db.query(models.TeacherSectionAssignment.id).join(
+        models.PlanningSection,
+        models.PlanningSection.id == models.TeacherSectionAssignment.planning_section_id,
+    ).filter(
+        models.TeacherSectionAssignment.subject_code == code,
+        models.PlanningSection.branch_id == branch_id,
+        models.PlanningSection.academic_year_id == academic_year_id,
+    ).first():
+        reasons.append("still assigned to a teacher for a Planning section")
+
+    demand_status = _get_subject_demand_status(db, code, branch_id, academic_year_id)
+    if demand_status == "removable":
+        reasons.append(
+            "still used in Planning demand that was set automatically during "
+            "setup and has not been used in any Curriculum Adjustment (use "
+            "\"Remove demand\" on the Planning page for the section it applies to)"
         )
-        .first()
-    )
-    if has_allocation_reference is not None:
-        return True
-
-    has_section_assignment_reference = (
-        db.query(models.TeacherSectionAssignment)
-        .join(
-            models.PlanningSection,
-            models.PlanningSection.id == models.TeacherSectionAssignment.planning_section_id,
+    elif demand_status == "permanent":
+        reasons.append(
+            "has Planning demand history that TIS preserves permanently, even "
+            "though it may have been retired"
         )
-        .filter(
-            models.TeacherSectionAssignment.subject_code.in_(normalized_codes),
-            models.PlanningSection.branch_id == branch_id,
-            models.PlanningSection.academic_year_id == academic_year_id,
-        )
-        .first()
-    )
-    return has_section_assignment_reference is not None
+
+    if db.query(models.TimetableEntry.id).filter(
+        models.TimetableEntry.subject_code == code,
+        models.TimetableEntry.branch_id == branch_id,
+        models.TimetableEntry.academic_year_id == academic_year_id,
+    ).first():
+        reasons.append("still used in timetable placements")
+
+    if db.query(models.CurriculumAdjustmentAudit.id).filter(
+        models.CurriculumAdjustmentAudit.branch_id == branch_id,
+        models.CurriculumAdjustmentAudit.academic_year_id == academic_year_id,
+        or_(
+            models.CurriculumAdjustmentAudit.source_subject_code == code,
+            models.CurriculumAdjustmentAudit.target_subject_code == code,
+        ),
+    ).first():
+        reasons.append("has Curriculum Adjustment history")
+
+    if db.query(models.SubjectDistributionRule.id).filter(
+        models.SubjectDistributionRule.subject_code == code,
+        models.SubjectDistributionRule.branch_id == branch_id,
+        models.SubjectDistributionRule.academic_year_id == academic_year_id,
+    ).first():
+        reasons.append("still has a subject scheduling rule referencing it")
+
+    return reasons
 
 
-def _get_planning_demand_reference_state_in_scope(
-    db: Session,
-    subject_codes,
-    branch_id: int,
-    academic_year_id: int,
-):
-    """Return "active", "retired", or None for Planning demand referencing these codes.
+_SUBJECT_DELETE_GENERIC_BLOCKED_MESSAGE = (
+    "Cannot delete this subject because it is still referenced by related "
+    "records. Remove those related records first, then try again."
+)
 
-    `PlanningSubjectDemand.subject_code` participates in a real composite FK to
-    `subjects` with no destructive ON DELETE behavior, and Curriculum Adjustment
-    retirement (`curriculum_adjustment_apply_service._set_demand`) never deletes
-    the row - it only sets is_active=False and retired_at. A retired row
-    therefore still physically blocks Subject deletion exactly like an active
-    one, so both states must be reported; only the customer-facing wording
-    differs between them.
-    """
-    normalized_codes = [code for code in subject_codes if code]
-    if not normalized_codes:
-        return None
-
-    has_active_reference = db.query(models.PlanningSubjectDemand).filter(
-        models.PlanningSubjectDemand.subject_code.in_(normalized_codes),
-        models.PlanningSubjectDemand.branch_id == branch_id,
-        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
-        models.PlanningSubjectDemand.is_active.is_(True),
-    ).first()
-    if has_active_reference is not None:
-        return "active"
-
-    has_any_reference = db.query(models.PlanningSubjectDemand).filter(
-        models.PlanningSubjectDemand.subject_code.in_(normalized_codes),
-        models.PlanningSubjectDemand.branch_id == branch_id,
-        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
-    ).first()
-    if has_any_reference is not None:
-        return "retired"
-
-    return None
-
-
-_PLANNING_DEMAND_SINGLE_DELETE_MESSAGES = {
-    "active": (
-        "Cannot delete this subject because it still has active Planning demand. "
-        "Retire the Planning demand through Curriculum Adjustment to stop using "
-        "it for teaching. Note that Planning demand history is preserved "
-        "permanently, so the subject record itself cannot be deleted even after "
-        "retirement."
-    ),
-    "retired": (
-        "Cannot delete this subject because it has Planning demand history. TIS "
-        "preserves Planning demand records permanently for audit purposes, so a "
-        "subject with any current or previously retired Planning usage cannot "
-        "be deleted."
-    ),
-}
-
-_PLANNING_DEMAND_BULK_DELETE_MESSAGES = {
-    "active": (
-        "One or more selected subjects cannot be deleted because they still "
-        "have active Planning demand. Retire the Planning demand through "
-        "Curriculum Adjustment to stop using them for teaching. Note that "
-        "Planning demand history is preserved permanently, so those subject "
-        "records cannot be deleted even after retirement."
-    ),
-    "retired": (
-        "One or more selected subjects cannot be deleted because they have "
-        "Planning demand history. TIS preserves Planning demand records "
-        "permanently for audit purposes, so a subject with any current or "
-        "previously retired Planning usage cannot be deleted."
-    ),
-}
+_SUBJECT_BULK_DELETE_GENERIC_BLOCKED_MESSAGE = (
+    "Cannot delete the selected subjects because they are still referenced by "
+    "related records. Remove those related records first, then try again."
+)
 
 
 def _render_subjects_page(
@@ -1343,31 +1356,23 @@ def delete_subject(
     ).first()
 
     if subject:
-        demand_state = _get_planning_demand_reference_state_in_scope(
-            db,
-            [subject.subject_code],
-            branch_id,
-            academic_year_id,
+        blockers = _get_subject_delete_blockers(
+            db, subject.subject_code, branch_id, academic_year_id,
         )
-        if demand_state is not None:
+        if blockers:
+            if len(blockers) == 1:
+                return _render_subjects_page(
+                    request=request,
+                    db=db,
+                    current_user=current_user,
+                    error=f"Cannot delete this subject: {blockers[0]}.",
+                )
             return _render_subjects_page(
                 request=request,
                 db=db,
                 current_user=current_user,
-                error=_PLANNING_DEMAND_SINGLE_DELETE_MESSAGES[demand_state],
-            )
-
-        if _has_subject_assignment_in_scope(
-            db,
-            [subject.subject_code],
-            branch_id,
-            academic_year_id,
-        ):
-            return _render_subjects_page(
-                request=request,
-                db=db,
-                current_user=current_user,
-                error="Cannot delete this subject because it is assigned to one or more teachers or planning sections.",
+                error=_SUBJECT_DELETE_GENERIC_BLOCKED_MESSAGE,
+                detail_errors=blockers,
             )
 
         try:
@@ -1430,36 +1435,24 @@ def delete_subjects_bulk(
             error="One or more selected subjects were not found in your current scope.",
         )
 
-    selected_subject_codes = [
-        subject.subject_code
-        for subject in subject_rows
-        if subject.subject_code
-    ]
-    bulk_demand_state = _get_planning_demand_reference_state_in_scope(
-        db,
-        selected_subject_codes,
-        branch_id,
-        academic_year_id,
-    )
-    if bulk_demand_state is not None:
-        return _render_subjects_page(
-            request=request,
-            db=db,
-            current_user=current_user,
-            error=_PLANNING_DEMAND_BULK_DELETE_MESSAGES[bulk_demand_state],
+    blocked_subject_details = []
+    for subject in subject_rows:
+        blockers = _get_subject_delete_blockers(
+            db, subject.subject_code, branch_id, academic_year_id,
         )
+        if blockers:
+            subject_label = subject.subject_name or subject.subject_code or f"Subject {subject.id}"
+            blocked_subject_details.append(f"{subject_label}: {'; '.join(blockers)}")
 
-    if _has_subject_assignment_in_scope(
-        db,
-        selected_subject_codes,
-        branch_id,
-        academic_year_id,
-    ):
+    if blocked_subject_details:
+        # atomic from the user's perspective: any blocked subject stops the
+        # whole batch, nothing is deleted, and every blocked subject is named.
         return _render_subjects_page(
             request=request,
             db=db,
             current_user=current_user,
-            error="One or more selected subjects cannot be deleted because they are assigned to teachers or planning sections.",
+            error=_SUBJECT_BULK_DELETE_GENERIC_BLOCKED_MESSAGE,
+            detail_errors=blocked_subject_details,
         )
 
     try:

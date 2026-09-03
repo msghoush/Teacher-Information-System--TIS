@@ -616,6 +616,21 @@ def _get_section_demand_alignment_map(
         academic_year_id=academic_year_id,
         planning_section_ids=[section.id for section in planning_sections],
     )
+
+    explicit_demand_ids = [
+        demand.demand_id
+        for demands in resolved.values()
+        for demand in demands
+        if demand.demand_id is not None
+    ]
+    removable_demand_ids = set()
+    if explicit_demand_ids:
+        untouched_rows = db.query(models.PlanningSubjectDemand.id).filter(
+            models.PlanningSubjectDemand.id.in_(explicit_demand_ids),
+            models.PlanningSubjectDemand.updated_by_user_id.is_(None),
+        ).all()
+        removable_demand_ids = {row_id for (row_id,) in untouched_rows}
+
     result = {}
     for section in planning_sections:
         items = []
@@ -638,6 +653,8 @@ def _get_section_demand_alignment_map(
                 "subject_color_soft": theme["soft"],
                 "subject_color_text": theme["text"],
                 "subject_color_border": theme["border"],
+                "demand_id": demand.demand_id,
+                "demand_removable": demand.demand_id in removable_demand_ids,
             })
         result[section.id] = items
     return result
@@ -1784,6 +1801,7 @@ def update_planning_section(
 
 
 _PLANNING_SECTION_DELETE_BLOCKER_CHECKS = (
+    ("teacher assignments", models.TeacherSectionAssignment, "planning_section_id"),
     ("Planning subject demand", models.PlanningSubjectDemand, "planning_section_id"),
     ("timetable placements", models.TimetableEntry, "planning_section_id"),
     ("teacher scheduling rules", models.TeacherSchedulingRuleTarget, "planning_section_id"),
@@ -1794,16 +1812,32 @@ _PLANNING_SECTION_DELETE_BLOCKER_CHECKS = (
 
 _PLANNING_SECTION_DELETE_DEMAND_LABEL = "Planning subject demand"
 
-_PLANNING_SECTION_DELETE_DEMAND_BLOCKED_MESSAGE = (
-    "This Planning section cannot be deleted because it has Planning demand "
-    "history. TIS preserves Planning demand records permanently for audit "
-    "purposes, so a section referenced by any current or previously retired "
-    "Planning demand cannot be physically deleted."
+_PLANNING_SECTION_DELETE_ACTIONS = {
+    "teacher assignments": "Remove the teacher assignments first, then try again.",
+    "timetable placements": (
+        "Remove or reschedule those placements if they are in a mutable "
+        "Draft; placements in a published or archived timetable are "
+        "permanent history and cannot be removed."
+    ),
+    "teacher scheduling rules": "Remove this section from that rule's targets first, then try again.",
+    "academic calendar events": "Remove or retarget those calendar events first, then try again.",
+    "subject scheduling rules": "Clear that subject scheduling rule override first, then try again.",
+}
+
+_PLANNING_SUBJECT_DEMAND_REMOVABLE_ACTION = (
+    "This demand was set automatically during setup and has not been used in "
+    "any Curriculum Adjustment. Use \"Remove demand\" next to that subject in "
+    "this section's subject list, then try again."
+)
+_PLANNING_SUBJECT_DEMAND_PERMANENT_ACTION = (
+    "TIS preserves Planning demand history permanently, even after retirement "
+    "through Curriculum Adjustment, so this section cannot be made deletable "
+    "by removing it."
 )
 
-_PLANNING_SECTION_DELETE_GENERIC_BLOCKED_MESSAGE = (
-    "This Planning section cannot be deleted because it is still referenced "
-    "by academic records and must remain. Remove those related records first."
+_PLANNING_SECTION_DELETE_INTEGRITY_FALLBACK_MESSAGE = (
+    "Cannot delete this Planning section because it is still referenced by "
+    "related records. Remove those related records first, then try again."
 )
 
 
@@ -1812,7 +1846,8 @@ def _get_planning_section_delete_blockers(db: Session, planning_section_id: int)
 
     Mirrors the real FK protections on planning_sections.id so the user gets a
     customer-safe explanation instead of an unhandled IntegrityError. This does
-    not delete or retire anything.
+    not delete or retire anything - including TeacherSectionAssignment, which
+    is now a blocker like everything else rather than being auto-purged.
     """
     found_labels = []
     for label, model_cls, column_name in _PLANNING_SECTION_DELETE_BLOCKER_CHECKS:
@@ -1823,18 +1858,57 @@ def _get_planning_section_delete_blockers(db: Session, planning_section_id: int)
     return found_labels
 
 
-def _build_planning_section_delete_blocked_message(blockers):
-    """Customer-safe explanation matching what can actually be done.
+def _get_planning_section_demand_status(db: Session, planning_section_id: int):
+    """Classify this section's Planning demand as None, "removable", or "permanent".
 
-    Planning demand rows are never deleted by retirement (only is_active/
-    retired_at change - see curriculum_adjustment_apply_service._set_demand),
-    so their FK to the section is permanent. When demand is among the
-    blockers, do not suggest retiring it will make the section deletable.
-    Every other blocker category uses a generic, non-committal statement.
+    Curriculum Adjustment (`curriculum_adjustment_apply_service._set_demand`)
+    always stamps `updated_by_user_id` on a row it creates or touches, while
+    the one-time backfill migration never sets it. A row with no
+    `updated_by_user_id` has therefore never been acted on by an admin and is
+    pure setup scaffolding, safe to hard-delete through the dedicated
+    Remove-demand action. Any row that has been touched - whether currently
+    active or retired - is genuine Curriculum Adjustment history TIS
+    preserves permanently, and remains a permanent blocker.
     """
-    if _PLANNING_SECTION_DELETE_DEMAND_LABEL in blockers:
-        return _PLANNING_SECTION_DELETE_DEMAND_BLOCKED_MESSAGE
-    return _PLANNING_SECTION_DELETE_GENERIC_BLOCKED_MESSAGE
+    rows = db.query(models.PlanningSubjectDemand.updated_by_user_id).filter(
+        models.PlanningSubjectDemand.planning_section_id == planning_section_id,
+    ).all()
+    if not rows:
+        return None
+    if any(updated_by is not None for (updated_by,) in rows):
+        return "permanent"
+    return "removable"
+
+
+def _planning_section_delete_action_for(db: Session, planning_section_id: int, label: str) -> str:
+    if label == _PLANNING_SECTION_DELETE_DEMAND_LABEL:
+        status = _get_planning_section_demand_status(db, planning_section_id)
+        if status == "removable":
+            return _PLANNING_SUBJECT_DEMAND_REMOVABLE_ACTION
+        return _PLANNING_SUBJECT_DEMAND_PERMANENT_ACTION
+    return _PLANNING_SECTION_DELETE_ACTIONS[label]
+
+
+def _build_planning_section_delete_blocked_response(db: Session, planning_section_id: int, blockers):
+    """Build (error, detail_errors) naming every blocker and its real fix.
+
+    Permanent Planning demand and published/archived timetable placements
+    cannot actually be removed (see the per-category action text), so the
+    combined message never promises a blanket "remove and retry" - each
+    blocker gets its own honest action instead.
+    """
+    if len(blockers) == 1:
+        label = blockers[0]
+        action = _planning_section_delete_action_for(db, planning_section_id, label)
+        error = f"Cannot delete this Planning section because it still has {label}. {action}"
+        return error, None
+
+    error = "Cannot delete this Planning section. It is still referenced by:"
+    detail_errors = [
+        f"{label}: {_planning_section_delete_action_for(db, planning_section_id, label)}"
+        for label in blockers
+    ]
+    return error, detail_errors
 
 
 @router.get("/delete/{planning_pk}")
@@ -1861,17 +1935,18 @@ def delete_planning_section(
 
     blockers = _get_planning_section_delete_blockers(db, planning_section.id)
     if blockers:
+        error, detail_errors = _build_planning_section_delete_blocked_response(
+            db, planning_section.id, blockers,
+        )
         return _render_planning_page(
             request,
             db,
             current_user,
-            error=_build_planning_section_delete_blocked_message(blockers),
+            error=error,
+            detail_errors=detail_errors,
         )
 
     try:
-        db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.planning_section_id == planning_section.id
-        ).delete(synchronize_session=False)
         db.delete(planning_section)
         db.commit()
     except IntegrityError:
@@ -1880,7 +1955,71 @@ def delete_planning_section(
             request,
             db,
             current_user,
-            error=_PLANNING_SECTION_DELETE_GENERIC_BLOCKED_MESSAGE,
+            error=_PLANNING_SECTION_DELETE_INTEGRITY_FALLBACK_MESSAGE,
+        )
+
+    return RedirectResponse(url="/planning", status_code=302)
+
+
+_PLANNING_SUBJECT_DEMAND_PERMANENT_MESSAGE = (
+    "This Planning demand has Curriculum Adjustment history, so TIS preserves "
+    "it permanently and it cannot be removed."
+)
+
+_PLANNING_SUBJECT_DEMAND_INTEGRITY_FALLBACK_MESSAGE = (
+    "Unable to remove this Planning demand because it is still referenced by "
+    "related records."
+)
+
+
+@router.get("/subject-demand/delete/{demand_id}")
+def delete_planning_subject_demand(
+    request: Request,
+    demand_id: int,
+    db: Session = Depends(get_db),
+):
+    """Hard-delete one untouched, setup-only Planning demand row.
+
+    This is the only existing action that physically removes a
+    PlanningSubjectDemand row rather than retiring it in place. It is
+    intentionally restricted to rows that have never been acted on through
+    Curriculum Adjustment (see _get_planning_section_demand_status) so that
+    genuine curriculum history is never destroyed.
+    """
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.has_permission(db, current_user, "planning.delete_section"):
+        return RedirectResponse(url="/planning", status_code=302)
+
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+    demand = db.query(models.PlanningSubjectDemand).filter(
+        models.PlanningSubjectDemand.id == demand_id,
+        models.PlanningSubjectDemand.branch_id == branch_id,
+        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
+    ).first()
+    if not demand:
+        return RedirectResponse(url="/planning", status_code=302)
+
+    if demand.updated_by_user_id is not None:
+        return _render_planning_page(
+            request,
+            db,
+            current_user,
+            error=_PLANNING_SUBJECT_DEMAND_PERMANENT_MESSAGE,
+        )
+
+    try:
+        db.delete(demand)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _render_planning_page(
+            request,
+            db,
+            current_user,
+            error=_PLANNING_SUBJECT_DEMAND_INTEGRITY_FALLBACK_MESSAGE,
         )
 
     return RedirectResponse(url="/planning", status_code=302)

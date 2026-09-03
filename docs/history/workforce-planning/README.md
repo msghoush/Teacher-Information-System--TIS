@@ -1,11 +1,12 @@
 ---
 title: Workforce Planning History
 module: workforce-planning
-last_updated: 2026-06-26
+last_updated: 2026-09-03
 ---
 
 # Workforce Planning History
 
+- [2026-09-03 Planning and Subject delete dependency guards](2026-09-03-planning-and-subject-delete-dependency-guards.md)
 - [2026-09-02 professional timetable lifecycle UX](2026-09-02-professional-timetable-lifecycle-ux.md)
 - [2026-09-01 structured timetable conflict evidence](2026-09-01-structured-timetable-conflicts.md)
 - [2026-09-01 timetable Lesson Requirement projection](2026-09-01-timetable-lesson-requirement-projection.md)
@@ -26,6 +27,13 @@ Related files:
 - `timetable_logic.py`
 
 History entries:
+
+- `2026-09-03-planning-and-subject-delete-dependency-guards.md` — read-only
+  dependency checks before Planning section and Subject deletion, with every
+  blocking category named; untouched setup-only Planning demand is now
+  actually removable through a new narrow "Remove demand" action, while
+  demand Curriculum Adjustment has touched and published timetable data stay
+  honestly permanent instead of promising a fix that cannot work.
 
 - `2026-08-29-curriculum-adjustment-apply.md` — permissioned fingerprint guard,
   atomic apply/audit, explicit teacher decisions, and Draft invalidation.

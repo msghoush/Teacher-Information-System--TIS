@@ -1,11 +1,39 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.3
-last_updated: 2026-08-26
+last_updated: 2026-09-03
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Planning And Subject Delete Dependency Guards
+
+Deleting a Planning section or a Subject now runs a read-only dependency
+check before any mutation and blocks with a customer-safe, per-category
+explanation instead of raising an unhandled `IntegrityError` or deleting
+silently. Planning section delete checks `TeacherSectionAssignment`,
+`PlanningSubjectDemand`, `TimetableEntry`, `TeacherSchedulingRuleTarget`,
+`CalendarEvent`/`CalendarEventSectionTarget`, and section-scoped
+`SubjectDistributionRule`; `TeacherSectionAssignment` is now a blocker like
+every other category rather than being auto-deleted. Subject delete and Bulk
+Delete consolidate the equivalent check across `Teacher.subject_code`,
+`TeacherSubjectAllocation`, `TeacherSectionAssignment`, `PlanningSubjectDemand`,
+`TimetableEntry`, `CurriculumAdjustmentAudit`, and `SubjectDistributionRule`;
+Bulk Delete is atomic, so any blocked Subject in the selection deletes none of
+the batch and names every blocked Subject with its reason.
+
+Planning subject demand is split into removable and permanent, using the
+existing `PlanningSubjectDemand.updated_by_user_id` column as the signal:
+Curriculum Adjustment always stamps it, the one-time setup backfill never
+does, so an untouched row is pure scaffolding and can be hard-deleted through
+the new `GET /planning/subject-demand/delete/{demand_id}` action ("Remove
+demand" on the Planning page), after which the section or subject becomes
+deletable. A row Curriculum Adjustment has ever touched, active or retired,
+is genuine history and remains a permanent blocker. Published/archived
+timetable placements follow the same principle without a new action: only
+mutable Draft entries can be removed. No archive/closed/inactive lifecycle,
+broad schema change, migration, or cascade deletion was introduced.
 
 ## Professional Timetable Lifecycle UX
 
