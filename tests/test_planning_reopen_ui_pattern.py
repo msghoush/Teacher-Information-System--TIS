@@ -38,9 +38,20 @@ def test_bulk_remove_form_exists_with_customer_safe_wording_and_checkboxes():
     html = _read("templates/planning.html")
     assert 'id="planningBulkRemoveForm"' in html
     assert 'action="/planning/subject-requirements/remove"' in html
-    assert "Bulk Remove Subject Requirements" in html
+    assert "Remove Subject Requirements" in html
     assert 'form="planningBulkRemoveForm"' in html
     assert 'name="target"' in html
+
+
+def test_bulk_remove_ui_has_section_select_all_and_an_action_icon_with_dynamic_label():
+    html = _read("templates/planning.html")
+    assert 'class="planning-requirement-select-all-checkbox"' in html
+    assert 'data-section-id="{{ record.id }}"' in html
+    assert '{{ icon("trash", "icon") }}' in html
+    assert 'class="planning-requirement-remove-label"' in html
+    assert 'box.dataset.sectionId === selectAll.dataset.sectionId' in html
+    assert 'selectAll.indeterminate' in html
+    assert '`Remove ${checkedCount} Subject Requirements`' in html
 
 
 def test_protected_requirement_shows_an_explanation_not_just_a_hidden_action():

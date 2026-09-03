@@ -115,3 +115,15 @@ facing wording changed: "Remove Subject Requirement" / "Bulk Remove Subject
 Requirements" / "Protected (Curriculum Adjustment history)" are unchanged,
 and no new lifecycle terminology was introduced - an admin never needs to
 know a "suppression row" exists.
+
+## Bulk-action UI completion (2026-09-04)
+
+The first bulk UI exposed row checkboxes but placed its only submit button
+below the complete Planning table and provided no Select All control. Each
+expanded section now presents a section-scoped **Select all** checkbox beside
+the action it drives. The action uses the shared trash icon and reflects the
+live selection in its visible label: "Remove Subject Requirement" for one or
+"Remove N Subject Requirements" for several. Partial section selection gives
+the Select All control an indeterminate state, and removal controls are
+disabled with no selection. The existing cross-section form, atomic endpoint,
+permission boundary, confirmation, and persistence behavior are unchanged.

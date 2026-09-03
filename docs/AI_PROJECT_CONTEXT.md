@@ -32,8 +32,11 @@ teacher.
 
 `POST /planning/subject-requirements/remove` (`routers/planning.py`) handles
 both single removal ("Remove Subject Requirement") and checkbox-selected
-bulk removal ("Bulk Remove Subject Requirements", supported across every
-section on the page at once) atomically: every target is validated and
+bulk removal (supported across every section on the page at once) atomically.
+Each expanded Planning section exposes a section-scoped **Select all** control
+beside a trash-icon action whose label reflects the current selection
+(singular or the exact plural count); the page-level action mirrors that state.
+Every target is validated and
 scope-checked before anything is mutated, and any protected/invalid/
 out-of-scope target blocks the whole request with a named reason. Teacher
 assignments, timetable data, and Curriculum Adjustment audit history are
