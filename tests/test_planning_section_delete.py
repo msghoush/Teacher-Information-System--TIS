@@ -207,12 +207,15 @@ def test_remove_demand_success_redirects_back_to_the_same_section_fragment(db, m
     db.add(demand)
     db.commit()
 
+    # Matches exactly what templates/planning.html now emits: a trailing
+    # slash on "/planning/" so this never takes an extra redirect_slashes
+    # hop through Starlette before the fragment is applied by the browser.
     response = _remove_demand(
-        db, demand.id, return_to="/planning#planning-section-2001",
+        db, demand.id, return_to="/planning/#planning-section-2001",
     )
 
     assert isinstance(response, RedirectResponse)
-    assert response.headers["location"] == "/planning#planning-section-2001"
+    assert response.headers["location"] == "/planning/#planning-section-2001"
     assert db.get(models.PlanningSubjectDemand, demand.id) is None
 
 
@@ -231,7 +234,7 @@ def test_remove_demand_rejects_external_return_to(db, monkeypatch):
     )
 
     assert isinstance(response, RedirectResponse)
-    assert response.headers["location"] == "/planning"
+    assert response.headers["location"] == "/planning/"
     assert db.get(models.PlanningSubjectDemand, demand.id) is None
 
 
@@ -248,7 +251,7 @@ def test_remove_demand_rejects_protocol_relative_return_to(db, monkeypatch):
     response = _remove_demand(db, demand.id, return_to="//evil.example.com/steal")
 
     assert isinstance(response, RedirectResponse)
-    assert response.headers["location"] == "/planning"
+    assert response.headers["location"] == "/planning/"
     assert db.get(models.PlanningSubjectDemand, demand.id) is None
 
 
@@ -267,7 +270,7 @@ def test_remove_demand_missing_return_to_falls_back_to_plain_planning(db, monkey
     )
 
     assert isinstance(response, RedirectResponse)
-    assert response.headers["location"] == "/planning"
+    assert response.headers["location"] == "/planning/"
 
 
 def test_remove_demand_permission_denied_ignores_supplied_return_to(db, monkeypatch):
