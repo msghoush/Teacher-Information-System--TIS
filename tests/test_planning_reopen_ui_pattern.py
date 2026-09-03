@@ -22,13 +22,31 @@ def test_planning_section_details_has_a_stable_id():
     assert '<details class="subject-assignment-details" id="planning-section-{{ record.id }}">' in html
 
 
-def test_remove_demand_link_passes_a_safe_return_to_matching_the_registered_route():
+def test_remove_subject_requirement_form_passes_a_safe_return_to_matching_the_registered_route():
     html = _read("templates/planning.html")
-    assert "/planning/subject-demand/delete/{{ subject.demand_id }}?return_to=" in html
+    assert 'action="/planning/subject-requirements/remove"' in html
+    # customer-facing wording only - never the internal "demand" term
+    assert "Remove Subject Requirement" in html
+    assert "Remove demand" not in html
     # must target the section's own route path ("/planning/", trailing slash)
     # so the redirect never takes an extra Starlette redirect_slashes hop
     # before the browser applies the #fragment.
     assert "'/planning/#planning-section-' ~ record.id" in html
+
+
+def test_bulk_remove_form_exists_with_customer_safe_wording_and_checkboxes():
+    html = _read("templates/planning.html")
+    assert 'id="planningBulkRemoveForm"' in html
+    assert 'action="/planning/subject-requirements/remove"' in html
+    assert "Bulk Remove Subject Requirements" in html
+    assert 'form="planningBulkRemoveForm"' in html
+    assert 'name="target"' in html
+
+
+def test_protected_requirement_shows_an_explanation_not_just_a_hidden_action():
+    html = _read("templates/planning.html")
+    assert "requirement_status == \"permanent\"" in html
+    assert "Protected (Curriculum Adjustment history)" in html
 
 
 def test_collapse_all_details_never_closes_the_active_reopen_target():

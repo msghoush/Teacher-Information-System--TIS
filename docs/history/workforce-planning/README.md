@@ -1,11 +1,12 @@
 ---
 title: Workforce Planning History
 module: workforce-planning
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 ---
 
 # Workforce Planning History
 
+- [2026-09-04 Planning subject requirement removal (single and bulk)](2026-09-04-planning-subject-requirement-removal.md)
 - [2026-09-03 return-to reopen-on-load UI pattern](2026-09-03-return-to-reopen-on-load-pattern.md)
 - [2026-09-03 Planning and Subject delete dependency guards](2026-09-03-planning-and-subject-delete-dependency-guards.md)
 - [2026-09-02 professional timetable lifecycle UX](2026-09-02-professional-timetable-lifecycle-ux.md)
@@ -28,6 +29,18 @@ Related files:
 - `timetable_logic.py`
 
 History entries:
+
+- `2026-09-04-planning-subject-requirement-removal.md` — "Remove Subject
+  Requirement" and checkbox-selected, cross-section "Bulk Remove Subject
+  Requirements" now cover legacy-fallback requirements (no explicit demand
+  row) in addition to untouched explicit rows, fixing the inconsistency where
+  the same teacher's subjects could differ in removability for reasons
+  unrelated to the teacher; protected/Curriculum-Adjustment-touched rows show
+  an explicit explanation instead of a hidden action. Same-day correction:
+  the suppression row created for a fallback requirement sets only
+  `created_by_user_id`, not `updated_by_user_id`, so it stays removable
+  instead of instantly becoming permanent, preserving the remove requirement
+  -> remove section -> remove subject workflow.
 
 - `2026-09-03-return-to-reopen-on-load-pattern.md` — a shared `redirect_utils.py`
   open-redirect guard plus `static/js/reopen-on-load.js` finish wiring the

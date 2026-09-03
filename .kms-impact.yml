@@ -1,9 +1,20 @@
-knowledge_impact: no
-summary: Fix Planning section reopen behavior after Remove demand by preserving the targeted expanded section across pageshow and correcting the Planning return_to path. No new business rule, schema, architecture, permission, or lifecycle behavior is introduced.
+knowledge_impact: yes
+summary: Add Planning subject requirement removal with single and cross-section bulk actions, including safe removal of legacy-fallback requirements through setup-only suppression rows while keeping Curriculum-Adjustment-touched requirements protected. Setup-only fallback suppressions record created_by_user_id but leave updated_by_user_id NULL so they remain removable and preserve the remove requirement -> remove section -> remove subject workflow.
 affected_areas:
   - planning
-  - ui-ux
+  - user-workflow
+  - api
   - tests
 kms_files_updated:
-no_impact_reason: Isolated frontend/navigation bug fix for already-documented behavior. The existing shared return_to/fragment convention and Remove-demand workflow are unchanged; this correction only prevents a later Planning pageshow handler from collapsing the section again.
-major_change_override: yes
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/history/workforce-planning/README.md
+  - docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md
+  - docs/engineering/AI_CODING_WORKFLOW.md
+  - docs/history/engineering-handbook/README.md
+  - docs/history/engineering-handbook/2026-09-03-claude-code-kms-configuration.md
+no_impact_reason:
+major_change_override: no
+

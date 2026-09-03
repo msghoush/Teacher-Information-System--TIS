@@ -620,6 +620,44 @@
             padding: 4px 6px;
         }
 
+        .planning-requirement-checkbox {
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+
+        .inline-requirement-form {
+            display: inline;
+        }
+
+        .link-button {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            color: var(--brand, #0A4EA3);
+            text-decoration: underline;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .planning-requirement-protected {
+            color: var(--muted, #5d6b82);
+            font-style: italic;
+            cursor: help;
+        }
+
+        .planning-bulk-remove-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .planning-bulk-remove-count {
+            font-size: 12px;
+            color: var(--muted, #5d6b82);
+        }
+
         .icon {
             width: 16px;
             height: 16px;
@@ -892,14 +930,23 @@
                                         <ul class="aligned-list-table">
                                             {% for subject in row.subject_assignments %}
                                             <li class="aligned-item-table" style="border-color: {{ subject.subject_color_border or '#dbe7f8' }}; background: {{ subject.subject_color_soft or '#f5f9ff' }}; color: {{ subject.subject_color_text or '#2f4361' }}; box-shadow: inset 4px 0 0 {{ subject.subject_color or '#0A4EA3' }};">
+                                                {% if can_delete and subject.requirement_status in ("removable", "fallback") %}
+                                                <input type="checkbox" class="planning-requirement-checkbox" name="target" value="{{ subject.requirement_target }}" form="planningBulkRemoveForm" aria-label="Select {{ subject.subject_name }} in Grade {{ record.grade_level }} Section {{ record.section_name }} for bulk removal">
+                                                {% endif %}
                                                 {{ subject.display_label or (subject.subject_code ~ " - " ~ subject.subject_name ~ " (" ~ subject.weekly_hours ~ "h)") }}
                                                 {% if subject.teacher_name %}
                                                 | {{ subject.teacher_name }}{% if subject.assignment_source == "homeroom_default" %} (Homeroom Default){% endif %}
                                                 {% else %}
                                                 | Unassigned
                                                 {% endif %}
-                                                {% if can_delete and subject.demand_removable %}
-                                                | <a href="/planning/subject-demand/delete/{{ subject.demand_id }}?return_to={{ ('/planning/#planning-section-' ~ record.id) | urlencode }}" onclick="return confirm('Remove this Planning demand? {{ subject.subject_name }} will no longer be required for this section, and this cannot be undone.');">Remove demand</a>
+                                                {% if can_delete and subject.requirement_status in ("removable", "fallback") %}
+                                                | <form method="post" action="/planning/subject-requirements/remove" class="inline-requirement-form">
+                                                    <input type="hidden" name="target" value="{{ subject.requirement_target }}">
+                                                    <input type="hidden" name="return_to" value="{{ ('/planning/#planning-section-' ~ record.id) | urlencode }}">
+                                                    <button type="submit" class="link-button" onclick="return confirm('Remove {{ subject.subject_name }} ({{ subject.weekly_hours }}h) from this section\'s Planning requirements?');">Remove Subject Requirement</button>
+                                                </form>
+                                                {% elif can_delete and subject.requirement_status == "permanent" %}
+                                                | <span class="planning-requirement-protected" title="This requirement has Curriculum Adjustment history, so TIS preserves it permanently and it cannot be removed here.">Protected (Curriculum Adjustment history)</span>
                                                 {% endif %}
                                             </li>
                                             {% endfor %}
@@ -930,6 +977,15 @@
                     </table>
                 </div>
                 <div id="noPlanningResult" class="empty" style="display:none;">No planning sections match your search.</div>
+                {% if can_delete %}
+                <form id="planningBulkRemoveForm" method="post" action="/planning/subject-requirements/remove" class="planning-bulk-remove-bar">
+                    <input type="hidden" name="return_to" value="/planning/">
+                    <button type="submit" id="planningBulkRemoveSubmit" class="action-btn action-btn-secondary">
+                        Bulk Remove Subject Requirements
+                    </button>
+                    <span id="planningBulkRemoveCount" class="planning-bulk-remove-count">No requirements selected</span>
+                </form>
+                {% endif %}
                 {% else %}
                 <div class="empty">No planning sections found for the current scope.</div>
                 {% endif %}
@@ -967,9 +1023,9 @@ const gradeSelect = document.getElementById("grade_level");
         const collapseSubjectAssignmentDetails = () => {
             // Never force-close the section the shared reopen-on-load.js
             // script is about to reopen (or has already reopened) after a
-            // "Remove demand"-style redirect - this also runs again on the
-            // later "pageshow" event, which fires after DOMContentLoaded on
-            // every normal navigation, not only bfcache restores.
+            // Remove Subject Requirement redirect - this also runs again on
+            // the later "pageshow" event, which fires after DOMContentLoaded
+            // on every normal navigation, not only bfcache restores.
             let preserveId = "";
             try {
                 preserveId = window.__tisReopenTargetId
@@ -1106,5 +1162,44 @@ const gradeSelect = document.getElementById("grade_level");
         };
 
         kpiValues.forEach((element) => animateValue(element));
+
+        const bulkRemoveForm = document.getElementById("planningBulkRemoveForm");
+        const bulkRemoveCountLabel = document.getElementById("planningBulkRemoveCount");
+        const bulkRemoveCheckboxes = () => Array.from(
+            document.querySelectorAll('input.planning-requirement-checkbox[form="planningBulkRemoveForm"]')
+        );
+
+        const refreshBulkRemoveCount = () => {
+            if (!bulkRemoveCountLabel) {
+                return;
+            }
+            const checkedCount = bulkRemoveCheckboxes().filter((box) => box.checked).length;
+            bulkRemoveCountLabel.textContent = checkedCount === 0
+                ? "No requirements selected"
+                : `${checkedCount} requirement${checkedCount === 1 ? "" : "s"} selected`;
+        };
+
+        bulkRemoveCheckboxes().forEach((box) => {
+            box.addEventListener("change", refreshBulkRemoveCount);
+        });
+        refreshBulkRemoveCount();
+
+        if (bulkRemoveForm) {
+            bulkRemoveForm.addEventListener("submit", (event) => {
+                const checkedCount = bulkRemoveCheckboxes().filter((box) => box.checked).length;
+                if (checkedCount === 0) {
+                    event.preventDefault();
+                    window.alert("Select at least one Planning requirement to remove.");
+                    return;
+                }
+                const confirmed = window.confirm(
+                    `Remove ${checkedCount} selected subject requirement${checkedCount === 1 ? "" : "s"} `
+                    + "from Planning? This action removes the selected Planning requirements only."
+                );
+                if (!confirmed) {
+                    event.preventDefault();
+                }
+            });
+        }
     </script>
 {% endblock %}
