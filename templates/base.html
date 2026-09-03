@@ -304,6 +304,7 @@
 
     {% block page_scripts %}{% endblock %}
     <script src="{{ url_for('static', path='js/compact-descriptions.js') }}?v=20260819a"></script>
+    <script src="{{ url_for('static', path='js/reopen-on-load.js') }}?v=20260903a"></script>
     {% if shell.design_studio.can_use %}
     <script id="tis-design-studio-config" type="application/json">{{ shell.design_studio.config | tojson | safe }}</script>
     <script src="{{ url_for('static', path='js/design-studio.js') }}?v=20260615b"></script>

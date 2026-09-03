@@ -877,7 +877,7 @@
                                 <td>{{ row.homeroom_teacher_name }}</td>
                                 <td>
                                     {% if row.subject_assignments %}
-                                    <details class="subject-assignment-details">
+                                    <details class="subject-assignment-details" id="planning-section-{{ record.id }}">
                                         <summary class="subject-assignment-summary">
                                             <span class="subject-summary-pill subject-summary-pill-strong">{{ row.subject_count }} subjects</span>
                                             <span class="subject-summary-pill">{{ row.assigned_subject_count }} assigned</span>
@@ -899,7 +899,7 @@
                                                 | Unassigned
                                                 {% endif %}
                                                 {% if can_delete and subject.demand_removable %}
-                                                | <a href="/planning/subject-demand/delete/{{ subject.demand_id }}" onclick="return confirm('Remove this Planning demand? {{ subject.subject_name }} will no longer be required for this section, and this cannot be undone.');">Remove demand</a>
+                                                | <a href="/planning/subject-demand/delete/{{ subject.demand_id }}?return_to={{ ('/planning#planning-section-' ~ record.id) | urlencode }}" onclick="return confirm('Remove this Planning demand? {{ subject.subject_name }} will no longer be required for this section, and this cannot be undone.');">Remove demand</a>
                                                 {% endif %}
                                             </li>
                                             {% endfor %}
@@ -938,6 +938,9 @@
 {% endblock %}
 
 {% block page_scripts %}
+{% if open_section_id %}
+<script>window.__tisReopenTargetId = {{ open_section_id | tojson }};</script>
+{% endif %}
 <script>
 const gradeSelect = document.getElementById("grade_level");
         const homeroomTeacherSelect = document.getElementById("homeroom_teacher_id");

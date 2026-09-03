@@ -35,6 +35,7 @@ from curriculum_adjustment_apply_service import (
 from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 from subject_colors import build_subject_theme, resolve_subject_color
+from redirect_utils import safe_redirect_path
 
 router = APIRouter(prefix="/planning", tags=["Planning"])
 templates = Jinja2Templates(directory="templates")
@@ -801,6 +802,7 @@ def _render_planning_page(
     success: str = "",
     detail_errors=None,
     form_data=None,
+    open_section_id: str = "",
 ):
     branch_id, academic_year_id = _get_scope_ids(current_user)
     can_modify = auth.has_permission(db, current_user, "planning.create_section")
@@ -900,6 +902,7 @@ def _render_planning_page(
             "detail_errors": detail_errors or [],
             "form_data": normalized_form_data,
             "copy_year_choices": copy_year_choices,
+            "open_section_id": open_section_id,
             "user": current_user,
             **build_shell_context(
                 request,
@@ -1944,6 +1947,7 @@ def delete_planning_section(
             current_user,
             error=error,
             detail_errors=detail_errors,
+            open_section_id=f"planning-section-{planning_section.id}",
         )
 
     try:
@@ -1956,6 +1960,7 @@ def delete_planning_section(
             db,
             current_user,
             error=_PLANNING_SECTION_DELETE_INTEGRITY_FALLBACK_MESSAGE,
+            open_section_id=f"planning-section-{planning_section.id}",
         )
 
     return RedirectResponse(url="/planning", status_code=302)
@@ -1976,6 +1981,7 @@ _PLANNING_SUBJECT_DEMAND_INTEGRITY_FALLBACK_MESSAGE = (
 def delete_planning_subject_demand(
     request: Request,
     demand_id: int,
+    return_to: str = "/planning",
     db: Session = Depends(get_db),
 ):
     """Hard-delete one untouched, setup-only Planning demand row.
@@ -1985,6 +1991,12 @@ def delete_planning_subject_demand(
     intentionally restricted to rows that have never been acted on through
     Curriculum Adjustment (see _get_planning_section_demand_status) so that
     genuine curriculum history is never destroyed.
+
+    `return_to` lets the caller (the Planning page's per-section "Remove
+    demand" link) ask to land back on the same expanded section afterward
+    - e.g. "/planning#planning-section-2001" - via the shared safe-redirect
+    guard in redirect_utils.py. It is validated the same way regardless of
+    outcome and always falls back to plain "/planning" when absent or unsafe.
     """
     current_user = get_current_user(request, db)
     if not current_user:
@@ -1993,6 +2005,8 @@ def delete_planning_subject_demand(
     if not auth.has_permission(db, current_user, "planning.delete_section"):
         return RedirectResponse(url="/planning", status_code=302)
 
+    target = safe_redirect_path(return_to, default="/planning")
+
     branch_id, academic_year_id = _get_scope_ids(current_user)
     demand = db.query(models.PlanningSubjectDemand).filter(
         models.PlanningSubjectDemand.id == demand_id,
@@ -2000,7 +2014,7 @@ def delete_planning_subject_demand(
         models.PlanningSubjectDemand.academic_year_id == academic_year_id,
     ).first()
     if not demand:
-        return RedirectResponse(url="/planning", status_code=302)
+        return RedirectResponse(url=target, status_code=302)
 
     if demand.updated_by_user_id is not None:
         return _render_planning_page(
@@ -2008,6 +2022,7 @@ def delete_planning_subject_demand(
             db,
             current_user,
             error=_PLANNING_SUBJECT_DEMAND_PERMANENT_MESSAGE,
+            open_section_id=f"planning-section-{demand.planning_section_id}",
         )
 
     try:
@@ -2020,6 +2035,7 @@ def delete_planning_subject_demand(
             db,
             current_user,
             error=_PLANNING_SUBJECT_DEMAND_INTEGRITY_FALLBACK_MESSAGE,
+            open_section_id=f"planning-section-{demand.planning_section_id}",
         )
 
-    return RedirectResponse(url="/planning", status_code=302)
+    return RedirectResponse(url=target, status_code=302)

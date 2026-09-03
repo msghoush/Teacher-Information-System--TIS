@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Project State
 
+## Return-To Reopen-On-Load UI Pattern Implemented
+
+A shared `redirect_utils.py` module (`safe_redirect_path`,
+`redirect_with_notice`, `redirect_with_error`, moved out of `main.py` with
+existing callers unchanged) and a shared `static/js/reopen-on-load.js`
+(loaded globally from `base.html`) finish wiring the existing `return_to`
+convention so a server-rendered action inside an expanded element can land
+the user back on that same element, scrolled into view, instead of
+collapsing it. Planning's "Remove demand" action is the first and, for now,
+only consumer: each section's `<details>` carries a stable id, the link
+passes `return_to` to that section's fragment, and the route's in-place
+blocked-render outcomes set the same reopen target without a redirect. No
+SPA conversion, no new browser storage. Subjects and Teachers were not
+changed; the pattern is available for them to adopt later.
+
 ## Planning And Subject Delete Dependency Guards Implemented
 
 Planning section delete and Subject delete/Bulk Delete now run a read-only

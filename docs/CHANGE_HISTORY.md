@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-03 - Return-To Reopen-On-Load UI Pattern
+
+- Added `redirect_utils.py`, a shared `safe_redirect_path()` open-redirect
+  guard plus `redirect_with_notice()`/`redirect_with_error()`, moved out of
+  `main.py` (which now imports them under their original private names, so
+  every existing caller keeps working unchanged) so any router can reuse the
+  same validation instead of reimplementing it.
+- Added `static/js/reopen-on-load.js`, loaded globally from `base.html`: on
+  page load it resolves a target id from `window.location.hash` or an
+  optional inline `window.__tisReopenTargetId`, opens it if it is a
+  `<details>`, and scrolls it into view; a missing/stale id is a silent no-op.
+- Planning is the first consumer: each section's `<details>` now has a
+  stable `id`, "Remove demand" passes `return_to` back to that section's
+  fragment, and `delete_planning_subject_demand`/`delete_planning_section`'s
+  in-place blocked renders set the same reopen target - so an admin working
+  inside an expanded section stays there after the action completes.
+- No SPA conversion, no new storage mechanism; Subjects and Teachers were
+  not changed.
+
 ## 2026-09-03 - Planning And Subject Delete Dependency Guards
 
 - Added a read-only dependency check before Planning section and Subject

@@ -23,9 +23,10 @@ def _patch_auth(monkeypatch, permission=True, user=None):
 def _patch_render(monkeypatch):
     captured = {}
 
-    def _fake_render(request, db, current_user, error="", detail_errors=None, **kwargs):
+    def _fake_render(request, db, current_user, error="", detail_errors=None, open_section_id="", **kwargs):
         captured["error"] = error
         captured["detail_errors"] = detail_errors
+        captured["open_section_id"] = open_section_id
         return SimpleNamespace(status_code=200, captured_error=error)
 
     monkeypatch.setattr(planning_router, "_render_planning_page", _fake_render)
@@ -139,9 +140,9 @@ def test_delete_blocked_by_permanent_curriculum_adjustment_touched_demand(db, mo
 # ---------------------------------------------------------------------------
 # Remove-demand action: the actual admin path for the removable case
 # ---------------------------------------------------------------------------
-def _remove_demand(db, demand_id):
+def _remove_demand(db, demand_id, return_to="/planning"):
     return planning_router.delete_planning_subject_demand(
-        request=object(), demand_id=demand_id, db=db,
+        request=object(), demand_id=demand_id, return_to=return_to, db=db,
     )
 
 
@@ -191,6 +192,132 @@ def test_remove_demand_requires_permission_and_is_scoped(db, monkeypatch):
     response = _remove_demand(db, demand.id)
     assert isinstance(response, RedirectResponse)
     assert db.get(models.PlanningSubjectDemand, demand.id) is not None
+
+
+# ---------------------------------------------------------------------------
+# return_to: reopen the same Planning section after Remove demand
+# ---------------------------------------------------------------------------
+def test_remove_demand_success_redirects_back_to_the_same_section_fragment(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+    demand = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=4, is_active=True,
+    )
+    db.add(demand)
+    db.commit()
+
+    response = _remove_demand(
+        db, demand.id, return_to="/planning#planning-section-2001",
+    )
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == "/planning#planning-section-2001"
+    assert db.get(models.PlanningSubjectDemand, demand.id) is None
+
+
+def test_remove_demand_rejects_external_return_to(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+    demand = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=4, is_active=True,
+    )
+    db.add(demand)
+    db.commit()
+
+    response = _remove_demand(
+        db, demand.id, return_to="http://evil.example.com/steal",
+    )
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == "/planning"
+    assert db.get(models.PlanningSubjectDemand, demand.id) is None
+
+
+def test_remove_demand_rejects_protocol_relative_return_to(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+    demand = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=4, is_active=True,
+    )
+    db.add(demand)
+    db.commit()
+
+    response = _remove_demand(db, demand.id, return_to="//evil.example.com/steal")
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == "/planning"
+    assert db.get(models.PlanningSubjectDemand, demand.id) is None
+
+
+def test_remove_demand_missing_return_to_falls_back_to_plain_planning(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+    demand = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=4, is_active=True,
+    )
+    db.add(demand)
+    db.commit()
+
+    response = planning_router.delete_planning_subject_demand(
+        request=object(), demand_id=demand.id, db=db,
+    )
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == "/planning"
+
+
+def test_remove_demand_permission_denied_ignores_supplied_return_to(db, monkeypatch):
+    # An unsafe or foreign return_to must never leak through the permission
+    # gate either - the denial path stays a fixed "/planning" regardless.
+    demand = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=4, is_active=True,
+    )
+    db.add(demand)
+    db.commit()
+
+    _patch_auth(monkeypatch, permission=False)
+    response = _remove_demand(
+        db, demand.id, return_to="http://evil.example.com/steal",
+    )
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == "/planning"
+    assert db.get(models.PlanningSubjectDemand, demand.id) is not None
+
+
+def test_remove_demand_not_found_still_honors_safe_return_to(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+
+    response = _remove_demand(
+        db, 999999, return_to="/planning#planning-section-2001",
+    )
+
+    assert isinstance(response, RedirectResponse)
+    assert response.headers["location"] == "/planning#planning-section-2001"
+
+
+def test_remove_demand_permanent_block_reopens_the_same_section_in_place(db, monkeypatch):
+    # Even the in-place render (no redirect - the row is permanent) should
+    # tell the shared client script which section to reopen.
+    _patch_auth(monkeypatch)
+    rendered = _patch_render(monkeypatch)
+    demand = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=2, is_active=True,
+        updated_by_user_id="U1",
+    )
+    db.add(demand)
+    db.commit()
+
+    _remove_demand(db, demand.id)
+
+    assert rendered.get("open_section_id") == "planning-section-2001"
 
     # a user scoped to a different branch/year cannot reach it either
     _patch_auth(monkeypatch, user=_user(branch_id=20, academic_year_id=200))
