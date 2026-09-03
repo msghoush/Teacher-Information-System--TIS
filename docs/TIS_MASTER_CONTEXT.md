@@ -1,11 +1,47 @@
 ---
 title: TIS Master Context
 documentation_version: 3.3
-last_updated: 2026-08-26
+last_updated: 2026-09-03
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Planning And Subject Delete Dependency Guards
+
+`routers/planning.py:delete_planning_section` and `routers/subjects.py`'s
+single/Bulk Delete perform a read-only dependency scan before any mutation
+and block with a specific, customer-safe message naming every blocking
+category, instead of raising an unhandled database error. Planning section
+delete checks `TeacherSectionAssignment`, `PlanningSubjectDemand`,
+`TimetableEntry`, `TeacherSchedulingRuleTarget`, `CalendarEvent`/
+`CalendarEventSectionTarget`, and section-scoped `SubjectDistributionRule`.
+`TeacherSectionAssignment` is now a blocker like every other dependency
+rather than being silently deleted alongside the section, since no documented
+product rule required that cascade. Subject delete/Bulk Delete additionally
+check `TimetableEntry.subject_code`, `CurriculumAdjustmentAudit` source/target
+codes, and `SubjectDistributionRule.subject_code`, none of which had an
+application-level check before, so a Subject referenced only by one of those
+could previously be deleted and silently orphan that historical reference.
+
+Planning subject demand is classified removable or permanent using the
+existing `PlanningSubjectDemand.updated_by_user_id` column, set only by
+Curriculum Adjustment (`curriculum_adjustment_apply_service._set_demand`)
+and never by the one-time setup backfill migration. A row with no
+`updated_by_user_id` has never been acted on by an admin - pure setup
+scaffolding - and can be hard-deleted through the new, permission-gated
+`GET /planning/subject-demand/delete/{demand_id}` action ("Remove demand" on
+the Planning page), after which the section or subject becomes deletable. A
+row Curriculum Adjustment has ever touched, active or retired, is genuine
+history that TIS preserves permanently and remains an unresolvable blocker
+with an honest explanation. Timetable placements follow the same principle
+without a new action: only entries in a mutable Draft can be removed, while
+published/active/superseded/archived placements are permanent history. Bulk
+Subject delete is atomic: any blocked Subject in the selection stops the
+whole batch, and every blocked Subject is named with its specific reason and,
+where applicable, the Remove-demand action that resolves it. No archive/
+closed/inactive lifecycle, broad schema change, migration, or cascade
+deletion was introduced.
 
 ## Guided Late-Stage Curriculum Adjustment
 
