@@ -1,7 +1,7 @@
 ---
 title: Engineering Handbook History
 module: engineering-handbook
-last_updated: 2026-07-22
+last_updated: 2026-09-03
 ---
 
 # Engineering Handbook History
@@ -10,6 +10,8 @@ This folder tracks meaningful changes to the TIS Engineering Handbook, including
 
 Latest change:
 
+- `2026-09-03-claude-code-kms-configuration.md`: repository-native Claude Code
+  entry point, reusable TIS KMS skill, and bounded specialized subagent.
 - `2026-07-22-kms-phase-7d-navigation-catalog-enforcement.md`: strict source-title, catalog, navigation-link, source-inventory, and PDF page-bound validation.
 
 Related files:

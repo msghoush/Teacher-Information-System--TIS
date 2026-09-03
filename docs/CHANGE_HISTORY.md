@@ -1,11 +1,57 @@
 ---
 title: TIS Change History
 documentation_version: 3.3
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-04 - Planning Subject Requirement Removal (Single And Bulk)
+
+- Fixed a real gap where "Remove demand" only appeared for a Planning
+  requirement with an explicit, untouched `PlanningSubjectDemand` row - a
+  purely legacy-fallback requirement (resolved only from the Subject
+  catalog, no explicit row at all) had no removal action, so the same
+  teacher's subjects could inconsistently show the action for reasons
+  unrelated to the teacher.
+- Added `_get_planning_requirement_removal_status`, classifying every
+  requirement as `removable`, `permanent` (Curriculum-Adjustment-touched,
+  now shown with an explicit "Protected" explanation instead of a hidden
+  action), `fallback`, or `not_found`, reusing the same resolution authority
+  already used to render the page.
+- A `fallback` requirement is now removable by creating an explicit
+  `is_active=False`/`weekly_periods=0` suppression row, rather than leaving
+  no removal path at all. Unlike a Curriculum Adjustment retirement, this
+  row sets only `created_by_user_id` (audit trail) and leaves
+  `updated_by_user_id` NULL, so it stays classified `removable`/setup-only
+  instead of immediately becoming permanent - corrected same-day after an
+  initial version stamped both columns like a Curriculum Adjustment
+  retirement, which made a plain admin cleanup permanently undeletable and
+  broke the remove requirement -> remove section -> remove subject workflow.
+  See `docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md`
+  for the full correction.
+- Added `POST /planning/subject-requirements/remove` handling both single
+  ("Remove Subject Requirement") and checkbox-selected bulk ("Bulk Remove
+  Subject Requirements", supported across every section on the page) removal
+  atomically: every target is scope-validated and classified before any
+  mutation, and any protected/invalid/out-of-scope target blocks the whole
+  request with a named reason.
+- Confirmation dialogs precede both single and bulk removal. Teacher
+  assignments, timetable data, and Curriculum Adjustment audit records are
+  never touched. The prior round's demand-id-only delete route remains in
+  place, no longer linked from the UI, and is now the supported way to
+  fully clear a leftover setup-only suppression row.
+
+## 2026-09-03 - Claude Code KMS Configuration
+
+- Added root `CLAUDE.md` as the concise Claude Code repository entry point.
+- Added `.claude/skills/tis-kms/SKILL.md` with the reusable TIS investigation,
+  implementation, KIA, synchronization, validation, and reporting workflow.
+- Added `.claude/agents/tis-kms-developer.md` for bounded delegated TIS work under
+  the same tenant, worktree, database, deployment, and no-commit safeguards.
+- Kept root `AGENTS.md` and the authoritative KMS as governing sources; the new
+  configuration adds no application, schema, migration, or deployment behavior.
 
 ## 2026-09-03 - Return-To Reopen-On-Load UI Pattern
 

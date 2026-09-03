@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -21,7 +23,10 @@ from teacher_qualifications import (
     infer_qualification_keys_from_legacy_text,
 )
 from teacher_capacity import get_teacher_international_capacity_hours
-from planning_subject_demand_service import resolve_scope_subject_demands
+from planning_subject_demand_service import (
+    resolve_scope_subject_demands,
+    resolve_section_subject_demands,
+)
 from curriculum_adjustment_preview_service import (
     CurriculumAdjustmentPreviewError,
     CurriculumAdjustmentPreviewRequest,
@@ -646,6 +651,12 @@ def _get_section_demand_alignment_map(
                 subject_name=subject.subject_name,
             )
             theme = build_subject_theme(subject_color)
+            if demand.demand_id is None:
+                requirement_status = "fallback"
+            elif demand.demand_id in removable_demand_ids:
+                requirement_status = "removable"
+            else:
+                requirement_status = "permanent"
             items.append({
                 "subject_code": demand.subject_code,
                 "subject_name": subject.subject_name or "Unnamed Subject",
@@ -655,7 +666,8 @@ def _get_section_demand_alignment_map(
                 "subject_color_text": theme["text"],
                 "subject_color_border": theme["border"],
                 "demand_id": demand.demand_id,
-                "demand_removable": demand.demand_id in removable_demand_ids,
+                "requirement_status": requirement_status,
+                "requirement_target": f"{section.id}:{demand.subject_code}",
             })
         result[section.id] = items
     return result
@@ -2042,3 +2054,241 @@ def delete_planning_subject_demand(
         )
 
     return RedirectResponse(url=target, status_code=302)
+
+
+# ---------------------------------------------------------------------------
+# Subject Requirement removal: single or bulk, explicit-row or legacy-fallback.
+#
+# This is the customer-facing "Remove Subject Requirement" / "Bulk Remove
+# Subject Requirements" action. It supersedes the GET-only demand-id route
+# above for new UI, which only ever covered rows that already had an
+# explicit PlanningSubjectDemand row. A legacy-fallback requirement (no
+# explicit row - the section-subject is still resolved from the Subject
+# catalog's weekly_hours) has nothing to delete; "removing" it means
+# creating an explicit is_active=False/weekly_periods=0 suppression row.
+#
+# That suppression row is deliberately NOT stamped the way
+# curriculum_adjustment_apply_service._set_demand stamps a zero-out
+# retirement. _set_demand always sets updated_by_user_id, which every
+# removability check in this module treats as "touched by Curriculum
+# Adjustment, therefore permanent". Doing the same here would make a plain
+# admin cleanup permanently undeletable the instant it happened, breaking
+# the remove-requirement -> remove-section -> remove-subject workflow this
+# action exists for. Instead the suppression row gets created_by_user_id
+# set (who suppressed it stays auditable) and updated_by_user_id left NULL,
+# so it stays classified "setup-only" and can still be fully cleared later
+# via the GET demand-id delete route above. A row only becomes permanent by
+# actually being touched by Curriculum Adjustment, never merely by being
+# suppressed from here.
+# ---------------------------------------------------------------------------
+
+def _parse_planning_requirement_target(raw: str):
+    text = str(raw or "").strip()
+    if ":" not in text:
+        return None
+    section_part, _, subject_part = text.partition(":")
+    subject_code = subject_part.strip().upper()
+    if not subject_code:
+        return None
+    try:
+        section_id = int(section_part.strip())
+    except ValueError:
+        return None
+    return section_id, subject_code
+
+
+def _get_planning_requirement_removal_status(
+    db: Session, *, branch_id: int, academic_year_id: int,
+    planning_section_id: int, subject_code: str,
+):
+    """Classify one section+subject Planning requirement for removal.
+
+    Reuses resolve_section_subject_demands - the same explicit-first/legacy-
+    fallback authority the rest of Planning already displays - so this can
+    never diverge from what is actually shown as an active requirement.
+    Returns "removable", "permanent", "fallback", or "not_found".
+    """
+    resolved = resolve_section_subject_demands(
+        db, branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_id=planning_section_id,
+    )
+    entry = next(
+        (item for item in resolved if item.subject_code == subject_code), None
+    )
+    if entry is None or not entry.is_active or int(entry.weekly_periods or 0) <= 0:
+        return "not_found"
+    if entry.authority == "legacy_fallback":
+        return "fallback"
+    row = db.query(models.PlanningSubjectDemand).filter(
+        models.PlanningSubjectDemand.id == entry.demand_id
+    ).first()
+    if row is None:
+        return "not_found"
+    return "permanent" if row.updated_by_user_id is not None else "removable"
+
+
+def _apply_planning_requirement_removal(
+    db: Session, *, branch_id: int, academic_year_id: int,
+    planning_section_id: int, subject_code: str, actor_user_id,
+):
+    """Mutate exactly one requirement already confirmed removable/fallback.
+
+    A fallback suppression row is deliberately stamped with
+    created_by_user_id=actor (who suppressed it stays auditable) but
+    updated_by_user_id=None. Curriculum Adjustment (_set_demand) is the only
+    code path that ever sets updated_by_user_id, and every removability
+    check in this module (_get_planning_requirement_removal_status,
+    _get_planning_section_demand_status, routers.subjects._get_subject_demand_status)
+    treats updated_by_user_id IS NULL as "never touched by Curriculum
+    Adjustment, therefore setup-only and still removable". Stamping the
+    acting admin into updated_by_user_id here would make this row look
+    identical to genuine Curriculum Adjustment history and become
+    permanently undeletable the instant it was created - defeating the
+    admin cleanup workflow (remove requirement -> remove section -> remove
+    subject) this action exists for.
+
+    Never touches TeacherSectionAssignment, TimetableEntry, or
+    CurriculumAdjustmentAudit rows.
+    """
+    row = db.query(models.PlanningSubjectDemand).filter(
+        models.PlanningSubjectDemand.planning_section_id == planning_section_id,
+        models.PlanningSubjectDemand.subject_code == subject_code,
+        models.PlanningSubjectDemand.is_active.is_(True),
+    ).first()
+    if row is not None:
+        db.delete(row)
+        return
+    db.add(models.PlanningSubjectDemand(
+        branch_id=branch_id, academic_year_id=academic_year_id,
+        planning_section_id=planning_section_id, subject_code=subject_code,
+        weekly_periods=0, is_active=False, retired_at=datetime.utcnow(),
+        created_by_user_id=actor_user_id, updated_by_user_id=None,
+    ))
+
+
+_PLANNING_REQUIREMENT_REMOVE_INTEGRITY_FALLBACK_MESSAGE = (
+    "Unable to remove the selected Planning requirements because they are "
+    "still referenced by related records."
+)
+
+
+@router.post("/subject-requirements/remove")
+def remove_planning_subject_requirements(
+    request: Request,
+    target: list[str] = Form(...),
+    return_to: str = "/planning/",
+    db: Session = Depends(get_db),
+):
+    """Atomically remove one or more safely-removable Planning requirements.
+
+    Each `target` is "<planning_section_id>:<subject_code>" (one checkbox
+    value per requirement row). Every target is classified first; if any is
+    protected, invalid, or out of scope, nothing is mutated and every
+    blocked target is named with its reason (atomic from the admin's
+    perspective, same contract as Subject bulk delete).
+    """
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.has_permission(db, current_user, "planning.delete_section"):
+        return RedirectResponse(url="/planning/", status_code=302)
+
+    target_path = safe_redirect_path(return_to, default="/planning/")
+    branch_id, academic_year_id = _get_scope_ids(current_user)
+
+    approved = []
+    blockers = []
+    seen = set()
+    first_blocked_section_id = None
+
+    for raw in target:
+        parsed = _parse_planning_requirement_target(raw)
+        if parsed is None:
+            blockers.append("One of the selected requirements was not valid.")
+            continue
+        section_id, subject_code = parsed
+        if (section_id, subject_code) in seen:
+            continue
+        seen.add((section_id, subject_code))
+
+        section = db.query(models.PlanningSection).filter(
+            models.PlanningSection.id == section_id,
+            models.PlanningSection.branch_id == branch_id,
+            models.PlanningSection.academic_year_id == academic_year_id,
+        ).first()
+        if section is None:
+            blockers.append(
+                "One of the selected requirements is outside your current scope."
+            )
+            continue
+
+        subject = db.query(models.Subject).filter(
+            models.Subject.branch_id == branch_id,
+            models.Subject.academic_year_id == academic_year_id,
+            models.Subject.subject_code == subject_code,
+        ).first()
+        subject_label = subject.subject_name if subject else subject_code
+        location_label = f"{subject_label} (Grade {section.grade_level} Section {section.section_name})"
+
+        status = _get_planning_requirement_removal_status(
+            db, branch_id=branch_id, academic_year_id=academic_year_id,
+            planning_section_id=section_id, subject_code=subject_code,
+        )
+        if status in ("removable", "fallback"):
+            approved.append((section_id, subject_code))
+        elif status == "permanent":
+            blockers.append(
+                f"{location_label}: has Curriculum Adjustment history and is "
+                "preserved permanently"
+            )
+            first_blocked_section_id = first_blocked_section_id or section_id
+        else:
+            blockers.append(f"{location_label}: is no longer an active Planning requirement")
+            first_blocked_section_id = first_blocked_section_id or section_id
+
+    if not approved and not blockers:
+        return _render_planning_page(
+            request, db, current_user,
+            error="Select at least one Planning requirement to remove.",
+        )
+
+    if blockers:
+        is_plural = len(target) > 1 or len(blockers) > 1
+        return _render_planning_page(
+            request,
+            db,
+            current_user,
+            error=(
+                "Cannot remove the selected Planning requirements."
+                if is_plural else "Cannot remove this Planning requirement."
+            ),
+            detail_errors=blockers,
+            open_section_id=(
+                f"planning-section-{first_blocked_section_id}"
+                if first_blocked_section_id else ""
+            ),
+        )
+
+    distinct_sections = {section_id for section_id, _ in approved}
+    if target_path == "/planning/" and len(distinct_sections) == 1:
+        target_path = f"/planning/#planning-section-{next(iter(distinct_sections))}"
+
+    try:
+        for section_id, subject_code in approved:
+            _apply_planning_requirement_removal(
+                db, branch_id=branch_id, academic_year_id=academic_year_id,
+                planning_section_id=section_id, subject_code=subject_code,
+                actor_user_id=getattr(current_user, "user_id", None),
+            )
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _render_planning_page(
+            request,
+            db,
+            current_user,
+            error=_PLANNING_REQUIREMENT_REMOVE_INTEGRITY_FALLBACK_MESSAGE,
+        )
+
+    return RedirectResponse(url=target_path, status_code=302)

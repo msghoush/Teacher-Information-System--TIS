@@ -1,11 +1,55 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.3
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Planning Subject Requirement Removal (Single And Bulk)
+
+A Planning requirement is classified `removable` (untouched explicit
+`PlanningSubjectDemand`), `permanent` (Curriculum-Adjustment-touched -
+`updated_by_user_id` set - shown with a "Protected" explanation, never a
+hidden action), `fallback` (no explicit row at all - resolved only from the
+Subject catalog), or `not_found`. Both `removable` and `fallback` are now
+removable: an explicit row is deleted, while a `fallback` requirement is
+removed by creating an explicit `is_active=False`/`weekly_periods=0`
+suppression row. Unlike a Curriculum Adjustment retirement (which stamps
+`updated_by_user_id`), this suppression row only sets `created_by_user_id`
+(the acting admin, for audit) and leaves `updated_by_user_id` NULL - so it
+stays classified `removable`/setup-only rather than becoming permanent. A
+row only becomes `permanent` by genuinely being touched by Curriculum
+Adjustment, never merely by being suppressed from this action; a leftover
+setup-only row can still be fully cleared via the existing `GET
+/planning/subject-demand/delete/{demand_id}` route, keeping the remove
+requirement -> remove section -> remove subject workflow intact. This
+closed a real gap where "Remove demand" only ever appeared for
+explicit-row requirements, so the same teacher's subjects could
+inconsistently show the action for reasons that had nothing to do with the
+teacher.
+
+`POST /planning/subject-requirements/remove` (`routers/planning.py`) handles
+both single removal ("Remove Subject Requirement") and checkbox-selected
+bulk removal ("Bulk Remove Subject Requirements", supported across every
+section on the page at once) atomically: every target is validated and
+scope-checked before anything is mutated, and any protected/invalid/
+out-of-scope target blocks the whole request with a named reason. Teacher
+assignments, timetable data, and Curriculum Adjustment audit history are
+never touched. The prior round's `GET /planning/subject-demand/delete/
+{demand_id}` route remains in place and is now the way an admin fully
+clears a leftover setup-only suppression row.
+
+## Claude Code KMS Configuration
+
+Claude Code uses root `CLAUDE.md` as its repository entry point,
+`.claude/skills/tis-kms/SKILL.md` as the reusable TIS execution workflow, and
+`.claude/agents/tis-kms-developer.md` as the bounded specialized subagent. These
+files mirror, but do not replace, root `AGENTS.md` or the authoritative KMS. They
+require the same first reads, worktree preservation, tenant and deployment
+boundaries, task-level `.kms-impact.yml`, proportional validation, KMS sync/check,
+and no-commit/no-push default.
 
 ## Return-To Reopen-On-Load UI Pattern
 

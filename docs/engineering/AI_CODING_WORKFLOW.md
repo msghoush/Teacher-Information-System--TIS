@@ -1,13 +1,23 @@
 ---
 title: TIS AI Coding Workflow
-documentation_version: 3.1
-last_updated: 2026-07-21
+documentation_version: 3.3
+last_updated: 2026-09-03
 source_of_truth: true
 ---
 
 # TIS AI Coding Workflow
 
 This guide defines how future AI assistants should work inside TIS.
+
+## Repository-Native Assistant Configuration
+
+Root `AGENTS.md` remains the repository-wide governance authority. Claude Code
+also reads root `CLAUDE.md`; its reusable project workflow lives at
+`.claude/skills/tis-kms/SKILL.md`, and bounded delegated TIS work may use
+`.claude/agents/tis-kms-developer.md`. These files point assistants back to this
+KMS rather than embedding a separate architectural source of truth. Configuration
+for another assistant must preserve the same KIA, safety, validation, and
+completion-report requirements.
 
 ## Planning Before Coding
 

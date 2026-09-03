@@ -1,11 +1,51 @@
 ---
 title: TIS Project State
 documentation_version: 3.3
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Planning Subject Requirement Removal (Single And Bulk) Implemented
+
+Administrators can now remove a Planning subject requirement whether or not
+it has an explicit `PlanningSubjectDemand` row. Previously "Remove demand"
+only appeared for a requirement with an untouched explicit row, so a purely
+legacy-fallback requirement (resolved only from the Subject catalog, with no
+explicit row at all) silently had no removal action - the same teacher could
+have some subjects removable and others not, for reasons unrelated to the
+teacher. `routers/planning.py` classifies every requirement as `removable`
+(untouched explicit row), `permanent` (Curriculum-Adjustment-touched, shown
+with an explicit "Protected" explanation instead of a hidden action),
+`fallback` (no explicit row - now removable by creating an explicit
+`is_active=False`/`weekly_periods=0` suppression row; unlike a Curriculum
+Adjustment retirement, this row sets only `created_by_user_id` and leaves
+`updated_by_user_id` NULL, so it stays classified `removable`/setup-only
+rather than immediately becoming permanent), or `not_found`.
+
+The customer-facing action is "Remove Subject Requirement" (single, per row)
+and "Bulk Remove Subject Requirements" (checkbox-selected, supported across
+every section on the page in one request, not only within one section) at
+`POST /planning/subject-requirements/remove`. Bulk removal is atomic:
+every selected target is validated and scope-checked first, and if any is
+protected, invalid, or out of scope, nothing is removed and every blocked
+target is named with its reason. Confirmation dialogs precede both single
+and bulk removal. Teacher assignments, timetable data, and Curriculum
+Adjustment audit records are never touched by this action. The existing
+`GET /planning/subject-demand/delete/{demand_id}` route from the prior round
+remains available, superseded in the rendered UI, and is now also the
+supported way for an admin to fully clear a leftover setup-only suppression
+row so Planning section/Subject deletion can proceed.
+
+## Claude Code KMS Integration
+
+The repository now includes root `CLAUDE.md`, a reusable project skill at
+`.claude/skills/tis-kms/SKILL.md`, and a specialized subagent at
+`.claude/agents/tis-kms-developer.md`. This gives Claude Code a native entry point
+to the same KMS onboarding, scope safeguards, worktree preservation, validation,
+and completion reporting already required by `AGENTS.md`; it does not change
+application, database, deployment, or customer behavior.
 
 ## Return-To Reopen-On-Load UI Pattern Implemented
 
