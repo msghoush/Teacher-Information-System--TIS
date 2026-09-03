@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-03T20:44:16.083234+03:00",
+  "generated_at": "2026-09-03T22:10:25.722802+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "3a4b23a",
+  "commit_sha": "b58c63d",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "6f7d8f79496b4d7ca8c27eaa014f0e9faaf7b32432d4d14063573ffdb21567fd",
-  "pdf_size_bytes": 1085233,
+  "pdf_sha256": "37d64daa787d33f6df3cc8eb0888072dea4295e72c4a7251de02744f3f929365",
+  "pdf_size_bytes": 1094539,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-09-03T20:42:24.632819+03:00",
-      "size_bytes": 90474,
-      "sha256": "111cbf90bfea7b18e7d88ba83eef15d9c6b33d9938f01e1dea6d34a4c33ca848",
+      "modified_at": "2026-09-03T22:09:37.326781+03:00",
+      "size_bytes": 91436,
+      "sha256": "bd72854daf245cf4fcba4bdeba911fa7a1f6590320ce8b502910328d39256330",
       "pdf_page": 16
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-03T20:43:08.250177+03:00",
-      "size_bytes": 76853,
-      "sha256": "d958a86c3d27abccbd867aa81e87142442e12147e09ce63f5fd7cb84bc119343",
+      "modified_at": "2026-09-03T22:09:57.646315+03:00",
+      "size_bytes": 77900,
+      "sha256": "aaf59821dfd2fda2306f599c16f71c90dd1b7dfb055b734f764875437e458721",
       "pdf_page": 42
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-03T20:43:36.326425+03:00",
-      "size_bytes": 69568,
-      "sha256": "cf75181de4e83b8d629f9d7e0c2142418a6d1e995e2928ab1e2301fdb97715ed",
+      "modified_at": "2026-09-03T22:09:14.917933+03:00",
+      "size_bytes": 70466,
+      "sha256": "2690e29b0bc5f45565c995e3dff62a98c0956cabcf29141840a58c5578159fe0",
       "pdf_page": 66
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-03T20:43:54.434685+03:00",
-      "size_bytes": 123657,
-      "sha256": "191702c60fdd62523bc92379a0fab550fcf35ae333c30897f9dac9b9ec0c4aa5",
+      "modified_at": "2026-09-03T22:08:54.365932+03:00",
+      "size_bytes": 124810,
+      "sha256": "4c9e80c8786bd4e9e1d9d4c28fd09416d2b47e55e116d0bbaebd9987225464bd",
       "pdf_page": 87
     },
     {
@@ -109,9 +109,9 @@
     },
     {
       "path": "docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md",
-      "modified_at": "2026-08-22T02:52:50.572930+03:00",
-      "size_bytes": 5324,
-      "sha256": "7dee525519de7d52c09cb3408d371a5ea3f570e2b4165960b117c9f1b634965c",
+      "modified_at": "2026-09-03T22:07:26.483805+03:00",
+      "size_bytes": 7026,
+      "sha256": "abad2974e8ec34cef2813d78344fe16e4bf820fd32b063922dc28c7b30125799",
       "pdf_page": 216
     },
     {
@@ -696,39 +696,46 @@
       "pdf_page": 375
     },
     {
-      "path": "docs/history/workforce-planning/README.md",
-      "modified_at": "2026-09-03T20:42:03.501918+03:00",
-      "size_bytes": 3317,
-      "sha256": "57e1752e404f4873a625da35022e02827e3f83e2618e132ba9380ac456d713dc",
+      "path": "docs/history/workforce-planning/2026-09-03-return-to-reopen-on-load-pattern.md",
+      "modified_at": "2026-09-03T22:07:57.591416+03:00",
+      "size_bytes": 3076,
+      "sha256": "cc9080e076f88abffbe5328985318c21daba1dc65327578a2aa90ee30eb476fb",
       "pdf_page": 376
+    },
+    {
+      "path": "docs/history/workforce-planning/README.md",
+      "modified_at": "2026-09-03T22:08:32.410777+03:00",
+      "size_bytes": 3767,
+      "sha256": "e1e5bd06311e674aee05e321643625672ce6b46363fbf3bfe99aeea7cbbda469",
+      "pdf_page": 377
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 378
+      "pdf_page": 379
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 2012,
       "sha256": "d901b0ac33d921ff6041334e6580949f167b159c01c7840b48b1c2cf437c16f2",
-      "pdf_page": 379
+      "pdf_page": 380
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-08-22T02:52:50.590506+03:00",
       "size_bytes": 22759,
       "sha256": "e66b791e2798281fb0ee2a30768c48a27403a01bdfb12724ae004b3c98063ed7",
-      "pdf_page": 380
+      "pdf_page": 381
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 388
+      "pdf_page": 389
     }
   ]
 }

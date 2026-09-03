@@ -35,6 +35,7 @@ import models
 import auth
 import authorization
 import branding_storage
+import redirect_utils
 import email_service
 import email_templates
 import location_service
@@ -548,31 +549,12 @@ def _migrate_profile_photos_to_database(db: Session):
         db.commit()
 
 
-def _safe_redirect_path(path: str) -> str:
-    cleaned = str(path or "").strip()
-    if not cleaned.startswith("/") or cleaned.startswith("//"):
-        return "/dashboard"
-    return cleaned
-
-
-def _redirect_with_notice(path: str, notice: str):
-    safe_path = _safe_redirect_path(path)
-    base_path, _, fragment = safe_path.partition("#")
-    separator = "&" if "?" in base_path else "?"
-    url = f"{base_path}{separator}notice={quote_plus(str(notice or '').strip())}"
-    if fragment:
-        url = f"{url}#{fragment}"
-    return RedirectResponse(url=url, status_code=302)
-
-
-def _redirect_with_error(path: str, error: str):
-    safe_path = _safe_redirect_path(path)
-    base_path, _, fragment = safe_path.partition("#")
-    separator = "&" if "?" in base_path else "?"
-    url = f"{base_path}{separator}error={quote_plus(str(error or '').strip())}"
-    if fragment:
-        url = f"{url}#{fragment}"
-    return RedirectResponse(url=url, status_code=302)
+# Safe-redirect guard and notice/error-preserving redirect helpers now live in
+# redirect_utils.py so any router can reuse the same open-redirect validation
+# and #fragment-preserving behavior instead of reimplementing it.
+_safe_redirect_path = redirect_utils.safe_redirect_path
+_redirect_with_notice = redirect_utils.redirect_with_notice
+_redirect_with_error = redirect_utils.redirect_with_error
 
 
 SAUDI_REGIONS = (

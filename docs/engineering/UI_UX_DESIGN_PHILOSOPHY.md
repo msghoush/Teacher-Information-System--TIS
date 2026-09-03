@@ -1,11 +1,39 @@
 ---
 title: TIS UI UX Design Philosophy
 documentation_version: 3.0
-last_updated: 2026-08-19
+last_updated: 2026-09-03
 source_of_truth: true
 ---
 
 # TIS UI/UX Design Philosophy
+
+## Restoring Expanded State After A Server Redirect
+
+TIS is server-rendered FastAPI/Jinja, not an SPA, so expand/collapse state
+(native `<details>`, dialogs) lives only in the DOM and is normally lost the
+moment an action redirects to a fresh render. The sanctioned fix reuses two
+things that already existed rather than introducing a new mechanism: the
+existing `return_to` form-field/query-param convention, and its `#fragment`
+preservation already built into `redirect_utils.redirect_with_notice()` /
+`redirect_with_error()` (moved out of `main.py` so any router can share the
+same open-redirect guard, `redirect_utils.safe_redirect_path()`).
+
+A route that wants the user to land back on a specific element accepts a
+`return_to` value shaped `<path>[?query]#<element-id>`, validates it with
+`redirect_utils.safe_redirect_path(return_to, default=<page path>)`, and
+redirects there. The shared client script `static/js/reopen-on-load.js`,
+loaded globally from `base.html`, runs on `DOMContentLoaded`, resolves a
+target id from `window.location.hash` (or an optional inline
+`window.__tisReopenTargetId` a page can render for a non-redirect, in-place
+response), and if the matching element is a `<details>`, opens it and scrolls
+it into view. A missing, stale, or renamed id is a silent no-op by design -
+`document.getElementById` never throws, so this can never break a page load.
+
+Do not invent a page-local variant of this pattern. Give the element to
+reopen a stable, predictable id, pass `return_to` through the existing
+convention, and let the shared script do the reopening. Planning's Remove
+Demand action (`routers/planning.py:delete_planning_subject_demand`) is the
+reference implementation.
 
 ## Progressive Disclosure And Commercial States
 

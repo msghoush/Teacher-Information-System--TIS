@@ -6,6 +6,7 @@ last_updated: 2026-09-03
 
 # Workforce Planning History
 
+- [2026-09-03 return-to reopen-on-load UI pattern](2026-09-03-return-to-reopen-on-load-pattern.md)
 - [2026-09-03 Planning and Subject delete dependency guards](2026-09-03-planning-and-subject-delete-dependency-guards.md)
 - [2026-09-02 professional timetable lifecycle UX](2026-09-02-professional-timetable-lifecycle-ux.md)
 - [2026-09-01 structured timetable conflict evidence](2026-09-01-structured-timetable-conflicts.md)
@@ -27,6 +28,12 @@ Related files:
 - `timetable_logic.py`
 
 History entries:
+
+- `2026-09-03-return-to-reopen-on-load-pattern.md` — a shared `redirect_utils.py`
+  open-redirect guard plus `static/js/reopen-on-load.js` finish wiring the
+  existing `return_to`/fragment convention so a Planning section stays open
+  and scrolled into view after "Remove demand" and related in-place actions,
+  without converting TIS into an SPA.
 
 - `2026-09-03-planning-and-subject-delete-dependency-guards.md` — read-only
   dependency checks before Planning section and Subject deletion, with every

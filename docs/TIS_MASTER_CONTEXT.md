@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Return-To Reopen-On-Load UI Pattern
+
+`redirect_utils.py` centralizes the open-redirect guard (`safe_redirect_path`)
+and fragment-preserving redirect helpers previously private to `main.py`;
+`main.py` now imports them under their original names so every existing
+caller is unaffected. `static/js/reopen-on-load.js`, loaded globally from
+`base.html`, reopens whatever `<details>` element matches a target id taken
+from `window.location.hash` or an inline `window.__tisReopenTargetId`,
+scrolling it into view, and is a silent no-op for a missing or stale id.
+Planning's "Remove demand" action (`routers/planning.py:
+delete_planning_subject_demand`) is the reference implementation: the
+section's `<details>` gets a stable id, the link passes `return_to` to that
+section's fragment, and the route's in-place blocked-render paths set the
+same reopen target without a redirect. This is not an SPA conversion and adds
+no browser storage. Subjects and Teachers were not changed; this establishes
+the pattern for later, incremental adoption elsewhere.
+
 ## Planning And Subject Delete Dependency Guards
 
 `routers/planning.py:delete_planning_section` and `routers/subjects.py`'s

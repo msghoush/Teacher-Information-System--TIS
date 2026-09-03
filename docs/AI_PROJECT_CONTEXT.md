@@ -7,6 +7,22 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Return-To Reopen-On-Load UI Pattern
+
+TIS is server-rendered FastAPI/Jinja, not an SPA, so a redirect after an
+action normally collapses any open `<details>`/accordion. The sanctioned fix
+reuses the existing `return_to` convention: `redirect_utils.py` (moved out of
+`main.py`, existing callers unchanged) provides `safe_redirect_path()` -
+rejecting `http(s)://` and `//` targets - plus fragment-preserving
+`redirect_with_notice`/`redirect_with_error`. A globally-loaded shared script,
+`static/js/reopen-on-load.js`, reads a target element id from
+`window.location.hash` (or an inline `window.__tisReopenTargetId` for a
+non-redirect response) on page load and reopens it if it is a `<details>`,
+scrolling it into view; a missing/stale id is a harmless no-op. Planning's
+"Remove demand" action is the first consumer - do not invent a page-local
+variant of this pattern; give the element a stable id and pass `return_to`
+through the existing convention instead.
+
 ## Planning And Subject Delete Dependency Guards
 
 Deleting a Planning section or a Subject now runs a read-only dependency
