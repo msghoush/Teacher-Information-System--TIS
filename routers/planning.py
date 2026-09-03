@@ -1981,7 +1981,7 @@ _PLANNING_SUBJECT_DEMAND_INTEGRITY_FALLBACK_MESSAGE = (
 def delete_planning_subject_demand(
     request: Request,
     demand_id: int,
-    return_to: str = "/planning",
+    return_to: str = "/planning/",
     db: Session = Depends(get_db),
 ):
     """Hard-delete one untouched, setup-only Planning demand row.
@@ -1994,9 +1994,12 @@ def delete_planning_subject_demand(
 
     `return_to` lets the caller (the Planning page's per-section "Remove
     demand" link) ask to land back on the same expanded section afterward
-    - e.g. "/planning#planning-section-2001" - via the shared safe-redirect
-    guard in redirect_utils.py. It is validated the same way regardless of
-    outcome and always falls back to plain "/planning" when absent or unsafe.
+    - e.g. "/planning/#planning-section-2001" - via the shared safe-redirect
+    guard in redirect_utils.py. The trailing slash matches this route's own
+    registered path ("/") so the redirect never takes an extra same-origin
+    hop through Starlette's redirect_slashes handling. It is validated the
+    same way regardless of outcome and always falls back to plain
+    "/planning/" when absent or unsafe.
     """
     current_user = get_current_user(request, db)
     if not current_user:
@@ -2005,7 +2008,7 @@ def delete_planning_subject_demand(
     if not auth.has_permission(db, current_user, "planning.delete_section"):
         return RedirectResponse(url="/planning", status_code=302)
 
-    target = safe_redirect_path(return_to, default="/planning")
+    target = safe_redirect_path(return_to, default="/planning/")
 
     branch_id, academic_year_id = _get_scope_ids(current_user)
     demand = db.query(models.PlanningSubjectDemand).filter(

@@ -1,18 +1,9 @@
-knowledge_impact: yes
-summary: Introduce a shared return_to/fragment redirect utility (redirect_utils.py, extracted from main.py with existing callers unchanged) and a shared reopen-on-load client script, then wire Planning's Remove-demand action to it so an expanded Planning section stays open and scrolled into view after the action completes.
+knowledge_impact: no
+summary: Fix Planning section reopen behavior after Remove demand by preserving the targeted expanded section across pageshow and correcting the Planning return_to path. No new business rule, schema, architecture, permission, or lifecycle behavior is introduced.
 affected_areas:
   - planning
   - ui-ux
-  - architecture
-  - user-workflow
   - tests
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
-  - docs/engineering/UI_UX_DESIGN_PHILOSOPHY.md
-  - docs/history/workforce-planning/README.md
-  - docs/history/workforce-planning/2026-09-03-return-to-reopen-on-load-pattern.md
-no_impact_reason:
-major_change_override: no
+no_impact_reason: Isolated frontend/navigation bug fix for already-documented behavior. The existing shared return_to/fragment convention and Remove-demand workflow are unchanged; this correction only prevents a later Planning pageshow handler from collapsing the section again.
+major_change_override: yes
