@@ -625,6 +625,42 @@
             vertical-align: middle;
         }
 
+        .planning-requirement-bulk-tools {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 8px 12px;
+            margin: 8px 0 6px;
+        }
+
+        .planning-requirement-select-all {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text, #253858);
+            cursor: pointer;
+        }
+
+        .planning-requirement-select-all input {
+            margin: 0;
+        }
+
+        .planning-requirement-remove-selected {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            color: #8f1d1d;
+            border-color: #f4c7c7;
+            background: #fff7f7;
+        }
+
+        .planning-requirement-remove-selected:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .inline-requirement-form {
             display: inline;
         }
@@ -927,11 +963,23 @@
                                             <span class="subject-preview-pill subject-preview-pill-more">+{{ row.subject_hidden_count }} more</span>
                                             {% endif %}
                                         </summary>
+                                        {% if can_delete and row.subject_assignments | selectattr("requirement_status", "in", ("removable", "fallback")) | list | length %}
+                                        <div class="planning-requirement-bulk-tools" data-requirement-bulk-tools="{{ record.id }}">
+                                            <label class="planning-requirement-select-all">
+                                                <input type="checkbox" class="planning-requirement-select-all-checkbox" data-section-id="{{ record.id }}" aria-label="Select all removable subject requirements in Grade {{ record.grade_level }} Section {{ record.section_name }}">
+                                                <span>Select all</span>
+                                            </label>
+                                            <button type="submit" class="action-btn planning-requirement-remove-selected" form="planningBulkRemoveForm" disabled>
+                                                {{ icon("trash", "icon") }}
+                                                <span class="planning-requirement-remove-label">Remove Subject Requirements</span>
+                                            </button>
+                                        </div>
+                                        {% endif %}
                                         <ul class="aligned-list-table">
                                             {% for subject in row.subject_assignments %}
                                             <li class="aligned-item-table" style="border-color: {{ subject.subject_color_border or '#dbe7f8' }}; background: {{ subject.subject_color_soft or '#f5f9ff' }}; color: {{ subject.subject_color_text or '#2f4361' }}; box-shadow: inset 4px 0 0 {{ subject.subject_color or '#0A4EA3' }};">
                                                 {% if can_delete and subject.requirement_status in ("removable", "fallback") %}
-                                                <input type="checkbox" class="planning-requirement-checkbox" name="target" value="{{ subject.requirement_target }}" form="planningBulkRemoveForm" aria-label="Select {{ subject.subject_name }} in Grade {{ record.grade_level }} Section {{ record.section_name }} for bulk removal">
+                                                <input type="checkbox" class="planning-requirement-checkbox" name="target" value="{{ subject.requirement_target }}" form="planningBulkRemoveForm" data-section-id="{{ record.id }}" aria-label="Select {{ subject.subject_name }} in Grade {{ record.grade_level }} Section {{ record.section_name }} for bulk removal">
                                                 {% endif %}
                                                 {{ subject.display_label or (subject.subject_code ~ " - " ~ subject.subject_name ~ " (" ~ subject.weekly_hours ~ "h)") }}
                                                 {% if subject.teacher_name %}
@@ -981,7 +1029,8 @@
                 <form id="planningBulkRemoveForm" method="post" action="/planning/subject-requirements/remove" class="planning-bulk-remove-bar">
                     <input type="hidden" name="return_to" value="/planning/">
                     <button type="submit" id="planningBulkRemoveSubmit" class="action-btn action-btn-secondary">
-                        Bulk Remove Subject Requirements
+                        {{ icon("trash", "icon") }}
+                        <span class="planning-requirement-remove-label">Remove Subject Requirements</span>
                     </button>
                     <span id="planningBulkRemoveCount" class="planning-bulk-remove-count">No requirements selected</span>
                 </form>
@@ -1165,6 +1214,13 @@ const gradeSelect = document.getElementById("grade_level");
 
         const bulkRemoveForm = document.getElementById("planningBulkRemoveForm");
         const bulkRemoveCountLabel = document.getElementById("planningBulkRemoveCount");
+        const bulkRemoveSubmit = document.getElementById("planningBulkRemoveSubmit");
+        const sectionSelectAllCheckboxes = Array.from(
+            document.querySelectorAll(".planning-requirement-select-all-checkbox")
+        );
+        const removeSelectedButtons = Array.from(
+            document.querySelectorAll(".planning-requirement-remove-selected")
+        );
         const bulkRemoveCheckboxes = () => Array.from(
             document.querySelectorAll('input.planning-requirement-checkbox[form="planningBulkRemoveForm"]')
         );
@@ -1177,10 +1233,44 @@ const gradeSelect = document.getElementById("grade_level");
             bulkRemoveCountLabel.textContent = checkedCount === 0
                 ? "No requirements selected"
                 : `${checkedCount} requirement${checkedCount === 1 ? "" : "s"} selected`;
+
+            const actionLabel = checkedCount === 1
+                ? "Remove Subject Requirement"
+                : checkedCount > 1
+                    ? `Remove ${checkedCount} Subject Requirements`
+                    : "Remove Subject Requirements";
+            document.querySelectorAll(".planning-requirement-remove-label").forEach((label) => {
+                label.textContent = actionLabel;
+            });
+            if (bulkRemoveSubmit) {
+                bulkRemoveSubmit.disabled = checkedCount === 0;
+            }
+            removeSelectedButtons.forEach((button) => {
+                button.disabled = checkedCount === 0;
+            });
+
+            sectionSelectAllCheckboxes.forEach((selectAll) => {
+                const sectionBoxes = bulkRemoveCheckboxes().filter(
+                    (box) => box.dataset.sectionId === selectAll.dataset.sectionId
+                );
+                const selectedInSection = sectionBoxes.filter((box) => box.checked).length;
+                selectAll.checked = sectionBoxes.length > 0 && selectedInSection === sectionBoxes.length;
+                selectAll.indeterminate = selectedInSection > 0 && selectedInSection < sectionBoxes.length;
+            });
         };
 
         bulkRemoveCheckboxes().forEach((box) => {
             box.addEventListener("change", refreshBulkRemoveCount);
+        });
+        sectionSelectAllCheckboxes.forEach((selectAll) => {
+            selectAll.addEventListener("change", () => {
+                bulkRemoveCheckboxes().forEach((box) => {
+                    if (box.dataset.sectionId === selectAll.dataset.sectionId) {
+                        box.checked = selectAll.checked;
+                    }
+                });
+                refreshBulkRemoveCount();
+            });
         });
         refreshBulkRemoveCount();
 

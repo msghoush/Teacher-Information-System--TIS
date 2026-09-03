@@ -25,13 +25,15 @@ Adjustment retirement, this row sets only `created_by_user_id` and leaves
 rather than immediately becoming permanent), or `not_found`.
 
 The customer-facing action is "Remove Subject Requirement" (single, per row)
-and "Bulk Remove Subject Requirements" (checkbox-selected, supported across
-every section on the page in one request, not only within one section) at
+and a checkbox-selected removal action at
 `POST /planning/subject-requirements/remove`. Bulk removal is atomic:
 every selected target is validated and scope-checked first, and if any is
 protected, invalid, or out of scope, nothing is removed and every blocked
 target is named with its reason. Confirmation dialogs precede both single
-and bulk removal. Teacher assignments, timetable data, and Curriculum
+and bulk removal. Each expanded section now places **Select all** beside a
+trash-icon action whose label changes to the singular or exact selected count;
+the page-level action mirrors that selection state. Selection can still span
+multiple sections in one request. Teacher assignments, timetable data, and Curriculum
 Adjustment audit records are never touched by this action. The existing
 `GET /planning/subject-demand/delete/{demand_id}` route from the prior round
 remains available, superseded in the rendered UI, and is now also the

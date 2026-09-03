@@ -34,10 +34,12 @@ genuine gap: previously only explicit-row requirements ever showed a
 removal action, so identical-looking subject rows for the same teacher
 could differ in removability for reasons unrelated to the teacher.
 
-`POST /planning/subject-requirements/remove` handles single ("Remove Subject
-Requirement") and checkbox-selected bulk ("Bulk Remove Subject
-Requirements") removal atomically, with selection supported across every
-section on the page in one request. Every target is scope-validated
+`POST /planning/subject-requirements/remove` handles single and checkbox-selected
+bulk removal atomically, with selection supported across every section on the
+page in one request. Each expanded section provides a section-scoped **Select
+all** control and an adjacent trash-icon action. Its label reflects the actual
+selection as "Remove Subject Requirement" or "Remove N Subject Requirements";
+the page-level action mirrors the same state. Every target is scope-validated
 (SchoolGroup/branch/academic year) and status-classified before any
 mutation; if any target is protected, invalid, or out of scope, nothing is
 removed and every blocked target is named with its reason - the same

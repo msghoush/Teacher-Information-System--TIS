@@ -1,20 +1,16 @@
 knowledge_impact: yes
-summary: Add Planning subject requirement removal with single and cross-section bulk actions, including safe removal of legacy-fallback requirements through setup-only suppression rows while keeping Curriculum-Adjustment-touched requirements protected. Setup-only fallback suppressions record created_by_user_id but leave updated_by_user_id NULL so they remain removable and preserve the remove requirement -> remove section -> remove subject workflow.
+summary: Complete the Planning subject-requirement bulk-removal UI with section-scoped Select All controls and trash-icon actions whose visible labels reflect the live singular or exact plural selection, while preserving the existing atomic endpoint and permission boundaries.
 affected_areas:
   - planning
   - user-workflow
-  - api
   - tests
+  - ui
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
-  - docs/history/workforce-planning/README.md
   - docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md
-  - docs/engineering/AI_CODING_WORKFLOW.md
-  - docs/history/engineering-handbook/README.md
-  - docs/history/engineering-handbook/2026-09-03-claude-code-kms-configuration.md
 no_impact_reason:
 major_change_override: no
 

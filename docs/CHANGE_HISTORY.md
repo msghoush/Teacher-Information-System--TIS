@@ -42,6 +42,11 @@ source_of_truth: true
   never touched. The prior round's demand-id-only delete route remains in
   place, no longer linked from the UI, and is now the supported way to
   fully clear a leftover setup-only suppression row.
+- Completed the bulk-action UI: each expanded Planning section now has a
+  section-scoped **Select all** checkbox beside a trash-icon removal action.
+  The label reflects the live selection (singular or exact plural count),
+  partial selection produces the standard indeterminate state, and removal
+  controls remain disabled until at least one requirement is selected.
 
 ## 2026-09-03 - Claude Code KMS Configuration
 

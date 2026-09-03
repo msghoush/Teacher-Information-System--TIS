@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-04T00:50:14.055954+03:00",
+  "generated_at": "2026-09-04T02:00:26.522387+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "3716bf6",
+  "commit_sha": "61e1412",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "d6650cd5ddc82a7544343c6f57aa1c709ca9c3c87c8a6febcf21bad636793aa2",
-  "pdf_size_bytes": 1117429,
+  "pdf_sha256": "17f24c1b417e3c24011d9153ccfbe45b29f129d53917fc4100e8a25500e4ed01",
+  "pdf_size_bytes": 1119040,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-09-04T00:48:05.995656+03:00",
-      "size_bytes": 94086,
-      "sha256": "b76f2e4403ac012582a35839f5434adc2c7054887c037ec1ce09e55ea98e8572",
+      "modified_at": "2026-09-04T01:59:40.670823+03:00",
+      "size_bytes": 94279,
+      "sha256": "343e35e301cdf3ca3109fe17627c53d85a5015399ab6670465774d7e13dc944f",
       "pdf_page": 16
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-04T00:48:32.749483+03:00",
-      "size_bytes": 81455,
-      "sha256": "090bd407bd112d45aa9ad2ae83c8d605d231012fa85339fde7388a8db65bf7cf",
+      "modified_at": "2026-09-04T01:59:40.670823+03:00",
+      "size_bytes": 81647,
+      "sha256": "15917544ed11df7d13f630c8b78a899a02035a3175813d573fc5c70f1cffec93",
       "pdf_page": 43
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-04T00:49:26.906260+03:00",
-      "size_bytes": 72973,
-      "sha256": "5ad2f0d6a3cd7588511c574435adff849131f8c74e7ce45d03a6047c89a7de55",
+      "modified_at": "2026-09-04T01:59:40.673992+03:00",
+      "size_bytes": 73112,
+      "sha256": "a11256d6b6fd68eca557671846a7abb9e702fc4481d8fa07a5d6306feff71598",
       "pdf_page": 68
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-04T00:49:47.833786+03:00",
-      "size_bytes": 127704,
-      "sha256": "e1073d76b6fd92994e4c1194705251485d109bac78050ef2fec80d3cdfd1495a",
+      "modified_at": "2026-09-04T01:59:40.673992+03:00",
+      "size_bytes": 128074,
+      "sha256": "36f00386359773c4e55e668d028d85ef416eb2141db435b32bca34e24bc8dbac",
       "pdf_page": 90
     },
     {
@@ -186,7 +186,7 @@
     },
     {
       "path": "docs/engineering/AI_CODING_WORKFLOW.md",
-      "modified_at": "2026-09-03T22:42:53.790147+03:00",
+      "modified_at": "2026-09-04T01:10:01.833974+03:00",
       "size_bytes": 3469,
       "sha256": "aad1a5c1577b19d42db8deb96995f40e78d08a76e496f9d822be167362690f0b",
       "pdf_page": 262
@@ -473,14 +473,14 @@
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-03-claude-code-kms-configuration.md",
-      "modified_at": "2026-09-03T22:42:37.929264+03:00",
+      "modified_at": "2026-09-04T01:10:01.917075+03:00",
       "size_bytes": 1293,
       "sha256": "331bcd1ad65255c8beca79b4c3be5c4c5fc35579706473dabc315fc0b2526006",
       "pdf_page": 330
     },
     {
       "path": "docs/history/engineering-handbook/README.md",
-      "modified_at": "2026-09-03T22:42:37.929264+03:00",
+      "modified_at": "2026-09-04T01:10:01.833974+03:00",
       "size_bytes": 842,
       "sha256": "f9a43bea7e8f7cf8fb4f58665a3716d47576658162ea2f82e10044ac3e6727c2",
       "pdf_page": 331
@@ -711,14 +711,14 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md",
-      "modified_at": "2026-09-04T00:49:04.176265+03:00",
-      "size_bytes": 7159,
-      "sha256": "0e5ae8422d16c9572a03765a7eec75e29db379f4f718d2f72f6bcd3b1a7f2fa9",
+      "modified_at": "2026-09-04T01:59:51.871149+03:00",
+      "size_bytes": 7887,
+      "sha256": "8d5bc50c0701d2a64a53e6b40d3bc62716b0e23a06fb8783fa90dc83d1004d0b",
       "pdf_page": 382
     },
     {
       "path": "docs/history/workforce-planning/README.md",
-      "modified_at": "2026-09-04T00:49:56.774802+03:00",
+      "modified_at": "2026-09-04T01:10:01.836442+03:00",
       "size_bytes": 4679,
       "sha256": "a040525141ec7b31113b4071ce0632e0994f3c271be5c4160a26f73de66f1e66",
       "pdf_page": 384
