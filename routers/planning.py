@@ -1783,6 +1783,60 @@ def update_planning_section(
     return RedirectResponse(url="/planning", status_code=302)
 
 
+_PLANNING_SECTION_DELETE_BLOCKER_CHECKS = (
+    ("Planning subject demand", models.PlanningSubjectDemand, "planning_section_id"),
+    ("timetable placements", models.TimetableEntry, "planning_section_id"),
+    ("teacher scheduling rules", models.TeacherSchedulingRuleTarget, "planning_section_id"),
+    ("academic calendar events", models.CalendarEvent, "target_section_id"),
+    ("academic calendar events", models.CalendarEventSectionTarget, "section_id"),
+    ("subject scheduling rules", models.SubjectDistributionRule, "section_id"),
+)
+
+_PLANNING_SECTION_DELETE_DEMAND_LABEL = "Planning subject demand"
+
+_PLANNING_SECTION_DELETE_DEMAND_BLOCKED_MESSAGE = (
+    "This Planning section cannot be deleted because it has Planning demand "
+    "history. TIS preserves Planning demand records permanently for audit "
+    "purposes, so a section referenced by any current or previously retired "
+    "Planning demand cannot be physically deleted."
+)
+
+_PLANNING_SECTION_DELETE_GENERIC_BLOCKED_MESSAGE = (
+    "This Planning section cannot be deleted because it is still referenced "
+    "by academic records and must remain. Remove those related records first."
+)
+
+
+def _get_planning_section_delete_blockers(db: Session, planning_section_id: int):
+    """Read-only check for records that would block deleting a Planning section.
+
+    Mirrors the real FK protections on planning_sections.id so the user gets a
+    customer-safe explanation instead of an unhandled IntegrityError. This does
+    not delete or retire anything.
+    """
+    found_labels = []
+    for label, model_cls, column_name in _PLANNING_SECTION_DELETE_BLOCKER_CHECKS:
+        column = getattr(model_cls, column_name)
+        exists = db.query(model_cls.id).filter(column == planning_section_id).first()
+        if exists and label not in found_labels:
+            found_labels.append(label)
+    return found_labels
+
+
+def _build_planning_section_delete_blocked_message(blockers):
+    """Customer-safe explanation matching what can actually be done.
+
+    Planning demand rows are never deleted by retirement (only is_active/
+    retired_at change - see curriculum_adjustment_apply_service._set_demand),
+    so their FK to the section is permanent. When demand is among the
+    blockers, do not suggest retiring it will make the section deletable.
+    Every other blocker category uses a generic, non-committal statement.
+    """
+    if _PLANNING_SECTION_DELETE_DEMAND_LABEL in blockers:
+        return _PLANNING_SECTION_DELETE_DEMAND_BLOCKED_MESSAGE
+    return _PLANNING_SECTION_DELETE_GENERIC_BLOCKED_MESSAGE
+
+
 @router.get("/delete/{planning_pk}")
 def delete_planning_section(
     request: Request,
@@ -1802,11 +1856,31 @@ def delete_planning_section(
         models.PlanningSection.branch_id == branch_id,
         models.PlanningSection.academic_year_id == academic_year_id,
     ).first()
-    if planning_section:
+    if not planning_section:
+        return RedirectResponse(url="/planning", status_code=302)
+
+    blockers = _get_planning_section_delete_blockers(db, planning_section.id)
+    if blockers:
+        return _render_planning_page(
+            request,
+            db,
+            current_user,
+            error=_build_planning_section_delete_blocked_message(blockers),
+        )
+
+    try:
         db.query(models.TeacherSectionAssignment).filter(
             models.TeacherSectionAssignment.planning_section_id == planning_section.id
         ).delete(synchronize_session=False)
         db.delete(planning_section)
         db.commit()
+    except IntegrityError:
+        db.rollback()
+        return _render_planning_page(
+            request,
+            db,
+            current_user,
+            error=_PLANNING_SECTION_DELETE_GENERIC_BLOCKED_MESSAGE,
+        )
 
     return RedirectResponse(url="/planning", status_code=302)

@@ -323,6 +323,79 @@ def _has_subject_assignment_in_scope(
     return has_section_assignment_reference is not None
 
 
+def _get_planning_demand_reference_state_in_scope(
+    db: Session,
+    subject_codes,
+    branch_id: int,
+    academic_year_id: int,
+):
+    """Return "active", "retired", or None for Planning demand referencing these codes.
+
+    `PlanningSubjectDemand.subject_code` participates in a real composite FK to
+    `subjects` with no destructive ON DELETE behavior, and Curriculum Adjustment
+    retirement (`curriculum_adjustment_apply_service._set_demand`) never deletes
+    the row - it only sets is_active=False and retired_at. A retired row
+    therefore still physically blocks Subject deletion exactly like an active
+    one, so both states must be reported; only the customer-facing wording
+    differs between them.
+    """
+    normalized_codes = [code for code in subject_codes if code]
+    if not normalized_codes:
+        return None
+
+    has_active_reference = db.query(models.PlanningSubjectDemand).filter(
+        models.PlanningSubjectDemand.subject_code.in_(normalized_codes),
+        models.PlanningSubjectDemand.branch_id == branch_id,
+        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
+        models.PlanningSubjectDemand.is_active.is_(True),
+    ).first()
+    if has_active_reference is not None:
+        return "active"
+
+    has_any_reference = db.query(models.PlanningSubjectDemand).filter(
+        models.PlanningSubjectDemand.subject_code.in_(normalized_codes),
+        models.PlanningSubjectDemand.branch_id == branch_id,
+        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
+    ).first()
+    if has_any_reference is not None:
+        return "retired"
+
+    return None
+
+
+_PLANNING_DEMAND_SINGLE_DELETE_MESSAGES = {
+    "active": (
+        "Cannot delete this subject because it still has active Planning demand. "
+        "Retire the Planning demand through Curriculum Adjustment to stop using "
+        "it for teaching. Note that Planning demand history is preserved "
+        "permanently, so the subject record itself cannot be deleted even after "
+        "retirement."
+    ),
+    "retired": (
+        "Cannot delete this subject because it has Planning demand history. TIS "
+        "preserves Planning demand records permanently for audit purposes, so a "
+        "subject with any current or previously retired Planning usage cannot "
+        "be deleted."
+    ),
+}
+
+_PLANNING_DEMAND_BULK_DELETE_MESSAGES = {
+    "active": (
+        "One or more selected subjects cannot be deleted because they still "
+        "have active Planning demand. Retire the Planning demand through "
+        "Curriculum Adjustment to stop using them for teaching. Note that "
+        "Planning demand history is preserved permanently, so those subject "
+        "records cannot be deleted even after retirement."
+    ),
+    "retired": (
+        "One or more selected subjects cannot be deleted because they have "
+        "Planning demand history. TIS preserves Planning demand records "
+        "permanently for audit purposes, so a subject with any current or "
+        "previously retired Planning usage cannot be deleted."
+    ),
+}
+
+
 def _render_subjects_page(
     request: Request,
     db: Session,
@@ -1270,6 +1343,20 @@ def delete_subject(
     ).first()
 
     if subject:
+        demand_state = _get_planning_demand_reference_state_in_scope(
+            db,
+            [subject.subject_code],
+            branch_id,
+            academic_year_id,
+        )
+        if demand_state is not None:
+            return _render_subjects_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                error=_PLANNING_DEMAND_SINGLE_DELETE_MESSAGES[demand_state],
+            )
+
         if _has_subject_assignment_in_scope(
             db,
             [subject.subject_code],
@@ -1348,6 +1435,20 @@ def delete_subjects_bulk(
         for subject in subject_rows
         if subject.subject_code
     ]
+    bulk_demand_state = _get_planning_demand_reference_state_in_scope(
+        db,
+        selected_subject_codes,
+        branch_id,
+        academic_year_id,
+    )
+    if bulk_demand_state is not None:
+        return _render_subjects_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error=_PLANNING_DEMAND_BULK_DELETE_MESSAGES[bulk_demand_state],
+        )
+
     if _has_subject_assignment_in_scope(
         db,
         selected_subject_codes,
