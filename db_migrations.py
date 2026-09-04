@@ -6276,6 +6276,7 @@ def _student_academic_placement_foundation(engine, connection):
     required = ("school_groups", "branches", "academic_years", "planning_sections", "users")
     if not all(_table_exists(connection, name) for name in required):
         return
+
     # PostgreSQL foreign keys must reference an actual UNIQUE/PRIMARY KEY
     # constraint, not merely a unique index (see _planning_subject_demands_foundation
     # for the same precedent). A bare CREATE UNIQUE INDEX satisfies SQLite's lenient
@@ -6478,6 +6479,137 @@ def _talent_student_assessment_competency_results_foundation(engine, connection)
         _add_column_if_missing(connection, connection, "talent_assessment_audits", column_name, column_sql)
     for table_name in ("talent_student_assessments", "talent_student_competency_results"):
         Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
+def _talent_review_candidate_foundation(engine, connection):
+    """Create M6 deterministic Review Candidate materialization (qualifying evaluations only).
+
+    Only a qualifying (policy-satisfied) Review Candidate evaluation is ever
+    persisted; see models.TalentReviewCandidate and talent_review_candidate_service.py
+    for the bounded structural audit used by the non-qualifying case. No
+    Official Identification or Educator Input table is added here; those are
+    introduced by the subsequent governance-closure migration 007.
+    """
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "talent_student_assessments", "talent_review_candidate_policies",
+        "talent_review_candidate_rules", "talent_assessment_cycle_population_members",
+        "talent_assessment_audits", "users",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    if engine.dialect.name == "postgresql":
+        # talent_assessment_audits was created by the already-applied M4 migration;
+        # widen its resource_type CHECK in place (same pattern used by M3 for
+        # talent_configuration_audits) instead of editing that historical migration.
+        _replace_postgres_check(
+            connection, "talent_assessment_audits", "ck_talent_assessment_audits_resource_type",
+            "resource_type IN ('assessment_cycle','student_assessment','competency_result','review_candidate')",
+        )
+    else:
+        if not _sqlite_check_contains(connection, "talent_assessment_audits", "'review_candidate'"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_assessment_audits")
+    Base.metadata.tables["talent_review_candidates"].create(bind=connection, checkfirst=True)
+
+
+def _talent_review_workflow_identification_educator_input_foundation(engine, connection):
+    """Add the M6 Review workflow, Official Identification, and Educator Input foundation.
+
+    Widens `talent_review_candidates` with the two-state (`pending_review`/
+    `reviewed`) review workflow (Decision 2), widens
+    `talent_assessment_audits.resource_type` further to add
+    `review_candidate_review`, `official_identification`, and `educator_input`
+    (Decision 16, same dialect-branched widening precedent as migration 006),
+    relaxes `talent_assessment_audits.cycle_id`/`framework_version_id` to
+    nullable (Educator Input's Cycle binding is optional per Decision 8, so an
+    Educator Input audit row may have no Cycle/Framework context at all - the
+    composite FK is simply unenforced whenever a referencing column is NULL),
+    and creates `talent_official_identifications` (Decisions 3-7, 17) and
+    `talent_educator_inputs` (Decisions 8-13).
+    """
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "talent_review_candidates", "talent_student_assessments", "talent_assessment_cycles",
+        "talent_assessment_cycle_population_members", "talent_assessment_audits",
+        "students", "talent_programs", "academic_years", "branches",
+        "student_academic_placements", "users",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+
+    candidate_scope = (
+        "id", "assessment_id", "cycle_id", "cycle_population_member_id",
+        "student_id", "program_id", "academic_year_id", "framework_version_id",
+        "school_group_id",
+    )
+    if engine.dialect.name == "postgresql":
+        unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("talent_review_candidates")
+        }
+        if candidate_scope not in unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE talent_review_candidates ADD CONSTRAINT "
+                "uq_talent_review_candidates_identification_scope UNIQUE "
+                "(id, assessment_id, cycle_id, cycle_population_member_id, student_id, "
+                "program_id, academic_year_id, framework_version_id, school_group_id)",
+            )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "talent_review_candidates",
+            "uq_talent_review_candidates_identification_scope",
+            "id, assessment_id, cycle_id, cycle_population_member_id, student_id, program_id, academic_year_id, framework_version_id, school_group_id",
+        )
+
+    new_resource_type_expr = (
+        "resource_type IN ('assessment_cycle','student_assessment','competency_result',"
+        "'review_candidate','review_candidate_review','official_identification','educator_input')"
+    )
+    if engine.dialect.name == "postgresql":
+        _add_column_if_missing(
+            connection, connection, "talent_review_candidates", "status",
+            "status VARCHAR(16) NOT NULL DEFAULT 'pending_review'",
+        )
+        _add_column_if_missing(
+            connection, connection, "talent_review_candidates", "reviewed_by_user_id",
+            "reviewed_by_user_id VARCHAR(10) REFERENCES users(user_id)",
+        )
+        _add_column_if_missing(
+            connection, connection, "talent_review_candidates", "reviewed_at",
+            "reviewed_at TIMESTAMP",
+        )
+        if not _check_constraint_exists(connection, "talent_review_candidates", "ck_talent_review_candidates_status"):
+            _execute(
+                connection,
+                "ALTER TABLE talent_review_candidates ADD CONSTRAINT ck_talent_review_candidates_status "
+                "CHECK (status IN ('pending_review','reviewed')) NOT VALID",
+            )
+            _execute(connection, "ALTER TABLE talent_review_candidates VALIDATE CONSTRAINT ck_talent_review_candidates_status")
+        _replace_postgres_check(connection, "talent_assessment_audits", "ck_talent_assessment_audits_resource_type", new_resource_type_expr)
+        # Educator Input's Cycle binding is optional (Decision 8), so an Educator
+        # Input audit row may have no Cycle/Framework context at all; relax these
+        # two columns to nullable (the composite FK is a no-op whenever any of
+        # its columns is NULL, matching standard SQL MATCH SIMPLE semantics).
+        _execute(connection, "ALTER TABLE talent_assessment_audits ALTER COLUMN cycle_id DROP NOT NULL")
+        _execute(connection, "ALTER TABLE talent_assessment_audits ALTER COLUMN framework_version_id DROP NOT NULL")
+    else:
+        if not _column_exists(connection, "talent_review_candidates", "status"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_review_candidates")
+        if not _sqlite_check_contains(connection, "talent_assessment_audits", "'official_identification'"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_assessment_audits")
+
+    Base.metadata.tables["talent_official_identifications"].create(bind=connection, checkfirst=True)
+    Base.metadata.tables["talent_educator_inputs"].create(bind=connection, checkfirst=True)
+    _create_unique_index_if_missing(
+        connection, connection, "talent_educator_inputs",
+        "uq_talent_educator_inputs_superseded_once",
+        "supersedes_educator_input_id",
+    )
 
 
 MIGRATIONS = (
@@ -6775,6 +6907,16 @@ MIGRATIONS = (
         migration_id="20260904_005_talent_student_assessment_competency_results",
         description="Add canonical Student Assessments, exact competency results, and deterministic KPI provenance",
         apply=_talent_student_assessment_competency_results_foundation,
+    ),
+    Migration(
+        migration_id="20260904_006_talent_review_candidate_foundation",
+        description="Add deterministic Review Candidate materialization for qualifying Completed Assessment evaluations",
+        apply=_talent_review_candidate_foundation,
+    ),
+    Migration(
+        migration_id="20260904_007_talent_review_workflow_identification_educator_input_foundation",
+        description="Add the Review Candidate review workflow, Official Identification, and Educator Input foundation",
+        apply=_talent_review_workflow_identification_educator_input_foundation,
     ),
 )
 

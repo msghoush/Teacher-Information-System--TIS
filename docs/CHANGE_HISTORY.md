@@ -1,11 +1,122 @@
 ---
 title: TIS Change History
-documentation_version: 3.5
+documentation_version: 3.6
 last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-04 - Talent & Potential M6 Independent Review Closure
+
+- Enforced persisted historical-Branch authorization on Educator Input create
+  and amendment writes; an unauthorized result is rolled back and returned as
+  the same non-enumerating 404 used by direct reads.
+- Added exact composite relational binding from Official Identification to its
+  Review Candidate context, preventing Assessment/member/Student/Program/year/
+  Framework/tenant drift even through direct database writes.
+- Added database-enforced single-successor Educator Input lineage, preventing
+  concurrent amendment forks, with exact same-Student/Program/year/tenant
+  composite lineage integrity.
+- Standardized direct out-of-scope Review Candidate, Official Identification,
+  and Educator Input access on non-enumerating 404 behavior.
+- Added focused adversarial tests. Result: 42 focused M6 tests passed; 137
+  combined M1-M6, permission, tenant-isolation, migration, and startup tests
+  passed with 3 PostgreSQL-only skips. Live PostgreSQL execution remains a
+  follow-up.
+
+## 2026-09-04 - Talent & Potential M6 Review, Official Identification & Educator Input (Complete)
+
+- 18 approved Product Owner governance decisions resolved the 9 questions the
+  prior "M6 Review Candidate Deterministic Evaluation (Partial)" entry left
+  open (below). M6 is now complete; see "M6 Governance Review: Decisions
+  (Resolved)" in `docs/AI_PROJECT_CONTEXT.md` for the full decision record.
+- Added migration
+  `20260904_007_talent_review_workflow_identification_educator_input_foundation`:
+  adds `status`/`reviewed_by_user_id`/`reviewed_at` to `talent_review_candidates`
+  (CHECK `status IN ('pending_review','reviewed')`), creates
+  `talent_official_identifications` and `talent_educator_inputs`, widens
+  `TalentAssessmentAudit.resource_type` further to add
+  `review_candidate_review`, `official_identification`, `educator_input`, and
+  relaxes `talent_assessment_audits.cycle_id`/`framework_version_id` to
+  nullable (Educator Input's Cycle binding is optional).
+- Extended `talent_review_candidate_service.py`: a qualifying candidate now
+  starts `status="pending_review"`; a non-qualifying evaluation now writes a
+  structural `TalentAssessmentAudit` row (`action="evaluate_non_qualifying"`,
+  `outcome=false`, no free text, no durable negative entity) instead of
+  nothing; new `mark_reviewed()` implements the one-way
+  `pending_review` -> `reviewed` transition (`POST
+  /api/talent/review-candidates/{id}/review`, `talent_review_candidates.manage`).
+- Added `talent_official_identification_service.py` and
+  `routers/talent_official_identifications.py`
+  (`/api/talent/official-identifications`, dedicated
+  `talent_official_identifications.view/record`): append-only
+  `identified`/`not_identified` decisions, one per Review Candidate
+  (unique-constraint- and service-enforced, 409 on a second attempt),
+  recordable only once the candidate is `reviewed`. `.record` requires
+  organization/global access scope in addition to the permission - a
+  Branch-scoped actor is denied even when granted `.record`. No mutation/
+  revocation/re-identification path exists.
+- Added `talent_educator_input_service.py` and
+  `routers/talent_educator_inputs.py` (`/api/talent/educator-inputs`,
+  dedicated `talent_educator_inputs.view/add/amend`): bounded qualitative
+  Student evidence (`observation`/`context`/`supporting_evidence`, <=2000
+  characters, non-empty) with mandatory historical Placement/Branch/Grade/
+  Section resolution (frozen Cycle context if supplied, else the Student's
+  `StudentAcademicPlacement` effective at `observed_at`, rejecting cleanly
+  with no silent fallback to current Placement). Append-only via
+  `supersedes_educator_input_id` lineage with M3-style cycle prevention;
+  default reads return only the current version, `GET /{id}/history` returns
+  the full chain; the free-text body is stripped from audit payloads.
+- Updated the existing Review Candidate foundation test file's structural-
+  separation assertion (`TalentOfficialIdentification` now exists) and its
+  non-qualifying-evaluation assertion (now audited, not silent); added
+  `tests/test_talent_review_official_identification_educator_input.py`
+  covering the Review workflow, Official Identification authorization/
+  durability, and Educator Input binding/amendment/privacy behavior.
+- Deferred, explicitly and permanently per these decisions: Official
+  Identification revocation/supersession/second decision/re-identification, a
+  `deferred` decision state, a generic free-text review-note/case-management
+  system, assessor assignment, Learner Profile, Development and Support,
+  analytics/Talent Map, AI/AI Suggested Review, and Educator Input
+  analytics/export/AI/attachments.
+
+## 2026-09-04 - Talent & Potential M6 Review Candidate Deterministic Evaluation (Partial)
+
+- Added migration `20260904_006_talent_review_candidate_foundation` with
+  `talent_review_candidates` (one row per Assessment, composite tenant/Cycle/
+  Program/Academic Year/Framework/policy scope) and a widened
+  `TalentAssessmentAudit.resource_type` CHECK adding `review_candidate`. No
+  Official Identification or Educator Input table was added.
+- Added `talent_review_candidate_service.py`: deterministic evaluation of the
+  exact M3 `TalentReviewCandidatePolicy`/`TalentReviewCandidateRule` attached
+  to a Completed Assessment's exact Framework Version, using
+  `rubric_level_at_or_above` (by `TalentRubricLevel.display_order`, never
+  `numeric_value`) and `kpi_at_or_above` (by the Assessment's persisted
+  `kpi_result`, never recomputed), with `all`/`any` composition. No policy
+  attached means no candidate is inferred. Evaluation only reads
+  `TalentStudentAssessment`/`TalentStudentCompetencyResult`/
+  `TalentAssessmentCyclePopulationMember`, never writes them.
+- A qualifying evaluation persists one candidate row with policy identity,
+  match mode, a deterministic SHA-256 fingerprint, and a full rule-by-rule
+  evaluation snapshot; re-evaluation is idempotent. A non-qualifying
+  evaluation persists nothing today (see the M6 Governance Review in
+  `docs/AI_PROJECT_CONTEXT.md` for the specific open Product Owner question
+  this leaves unresolved).
+- Added Administrator-only-by-default `talent_review_candidates.view/manage`
+  and `/api/talent/review-candidates` (`POST .../evaluate`, `GET`,
+  `GET/{id}`), deliberately separate from `talent_assessments.*` and
+  `talent_programs.*`. Branch visibility uses the frozen Cycle Population
+  Member Branch; cross-tenant/foreign lookups return a uniform 404.
+- Per explicit Part V stop-condition discipline, Official Identification, a
+  mandatory review-lifecycle/"Pending Review" gate, and Educator Input were
+  NOT implemented: the repository KMS documents these only as one-line
+  "deferred" markers with no exact decision vocabulary, required access
+  scope, binding, taxonomy, or amendment model anywhere. Building them would
+  have required inventing governance rather than following it, so this
+  milestone stops here and reports the exact open questions instead. No AI,
+  analytics, Learner Profile, bulk identification, or `tis.db` change was
+  made.
 
 ## 2026-09-04 - Talent & Potential M5 Student Assessment And Competency Results
 

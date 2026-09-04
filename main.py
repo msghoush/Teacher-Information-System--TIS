@@ -63,7 +63,7 @@ from visual_design import (
     rows_to_visual_settings,
 )
 from dependencies import get_db
-from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations, students, talent_programs, talent_assessment_cycles, talent_assessments
+from routers import subjects, users, teachers, planning, timetable, academic_calendar, observations, students, talent_programs, talent_assessment_cycles, talent_assessments, talent_review_candidates, talent_official_identifications, talent_educator_inputs
 from saas.router import admin_router as saas_admin_router, router as saas_router
 from auth import get_password_hash
 from models import User, Branch, AcademicYear
@@ -8688,6 +8688,9 @@ app.include_router(students.router)
 app.include_router(talent_programs.router)
 app.include_router(talent_assessment_cycles.router)
 app.include_router(talent_assessments.router)
+app.include_router(talent_review_candidates.router)
+app.include_router(talent_official_identifications.router)
+app.include_router(talent_educator_inputs.router)
 app.include_router(saas_router)
 app.include_router(saas_admin_router)
 

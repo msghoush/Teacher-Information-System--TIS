@@ -143,6 +143,31 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "talent_review_candidates",
+        "label": "Talent Review Candidates",
+        "permissions": (
+            ("talent_review_candidates.view", "View deterministic Talent Review Candidate evaluations"),
+            ("talent_review_candidates.manage", "Evaluate and materialize Talent Review Candidates, and mark them Reviewed"),
+        ),
+    },
+    {
+        "key": "talent_official_identifications",
+        "label": "Talent Official Identification",
+        "permissions": (
+            ("talent_official_identifications.view", "View Talent Official Identification decisions within authorized scope"),
+            ("talent_official_identifications.record", "Record a Talent Official Identification decision (requires organization/global access scope)"),
+        ),
+    },
+    {
+        "key": "talent_educator_inputs",
+        "label": "Talent Educator Input",
+        "permissions": (
+            ("talent_educator_inputs.view", "View Talent Educator Input"),
+            ("talent_educator_inputs.add", "Add Talent Educator Input"),
+            ("talent_educator_inputs.amend", "Amend (supersede) Talent Educator Input"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (

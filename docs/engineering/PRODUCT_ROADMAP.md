@@ -1,11 +1,40 @@
 ---
 title: TIS Product Roadmap
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## Talent & Potential M6 Status (Complete)
+
+Independent review is complete: write-time historical-Branch authorization,
+exact Official Identification context binding, linear Educator Input amendment
+lineage, and non-enumerating direct access are enforced and regression-tested.
+
+Implemented, following 18 approved Product Owner governance decisions:
+deterministic `TalentReviewCandidate` evaluation/materialization from a
+Completed Assessment against its exact M3 Review Candidate Policy
+(`rubric_level_at_or_above` by `display_order`, `kpi_at_or_above` by
+persisted `kpi_result`, `all`/`any` composition), read-only against existing
+Assessment evidence, idempotent, with a deterministic fingerprint/snapshot; a
+non-qualifying evaluation is now structurally audited. The two-state
+`pending_review` -> `reviewed` Review workflow (one-way, no auto-
+identification). Append-only `TalentOfficialIdentification`
+(`identified`/`not_identified`, exactly one per Reviewed candidate,
+`talent_official_identifications.view/record` with `.record` requiring
+organization/global access scope in addition to the permission). Bounded
+qualitative `TalentEducatorInput` (`observation`/`context`/
+`supporting_evidence`, <=2000 characters, mandatory historical Placement/
+Branch resolution, append-only amendment/supersession lineage,
+`talent_educator_inputs.view/add/amend`). All frozen-Branch/historical-scope
+discipline matches M4/M5. See "M6 Governance Review: Decisions (Resolved)" in
+`docs/AI_PROJECT_CONTEXT.md` for the full decision record. Explicitly
+deferred: Official Identification revocation/supersession/second decision/
+re-identification, a generic review-note/case-management system, assessor
+assignment, Learner Profile, analytics/Talent Map, AI, Development and
+Support, and Educator Input analytics/export/AI/attachments.
 
 ## Talent & Potential M5 Status
 

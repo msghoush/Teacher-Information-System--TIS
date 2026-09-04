@@ -1,11 +1,54 @@
 ---
 title: TIS Database Architecture Overview
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## Talent Review, Official Identification & Educator Input (M6, Complete)
+
+Independent review tightened the database boundary: Official Identification
+has an exact composite FK to its Review Candidate context, and Educator Input
+lineage has a unique successor plus same-scope composite self-FK. These make
+context drift and concurrent amendment forks invalid independently of service
+validation.
+
+Migration `20260904_006_talent_review_candidate_foundation` adds
+`talent_review_candidates` (one row per Assessment via
+`uq_talent_review_candidates_assessment`) with composite scoped foreign keys
+to `talent_student_assessments` (assessment scope), the frozen
+`talent_assessment_cycle_population_members` row (Branch authorization
+authority, matching M4/M5), and `talent_review_candidate_policies` (policy
+identity). It stores match mode, a SHA-256 evaluation fingerprint, a full
+JSON evaluation snapshot (per-rule threshold/actual/satisfied detail), and
+evaluator/timestamp provenance - no free text. The migration also widens
+`talent_assessment_audits.resource_type` to add `review_candidate`, reusing
+the exact M3 CHECK-widening pattern (PostgreSQL `NOT VALID`/`VALIDATE`,
+SQLite table rebuild). Only a qualifying (policy-satisfied) evaluation is
+ever persisted as a `TalentReviewCandidate` row; a non-qualifying evaluation
+is now structurally audited instead (Decision 1).
+
+Migration
+`20260904_007_talent_review_workflow_identification_educator_input_foundation`
+adds `status` (`pending_review`/`reviewed`, CHECK-constrained),
+`reviewed_by_user_id`, `reviewed_at` to `talent_review_candidates`; creates
+`talent_official_identifications` (composite scoped FKs mirroring
+`talent_review_candidates`' own upstream chain, plus a direct FK to the
+Review Candidate, `decision` CHECK `IN ('identified','not_identified')`,
+`UNIQUE(review_candidate_id)` - exactly one decision per candidate); creates
+`talent_educator_inputs` (required composite scoped FKs to Student/Program/
+AcademicYear/Branch plus the frozen Placement, optional simple FKs to Cycle/
+Cycle Population Member/Assessment/Review Candidate, `category` CHECK closed
+enum, bounded `content`, self-referential nullable
+`supersedes_educator_input_id` lineage); widens `resource_type` further
+(`review_candidate_review`, `official_identification`, `educator_input`);
+and relaxes `talent_assessment_audits.cycle_id`/`framework_version_id` to
+nullable, since an Educator Input audit row may have no Cycle/Framework
+context at all (the composite FK is simply unenforced whenever a referencing
+column is NULL - standard SQL MATCH SIMPLE semantics). Both migrations
+follow the same dialect-branched widening pattern.
 
 ## Talent Student Assessment And Competency Results
 

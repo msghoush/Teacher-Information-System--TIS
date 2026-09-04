@@ -1,11 +1,56 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Talent Review, Official Identification & Educator Input Flow (M6, Complete)
+
+Every Educator Input create/amend flow resolves historical context, checks the
+resulting persisted Branch against canonical actor scope before commit, and
+rolls back with a non-enumerating response when unauthorized. Later reads use
+that same persisted historical Branch rather than current Placement.
+
+1. An authorized actor with `talent_review_candidates.manage` and authorized
+   frozen-member Branch/organization scope requests evaluation for one
+   Completed Assessment. A non-Completed Assessment is rejected.
+2. The server deterministically evaluates the exact M3 Review Candidate
+   Policy attached to the Assessment's exact Framework Version, reading only
+   existing Assessment/Competency-Result/persisted-KPI evidence - never
+   mutating it. No policy attached means no candidate is ever inferred.
+3. A qualifying (policy-satisfied) evaluation materializes one durable
+   candidate row, starting `status="pending_review"`, with policy identity,
+   match mode, a SHA-256 fingerprint, and a full evaluation snapshot;
+   re-running evaluation afterward is idempotent and returns the existing row
+   unchanged. A non-qualifying evaluation still persists no candidate row,
+   but is now structurally audited (assessment identity, Framework/Policy
+   context, `outcome=false`, fingerprint - no free text).
+4. An authorized human with `talent_review_candidates.manage` marks a
+   `pending_review` candidate `reviewed` (`POST .../{id}/review`) - one-way
+   only, never reversible, never altering assessment evidence, never
+   auto-identifying the Student.
+5. Only once a candidate is `reviewed` may an actor with
+   `talent_official_identifications.record` AND organization/global access
+   scope record exactly one Official Identification decision
+   (`identified`/`not_identified`) for it. A Branch-scoped actor is denied
+   even if granted `.record`. The decision is durable either way - there is
+   no mutation, revocation, second decision, or re-identification path.
+6. Independently of the Review/Identification chain, an authorized educator
+   with `talent_educator_inputs.add` may record bounded qualitative Educator
+   Input for a Student, bound to SchoolGroup/Student/Program/AcademicYear/
+   `observed_at` plus a resolved historical Placement/Branch snapshot (frozen
+   Cycle context if supplied, otherwise the Student's Placement effective at
+   `observed_at` - a clean rejection if none exists). `talent_educator_inputs.amend`
+   may append a new version referencing the one it supersedes; the original
+   is never edited or deleted, and default reads return only the current
+   version of each lineage chain.
+7. Review Candidate, Official Identification, and Educator Input remain
+   structurally distinct entities: Review Candidate never auto-produces
+   Official Identification, and neither carries the other's state in a
+   shared mutable field.
 
 ## Talent Student Assessment Flow
 

@@ -741,17 +741,38 @@ class TalentStudentCompetencyResult(Base):
 class TalentAssessmentAudit(Base):
     __tablename__ = "talent_assessment_audits"
     __table_args__ = (
-        CheckConstraint("resource_type IN ('assessment_cycle','student_assessment','competency_result')", name="ck_talent_assessment_audits_resource_type"),
+        # M6 widens this CHECK to add 'review_candidate' (see
+        # db_migrations._talent_review_candidate_foundation) and then further to
+        # add 'review_candidate_review', 'official_identification', and
+        # 'educator_input' (see
+        # db_migrations._talent_review_workflow_identification_educator_input_foundation
+        # for the accompanying SQLite table-rebuild/PostgreSQL NOT VALID+VALIDATE
+        # widening), matching the M3 precedent of widening
+        # TalentConfigurationAudit.resource_type in place for an audit table
+        # created by an earlier already-applied migration.
+        CheckConstraint(
+            "resource_type IN ('assessment_cycle','student_assessment','competency_result','review_candidate','review_candidate_review','official_identification','educator_input')",
+            name="ck_talent_assessment_audits_resource_type",
+        ),
         ForeignKeyConstraint(["cycle_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id"], ["talent_assessment_cycles.id", "talent_assessment_cycles.program_id", "talent_assessment_cycles.academic_year_id", "talent_assessment_cycles.framework_version_id", "talent_assessment_cycles.school_group_id"], name="fk_talent_assessment_audits_cycle_scope"),
         Index("ix_talent_assessment_audits_cycle", "school_group_id", "cycle_id", "created_at"),
     )
     id = Column(Integer, primary_key=True)
     public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), unique=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
-    cycle_id = Column(Integer, nullable=False)
+    # M6 relaxes cycle_id/framework_version_id to nullable (migration
+    # 20260904_007_talent_review_workflow_identification_educator_input_foundation):
+    # every prior resource_type (assessment_cycle/student_assessment/
+    # competency_result/review_candidate/review_candidate_review/
+    # official_identification) always has a real Cycle+Framework context, but
+    # Educator Input's Cycle binding is explicitly OPTIONAL (Decision 8), so an
+    # Educator Input audit row with no Cycle context has no Cycle to bind to.
+    # The composite FK below is a standard SQL MATCH SIMPLE constraint, so it is
+    # simply not enforced whenever cycle_id (or framework_version_id) is NULL.
+    cycle_id = Column(Integer, nullable=True)
     program_id = Column(Integer, nullable=False)
     academic_year_id = Column(Integer, nullable=False)
-    framework_version_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=True)
     assessment_id = Column(Integer, nullable=True)
     cycle_population_member_id = Column(Integer, nullable=True)
     student_id = Column(Integer, nullable=True)
@@ -763,6 +784,220 @@ class TalentAssessmentAudit(Base):
     before_json = Column(Text, nullable=True)
     after_json = Column(Text, nullable=True)
     correlation_id = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class TalentReviewCandidate(Base):
+    """M6 deterministic Review Candidate materialization for a Completed Assessment.
+
+    Evaluated only from `TalentReviewCandidatePolicy`/`TalentReviewCandidateRule`
+    (M3) applied to the exact `TalentStudentAssessment` (M5) and its persisted
+    Framework KPI result; never recomputed from current mutable state. A row is
+    persisted ONLY for a qualifying (policy-satisfied) evaluation - one per
+    Assessment (`uq_talent_review_candidates_assessment`).
+
+    A non-qualifying evaluation never creates a candidate entity. Its bounded
+    structural outcome may be recorded in `TalentAssessmentAudit`; only this
+    qualifying workflow shape exists in the candidate table.
+
+    Review Candidate is NEVER equivalent to, and never automatically produces,
+    Official Identification - that remains a separate append-only human
+    decision (`TalentOfficialIdentification`) that may only be recorded once
+    this candidate's `status` is `reviewed` (M6 Decision 5 - a `pending_review`
+    candidate cannot be identified). Review candidate state and identification
+    state are structurally separate (different tables, never a shared mutable
+    status column) - see M6 Decision 5/14.
+
+    `status` is exactly two states (M6 Decision 2): a new qualifying candidate
+    starts `pending_review`; an authorized human (`talent_review_candidates.manage`)
+    may transition it to `reviewed` exactly once - there is no reverse
+    transition and no other state (no `dismissed`/`rejected`/`reopened`/
+    `escalated`). Marking a candidate `reviewed` never alters assessment
+    evidence/competency results/KPI and never automatically identifies the
+    Student.
+    """
+
+    __tablename__ = "talent_review_candidates"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["assessment_id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id"],
+            ["talent_student_assessments.id", "talent_student_assessments.cycle_id", "talent_student_assessments.student_id", "talent_student_assessments.program_id", "talent_student_assessments.academic_year_id", "talent_student_assessments.framework_version_id", "talent_student_assessments.school_group_id"],
+            name="fk_talent_review_candidates_assessment_scope",
+        ),
+        ForeignKeyConstraint(
+            ["cycle_population_member_id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id"],
+            ["talent_assessment_cycle_population_members.id", "talent_assessment_cycle_population_members.cycle_id", "talent_assessment_cycle_population_members.student_id", "talent_assessment_cycle_population_members.program_id", "talent_assessment_cycle_population_members.academic_year_id", "talent_assessment_cycle_population_members.framework_version_id", "talent_assessment_cycle_population_members.school_group_id"],
+            name="fk_talent_review_candidates_population_scope",
+        ),
+        ForeignKeyConstraint(
+            ["policy_id", "framework_version_id", "program_id", "school_group_id"],
+            ["talent_review_candidate_policies.id", "talent_review_candidate_policies.framework_version_id", "talent_review_candidate_policies.program_id", "talent_review_candidate_policies.school_group_id"],
+            name="fk_talent_review_candidates_policy_scope",
+        ),
+        CheckConstraint("match_mode IN ('all','any')", name="ck_talent_review_candidates_mode"),
+        CheckConstraint("status IN ('pending_review','reviewed')", name="ck_talent_review_candidates_status"),
+        UniqueConstraint("assessment_id", name="uq_talent_review_candidates_assessment"),
+        UniqueConstraint("id", "assessment_id", "cycle_id", "cycle_population_member_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id", name="uq_talent_review_candidates_identification_scope"),
+        Index("ix_talent_review_candidates_scope", "school_group_id", "cycle_id", "student_id"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    cycle_id = Column(Integer, nullable=False)
+    cycle_population_member_id = Column(Integer, nullable=False)
+    student_id = Column(Integer, nullable=False)
+    program_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    assessment_id = Column(Integer, nullable=False)
+    policy_id = Column(Integer, nullable=False)
+    match_mode = Column(String(8), nullable=False)
+    evaluation_fingerprint = Column(String(64), nullable=False)
+    evaluation_snapshot_json = Column(Text, nullable=False)
+    evaluated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    evaluated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    status = Column(String(16), nullable=False, default="pending_review", server_default=text("'pending_review'"))
+    reviewed_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    reviewed_at = Column(DateTime, nullable=True)
+
+
+class TalentOfficialIdentification(Base):
+    """M6 append-only human Official Identification decision (Decisions 3-7, 17).
+
+    Exactly one decision (`identified`/`not_identified`) may ever be recorded
+    per qualifying `TalentReviewCandidate` (`uq_talent_official_identifications_candidate`
+    - structurally enforced, not merely service-checked). `decision` is durable
+    and history-bearing either way: `not_identified` is a real, final, human
+    governance outcome, never a failed-assessment/failed-KPI/low-score signal,
+    and is never deleted or silently overwritten (Decision 4). There is no
+    mutation, revocation, supersession, second decision, or re-identification
+    path anywhere in this model or its service (Decision 17 - explicitly
+    deferred, not implemented).
+
+    Binds to the exact same upstream chain as the `TalentReviewCandidate` it
+    decides (SchoolGroup, Student, Program, AcademicYear, Cycle, frozen Cycle
+    Population Member, Completed Assessment, exact Framework Version) using
+    the identical composite-scoped-FK pattern `TalentReviewCandidate` itself
+    uses, plus a direct FK to the Review Candidate row.
+    """
+
+    __tablename__ = "talent_official_identifications"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["assessment_id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id"],
+            ["talent_student_assessments.id", "talent_student_assessments.cycle_id", "talent_student_assessments.student_id", "talent_student_assessments.program_id", "talent_student_assessments.academic_year_id", "talent_student_assessments.framework_version_id", "talent_student_assessments.school_group_id"],
+            name="fk_talent_official_identifications_assessment_scope",
+        ),
+        ForeignKeyConstraint(
+            ["cycle_population_member_id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id"],
+            ["talent_assessment_cycle_population_members.id", "talent_assessment_cycle_population_members.cycle_id", "talent_assessment_cycle_population_members.student_id", "talent_assessment_cycle_population_members.program_id", "talent_assessment_cycle_population_members.academic_year_id", "talent_assessment_cycle_population_members.framework_version_id", "talent_assessment_cycle_population_members.school_group_id"],
+            name="fk_talent_official_identifications_population_scope",
+        ),
+        ForeignKeyConstraint(
+            ["review_candidate_id", "assessment_id", "cycle_id", "cycle_population_member_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id"],
+            ["talent_review_candidates.id", "talent_review_candidates.assessment_id", "talent_review_candidates.cycle_id", "talent_review_candidates.cycle_population_member_id", "talent_review_candidates.student_id", "talent_review_candidates.program_id", "talent_review_candidates.academic_year_id", "talent_review_candidates.framework_version_id", "talent_review_candidates.school_group_id"],
+            name="fk_talent_official_identifications_candidate_scope",
+        ),
+        CheckConstraint("decision IN ('identified','not_identified')", name="ck_talent_official_identifications_decision"),
+        UniqueConstraint("review_candidate_id", name="uq_talent_official_identifications_candidate"),
+        Index("ix_talent_official_identifications_scope", "school_group_id", "cycle_id", "student_id"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    cycle_id = Column(Integer, nullable=False)
+    cycle_population_member_id = Column(Integer, nullable=False)
+    student_id = Column(Integer, nullable=False)
+    program_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    assessment_id = Column(Integer, nullable=False)
+    review_candidate_id = Column(Integer, nullable=False)
+    decision = Column(String(16), nullable=False)
+    rationale = Column(Text, nullable=True)
+    decided_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    decided_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class TalentEducatorInput(Base):
+    """M6 bounded qualitative Educator Input evidence/context (Decisions 8-13).
+
+    Explicitly NOT a generic note, private diary, assessment score, Official
+    Identification, Review Candidate state, AI output, or messaging/chat.
+
+    Required binding: SchoolGroup, Student, Program, AcademicYear,
+    `observed_at`, and historical Academic Placement/Branch context
+    (`academic_placement_id`/`branch_id`/`grade_level`/`section_name`, frozen
+    at input-creation time exactly like `TalentAssessmentCyclePopulationMember`
+    freezes Branch/Grade/Section at Cycle-Open time - see
+    `talent_educator_input_service.py` for the resolution rule: if no frozen
+    Cycle context is supplied, the Student's canonical
+    `StudentAcademicPlacement` effective AT `observed_at` within the specified
+    AcademicYear is resolved and snapshotted; a Student with no valid
+    historical Placement at that instant is rejected rather than silently
+    falling back to current Placement).
+
+    Optional binding: Cycle, frozen Cycle Population Member, Assessment,
+    Review Candidate - when supplied, the service validates exact Student/
+    Program/AcademicYear alignment rather than trusting the caller, and the
+    historical Placement/Branch snapshot is taken from that frozen Cycle
+    Population Member instead of being independently re-resolved.
+
+    `category` is a closed enum (`observation`/`context`/`supporting_evidence`)
+    - purely descriptive metadata that never changes deterministic assessment/
+    identification state. `content` is plain bounded text (see
+    `talent_educator_input_service.MAX_CONTENT_LENGTH`) - no HTML/Markdown
+    execution, attachments, files, or arbitrary JSON.
+
+    Append-only with amendment/supersession lineage via the self-referential,
+    nullable `supersedes_educator_input_id` - the original row is never edited
+    in place or hard-deleted; an amendment is a new row referencing the row it
+    supersedes (cycle-prevention and cross-Student/Program/tenant validation
+    live in the service, mirroring M3's `_validate_supersedes` Framework
+    Version supersession pattern).
+    """
+
+    __tablename__ = "talent_educator_inputs"
+    __table_args__ = (
+        ForeignKeyConstraint(["student_id", "school_group_id"], ["students.id", "students.school_group_id"], name="fk_talent_educator_inputs_student_scope"),
+        ForeignKeyConstraint(["program_id", "school_group_id"], ["talent_programs.id", "talent_programs.school_group_id"], name="fk_talent_educator_inputs_program_scope"),
+        ForeignKeyConstraint(["academic_year_id", "school_group_id"], ["academic_years.id", "academic_years.school_group_id"], name="fk_talent_educator_inputs_year_scope"),
+        ForeignKeyConstraint(["branch_id", "school_group_id"], ["branches.id", "branches.school_group_id"], name="fk_talent_educator_inputs_branch_scope"),
+        ForeignKeyConstraint(
+            ["academic_placement_id", "student_id", "academic_year_id", "branch_id", "school_group_id"],
+            ["student_academic_placements.id", "student_academic_placements.student_id", "student_academic_placements.academic_year_id", "student_academic_placements.branch_id", "student_academic_placements.school_group_id"],
+            name="fk_talent_educator_inputs_placement_scope",
+        ),
+        CheckConstraint("grade_level IN ('KG','1','2','3','4','5','6','7','8','9','10','11','12')", name="ck_talent_educator_inputs_grade"),
+        CheckConstraint("category IN ('observation','context','supporting_evidence')", name="ck_talent_educator_inputs_category"),
+        UniqueConstraint("id", "student_id", "program_id", "academic_year_id", "school_group_id", name="uq_talent_educator_inputs_lineage_scope"),
+        UniqueConstraint("supersedes_educator_input_id", name="uq_talent_educator_inputs_superseded_once"),
+        ForeignKeyConstraint(
+            ["supersedes_educator_input_id", "student_id", "program_id", "academic_year_id", "school_group_id"],
+            ["talent_educator_inputs.id", "talent_educator_inputs.student_id", "talent_educator_inputs.program_id", "talent_educator_inputs.academic_year_id", "talent_educator_inputs.school_group_id"],
+            name="fk_talent_educator_inputs_supersession_scope",
+        ),
+        Index("ix_talent_educator_inputs_scope", "school_group_id", "student_id", "program_id", "academic_year_id"),
+        Index("ix_talent_educator_inputs_lineage", "supersedes_educator_input_id"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    student_id = Column(Integer, nullable=False)
+    program_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    observed_at = Column(DateTime, nullable=False)
+    academic_placement_id = Column(Integer, nullable=False)
+    branch_id = Column(Integer, nullable=False)
+    planning_section_id = Column(Integer, ForeignKey("planning_sections.id", ondelete="SET NULL"), nullable=True)
+    grade_level = Column(String(8), nullable=False)
+    section_name = Column(String(20), nullable=False)
+    cycle_id = Column(Integer, ForeignKey("talent_assessment_cycles.id"), nullable=True)
+    cycle_population_member_id = Column(Integer, ForeignKey("talent_assessment_cycle_population_members.id"), nullable=True)
+    assessment_id = Column(Integer, ForeignKey("talent_student_assessments.id"), nullable=True)
+    review_candidate_id = Column(Integer, ForeignKey("talent_review_candidates.id"), nullable=True)
+    category = Column(String(24), nullable=False)
+    content = Column(Text, nullable=False)
+    supersedes_educator_input_id = Column(Integer, nullable=True)
+    author_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 

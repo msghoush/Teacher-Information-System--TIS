@@ -1,20 +1,19 @@
 knowledge_impact: yes
-summary: Implement and document M5 canonical Student Assessments, exact Framework competency results, deterministic persisted KPI completion results, dedicated permissions, frozen-Branch visibility, operational audit, migration, and tests.
+summary: Complete and independently review M6 ("Review, Official Identification & Educator Input") following 18 approved Product Owner governance decisions. The review closes cross-Branch Educator Input write authorization, binds Official Identification to the Review Candidate's exact composite historical context, prevents concurrent Educator Input amendment forks at the database boundary, and makes direct out-of-scope resource access non-enumerating. M6 retains the two-state Review workflow, structurally audited non-qualifying evaluations, append-only Official Identification, append-only Educator Input lineage, dedicated permissions, and bounded operational audit.
 affected_areas:
-  - students
-  - academic-placement
   - talent-programs
   - talent-frameworks
-  - competency-lineage
   - talent-rubrics
   - talent-kpi
   - review-candidate-policy
   - talent-assessment-cycles
   - frozen-population
-  - student-population-visibility
   - talent-student-assessments
   - competency-results
-  - assessment-kpi-provenance
+  - review-candidates
+  - review-workflow
+  - official-identification
+  - educator-input
   - database
   - migrations
   - audit
@@ -24,6 +23,7 @@ affected_areas:
   - permissions
   - tests
   - business-rules
+  - governance
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/PROJECT_STATE.md

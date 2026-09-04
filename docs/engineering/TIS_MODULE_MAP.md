@@ -1,11 +1,51 @@
 ---
 title: TIS Module Map
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-08-26
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent Review, Official Identification & Educator Input (M6, Complete)
+
+Independent review added write-time historical-Branch authorization for
+Educator Input creation/amendment and uniform non-enumerating direct-ID
+handling across all three M6 routers.
+
+- Models: `TalentReviewCandidate` (now with `status`/`reviewed_by_user_id`/
+  `reviewed_at`), `TalentOfficialIdentification`, `TalentEducatorInput` in
+  `models.py`, with M6 contextual extensions to `TalentAssessmentAudit`
+  (`review_candidate`, `review_candidate_review`, `official_identification`,
+  `educator_input` resource types).
+- Authority: `talent_review_candidate_service.py` deterministically evaluates
+  the exact M3 Review Candidate Policy/rules attached to a Completed
+  Assessment's exact Framework Version and materializes only a qualifying
+  result (starting `pending_review`), plus the one-way `pending_review` ->
+  `reviewed` transition; it is read-only against Assessment/Result/frozen-
+  population data. `talent_official_identification_service.py` records the
+  append-only `identified`/`not_identified` decision, gated on a Reviewed
+  candidate, exactly one per candidate. `talent_educator_input_service.py`
+  resolves and persists historical Placement/Branch/Grade/Section context
+  (frozen Cycle context or effective-dated Placement at `observed_at`) and
+  manages append-only amendment/supersession lineage.
+- API: `routers/talent_review_candidates.py` (`/api/talent/review-candidates`,
+  now including `POST .../{id}/review`), `routers/talent_official_identifications.py`
+  (`/api/talent/official-identifications`), `routers/talent_educator_inputs.py`
+  (`/api/talent/educator-inputs`); `main.py` registers all three routers.
+- Permissions: Administrator-only-by-default `talent_review_candidates.view/manage`,
+  `talent_official_identifications.view/record`, and
+  `talent_educator_inputs.view/add/amend` - each independent of the other
+  Talent permission families. `.record` additionally requires organization/
+  global access scope. Branch scope uses frozen-member Branch context for
+  Review Candidate/Official Identification, and the row's own persisted
+  historical Branch for Educator Input.
+- Deferred (explicit, not implemented): Official Identification revocation/
+  supersession/second decision/re-identification, a generic review-note/
+  case-management system, assessor assignment, Learner Profile, analytics/
+  Talent Map, AI, Development and Support, and Educator Input analytics/
+  export/AI/attachments - see "M6 Governance Review: Decisions (Resolved)" in
+  `docs/AI_PROJECT_CONTEXT.md`.
 
 ## Talent Student Assessments
 

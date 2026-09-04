@@ -1,11 +1,152 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.5
+documentation_version: 3.6
 last_updated: 2026-09-04
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Review, Official Identification & Educator Input (M6, Complete)
+
+M6 implements the full "Review, Official Identification & Educator Input"
+milestone following 18 approved Product Owner governance decisions (see "M6
+Governance Review: Decisions" below) that resolved the 9 previously open
+questions this section used to document as deferred.
+
+**Review Candidate evaluation/materialization** (unchanged from the original
+partial slice): `talent_review_candidate_service.py` evaluates the exact M3
+`TalentReviewCandidatePolicy`/`TalentReviewCandidateRule` attached to a
+Completed Assessment's exact Framework Version, using
+`rubric_level_at_or_above` (compared by `TalentRubricLevel.display_order`,
+never `numeric_value`) and `kpi_at_or_above` (compared against the
+Assessment's persisted `kpi_result`, never recomputed), with `all`/`any`
+composition. No policy attached means no candidate is ever inferred.
+Evaluation only reads `TalentStudentAssessment`, `TalentStudentCompetencyResult`,
+and `TalentAssessmentCyclePopulationMember`; it never mutates them. A
+qualifying evaluation persists one `TalentReviewCandidate` row per Assessment
+(`uq_talent_review_candidates_assessment`), starting `status="pending_review"`,
+with policy identity, match mode, a deterministic SHA-256 evaluation
+fingerprint, and a full rule-by-rule evaluation snapshot. Re-evaluating an
+already-materialized Assessment is idempotent.
+
+**Decision 1 - non-qualifying evaluation**: still creates no
+`TalentReviewCandidate` row, but now writes one `TalentAssessmentAudit` row
+per evaluation call (`resource_type="review_candidate"`,
+`action="evaluate_non_qualifying"`) with assessment/Policy/Framework identity,
+`outcome="not_qualified"`, and the evaluation fingerprint - a closed,
+deterministic, free-text-free shape, not a durable negative entity. Repeated
+non-qualifying evaluation of the same immutable Completed Assessment appends
+one audit event per call (append-only event log, not idempotent state).
+
+**Decision 2/14 - Review workflow**: `TalentReviewCandidate` gained `status`
+(`pending_review`/`reviewed`, CHECK-constrained), `reviewed_by_user_id`,
+`reviewed_at`. `POST /api/talent/review-candidates/{id}/review`
+(`talent_review_candidates.manage`) transitions `pending_review` -> `reviewed`
+only - no reverse transition, no other state. It never alters assessment
+evidence/competency results/KPI and never auto-identifies. `.manage` grants
+only this transition, never Official Identification authority (that is
+exclusively Decision 6's separate permission+scope combination).
+
+**Decisions 3-7, 17 - Official Identification**: new append-only
+`TalentOfficialIdentification` (`talent_official_identifications` table),
+bound via the identical composite-scoped-FK chain `TalentReviewCandidate`
+itself uses (assessment/cycle-population-member composite FKs) plus a direct
+FK to the Review Candidate. `decision` is exactly `identified`/`not_identified`
+(CHECK-constrained) - `deferred`/`revoked`/`superseded`/`re-identified`/
+`reinstated`/`expired` are explicitly deferred, not implemented. Recording
+requires the candidate's `status` to already be `reviewed`
+(`candidate_not_reviewed` otherwise - a clean business error, not a crash).
+Exactly one decision per candidate: `uq_talent_official_identifications_candidate`
+(unique constraint) plus a service-layer check that raises `already_decided`
+(409) rather than letting a raw `IntegrityError` surface, matching M2's
+layered stale-write enforcement discipline. `not_identified` is exactly as
+durable as `identified` - never a failed-assessment/KPI/low-score signal, and
+there is no update/revoke/supersede function anywhere in
+`talent_official_identification_service.py`. `POST /api/talent/official-identifications`
+requires the dedicated `talent_official_identifications.record` permission
+AND organization/global access scope (`auth.can_access_all_branches`, the
+same organization-authority gate M4's Cycle `.govern` established) - a
+Branch-scoped actor is denied even when explicitly granted `.record`. Reads
+(`talent_official_identifications.view`) use the same frozen Cycle Population
+Member Branch discipline as Review Candidate/M4/M5.
+
+**Decisions 8-13 - Educator Input**: new append-only-with-lineage
+`TalentEducatorInput` (`talent_educator_inputs` table) - explicitly not a
+generic note, private diary, assessment score, Official Identification,
+Review Candidate state, AI output, or messaging/chat. Required binding:
+SchoolGroup, Student, Program, AcademicYear, `observed_at`, and a historical
+Placement/Branch/Grade/Section snapshot. Optional binding: Cycle, frozen
+Cycle Population Member, Assessment, Review Candidate - when supplied, the
+service validates exact Student/Program/AcademicYear alignment rather than
+trusting the caller. If a frozen Cycle context is supplied, its snapshot wins
+(mirroring M4's Open-time freeze exactly, applied here at input-creation
+time); otherwise the Student's canonical `StudentAcademicPlacement` effective
+AT `observed_at` within the AcademicYear is resolved using the same
+half-open `[effective_from, effective_to)` logic as M4's
+`derive_eligible_population` - no valid historical Placement is a clean
+`no_historical_placement` rejection, never a silent fallback to current
+Placement. `category` is closed (`observation`/`context`/`supporting_evidence`);
+`content` is plain bounded text, non-empty, capped at 2,000 characters
+(`talent_educator_input_service.MAX_CONTENT_LENGTH` - no existing bounded-text
+constant fit this exactly, so M6 sets this cap directly, reusing the same
+clean-then-length-check validation *pattern* already used for `summary`/
+`evidence` elsewhere in this milestone chain). Amendment is append-only via
+self-referential `supersedes_educator_input_id`; the original row is never
+edited in place. Cycle prevention walks the chain exactly like M3's
+`_validate_supersedes` for Framework Version supersession. Default reads
+(`list_inputs`) return only the current/latest version in each chain; an
+explicit `GET /{id}/history` returns the full chain. Cross-Student/cross-
+Program/cross-tenant supersession is rejected. The free-text `content` body
+is stripped from `TalentAssessmentAudit.before_json`/`after_json`, reusing
+M5's exact evidence-stripping pattern. New permissions
+`talent_educator_inputs.view/add/amend` are independent of every other Talent
+permission family; Branch access uses the row's own PERSISTED historical
+`branch_id`, never current Student Placement.
+
+**Migrations**: `20260904_006_talent_review_candidate_foundation` (original
+`talent_review_candidates` table + `review_candidate` resource_type).
+`20260904_007_talent_review_workflow_identification_educator_input_foundation`
+adds the review-workflow columns, `talent_official_identifications`,
+`talent_educator_inputs`, widens `resource_type` further
+(`review_candidate_review`, `official_identification`, `educator_input`), and
+relaxes `talent_assessment_audits.cycle_id`/`framework_version_id` to
+nullable (Educator Input's Cycle binding is optional, so an Educator Input
+audit row may have no Cycle/Framework context - the composite FK is simply
+unenforced whenever a referencing column is NULL, standard SQL MATCH SIMPLE
+semantics). Both follow the established dialect-branched widening pattern
+(PostgreSQL `NOT VALID`/`VALIDATE`, SQLite `_sqlite_rebuild_from_current_metadata`).
+
+**Independent-review closure**: M6 write authorization validates the
+historical Branch resolved for every Educator Input create/amend operation,
+not only subsequent reads. Direct out-of-scope Review Candidate, Official
+Identification, and Educator Input IDs return the repository's uniform 404.
+Official Identification is constrained to the Review Candidate's exact
+Assessment/frozen-member/Student/Program/AcademicYear/Framework/tenant tuple,
+and Educator Input amendment lineage is database-unique as well as
+service-validated, preventing concurrent forks. These constraints are present
+in both ORM metadata and the idempotent migration path.
+
+Review Candidate, Official Identification, and Educator Input remain
+structurally distinct tables with no shared mutable status column - a current
+Student transfer never reinterprets any of their frozen/persisted historical
+Branch access.
+
+## M6 Governance Review: Decisions (Resolved)
+
+The 9 questions this section previously listed as open (Official
+Identification decision vocabulary and access-scope requirement, whether a
+non-qualifying evaluation is durably recorded, exact Review workflow states
+and the mandatory review gate, Educator Input's binding context/category
+taxonomy/amendment model, and negative-decision durability/re-identification)
+were resolved by 18 explicit Product Owner governance decisions and are now
+fully implemented as described above. Explicitly and permanently DEFERRED by
+those same decisions, not merely unimplemented by omission: Official
+Identification revocation, supersession of an Official Identification, a
+second identification decision, re-identification, a `deferred` decision
+state, a generic free-text review-note/case-management system, assessor
+assignment, Learner Profile, Development and Support, analytics/Talent Map,
+AI/AI Suggested Review, and Educator Input analytics/export/AI/attachments.
 
 ## Talent Student Assessment And Competency Results
 
