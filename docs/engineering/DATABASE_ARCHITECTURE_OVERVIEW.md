@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Talent Student Assessment And Competency Results
+
+Migration `20260904_005_talent_student_assessment_competency_results` adds
+`talent_student_assessments` and `talent_student_competency_results` without a
+backfill. Assessment rows carry exact SchoolGroup, Cycle, frozen population
+member, Student, Program, Academic Year, and Framework Version context and are
+unique per Cycle/Student. Composite foreign keys bind the Assessment to the
+immutable frozen member and Results to their Assessment, exact Framework
+Competency, and exact Framework-owned Rubric Level. The migration also extends
+the existing `talent_assessment_audits` check and contextual columns; it does
+not create another audit subsystem.
+
+An optional completed KPI is stored directly on the Assessment as bounded
+historical provenance: method, integer result, configured scale bounds,
+weighted numerator, SHA-256 calculation fingerprint, and timestamp. It is NULL
+for qualitative/no-KPI and non-complete assessments. No universal score,
+cross-Program normalization, candidate, identification, or AI table exists.
+
 ## Talent Assessment Cycle Frozen Population
 
 M4 adds `talent_assessment_cycles` as the SchoolGroup-wide Program + Academic

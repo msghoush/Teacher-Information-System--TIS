@@ -7,6 +7,29 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-04 - Talent & Potential M5 Student Assessment And Competency Results
+
+- Added migration `20260904_005_talent_student_assessment_competency_results`
+  with canonical frozen-member-bound Student Assessments, exact Framework
+  Competency Results, composite tenant/Program/Framework/rubric integrity, and
+  scoped M5 audit context. No assessment rows are backfilled.
+- Added an Open-cycle-only assessment lifecycle: In Progress is editable with
+  expected-revision protection; Completed requires every Framework Competency
+  and is read-only; Incomplete and Insufficient Evidence are distinct read-only
+  terminal outcomes. No correction/reopen workflow was added.
+- Product Owner approved KPI result closure: `weighted_level_average` uses
+  integer rubric-value times basis-point weight contributions, denominator
+  10,000, nearest-integer ROUND_HALF_UP, and no binary floating point. A
+  successful KPI-backed completion persists the Framework-specific result,
+  scale, numerator, method, timestamp, and canonical SHA-256 input fingerprint.
+  Qualitative/no-KPI completions persist no KPI sentinel or zero.
+- Added Administrator-only-by-default `talent_assessments.view/manage/complete`
+  and `/api/talent/assessments`, enforcing historical frozen-Branch visibility.
+  Extended `TalentAssessmentAudit` for assessment/result transitions without
+  copying free-text evidence. No Review Candidate materialization, Official
+  Identification, AI, analytics, assessor assignment, deployment, or `tis.db`
+  change was made.
+
 ## 2026-09-04 - Talent & Potential M4 Assessment Cycle And Frozen Population
 
 - Product Owner approved one SchoolGroup-wide Cycle authority with no

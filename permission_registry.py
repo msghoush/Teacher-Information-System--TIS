@@ -134,6 +134,15 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "talent_assessments",
+        "label": "Talent Student Assessments",
+        "permissions": (
+            ("talent_assessments.view", "View Talent Student Assessments and results"),
+            ("talent_assessments.manage", "Start and edit Talent Student Assessments and competency results"),
+            ("talent_assessments.complete", "Complete or record non-complete Talent Student Assessment outcomes"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (

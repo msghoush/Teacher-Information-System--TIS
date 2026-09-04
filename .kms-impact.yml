@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Implement and document M4 SchoolGroup-wide Talent Assessment Cycles, explicit population effective time, dynamic Draft eligibility preview, atomic frozen Student population authority, deterministic population integrity metadata, dedicated permissions, Branch-filtered identifiable population access, organization-only Open/Close governance, operational audit, migration, and tests.
+summary: Implement and document M5 canonical Student Assessments, exact Framework competency results, deterministic persisted KPI completion results, dedicated permissions, frozen-Branch visibility, operational audit, migration, and tests.
 affected_areas:
   - students
   - academic-placement
@@ -12,6 +12,9 @@ affected_areas:
   - talent-assessment-cycles
   - frozen-population
   - student-population-visibility
+  - talent-student-assessments
+  - competency-results
+  - assessment-kpi-provenance
   - database
   - migrations
   - audit

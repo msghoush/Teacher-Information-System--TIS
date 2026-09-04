@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## Talent & Potential M5 Status
+
+Implemented: canonical frozen-member-bound Student Assessment, exact Framework
+Competency Results, explicit In Progress/Completed/Incomplete/Insufficient
+Evidence lifecycle, expected-revision mutation protection, frozen-Branch scope,
+bounded operational audit, and dedicated assessment permissions. Optional
+Framework KPI completion uses integer `weighted_level_average`, denominator
+10,000, ROUND_HALF_UP, and persisted Framework-specific provenance; qualitative
+no-KPI completion is first-class. Deferred: assessor assignment, correction,
+Review Candidate instances/evaluation, Official Identification, Educator Input,
+Learner Profile, analytics/Talent Map, AI, Development and Support, and late
+population exception workflow.
+
 ## Talent & Potential M4 Status
 
 Implemented: SchoolGroup-wide Assessment Cycle Draft/Open/Closed lifecycle,

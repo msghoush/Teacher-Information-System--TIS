@@ -6432,6 +6432,54 @@ def _talent_assessment_cycle_frozen_population_foundation(engine, connection):
         Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
 
 
+def _talent_student_assessment_competency_results_foundation(engine, connection):
+    """Create M5 Student Assessments, exact competency results, and KPI provenance."""
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "talent_assessment_cycles", "talent_assessment_cycle_population_members",
+        "talent_assessment_audits", "talent_framework_competencies",
+        "talent_rubric_levels", "users",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    population_scope = ("id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id")
+    if engine.dialect.name == "postgresql":
+        unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("talent_assessment_cycle_population_members")
+        }
+        if population_scope not in unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE talent_assessment_cycle_population_members ADD CONSTRAINT "
+                "uq_talent_cycle_population_member_assessment_scope "
+                "UNIQUE (id, cycle_id, student_id, program_id, academic_year_id, framework_version_id, school_group_id)",
+            )
+        _replace_postgres_check(
+            connection, "talent_assessment_audits", "ck_talent_assessment_audits_resource_type",
+            "resource_type IN ('assessment_cycle','student_assessment','competency_result')",
+        )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "talent_assessment_cycle_population_members",
+            "uq_talent_cycle_population_member_assessment_scope",
+            "id, cycle_id, student_id, program_id, academic_year_id, framework_version_id, school_group_id",
+        )
+        if not _sqlite_check_contains(connection, "talent_assessment_audits", "'student_assessment'"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_assessment_audits")
+    datetime_type = _datetime_type(engine)
+    for column_name, column_sql in (
+        ("assessment_id", "assessment_id INTEGER"),
+        ("cycle_population_member_id", "cycle_population_member_id INTEGER"),
+        ("student_id", "student_id INTEGER"),
+    ):
+        _add_column_if_missing(connection, connection, "talent_assessment_audits", column_name, column_sql)
+    for table_name in ("talent_student_assessments", "talent_student_competency_results"):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6722,6 +6770,11 @@ MIGRATIONS = (
         migration_id="20260904_004_talent_assessment_cycle_frozen_population",
         description="Add SchoolGroup-wide Talent Assessment Cycles, frozen Student populations, and operational audit",
         apply=_talent_assessment_cycle_frozen_population_foundation,
+    ),
+    Migration(
+        migration_id="20260904_005_talent_student_assessment_competency_results",
+        description="Add canonical Student Assessments, exact competency results, and deterministic KPI provenance",
+        apply=_talent_student_assessment_competency_results_foundation,
     ),
 )
 

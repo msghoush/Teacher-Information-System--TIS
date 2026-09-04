@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Student Assessments
+
+- Models: `TalentStudentAssessment` and `TalentStudentCompetencyResult` in
+  `models.py`, with M5 contextual extensions to `TalentAssessmentAudit`.
+- Authority: `talent_student_assessment_service.py` owns Open-cycle/frozen-member
+  creation, expected-revision result mutation, deterministic completion,
+  ROUND_HALF_UP KPI provenance, read-only terminal states, and audit entries.
+- API: `routers/talent_assessments.py` exposes bounded operations under
+  `/api/talent/assessments`; `main.py` registers the router.
+- Permissions: Administrator-only-by-default `talent_assessments.view`,
+  `.manage`, and `.complete`; Branch scope is evaluated from frozen-member
+  Branch context, not current Student Placement. Assessor assignment is absent.
+
 ## Talent Assessment Cycles
 
 - Models: `TalentAssessmentCycle`, `TalentAssessmentCyclePopulationMember`,

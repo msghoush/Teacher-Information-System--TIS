@@ -7,6 +7,41 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Talent Student Assessment And Competency Results
+
+M5 implements the canonical `TalentStudentAssessment` authority for exactly
+one frozen Cycle Population Member/Student per Open Assessment Cycle. The
+Assessment persists its exact SchoolGroup, Cycle, frozen-member, Student,
+Program, Academic Year, and immutable Framework Version context; current
+Placement can never alter its authorization or historical interpretation.
+`TalentStudentCompetencyResult` rows bind each assessment to the exact
+Framework Competency and Framework-owned Rubric Level. All competency results
+use expected-revision stale-write protection, and only an In Progress
+Assessment in an Open Cycle is editable.
+
+Completed requires a valid result for every exact Framework Competency. It is
+read-only, as are the explicit final non-complete Incomplete and Insufficient
+Evidence states; no correction/reopen workflow exists. A qualitative Program
+can complete without KPI or numeric rubric values. When an exact Framework
+enables the approved `weighted_level_average` KPI, completion calculates it
+using integer numerator contributions and denominator 10,000, rounds to the
+nearest integer with ROUND_HALF_UP, and atomically persists the Framework
+result scale, method, numerator, SHA-256 input fingerprint, and calculation
+timestamp. This is Framework-specific evidence, never a universal or
+cross-Program Talent Score. No KPI result exists for In Progress, Incomplete,
+Insufficient Evidence, or no-KPI Assessments.
+
+M5 adds Administrator-only-by-default `talent_assessments.view`, `.manage`,
+and `.complete` permissions under `/api/talent/assessments`. Permission and
+canonical scope govern assessment work; assessor assignment remains deferred.
+Branch access resolves the frozen member Branch, not current Student
+Placement. `TalentAssessmentAudit` remains the bounded append-only operational
+audit, now recording assessment/result identifiers and transitions while
+excluding free-text evidence. Deferred: Review Candidate instances/evaluation,
+Official Identification, Educator Input, Learner Profile, analytics/Talent
+Map, AI, Development and Support, late population exceptions, assessor
+assignment, and corrections. Live PostgreSQL execution remains a follow-up.
+
 ## Talent Assessment Cycle And Frozen Population Foundation
 
 Milestone M4 implements `TalentAssessmentCycle` as one SchoolGroup-wide

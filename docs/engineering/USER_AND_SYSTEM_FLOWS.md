@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Talent Student Assessment Flow
+
+1. An authorized assessor with canonical Branch/organization scope starts one
+   In Progress Assessment only for an Open Cycle's visible frozen member.
+2. The assessor records or replaces exact Framework Competency/Rubric Level
+   results using the Assessment's expected revision. Current Student transfer
+   never changes frozen-Branch access.
+3. Completion validates that every exact Framework Competency has a result. For
+   an enabled KPI, the service validates numeric inputs, calculates integer
+   weighted contributions over denominator 10,000, applies ROUND_HALF_UP, and
+   persists the Framework-specific result and canonical provenance atomically.
+4. A successful Completed Assessment is read-only. The assessor may instead
+   finalize Incomplete or Insufficient Evidence, each read-only and without a
+   KPI result. Candidate selection, correction/reopen, and assessor assignment
+   are not available.
+
 ## Talent Assessment Cycle Population Flow
 
 1. An authorized Draft author creates a SchoolGroup-wide Cycle and explicitly

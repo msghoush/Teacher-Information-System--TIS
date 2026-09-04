@@ -7,6 +7,33 @@ source_of_truth: true
 
 # TIS Project State
 
+## M5 Talent Student Assessment And Competency Results Implemented
+
+Migration `20260904_005_talent_student_assessment_competency_results` adds
+canonical Student Assessment and exact Framework Competency Result rows,
+extends the existing operational audit, and preserves the scoped composite keys
+needed for frozen-member, assessment, competency, and rubric-level integrity.
+Only an Open Cycle's frozen members can receive one In Progress assessment;
+all mutations use expected-revision protection. Completed requires every exact
+Framework Competency result and becomes read-only. Incomplete and Insufficient
+Evidence are distinct read-only terminal outcomes and do not represent low
+performance or zero results.
+
+The optional enabled Framework KPI is calculated only at successful completion
+using exact integer weighted-level arithmetic: numeric rubric value times
+basis-point component weight, summed over denominator 10,000 and rounded to
+the nearest Framework-scale integer with ROUND_HALF_UP. The persisted result
+includes method, scale bounds, numerator, canonical SHA-256 input fingerprint,
+and calculation timestamp. Qualitative no-KPI Programs complete without any
+numeric score. This is never a universal Talent Score or cross-Program
+normalization. M5 adds Administrator-only-by-default
+`talent_assessments.view/manage/complete`, frozen-Branch scope enforcement,
+the `/api/talent/assessments` API, and focused SQLite coverage. Assessor
+assignment, correction/reopen, Review Candidate workflow, Official
+Identification, Educator Input, Learner Profile, analytics/Talent Map, AI, and
+Development and Support remain deferred. Live PostgreSQL validation remains
+outstanding.
+
 ## M4 Talent Assessment Cycle And Frozen Population Implemented
 
 Migration `20260904_004_talent_assessment_cycle_frozen_population` adds the

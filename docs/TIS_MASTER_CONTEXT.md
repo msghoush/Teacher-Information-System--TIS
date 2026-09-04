@@ -514,7 +514,8 @@ Core app areas:
 - `student_academic_service.py`: Student identity, external identifiers, and effective-dated Academic Placement authority.
 - `talent_program_service.py`: Talent Program, annual configuration, Framework Version lifecycle, competency lineage, Framework-specific rubric/descriptors, optional bounded KPI, and deterministic Review Candidate Policy configuration authority.
 - `talent_assessment_cycle_service.py`: SchoolGroup-wide Assessment Cycle lifecycle, explicit-time Draft eligibility preview, atomic frozen Student population, and population fingerprint authority.
-- `routers/`: modular feature routers for users, teachers, subjects, planning, timetable, academic calendar, observations, students, and talent programs.
+- `talent_student_assessment_service.py`: exact frozen-member-bound Student Assessment lifecycle, expected-revision competency result mutations, deterministic completion, persisted Framework-specific integer KPI provenance, and bounded operational audit.
+- `routers/`: modular feature routers for users, teachers, subjects, planning, timetable, academic calendar, observations, students, Talent Programs, Assessment Cycles, and Student Assessments.
 - `templates/`: Jinja templates for the operational app and SaaS app pages.
 - `static/`: CSS, JavaScript, images, branding assets, and generated public artifacts.
 - `tests/`: pytest coverage for tenant isolation, SaaS phases, platform access, permissions, email, branding, and related workflows.
@@ -529,6 +530,7 @@ Important operational route families:
 - `/api/students`: Student identity, external identifiers, and Academic Placement JSON API (`routers/students.py`, `students.*` permissions). No page/UI exists yet.
 - `/api/talent/programs`: Talent Program, Framework Version, Competency, rubric/level/descriptor, optional KPI, and Review Candidate Policy JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). M3 semantic mutations are Draft-only and expected-revision protected; no page/UI exists yet.
 - `/api/talent/assessment-cycles`: Cycle metadata, authorization-filtered Draft/frozen population, and organization-governed Open/Close API (`routers/talent_assessment_cycles.py`, dedicated `talent_assessment_cycles.*` permissions). Cycles have no Branch ownership; identifiable population access is filtered by resolved/frozen Branch context.
+- `/api/talent/assessments`: Open-Cycle frozen-member Assessment and exact Competency Result API (`routers/talent_assessments.py`, `talent_assessments.view/manage/complete`). Results are editable only while In Progress, use expected-revision protection, and resolve Branch authorization from frozen-member context. Completed requires every Framework Competency; it and Incomplete/Insufficient Evidence are read-only. An enabled KPI uses integer weighted contributions over denominator 10,000, nearest-integer ROUND_HALF_UP, and persists Framework-scale result provenance only at completion. Qualitative/no-KPI completion has no result sentinel. Candidate workflow, corrections, and assessor assignment remain deferred.
 
 ## Next.js Landing Architecture
 
