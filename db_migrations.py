@@ -6268,6 +6268,78 @@ def _timetable_feasibility_verification_foundation(engine, connection):
     )
 
 
+def _student_academic_placement_foundation(engine, connection):
+    """Create the additive canonical Student and historical Placement foundation."""
+    from database import Base
+    import models  # noqa: F401
+
+    required = ("school_groups", "branches", "academic_years", "planning_sections", "users")
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    # PostgreSQL foreign keys must reference an actual UNIQUE/PRIMARY KEY
+    # constraint, not merely a unique index (see _planning_subject_demands_foundation
+    # for the same precedent). A bare CREATE UNIQUE INDEX satisfies SQLite's lenient
+    # FK matching but is silently insufficient for the composite FKs added below.
+    if engine.dialect.name == "postgresql":
+        branch_unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("branches")
+        }
+        if ("id", "school_group_id") not in branch_unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE branches ADD CONSTRAINT "
+                "uq_branches_id_school_group UNIQUE (id, school_group_id)",
+            )
+        year_unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("academic_years")
+        }
+        if ("id", "school_group_id") not in year_unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE academic_years ADD CONSTRAINT "
+                "uq_academic_years_id_school_group UNIQUE (id, school_group_id)",
+            )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "branches", "uq_branches_id_school_group",
+            "id, school_group_id",
+        )
+        _create_unique_index_if_missing(
+            connection, connection, "academic_years", "uq_academic_years_id_school_group",
+            "id, school_group_id",
+        )
+    for table_name in (
+        "students", "student_external_identifiers",
+        "student_academic_placements", "student_audits",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
+def _talent_program_framework_foundation(engine, connection):
+    """Create the additive M2 Talent Program and versioned Framework foundation."""
+    from database import Base
+    import models  # noqa: F401
+
+    required = ("school_groups", "academic_years", "branches", "users")
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    _create_unique_index_if_missing(
+        connection, connection, "academic_years", "uq_academic_years_id_school_group",
+        "id, school_group_id",
+    )
+    for table_name in (
+        "talent_programs",
+        "talent_program_academic_year_configurations",
+        "talent_program_framework_versions",
+        "talent_competencies",
+        "talent_framework_competencies",
+        "talent_configuration_audits",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6538,6 +6610,16 @@ MIGRATIONS = (
         migration_id="20260830_003_timetable_feasibility_verification",
         description="Persist solver-backed timetable feasibility verification and fallback solutions",
         apply=_timetable_feasibility_verification_foundation,
+    ),
+    Migration(
+        migration_id="20260904_001_student_academic_placement_foundation",
+        description="Add canonical Students, external identifiers, historical academic placements, and append-only audit",
+        apply=_student_academic_placement_foundation,
+    ),
+    Migration(
+        migration_id="20260904_002_talent_program_framework_foundation",
+        description="Add SchoolGroup Talent Programs, annual configuration, immutable Framework versions, competency lineage, and audit",
+        apply=_talent_program_framework_foundation,
     ),
 )
 

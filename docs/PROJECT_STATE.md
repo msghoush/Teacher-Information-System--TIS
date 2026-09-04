@@ -7,6 +7,46 @@ source_of_truth: true
 
 # TIS Project State
 
+## Student & Academic Placement Foundation And Talent Program & Framework Foundation Implemented
+
+Migration `20260904_001_student_academic_placement_foundation` adds `Student`
+as a canonical SchoolGroup-owned identity distinct from `User`, external
+identifiers, an effective-dated Academic Placement authority (no separate
+Enrollment entity), and append-only audit. Migration
+`20260904_002_talent_program_framework_foundation` adds `TalentProgram` as a
+durable organization-owned identity distinct from Subject, annual
+configuration, an immutable-once-active Framework Version lifecycle with
+deterministic version allocation and one-Active-Framework-per-Program
+supersession, competency lineage with version-specific framework
+membership snapshots, and append-only configuration audit. Full architecture
+and business-rule detail is recorded in `docs/AI_PROJECT_CONTEXT.md` under
+"Student & Academic Placement Foundation" and "Talent Program & Framework
+Foundation". `tests/test_student_academic_foundation.py` (13 tests) and
+`tests/test_talent_program_framework_foundation.py` (15 tests) cover both
+foundations, including tenant/branch isolation and permission-boundary cases.
+
+Checkpoint A closed the permission-governance gap in both interim
+implementations. `permission_registry.py` adds dedicated `students` (`.view`,
+`.create`, `.edit`, `.activate_deactivate`, `.manage_identifiers`,
+`.manage_placements`) and `talent_programs` (`.view`, `.manage`, `.govern`)
+permission groups, replacing the temporary reuse of the `users.*` keys (for
+Student) and the bare, broadly-granted `planning.edit_section` permission
+(for both Student Academic Placement mutation and Talent Program/Framework
+Draft authorship - the latter previously let any Branch-scoped Editor/User
+actor author organization-wide Talent configuration with no Branch-relation
+constraint). Both new groups are Administrator-only by default, matching the
+existing `users.*` precedent; the M2 organization/global-scope gate on
+Framework activate/retire and Program lifecycle transitions was already
+correct and is unchanged. `routers/students.py` and `routers/talent_programs.py`
+now check the dedicated keys; branch-scope-after-permission-check ordering
+and non-enumerating 404/403 discipline are preserved on every route.
+
+PostgreSQL validation (constraints, concurrent placement/framework writes)
+has not been executed against live PostgreSQL for either foundation; only
+SQLite-backed pytest coverage exists. No Student UI, import/merge, Rubric,
+KPI, Assessment, Review/Identification, Learner Profile, analytics/Talent
+Map, or AI code exists yet.
+
 ## Planning Subject Requirement Removal (Single And Bulk) Implemented
 
 Administrators can now remove a Planning subject requirement whether or not
@@ -1064,6 +1104,11 @@ remain locked against silent replacement.
 
 Known issues and watch points:
 
+- Student & Academic Placement Foundation and Talent Program & Framework
+  Foundation have no PostgreSQL validation yet (constraints, concurrent
+  placement/framework writes); only SQLite-backed pytest coverage exists.
+  Neither has a UI, import/merge, or any Rubric/KPI/Assessment/Review/
+  Learner-Profile/analytics/AI code, which remain future milestones.
 - KMS policy depends on future developers and AI agents consistently completing the Knowledge Impact Assessment.
 - Generated PDF can become stale during local work, but CI now blocks stale artifacts from integration/deployment.
 - The owner-only Knowledge Center is implemented as read-only; there is no regenerate button yet.

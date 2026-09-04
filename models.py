@@ -9,6 +9,9 @@ from workspace_classification import WorkspaceClassification, WorkspaceLifecycle
 
 class Branch(Base):
     __tablename__ = "branches"
+    __table_args__ = (
+        UniqueConstraint("id", "school_group_id", name="uq_branches_id_school_group"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     name = Column(String, nullable=False)
@@ -166,10 +169,252 @@ class BranchLogo(Base):
 
 class AcademicYear(Base):
     __tablename__ = "academic_years"
+    __table_args__ = (
+        UniqueConstraint("id", "school_group_id", name="uq_academic_years_id_school_group"),
+    )
     id = Column(Integer, primary_key=True, index=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), index=True)
     year_name = Column(String, nullable=False)
     is_active = Column(Boolean, default=True)
+
+
+class Student(Base):
+    __tablename__ = "students"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','inactive')", name="ck_students_status"),
+        UniqueConstraint("id", "school_group_id", name="uq_students_id_school_group"),
+        Index("ix_students_group_name", "school_group_id", "last_name", "first_name"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    first_name = Column(String(100), nullable=False)
+    father_name = Column(String(100), nullable=True)
+    last_name = Column(String(100), nullable=False)
+    gender = Column(String(24), nullable=True)
+    status = Column(String(16), nullable=False, default="active")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+
+
+class StudentExternalIdentifier(Base):
+    __tablename__ = "student_external_identifiers"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','inactive')", name="ck_student_external_identifiers_status"),
+        ForeignKeyConstraint(
+            ["student_id", "school_group_id"], ["students.id", "students.school_group_id"],
+            name="fk_student_external_identifiers_student_scope",
+        ),
+        UniqueConstraint("school_group_id", "namespace", "value", name="uq_student_external_identifiers_scope_namespace_value"),
+        Index("ix_student_external_identifiers_student", "school_group_id", "student_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    student_id = Column(Integer, nullable=False)
+    namespace = Column(String(80), nullable=False)
+    value = Column(String(180), nullable=False)
+    source = Column(String(120), nullable=True)
+    status = Column(String(16), nullable=False, default="active")
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class StudentAcademicPlacement(Base):
+    __tablename__ = "student_academic_placements"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','ended')", name="ck_student_academic_placements_status"),
+        CheckConstraint("grade_level IN ('KG','1','2','3','4','5','6','7','8','9','10','11','12')", name="ck_student_academic_placements_grade"),
+        CheckConstraint("effective_to IS NULL OR effective_to > effective_from", name="ck_student_academic_placements_range"),
+        ForeignKeyConstraint(["student_id", "school_group_id"], ["students.id", "students.school_group_id"], name="fk_student_academic_placements_student_scope"),
+        ForeignKeyConstraint(["branch_id", "school_group_id"], ["branches.id", "branches.school_group_id"], name="fk_student_academic_placements_branch_scope"),
+        ForeignKeyConstraint(["academic_year_id", "school_group_id"], ["academic_years.id", "academic_years.school_group_id"], name="fk_student_academic_placements_year_scope"),
+        Index("ix_student_academic_placements_student_time", "school_group_id", "student_id", "effective_from"),
+        Index("ix_student_academic_placements_scope", "school_group_id", "branch_id", "academic_year_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    student_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    branch_id = Column(Integer, nullable=False)
+    planning_section_id = Column(Integer, ForeignKey("planning_sections.id", ondelete="SET NULL"), nullable=True)
+    grade_level = Column(String(8), nullable=False)
+    section_name = Column(String(20), nullable=False)
+    effective_from = Column(DateTime, nullable=False)
+    effective_to = Column(DateTime, nullable=True)
+    status = Column(String(16), nullable=False, default="active")
+    reason = Column(String(255), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+
+
+class StudentAudit(Base):
+    __tablename__ = "student_audits"
+    __table_args__ = (
+        CheckConstraint("resource_type IN ('student','external_identifier','academic_placement')", name="ck_student_audits_resource_type"),
+        ForeignKeyConstraint(["student_id", "school_group_id"], ["students.id", "students.school_group_id"], name="fk_student_audits_student_scope"),
+        Index("ix_student_audits_scope_resource", "school_group_id", "student_id", "created_at"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    student_id = Column(Integer, nullable=False)
+    actor_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    actor_branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
+    resource_type = Column(String(32), nullable=False)
+    resource_id = Column(Integer, nullable=False)
+    action = Column(String(40), nullable=False)
+    before_json = Column(Text, nullable=True)
+    after_json = Column(Text, nullable=True)
+    correlation_id = Column(String(64), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class TalentProgram(Base):
+    __tablename__ = "talent_programs"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','active','retired')", name="ck_talent_programs_status"),
+        UniqueConstraint("id", "school_group_id", name="uq_talent_programs_id_school_group"),
+        UniqueConstraint("school_group_id", "name", name="uq_talent_programs_group_name"),
+        Index("ix_talent_programs_group_status", "school_group_id", "status"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    name = Column(String(160), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(16), nullable=False, default="draft")
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentProgramAcademicYearConfiguration(Base):
+    __tablename__ = "talent_program_academic_year_configurations"
+    __table_args__ = (
+        ForeignKeyConstraint(["program_id", "school_group_id"], ["talent_programs.id", "talent_programs.school_group_id"], name="fk_talent_program_year_configs_program_scope"),
+        ForeignKeyConstraint(["academic_year_id", "school_group_id"], ["academic_years.id", "academic_years.school_group_id"], name="fk_talent_program_year_configs_year_scope"),
+        UniqueConstraint("program_id", "academic_year_id", name="uq_talent_program_year_configs_program_year"),
+        Index("ix_talent_program_year_configs_scope", "school_group_id", "academic_year_id"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    eligible_grade_levels_csv = Column(String(80), nullable=False)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentProgramFrameworkVersion(Base):
+    __tablename__ = "talent_program_framework_versions"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','active','retired')", name="ck_talent_framework_versions_status"),
+        CheckConstraint("revision >= 1", name="ck_talent_framework_versions_revision"),
+        CheckConstraint("supersedes_framework_version_id IS NULL OR supersedes_framework_version_id <> id", name="ck_talent_framework_versions_not_self_superseding"),
+        ForeignKeyConstraint(["program_id", "school_group_id"], ["talent_programs.id", "talent_programs.school_group_id"], name="fk_talent_framework_versions_program_scope"),
+        ForeignKeyConstraint(
+            ["supersedes_framework_version_id", "program_id", "school_group_id"],
+            ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"],
+            name="fk_talent_framework_versions_supersedes_scope",
+        ),
+        UniqueConstraint("id", "program_id", "school_group_id", name="uq_talent_framework_versions_id_program_scope"),
+        UniqueConstraint("program_id", "version_number", name="uq_talent_framework_versions_program_number"),
+        Index("ix_talent_framework_versions_history", "school_group_id", "program_id", "version_number"),
+        Index("uq_talent_framework_versions_one_active", "program_id", unique=True,
+              sqlite_where=text("status = 'active'"), postgresql_where=text("status = 'active'")),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    version_number = Column(Integer, nullable=False)
+    status = Column(String(16), nullable=False, default="draft")
+    title = Column(String(180), nullable=False)
+    summary = Column(Text, nullable=True)
+    revision = Column(Integer, nullable=False, default=1)
+    semantic_fingerprint = Column(String(64), nullable=False)
+    supersedes_framework_version_id = Column(Integer, nullable=True)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    activated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    retired_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    retired_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentCompetency(Base):
+    __tablename__ = "talent_competencies"
+    __table_args__ = (
+        CheckConstraint("status IN ('active','retired')", name="ck_talent_competencies_status"),
+        ForeignKeyConstraint(["program_id", "school_group_id"], ["talent_programs.id", "talent_programs.school_group_id"], name="fk_talent_competencies_program_scope"),
+        UniqueConstraint("id", "program_id", "school_group_id", name="uq_talent_competencies_id_program_scope"),
+        UniqueConstraint("program_id", "code", name="uq_talent_competencies_program_code"),
+        Index("ix_talent_competencies_scope", "school_group_id", "program_id", "status"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    code = Column(String(80), nullable=False)
+    name = Column(String(160), nullable=False)
+    description = Column(Text, nullable=True)
+    status = Column(String(16), nullable=False, default="active")
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class FrameworkCompetency(Base):
+    __tablename__ = "talent_framework_competencies"
+    __table_args__ = (
+        CheckConstraint("display_order >= 1", name="ck_talent_framework_competencies_order"),
+        ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_framework_competencies_framework_scope"),
+        ForeignKeyConstraint(["talent_competency_id", "program_id", "school_group_id"], ["talent_competencies.id", "talent_competencies.program_id", "talent_competencies.school_group_id"], name="fk_talent_framework_competencies_competency_scope"),
+        UniqueConstraint("framework_version_id", "talent_competency_id", name="uq_talent_framework_competencies_membership"),
+        UniqueConstraint("framework_version_id", "display_order", name="uq_talent_framework_competencies_order"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    talent_competency_id = Column(Integer, nullable=False)
+    display_order = Column(Integer, nullable=False)
+    label = Column(String(160), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentConfigurationAudit(Base):
+    __tablename__ = "talent_configuration_audits"
+    __table_args__ = (
+        CheckConstraint("resource_type IN ('program','annual_configuration','framework_version','competency','framework_competency')", name="ck_talent_configuration_audits_resource_type"),
+        Index("ix_talent_configuration_audits_scope_resource", "school_group_id", "program_id", "created_at"),
+    )
+    id = Column(Integer, primary_key=True)
+    public_id = Column(String(36), nullable=False, default=lambda: str(uuid.uuid4()), unique=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    actor_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    actor_branch_id = Column(Integer, ForeignKey("branches.id"), nullable=True)
+    resource_type = Column(String(40), nullable=False)
+    resource_id = Column(Integer, nullable=False)
+    action = Column(String(40), nullable=False)
+    before_json = Column(Text, nullable=True)
+    after_json = Column(Text, nullable=True)
+    correlation_id = Column(String(64), nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
 class User(Base):

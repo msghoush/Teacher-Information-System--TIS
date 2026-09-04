@@ -1,17 +1,22 @@
 knowledge_impact: yes
-summary: Allow deletion of an otherwise-empty Planning section by atomically cleaning only its inactive zero-period setup-only subject-demand suppressions with no Curriculum Adjustment history, while retaining all active, historical, scoped, and dependent-record blockers and updating customer wording.
+summary: Document the implemented M1 Student & Academic Placement Foundation and M2 Talent Program & Framework Foundation as evidence, and reconcile their temporary permission mapping against the canonical permission architecture (dedicated students.* and talent_programs.* permission keys, Administrator-only by default, replacing borrowed users.* keys and the broad planning.edit_section gate).
 affected_areas:
-  - planning
-  - user-workflow
+  - students
+  - academic-placement
+  - talent-programs
+  - talent-frameworks
+  - competency-lineage
+  - database
+  - api
+  - authorization
+  - tenant-isolation
+  - permissions
   - tests
   - business-rules
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
+  - docs/TIS_MASTER_CONTEXT.md
   - docs/CHANGE_HISTORY.md
-  - docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md
-  - docs/history/workforce-planning/2026-09-03-planning-and-subject-delete-dependency-guards.md
 no_impact_reason:
 major_change_override: no
-

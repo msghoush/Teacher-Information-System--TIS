@@ -7,6 +7,46 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-04 - Checkpoint A Governance Closure: Student & Talent Program Permission Reconciliation
+
+- Documented the already-implemented Student & Academic Placement Foundation
+  (migration `20260904_001_student_academic_placement_foundation`: `Student`
+  as a canonical SchoolGroup-owned identity distinct from `User`, external
+  identifiers, effective-dated Academic Placement with no separate Enrollment
+  entity, and append-only audit) and Talent Program & Framework Foundation
+  (migration `20260904_002_talent_program_framework_foundation`: durable
+  organization-owned `TalentProgram`, annual configuration, immutable-once-
+  active Framework Version lifecycle, competency lineage, and append-only
+  audit) as implemented evidence in `docs/AI_PROJECT_CONTEXT.md` and
+  `docs/PROJECT_STATE.md`. Neither foundation had prior KMS documentation.
+- Reconciled both foundations' temporary permission mapping against the
+  canonical `permission_registry.py` architecture. Added dedicated `students`
+  (`.view`, `.create`, `.edit`, `.activate_deactivate`, `.manage_identifiers`,
+  `.manage_placements`) and `talent_programs` (`.view`, `.manage`, `.govern`)
+  permission groups, both Administrator-only by default (matching the
+  existing `users.*` precedent), and updated `routers/students.py` and
+  `routers/talent_programs.py` to check them.
+- Fixed a real permission-governance defect: Student Academic Placement
+  mutation and Talent Program/Framework Draft authorship were both gated only
+  by the broad, commonly-granted `planning.edit_section` permission, so any
+  Branch-scoped Editor/User actor holding it could manage Student placements
+  or author organization-wide Talent configuration with no Student-specific
+  or Branch-relationship constraint. Student creation/edit/identifier
+  management had separately been gated by borrowed `users.*` keys instead of
+  a dedicated Student permission domain.
+- Preserved every already-correct behavior: branch-scope-after-permission-
+  check ordering, non-enumerating 404-vs-403 discipline on every route, and
+  the M2 organization/global access-scope gate (`_organization_authorized()`)
+  on Framework activate/retire and Program lifecycle transitions, which was
+  already correct and required no change.
+- Added permission-boundary regression tests to
+  `tests/test_student_academic_foundation.py` and
+  `tests/test_talent_program_framework_foundation.py` confirming an
+  Editor-role Branch actor - who still default-holds `planning.edit_section`
+  - is now denied Student and Talent Program management.
+- No M3 (Rubric/KPI/Assessment/Review/Learner Profile/analytics/AI) code,
+  `tis.db` change, migration change, or unrelated route change was made.
+
 ## 2026-09-04 - Planning Subject Requirement Removal (Single And Bulk)
 
 - Corrected Planning section deletion after requirement removal: inactive

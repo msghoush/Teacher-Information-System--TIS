@@ -103,6 +103,27 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "students",
+        "label": "Students",
+        "permissions": (
+            ("students.view", "View students and academic placement history"),
+            ("students.create", "Create students"),
+            ("students.edit", "Edit student identity details"),
+            ("students.activate_deactivate", "Activate/deactivate students"),
+            ("students.manage_identifiers", "Manage student external identifiers"),
+            ("students.manage_placements", "Manage student academic placements"),
+        ),
+    },
+    {
+        "key": "talent_programs",
+        "label": "Talent Programs",
+        "permissions": (
+            ("talent_programs.view", "View talent programs, frameworks, and competencies"),
+            ("talent_programs.manage", "Author talent programs, framework drafts, and competencies"),
+            ("talent_programs.govern", "Activate, retire, and transition talent program/framework lifecycle"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (

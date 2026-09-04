@@ -510,7 +510,10 @@ Core app areas:
 - `permission_registry.py`: permission groups, labels, defaults, developer-assignable permissions, and system owner permissions.
 - `role_permission_service.py`: role permission persistence and related helpers.
 - `ui_shell.py`: shared application shell context, navigation, visual identity, and page metadata.
-- `routers/`: modular feature routers for users, teachers, subjects, planning, timetable, academic calendar, and observations.
+- `academic_grade.py`: shared canonical KG/1-12 grade vocabulary and normalization, consumed by Planning and by Student Academic Placement.
+- `student_academic_service.py`: Student identity, external identifiers, and effective-dated Academic Placement authority.
+- `talent_program_service.py`: Talent Program, annual configuration, Framework Version lifecycle, and competency lineage authority.
+- `routers/`: modular feature routers for users, teachers, subjects, planning, timetable, academic calendar, observations, students, and talent programs.
 - `templates/`: Jinja templates for the operational app and SaaS app pages.
 - `static/`: CSS, JavaScript, images, branding assets, and generated public artifacts.
 - `tests/`: pytest coverage for tenant isolation, SaaS phases, platform access, permissions, email, branding, and related workflows.
@@ -522,6 +525,8 @@ Important operational route families:
 - `/platform`: platform console for platform identities.
 - `/system-configuration`: branch, year, branding, role permissions, and configuration workflows.
 - `/teachers`, `/subjects`, `/planning`, `/timetable`, `/academic-calendar`, `/observations`: core academic operations.
+- `/api/students`: Student identity, external identifiers, and Academic Placement JSON API (`routers/students.py`, `students.*` permissions). No page/UI exists yet.
+- `/api/talent/programs`: Talent Program, Framework Version, and Competency JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). No page/UI exists yet.
 
 ## Next.js Landing Architecture
 

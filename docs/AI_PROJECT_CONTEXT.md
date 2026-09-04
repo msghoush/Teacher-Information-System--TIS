@@ -7,6 +7,131 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Student & Academic Placement Foundation
+
+`Student` is a canonical SchoolGroup-owned identity distinct from `User`:
+`models.py`/migration `20260904_001_student_academic_placement_foundation` add
+`students` (first/father/last name, gender, status, audit timestamps),
+`student_external_identifiers` (namespace/value/source cross-system linking
+with tenant-scoped uniqueness and an activate/deactivate lifecycle), effective-
+dated `student_academic_placements`, and append-only `student_audits`. There is
+no separate Enrollment entity; `StudentAcademicPlacement` is the authoritative
+enrollment record, resolved by half-open `[effective_from, effective_to)`
+interval semantics with overlap rejection and deterministic point-in-time
+resolution. `academic_grade.py` (extracted from `routers/planning.py`'s prior
+inline normalization, existing callers unchanged) is the shared canonical
+KG/1-12 grade vocabulary used by both Planning and Student.
+
+Every placement carries an immutable historical `grade_level`/`section_name`
+snapshot captured from the linked `PlanningSection` at creation or transition
+time (or supplied directly when no section link exists). A later Planning
+section rename/renumber never rewrites already-recorded placement history;
+deleting the linked `PlanningSection` only nulls its FK on referencing
+placements and preserves the snapshot. `transition_placement` closes the
+current placement and opens a new one atomically, preserving full history;
+`correct_placement` revalidates scope/snapshot/overlap and governs an
+in-place correction of the same row rather than creating parallel history.
+Every mutation writes an append-only `StudentAudit` row (before/after JSON,
+actor, action) in the same transaction; audits are never updated or deleted.
+Tenant/branch-scoped composite foreign keys reject cross-tenant Branch,
+AcademicYear, or PlanningSection references (`invalid_scope`).
+
+`routers/students.py` (`/api/students`) is backed by
+`student_academic_service.py`. Branch-scope enforcement always runs after the
+permission check: an in-scope Student ID with an out-of-scope existing or
+target placement branch is rejected 403 without revealing existence; a
+foreign-tenant Student ID returns a uniform 404. The final canonical
+permission mapping (Checkpoint A) replaces the interim implementation, which
+gated all Academic Placement mutation through the broad, commonly-granted
+`planning.edit_section` permission alone with no Student-specific permission
+at all. `permission_registry.py` now has a dedicated `students` group:
+`students.view` (Student and Placement-history reads), `students.create`,
+`students.edit` (identity, non-status fields), `students.activate_deactivate`
+(status-only updates), `students.manage_identifiers` (External Identifiers),
+and `students.manage_placements` (create/end/transition/correct Academic
+Placement). See "Student And Talent Program Permission Governance" below for
+the shared default-assignment rationale.
+
+Not implemented: Student UI, import/merge, Talent/Rubric assessment linkage,
+and analytics. PostgreSQL validation (constraints, concurrent placement
+writes) has not been executed against live PostgreSQL; only SQLite-backed
+`tests/test_student_academic_foundation.py` coverage exists.
+
+## Talent Program & Framework Foundation
+
+`TalentProgram` is a durable SchoolGroup/organization-owned identity, not a
+Subject: migration `20260904_002_talent_program_framework_foundation` adds
+`talent_programs` (draft/active/retired lifecycle),
+`talent_program_academic_year_configurations` (per-year enable flag plus
+eligible KG/1-12 grade set), `talent_program_framework_versions` (Framework
+Version lifecycle with deterministic sequential version allocation, a
+revision counter, and a semantic fingerprint), `talent_competencies`
+(organization-scoped competency lineage), `talent_framework_competencies`
+(version-specific competency membership snapshots - label/description/order
+captured per Framework Version independent of later competency edits), and
+append-only `talent_configuration_audits`.
+
+Exactly one Active Framework Version exists per Program: activating a new
+version requires explicit supersession of the current active version
+(`supersession_required` otherwise) and atomically retires it; an active
+Framework's content becomes immutable (`immutable_framework`). Every Draft
+mutation and activation call is stale-write protected: the caller's
+`expected_revision` (and, for activation, `expected_fingerprint`) must match
+current state or the call fails `stale_framework`.
+
+Governance is split into two tiers. Draft authorship - Program create/edit,
+Program annual configuration, Framework Draft edits (including competency
+membership add/update/reorder/remove within a Draft), and Competency
+create/edit - is permission-gated and organization-scope-independent.
+Framework activate/retire and Program lifecycle transitions additionally
+require organization/global access scope (`auth.ACCESS_SCOPE_ORGANIZATION`/
+`ACCESS_SCOPE_GLOBAL`, checked through `_organization_authorized()` in
+`routers/talent_programs.py`) on top of the permission check; a Branch-scoped
+actor can never activate, retire, or transition a Program/Framework
+regardless of permission grant. This organization-scope gate was already
+correct in the interim implementation and is unchanged by Checkpoint A.
+
+Checkpoint A fixed a real defect: Draft authorship was gated only by the same
+broad `planning.edit_section` permission already default-granted to
+Editor/User roles, so any Branch-scoped actor holding that common permission
+received full organization-wide authorship of Programs, Framework Drafts, and
+Competencies with zero Branch-relationship constraint (`TalentProgram` has no
+branch dimension to constrain against). `permission_registry.py` now has a
+dedicated `talent_programs` group: `talent_programs.view` (Program, Framework
+- including history - and Competency reads), `talent_programs.manage` (all
+Draft authorship listed above), and `talent_programs.govern` (Framework
+activate/retire, Program lifecycle transition; checked in addition to, not
+instead of, the unchanged organization-scope gate).
+
+`routers/talent_programs.py` (`/api/talent/programs`) is backed by
+`talent_program_service.py`; foreign-tenant Program IDs return a uniform 404.
+
+Not yet implemented: Rubric domain, Rubric Levels/descriptors, KPI, Review
+Candidate Policy, Assessment Cycle, Student Assessment, Review/Identification
+workflow, Learner Profile, analytics/Talent Map, and AI. PostgreSQL
+validation has not been executed against live PostgreSQL; only SQLite-backed
+`tests/test_talent_program_framework_foundation.py` coverage exists.
+
+## Student And Talent Program Permission Governance
+
+Both new `students.*` and `talent_programs.*` permission keys follow the same
+established default-assignment pattern already used for the sensitive `users`
+group: `permission_registry.DEFAULT_ROLE_PERMISSIONS[ROLE_ADMINISTRATOR]`
+grants every permission key not in `DEVELOPER_ONLY_PERMISSION_KEYS`
+automatically, while Editor and User roles only receive the curated
+`_EDITOR_LIKE_PERMISSIONS` subset. Neither new group was added to that subset,
+so - exactly like `users.*` today - Student and Talent Program management are
+Administrator-only by default across every tenant; Limited remains
+read-only-elsewhere and gets neither group. No migration or seed change was
+needed: a newly introduced permission key with no per-tenant `RolePermission`
+override row simply falls back to the code-level default at read time
+(`auth.get_allowed_permission_keys`), matching how every prior permission
+addition (e.g. `timetable.manage_teacher_rules`, `curriculum.adjust`) was
+introduced as a pure `permission_registry.py` edit. Whether either group
+should ever be extended to Editor/User by default is an explicit Product
+Owner decision to be made later through the existing Role Permissions
+configuration UI, not a default this closure task changed.
+
 ## Planning Subject Requirement Removal (Single And Bulk)
 
 A Planning requirement is classified `removable` (untouched explicit
