@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Talent Learner Profile Flow (M7, Complete)
+
+1. A user with `talent_learner_profiles.view` requests one same-tenant Student.
+2. The service loads only that Student's historical records and filters every
+   Placement/Talent record by its own historical Branch; no visible record is a
+   non-enumerating not-found result for a Branch actor.
+3. The response groups Program, Academic Year, Cycle, exact Framework,
+   Assessment, Competency Result, optional persisted KPI, Review Candidate, and
+   Official Identification history without inferring a current Talent status.
+4. Review Candidate, Official Identification, and Educator Input each require
+   their respective independent M6 `.view` permission in addition to base
+   profile access; absent domains and related timeline events reveal no
+   metadata.
+
 ## Talent Review, Official Identification & Educator Input Flow (M6, Complete)
 
 Every Educator Input create/amend flow resolves historical context, checks the

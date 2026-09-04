@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Learner Profile Read Model (M7, Complete)
+
+M7 adds no profile table, migration, materialization, or denormalized state.
+`talent_learner_profile_service.py` reads one exact SchoolGroup/Student's M1-M6
+canonical rows with batched dependent queries. Historical Placement branch,
+frozen Cycle member branch, and persisted Educator Input branch remain the
+record-level authorization authorities. Profile base permission does not bypass
+the independent Review Candidate, Official Identification, or Educator Input
+view permissions. Future M8 Annual Evaluation Plan and
+Periods therefore can attach its own period semantics without reworking M7's
+multiple-Cycle history model.
+
 ## Talent Review, Official Identification & Educator Input (M6, Complete)
 
 Independent review tightened the database boundary: Official Identification

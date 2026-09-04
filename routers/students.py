@@ -133,6 +133,10 @@ def _existing_placement_branch_denied(db, user, group_id, student_id, placement_
     return None
 
 
+def _placement_authorized(db, user, placement):
+    return placement is not None and auth.can_access_branch(db, user, placement.branch_id)
+
+
 def _placement_args(payload):
     return dict(academic_year_id=int(payload.get("academic_year_id")), branch_id=int(payload.get("branch_id")),
         planning_section_id=int(payload["planning_section_id"]) if payload.get("planning_section_id") is not None else None,
@@ -160,7 +164,9 @@ def placement_create(student_id: int, request: Request, payload: dict = Body(...
 def placement_history(student_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _, group_id, denied = _authorize(request, db, current_user, "students.view")
     if denied: return denied
-    try: return [placement_payload(row) for row in list_placements(db, school_group_id=group_id, student_id=student_id)]
+    try:
+        rows = list_placements(db, school_group_id=group_id, student_id=student_id)
+        return [placement_payload(row) for row in rows if _placement_authorized(db, current_user, row)]
     except StudentAcademicError as exc: return _error(exc)
 
 
@@ -170,7 +176,7 @@ def placement_effective(student_id: int, request: Request, at: str = Query(...),
     if denied: return denied
     try: row = resolve_placement(db, school_group_id=group_id, student_id=student_id, at=_parse_datetime(at, "at"), academic_year_id=academic_year_id)
     except StudentAcademicError as exc: return _error(exc)
-    return placement_payload(row) if row else JSONResponse({"detail": "No effective academic placement.", "code": "no_effective_placement"}, status_code=404)
+    return placement_payload(row) if _placement_authorized(db, current_user, row) else JSONResponse({"detail": "No effective academic placement.", "code": "no_effective_placement"}, status_code=404)
 
 
 @router.get("/{student_id}/placements/{placement_id}")
@@ -180,7 +186,7 @@ def placement_read(student_id: int, placement_id: int, request: Request, db: Ses
     rows = db.query(models.StudentAcademicPlacement).filter_by(
         id=placement_id, student_id=student_id, school_group_id=group_id
     ).one_or_none()
-    return placement_payload(rows) if rows else JSONResponse({"detail": "Academic placement was not found.", "code": "not_found"}, status_code=404)
+    return placement_payload(rows) if _placement_authorized(db, current_user, rows) else JSONResponse({"detail": "Academic placement was not found.", "code": "not_found"}, status_code=404)
 
 
 @router.post("/{student_id}/placements/{placement_id}/end")

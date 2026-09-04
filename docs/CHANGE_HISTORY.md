@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-04 - Talent & Potential M7 Longitudinal Learner Profile
+
+- Added the read-only `/api/talent/learner-profiles/{student_id}` aggregation
+  and dedicated Administrator-only-by-default `talent_learner_profiles.view`.
+  It groups one Student's authorized historical Placement, Program, Academic
+  Year, Cycle, exact Framework, Assessment/Competency/KPI, Review Candidate,
+  and Official Identification history without materializing a profile table.
+- Reconciled direct Student placement read APIs with the approved historical
+  Branch policy: history lists filter per stored Branch and unauthorized
+  effective/single placement reads return non-enumerating 404 responses.
+- Educator Input is fully absent from profile responses and timelines without
+  its independent `.view` permission; authorized readers receive only current
+  latest inputs within persisted historical Branch scope. No M8 periods,
+  Learning Style, analytics, AI, exports, notifications, or `tis.db` change.
+- M7 permission composition closure makes `talent_learner_profiles.view` base
+  profile authority only. Review Candidate, Official Identification, and
+  Educator Input profile sections and timeline events now each require their
+  corresponding independent M6 `.view` permission, with no hidden metadata.
+
 ## 2026-09-04 - Talent & Potential M6 Independent Review Closure
 
 - Enforced persisted historical-Branch authorization on Educator Input create

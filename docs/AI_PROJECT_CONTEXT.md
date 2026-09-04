@@ -7,6 +7,43 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Longitudinal Learner Profile And Placement Read Scope (M7, Complete)
+
+M7 adds a read-only `/api/talent/learner-profiles/{student_id}` aggregation,
+not a new persistence authority. It returns current canonical Student identity
+and only independently authorized historical records: Academic Placement
+intervals, Program/Academic-Year/Cycle/Framework-version grouped Assessments
+and exact Competency Results, optional persisted KPI provenance, Review
+Candidate history, and Official Identification history. It never turns
+candidate and identification records into one status, recomputes KPI, or
+compares Frameworks/Programs as a universal score. The optional timeline is a
+bounded user-facing summary with deterministic timestamp/type/id ordering, not
+an audit-log export.
+
+M7 adds Administrator-only-by-default `talent_learner_profiles.view`, separate
+from every Student, Assessment, Program, Candidate, and Identification key. It
+authorizes only base longitudinal evidence: Candidate, Official Identification,
+and Educator Input each additionally require their own `.view` permission.
+Branch-scoped profile reads filter each Placement by its stored historical
+Branch and every Talent record by frozen/persisted historical Branch; a profile
+with no visible historical record is non-enumerating not-found. Organization/
+global scope can read same-tenant history. Current Student lifecycle metadata
+appears only after that historical-record access check and never grants access.
+Without the relevant secondary permission, that entire sensitive data class and
+its timeline events are omitted with no object, id, status, count, timestamp,
+or placeholder. Authorized readers still receive only records in their
+persisted historical Branch scope. Ordinary profile reads do not write audit
+events.
+
+The same approved policy reconciles M1 direct placement reads: Branch-scoped
+`GET /api/students/{student_id}/placements`, `/effective`, and `/{placement_id}`
+now authorize each stored historical `branch_id`; unauthorized individual or
+effective rows return the existing non-enumerating 404 shape. No current
+Placement fallback exists. M7 adds no Annual Evaluation Plan/Periods,
+Learning Style, analytics/Talent Map, AI, Development and Support, export,
+notification, or profile materialization. M8 Annual Evaluation Plan & Periods
+remains deferred.
+
 ## Talent Review, Official Identification & Educator Input (M6, Complete)
 
 M6 implements the full "Review, Official Identification & Educator Input"

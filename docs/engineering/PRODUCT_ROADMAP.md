@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## Talent & Potential M7 Status
+
+Implemented: read-only longitudinal Learner Profile, dedicated profile read
+permission, historical record-level Branch authorization, Program/Year/Cycle/
+Framework history, Assessment/Competency/persisted-KPI history, Review Candidate
+and Official Identification history, permission-composed sensitive M6 sections,
+and a deterministic historical timeline. M8 is Annual Evaluation Plan & Periods and
+remains deferred; it will provide future period semantics without changing M7's
+multiple-Cycle model. Also deferred: Learning Style implementation, deterministic
+analytics, Organization Intelligence/Talent Map, Development and Support, AI/AI
+Suggested Review, exports, and identification revocation/re-identification.
+
 ## Talent & Potential M6 Status (Complete)
 
 Independent review is complete: write-time historical-Branch authorization,

@@ -300,3 +300,44 @@ def test_branch_scoped_actor_cannot_end_correct_or_transition_a_foreign_branch_p
         })
         assert transition.status_code == 403
     assert db.get(models.StudentAcademicPlacement, placement.id).branch_id == 11
+
+
+def test_placement_reads_use_historical_branch_scope_without_transfer_reinterpretation(database):
+    _, db = database
+    student = _student(db)
+    branch_a = create_placement(db, school_group_id=1, student_id=student.id, branch_id=10,
+        academic_year_id=100, planning_section_id=1000, effective_from=datetime(2026, 9, 1))
+    _, branch_b = transition_placement(db, school_group_id=1, student_id=student.id, placement_id=branch_a.id,
+        transition_at=datetime(2027, 9, 1), branch_id=11, academic_year_id=101, planning_section_id=1002)
+    branch_user = models.User(user_id="1000000004", username="branch10.viewer", first_name="Branch", last_name="Viewer",
+        role="Administrator", user_type="TENANT", access_scope="BRANCH", school_group_id=1,
+        branch_id=10, academic_year_id=100, is_active=True)
+    organization_user = models.User(user_id="1000000005", username="org.viewer", first_name="Organization", last_name="Viewer",
+        role="Administrator", user_type="TENANT", access_scope="ORGANIZATION", school_group_id=1,
+        branch_id=10, academic_year_id=100, is_active=True)
+    db.add_all([branch_user, organization_user]); db.commit()
+    app = FastAPI(); app.include_router(students_router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: branch_user
+    with TestClient(app) as client:
+        assert [row["id"] for row in client.get(f"/api/students/{student.id}/placements").json()] == [branch_a.id]
+        assert client.get(f"/api/students/{student.id}/placements/{branch_a.id}").status_code == 200
+        hidden = client.get(f"/api/students/{student.id}/placements/{branch_b.id}")
+        assert hidden.status_code == 404 and hidden.json()["code"] == "not_found"
+        assert client.get(f"/api/students/{student.id}/placements/effective", params={"at": "2027-10-01", "academic_year_id": 101}).status_code == 404
+        # Positive case: the same actor's own authorized historical Branch interval
+        # still resolves correctly (the fix must not become deny-everything).
+        own_effective = client.get(f"/api/students/{student.id}/placements/effective",
+                                   params={"at": "2026-10-01", "academic_year_id": 100})
+        assert own_effective.status_code == 200 and own_effective.json()["id"] == branch_a.id
+        # Cross-tenant Student id must remain a uniform non-enumerating 404 on every
+        # direct placement-read route, unchanged by the historical Branch fix.
+        foreign_student = _student(db, group=2, first="Foreign")
+        assert client.get(f"/api/students/{foreign_student.id}/placements").status_code == 404
+        assert client.get(f"/api/students/{foreign_student.id}/placements/{branch_a.id}").status_code == 404
+        assert client.get(f"/api/students/{foreign_student.id}/placements/effective",
+                          params={"at": "2026-10-01", "academic_year_id": 100}).status_code == 404
+    app.dependency_overrides[get_current_user] = lambda: organization_user
+    with TestClient(app) as client:
+        assert [row["id"] for row in client.get(f"/api/students/{student.id}/placements").json()] == [branch_a.id, branch_b.id]
+        assert client.get(f"/api/students/{student.id}/placements/effective", params={"at": "2027-10-01", "academic_year_id": 101}).json()["id"] == branch_b.id

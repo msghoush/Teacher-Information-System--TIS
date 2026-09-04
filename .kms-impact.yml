@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: Complete and independently review M6 ("Review, Official Identification & Educator Input") following 18 approved Product Owner governance decisions. The review closes cross-Branch Educator Input write authorization, binds Official Identification to the Review Candidate's exact composite historical context, prevents concurrent Educator Input amendment forks at the database boundary, and makes direct out-of-scope resource access non-enumerating. M6 retains the two-state Review workflow, structurally audited non-qualifying evaluations, append-only Official Identification, append-only Educator Input lineage, dedicated permissions, and bounded operational audit.
+summary: Implement M7 read-only longitudinal Talent Learner Profiles, reconcile M1 direct Student placement reads with approved historical Branch scope, and enforce sensitive M6 permission composition in profile responses.
 affected_areas:
   - talent-programs
   - talent-frameworks
@@ -14,6 +14,9 @@ affected_areas:
   - review-workflow
   - official-identification
   - educator-input
+  - learner-profile
+  - learner-profile-permission-composition
+  - student-placement-read-security
   - database
   - migrations
   - audit

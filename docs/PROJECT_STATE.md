@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Project State
 
+## M7 Longitudinal Learner Profile Implemented
+
+M7 implements a read-only, no-migration Learner Profile aggregation over M1-M6
+canonical history. The profile groups exact historical Assessments, Framework
+Versions, Competency Results, optional persisted KPI results, Review Candidates,
+and Official Identifications by stable Program and Academic Year while retaining
+multiple Cycles. It uses current Student identity only for the header and never
+reinterprets historical Talent semantics from current Placement or configuration.
+`talent_learner_profiles.view` is a new Administrator-only-by-default base
+permission. Review Candidate, Official Identification, and Educator Input each
+remain absent, including their timeline events and metadata, without their own
+respective view permission.
+Branch scope filters each Placement by stored historical Branch and each Talent
+record by frozen/persisted Branch; organization/global scope can see complete
+same-tenant history. The related M1 direct placement read routes now enforce
+the same historical Branch policy. M8 Annual Evaluation Plan & Periods,
+Learning Style, analytics, Talent Map, AI, and profile materialization remain
+deferred. Live PostgreSQL validation remains outstanding.
+
 ## M6 Review, Official Identification & Educator Input Implemented
 
 M6 is complete following 18 approved Product Owner governance decisions that

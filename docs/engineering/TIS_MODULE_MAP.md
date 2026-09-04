@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Learner Profiles (M7, Complete)
+
+- `talent_learner_profile_service.py`: read-only historical aggregation and
+  deterministic timeline for one Student; no source-record mutation or profile
+  materialization.
+- `routers/talent_learner_profiles.py`: permission-composed profile API: base
+  profile permission plus independent M6 view permissions for sensitive
+  Candidate, Identification, and Educator Input sections/events.
+- `routers/students.py`: direct Placement read endpoints use the same stored
+  historical Branch authorization rule.
+
 ## Talent Review, Official Identification & Educator Input (M6, Complete)
 
 Independent review added write-time historical-Branch authorization for

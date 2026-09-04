@@ -168,6 +168,13 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "talent_learner_profiles",
+        "label": "Talent Learner Profiles",
+        "permissions": (
+            ("talent_learner_profiles.view", "View longitudinal Talent Learner Profiles"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (
