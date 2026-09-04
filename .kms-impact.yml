@@ -1,16 +1,17 @@
 knowledge_impact: yes
-summary: Complete the Planning subject-requirement bulk-removal UI with section-scoped Select All controls and trash-icon actions whose visible labels reflect the live singular or exact plural selection, while preserving the existing atomic endpoint and permission boundaries.
+summary: Allow deletion of an otherwise-empty Planning section by atomically cleaning only its inactive zero-period setup-only subject-demand suppressions with no Curriculum Adjustment history, while retaining all active, historical, scoped, and dependent-record blockers and updating customer wording.
 affected_areas:
   - planning
   - user-workflow
   - tests
-  - ui
+  - business-rules
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
   - docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md
+  - docs/history/workforce-planning/2026-09-03-planning-and-subject-delete-dependency-guards.md
 no_impact_reason:
 major_change_override: no
 

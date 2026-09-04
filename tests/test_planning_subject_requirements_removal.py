@@ -318,9 +318,7 @@ def test_no_targets_selected_shows_a_safe_message(db, monkeypatch):
 
 # ---------------------------------------------------------------------------
 # Complete admin cleanup flow: remove requirement -> clear the leftover
-# setup-only suppression row -> Planning section becomes deletable ->
-# Subject becomes deletable. This is the exact workflow the updated_by_user_id
-# fix exists to unblock.
+# setup-only suppression row -> Planning section delete cleans it atomically.
 # ---------------------------------------------------------------------------
 def test_full_flow_remove_requirement_then_delete_planning_section(db, monkeypatch):
     _patch_auth(monkeypatch)
@@ -341,32 +339,16 @@ def test_full_flow_remove_requirement_then_delete_planning_section(db, monkeypat
         planning_section_id=2001, subject_code="MAT",
     ).one()
     assert demand.updated_by_user_id is None
+    demand_id = demand.id
 
-    # 3. Planning section delete is still blocked - the row still physically
-    #    exists and holds a real FK - but honestly reported as removable,
-    #    never as permanent Curriculum Adjustment history.
-    blocked = planning_router.delete_planning_section(
+    # 3. The otherwise-empty section deletes directly. Its exact setup-only
+    #    suppression artifact is removed in the same transaction.
+    deleted = planning_router.delete_planning_section(
         request=object(), planning_pk=2001, db=db,
     )
-    assert blocked is not None
-    assert "TIS preserves" not in rendered["error"]
-    assert db.get(models.PlanningSection, 2001) is not None
-
-    # 4. Admin clears the leftover setup-only row through the existing
-    #    demand-id route, which is exactly what "removable" (not "permanent")
-    #    means: updated_by_user_id IS NULL, so it is still hard-deletable.
-    cleared = planning_router.delete_planning_subject_demand(
-        request=object(), demand_id=demand.id, db=db,
-    )
-    assert isinstance(cleared, RedirectResponse)
-    assert db.get(models.PlanningSubjectDemand, demand.id) is None
-
-    # 5. Planning section can now be physically deleted.
-    final = planning_router.delete_planning_section(
-        request=object(), planning_pk=2001, db=db,
-    )
-    assert isinstance(final, RedirectResponse)
+    assert isinstance(deleted, RedirectResponse)
     assert db.get(models.PlanningSection, 2001) is None
+    assert db.get(models.PlanningSubjectDemand, demand_id) is None
 
 
 def test_full_flow_remove_requirement_then_delete_subject(db, monkeypatch):

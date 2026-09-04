@@ -21,10 +21,10 @@ suppression row. Unlike a Curriculum Adjustment retirement (which stamps
 (the acting admin, for audit) and leaves `updated_by_user_id` NULL - so it
 stays classified `removable`/setup-only rather than becoming permanent. A
 row only becomes `permanent` by genuinely being touched by Curriculum
-Adjustment, never merely by being suppressed from this action; a leftover
-setup-only row can still be fully cleared via the existing `GET
-/planning/subject-demand/delete/{demand_id}` route, keeping the remove
-requirement -> remove section -> remove subject workflow intact. This
+Adjustment, never merely by being suppressed from this action. When its
+section is otherwise dependency-free, section deletion automatically removes
+only these inactive zero-period setup suppressions in the same transaction;
+admins do not need to expose or clear an implementation artifact. This
 closed a real gap where "Remove demand" only ever appeared for
 explicit-row requirements, so the same teacher's subjects could
 inconsistently show the action for reasons that had nothing to do with the
@@ -40,9 +40,9 @@ Every target is validated and
 scope-checked before anything is mutated, and any protected/invalid/
 out-of-scope target blocks the whole request with a named reason. Teacher
 assignments, timetable data, and Curriculum Adjustment audit history are
-never touched. The prior round's `GET /planning/subject-demand/delete/
-{demand_id}` route remains in place and is now the way an admin fully
-clears a leftover setup-only suppression row.
+never touched. The prior round's `GET
+/planning/subject-demand/delete/{demand_id}` route remains in place for
+removing active setup requirements.
 
 ## Claude Code KMS Configuration
 
@@ -72,14 +72,19 @@ through the existing convention instead.
 
 ## Planning And Subject Delete Dependency Guards
 
-Deleting a Planning section or a Subject now runs a read-only dependency
+Deleting a Planning section or a Subject now runs a dependency
 check before any mutation and blocks with a customer-safe, per-category
 explanation instead of raising an unhandled `IntegrityError` or deleting
 silently. Planning section delete checks `TeacherSectionAssignment`,
 `PlanningSubjectDemand`, `TimetableEntry`, `TeacherSchedulingRuleTarget`,
 `CalendarEvent`/`CalendarEventSectionTarget`, and section-scoped
 `SubjectDistributionRule`; `TeacherSectionAssignment` is now a blocker like
-every other category rather than being auto-deleted. Subject delete and Bulk
+every other category rather than being auto-deleted. The sole cleanup exception
+is an inactive zero-period `PlanningSubjectDemand` with no
+`updated_by_user_id`: this setup-only Remove Subject Requirement suppression is
+not a blocker and is deleted atomically with an otherwise deletable section.
+Active setup demand, Curriculum-Adjustment-touched history, and every other
+dependency still block. Subject delete and Bulk
 Delete consolidate the equivalent check across `Teacher.subject_code`,
 `TeacherSubjectAllocation`, `TeacherSectionAssignment`, `PlanningSubjectDemand`,
 `TimetableEntry`, `CurriculumAdjustmentAudit`, and `SubjectDistributionRule`;

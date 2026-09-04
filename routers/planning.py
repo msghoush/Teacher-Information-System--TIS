@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -1841,7 +1842,7 @@ _PLANNING_SECTION_DELETE_ACTIONS = {
 
 _PLANNING_SUBJECT_DEMAND_REMOVABLE_ACTION = (
     "This demand was set automatically during setup and has not been used in "
-    "any Curriculum Adjustment. Use \"Remove demand\" next to that subject in "
+    "any Curriculum Adjustment. Use \"Remove Subject Requirement\" next to that subject in "
     "this section's subject list, then try again."
 )
 _PLANNING_SUBJECT_DEMAND_PERMANENT_ACTION = (
@@ -1861,16 +1862,39 @@ def _get_planning_section_delete_blockers(db: Session, planning_section_id: int)
 
     Mirrors the real FK protections on planning_sections.id so the user gets a
     customer-safe explanation instead of an unhandled IntegrityError. This does
-    not delete or retire anything - including TeacherSectionAssignment, which
-    is now a blocker like everything else rather than being auto-purged.
+    not delete or retire anything. Setup-only inactive suppression rows are
+    implementation artifacts, not blockers; every active demand and every
+    Curriculum-Adjustment-touched demand remains protected. Teacher assignments
+    remain blockers rather than being auto-purged.
     """
     found_labels = []
     for label, model_cls, column_name in _PLANNING_SECTION_DELETE_BLOCKER_CHECKS:
         column = getattr(model_cls, column_name)
-        exists = db.query(model_cls.id).filter(column == planning_section_id).first()
+        query = db.query(model_cls.id).filter(column == planning_section_id)
+        if model_cls is models.PlanningSubjectDemand:
+            query = query.filter(or_(
+                models.PlanningSubjectDemand.is_active.is_(True),
+                models.PlanningSubjectDemand.weekly_periods != 0,
+                models.PlanningSubjectDemand.updated_by_user_id.is_not(None),
+            ))
+        exists = query.first()
         if exists and label not in found_labels:
             found_labels.append(label)
     return found_labels
+
+
+def _delete_setup_only_suppressions_for_section(
+    db: Session, *, planning_section_id: int, branch_id: int, academic_year_id: int,
+) -> int:
+    """Delete only inert Remove-Subject-Requirement suppression artifacts."""
+    return db.query(models.PlanningSubjectDemand).filter(
+        models.PlanningSubjectDemand.planning_section_id == planning_section_id,
+        models.PlanningSubjectDemand.branch_id == branch_id,
+        models.PlanningSubjectDemand.academic_year_id == academic_year_id,
+        models.PlanningSubjectDemand.is_active.is_(False),
+        models.PlanningSubjectDemand.weekly_periods == 0,
+        models.PlanningSubjectDemand.updated_by_user_id.is_(None),
+    ).delete(synchronize_session=False)
 
 
 def _get_planning_section_demand_status(db: Session, planning_section_id: int):
@@ -1963,6 +1987,12 @@ def delete_planning_section(
         )
 
     try:
+        _delete_setup_only_suppressions_for_section(
+            db,
+            planning_section_id=planning_section.id,
+            branch_id=branch_id,
+            academic_year_id=academic_year_id,
+        )
         db.delete(planning_section)
         db.commit()
     except IntegrityError:

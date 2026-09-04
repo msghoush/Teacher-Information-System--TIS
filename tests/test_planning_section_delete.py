@@ -52,6 +52,26 @@ def test_delete_succeeds_for_section_with_no_protected_dependencies(db, monkeypa
     assert db.get(models.PlanningSection, 2001) is None
 
 
+def test_delete_cleans_setup_only_inactive_suppression_and_deletes_empty_section(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+    suppression = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=0, is_active=False,
+        retired_at=datetime.utcnow(), created_by_user_id="U1",
+        updated_by_user_id=None,
+    )
+    db.add(suppression)
+    db.commit()
+    suppression_id = suppression.id
+
+    response = _delete(db)
+
+    assert isinstance(response, RedirectResponse)
+    assert db.get(models.PlanningSection, 2001) is None
+    assert db.get(models.PlanningSubjectDemand, suppression_id) is None
+
+
 # ---------------------------------------------------------------------------
 # 2. teacher assignment exists -> blocked, NOT auto-deleted
 # ---------------------------------------------------------------------------
@@ -95,7 +115,8 @@ def test_delete_blocked_by_removable_untouched_planning_subject_demand(db, monke
     assert response is not None
     assert "Planning subject demand" in rendered["error"]
     assert "set automatically during setup" in rendered["error"]
-    assert "Remove demand" in rendered["error"]
+    assert "Remove Subject Requirement" in rendered["error"]
+    assert "Remove demand" not in rendered["error"]
     assert "TIS preserves" not in rendered["error"]
     # customer-safe: no table/FK/SQL identifiers leaked
     assert "planning_subject_demands" not in rendered["error"]
@@ -135,6 +156,30 @@ def test_delete_blocked_by_permanent_curriculum_adjustment_touched_demand(db, mo
         planning_section_id=2001
     ).one()
     assert (demand.is_active, demand.weekly_periods) == (False, 0)
+
+
+def test_delete_does_not_clean_safe_suppression_when_another_dependency_blocks(db, monkeypatch):
+    _patch_auth(monkeypatch)
+    rendered = _patch_render(monkeypatch)
+    suppression = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=0, is_active=False,
+        retired_at=datetime.utcnow(), created_by_user_id="U1",
+        updated_by_user_id=None,
+    )
+    db.add(suppression)
+    db.add(models.TeacherSectionAssignment(
+        teacher_id=1000, planning_section_id=2001, subject_code="MAT",
+    ))
+    db.commit()
+    suppression_id = suppression.id
+
+    response = _delete(db)
+
+    assert response is not None
+    assert "teacher assignments" in rendered["error"]
+    assert db.get(models.PlanningSection, 2001) is not None
+    assert db.get(models.PlanningSubjectDemand, suppression_id) is not None
 
 
 # ---------------------------------------------------------------------------
@@ -581,3 +626,38 @@ def test_delete_is_scoped_to_branch_and_academic_year(db, monkeypatch):
     assert isinstance(response, RedirectResponse)
     assert "error" not in rendered
     assert db.get(models.PlanningSection, 2001) is not None
+
+
+def test_suppression_cleanup_preserves_other_tenant_branch_and_year(db, monkeypatch):
+    other_section = models.PlanningSection(
+        id=2999, grade_level="1", section_name="A", class_status="Current",
+        branch_id=20, academic_year_id=200,
+    )
+    other_subject = models.Subject(
+        id=3999, subject_code="MAT", subject_name="Mathematics",
+        weekly_hours=4, grade=1, branch_id=20, academic_year_id=200,
+    )
+    db.add_all([other_section, other_subject])
+    db.flush()
+    other_suppression = models.PlanningSubjectDemand(
+        branch_id=20, academic_year_id=200, planning_section_id=2999,
+        subject_code="MAT", weekly_periods=0, is_active=False,
+        retired_at=datetime.utcnow(), updated_by_user_id=None,
+    )
+    local_suppression = models.PlanningSubjectDemand(
+        branch_id=10, academic_year_id=100, planning_section_id=2001,
+        subject_code="MAT", weekly_periods=0, is_active=False,
+        retired_at=datetime.utcnow(), updated_by_user_id=None,
+    )
+    db.add_all([other_suppression, local_suppression])
+    db.commit()
+    other_suppression_id = other_suppression.id
+
+    _patch_auth(monkeypatch)
+    _patch_render(monkeypatch)
+    response = _delete(db)
+
+    assert isinstance(response, RedirectResponse)
+    assert db.get(models.PlanningSection, 2001) is None
+    assert db.get(models.PlanningSection, 2999) is not None
+    assert db.get(models.PlanningSubjectDemand, other_suppression_id) is not None

@@ -27,9 +27,9 @@ match a Curriculum Adjustment retirement stamp-for-stamp: it sets only
 `updated_by_user_id` NULL, so it stays classified `removable`/setup-only
 rather than immediately becoming permanent. Only a row Curriculum
 Adjustment itself has touched is ever `permanent`; a leftover setup-only
-row can still be fully cleared with the existing `GET
-/planning/subject-demand/delete/{demand_id}` route, preserving the remove
-requirement -> remove section -> remove subject workflow. This closed a
+row is automatically cleaned when its otherwise dependency-free section is
+deleted, preserving the remove requirement -> remove section -> remove subject
+workflow without exposing an implementation artifact. This closed a
 genuine gap: previously only explicit-row requirements ever showed a
 removal action, so identical-looking subject rows for the same teacher
 could differ in removability for reasons unrelated to the teacher.
@@ -47,11 +47,10 @@ all-or-nothing contract as Subject bulk delete. Confirmation is required
 before both single and bulk removal. `TeacherSectionAssignment`,
 `TimetableEntry`, and `CurriculumAdjustmentAudit` rows are never touched.
 The prior round's `GET /planning/subject-demand/delete/{demand_id}` route
-remains fully functional; the current UI no longer links to it for the
-cases the new route already covers, but it is still the way an admin fully
-clears a leftover setup-only suppression row the new route created for a
-`fallback` requirement, so that Planning section/Subject deletion can
-proceed.
+remains functional for active untouched setup rows. Section delete itself now
+removes only inactive zero-period rows with `updated_by_user_id IS NULL`, in
+the same transaction and exact branch/year scope; active demand, Curriculum
+Adjustment history, and every other protected dependency still block.
 
 ## Claude Code Repository Configuration
 
