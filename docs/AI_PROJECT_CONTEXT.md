@@ -1,11 +1,92 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-09-04
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Rubric, KPI, And Review Candidate Policy Foundation
+
+Milestone M3 completes the deterministic semantic configuration subordinate to
+each `TalentProgramFrameworkVersion`. Migration
+`20260904_003_talent_rubric_kpi_candidate_policy_foundation` adds one optional
+Framework rubric, configurable ordered rubric levels, exact Framework-
+competency/level descriptors, optional KPI configuration and weighted
+competency inputs, and an optional bounded Review Candidate Policy with
+ordered declarative rules. Rubric level names and codes are Program/Framework
+configuration, never a global vocabulary. A qualitative Performing Arts
+Framework can activate without KPI or numeric rubric values.
+
+KPI configuration supports only `weighted_level_average`: enabled inputs are
+exact Framework Competencies with positive basis-point weights totaling
+10,000, all levels require explicit integer values inside an explicit result
+scale, and interpretation text is required. Review Candidate Policy supports
+only `all`/`any` composition of `rubric_level_at_or_above` rules and, when an
+enabled KPI exists, `kpi_at_or_above` rules. These are stored policy semantics
+only; M3 does not evaluate evidence or create candidate records. No script,
+SQL, Python expression, generic JSON logic, universal score, or cross-Program
+averaging is accepted.
+
+M3 Governance Closure formally approves `weighted_level_average` as one
+bounded, optional, Framework-specific KPI calculation primitive: it is never
+a universal Talent Score, is never cross-Program normalized, is enabled only
+through explicit Framework configuration, and requires numeric rubric values
+only while it stays enabled. Additional calculation primitives require future
+governed Product Owner approval and an explicit model/constraint change; the
+`calculation_method` CHECK constraint stays a closed enum, never a generic
+expression/scripting mechanism. Qualitative Programs (for example Performing
+Arts) remain fully valid and activatable with no KPI and no numeric rubric
+levels.
+
+`rubric_level_at_or_above` candidate-policy rules are defined by the
+configured Rubric Level order (`TalentRubricLevel.display_order`, lowest
+proficiency first) - a rule targeting a level means that level or any level
+ordered higher. This ordering never depends on `numeric_value`, so qualitative
+Programs with no numeric levels still get correct, meaningful thresholds.
+`display_order` is the single authority for both presentation order and this
+semantic proficiency rank: it is dense, unique per rubric, and fully
+reindexed on every add/remove/reorder, so no divergence between a level's
+displayed position and its proficiency rank is possible. Reordering levels is
+Draft-only and always bumps the Framework revision/semantic fingerprint since
+order is part of the M3 semantic payload; Active/Retired order is immutable.
+Candidate-policy rule evaluation itself remains deferred to M4.
+
+Every M3 mutation requires `expected_revision`, is restricted to a Draft
+Framework, increments its revision, recomputes its semantic fingerprint over
+the complete ordered M2+M3 configuration, and appends an M3-specific action to
+the existing `TalentConfigurationAudit`. Audit identity now targets the
+specific M3 child resource that changed - `rubric`, `rubric_level`,
+`rubric_descriptor`, `kpi_configuration`, `kpi_component`,
+`review_candidate_policy`, or `review_candidate_rule` - matching the M2
+`framework_competency` precedent, instead of only the containing
+`framework_version`. Create operations audit the new child row's post-flush
+id; `reorder_rubric_levels` (the one M3 bulk operation) appends one audit row
+per reordered level so each level's own audit identity is preserved. The
+widened `resource_type` CHECK constraint is applied by the M3 migration
+itself (both the SQLite table-rebuild and PostgreSQL `NOT VALID`/`VALIDATE`
+pattern already used elsewhere in `db_migrations.py`), since the audit table
+was originally created by the separate, already-applied M2 migration. Active
+and Retired Framework M3 state is immutable. Framework cloning creates
+independent rubric, level, descriptor, KPI, component, policy, and rule rows,
+mapping Framework Competencies through durable `TalentCompetency` lineage.
+Composite scoped foreign keys enforce SchoolGroup, Program, Framework,
+FrameworkCompetency, rubric, and level alignment.
+
+The bounded JSON routes remain under `/api/talent/programs`: reads use
+`talent_programs.view`, Draft mutations use `talent_programs.manage`, and the
+existing `talent_programs.govern` plus organization/global scope requirement
+continues to control activation/retirement. No new permission or entitlement
+logic was introduced.
+
+Not implemented: Assessment Cycle, population freezing, assessment/evidence,
+scoring/results, Review Candidate instances, Official Identification,
+Educator Input, Learner Profile, analytics/Talent Map, AI, Development &
+Support, Learning Style, or UI. Live PostgreSQL execution remains a follow-up;
+SQLite migration, FK, lifecycle, service, API, permission, and regression
+coverage is in `tests/test_talent_rubric_kpi_candidate_policy.py` plus M1/M2
+suites.
 
 ## Student & Academic Placement Foundation
 
@@ -106,8 +187,7 @@ instead of, the unchanged organization-scope gate).
 `routers/talent_programs.py` (`/api/talent/programs`) is backed by
 `talent_program_service.py`; foreign-tenant Program IDs return a uniform 404.
 
-Not yet implemented: Rubric domain, Rubric Levels/descriptors, KPI, Review
-Candidate Policy, Assessment Cycle, Student Assessment, Review/Identification
+Not yet implemented: Assessment Cycle, Student Assessment, Review/Identification
 workflow, Learner Profile, analytics/Talent Map, and AI. PostgreSQL
 validation has not been executed against live PostgreSQL; only SQLite-backed
 `tests/test_talent_program_framework_foundation.py` coverage exists.

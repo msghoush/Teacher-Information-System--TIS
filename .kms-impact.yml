@@ -1,12 +1,17 @@
 knowledge_impact: yes
-summary: Document the implemented M1 Student & Academic Placement Foundation and M2 Talent Program & Framework Foundation as evidence, and reconcile their temporary permission mapping against the canonical permission architecture (dedicated students.* and talent_programs.* permission keys, Administrator-only by default, replacing borrowed users.* keys and the broad planning.edit_section gate).
+summary: Implement and document M3 Framework-versioned rubric levels and competency descriptors, optional bounded KPI configuration, deterministic Review Candidate Policy configuration, semantic revision/fingerprint and clone integration, audit, tenant integrity, API contracts, migration, and tests. M3 Governance Closure additionally approves weighted_level_average as a bounded closed KPI primitive, defines rubric_level_at_or_above as configured-order-based (not numeric_value-based) semantics, and widens the existing TalentConfigurationAudit resource_type CHECK constraint (model + M3 migration) so every M3 mutation audits its specific child resource instead of only framework_version.
 affected_areas:
   - students
   - academic-placement
   - talent-programs
   - talent-frameworks
   - competency-lineage
+  - talent-rubrics
+  - talent-kpi
+  - review-candidate-policy
   - database
+  - migrations
+  - audit
   - api
   - authorization
   - tenant-isolation

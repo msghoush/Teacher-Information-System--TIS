@@ -1,11 +1,50 @@
 ---
 title: TIS Project State
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M3 Governance Closure: KPI Approval, Rubric Ordering, And Audit Granularity
+
+`weighted_level_average` is now Product-Owner-approved as one bounded,
+optional, Framework-specific KPI calculation primitive - never a universal or
+cross-Program score, enabled only through explicit Framework configuration,
+and requiring numeric rubric values only while enabled. Qualitative
+no-KPI Programs remain first-class. `rubric_level_at_or_above` candidate
+rule semantics are defined by the configured Rubric Level order
+(`display_order`, lowest proficiency first), independent of `numeric_value`;
+`display_order` was confirmed to safely carry both presentation order and
+semantic proficiency rank with no divergence risk, so no new field was added.
+`TalentConfigurationAudit.resource_type` was widened (model CHECK plus a
+widening step inside the M3 migration, since the audit table itself was
+created by the separate already-applied M2 migration) to add `rubric`,
+`rubric_level`, `rubric_descriptor`, `kpi_configuration`, `kpi_component`,
+`review_candidate_policy`, and `review_candidate_rule`; every M3 mutation now
+audits its specific child resource instead of only `framework_version`,
+matching the M2 `framework_competency` precedent. Candidate-policy rule
+evaluation remains deferred to M4. PostgreSQL live validation remains
+outstanding.
+
+## Talent Program Deterministic Framework Configuration Implemented Through M3
+
+Migration `20260904_003_talent_rubric_kpi_candidate_policy_foundation` adds
+Framework-versioned configurable rubric levels, exact competency/level
+descriptors, optional bounded weighted-level KPI configuration, and a bounded
+declarative Review Candidate Policy. All configuration is Draft-only,
+expected-revision protected, included in the Framework semantic fingerprint,
+independently cloned, tenant-scoped by composite foreign keys, and recorded
+through the existing append-only Talent configuration audit. Active/Retired
+configuration is immutable. Qualitative Programs can omit KPI and numeric
+levels entirely. Existing `talent_programs.view/manage/govern` permissions are
+reused; governance scope for activation/retirement is unchanged.
+
+No Assessment Cycle, Student Assessment, evidence/result, candidate instance,
+Official Identification, analytics, AI, entitlement, or UI capability is part
+of M3. Focused M3 coverage is in
+`tests/test_talent_rubric_kpi_candidate_policy.py`.
 
 ## Student & Academic Placement Foundation And Talent Program & Framework Foundation Implemented
 
@@ -42,9 +81,9 @@ now check the dedicated keys; branch-scope-after-permission-check ordering
 and non-enumerating 404/403 discipline are preserved on every route.
 
 PostgreSQL validation (constraints, concurrent placement/framework writes)
-has not been executed against live PostgreSQL for either foundation; only
-SQLite-backed pytest coverage exists. No Student UI, import/merge, Rubric,
-KPI, Assessment, Review/Identification, Learner Profile, analytics/Talent
+has not been executed against live PostgreSQL for these foundations; only
+SQLite-backed pytest coverage exists. No Student UI, import/merge,
+Assessment, Review/Identification, Learner Profile, analytics/Talent
 Map, or AI code exists yet.
 
 ## Planning Subject Requirement Removal (Single And Bulk) Implemented

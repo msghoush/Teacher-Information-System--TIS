@@ -1,6 +1,6 @@
 ---
 title: TIS Master Context
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-09-04
 source_of_truth: true
 ---
@@ -512,7 +512,7 @@ Core app areas:
 - `ui_shell.py`: shared application shell context, navigation, visual identity, and page metadata.
 - `academic_grade.py`: shared canonical KG/1-12 grade vocabulary and normalization, consumed by Planning and by Student Academic Placement.
 - `student_academic_service.py`: Student identity, external identifiers, and effective-dated Academic Placement authority.
-- `talent_program_service.py`: Talent Program, annual configuration, Framework Version lifecycle, and competency lineage authority.
+- `talent_program_service.py`: Talent Program, annual configuration, Framework Version lifecycle, competency lineage, Framework-specific rubric/descriptors, optional bounded KPI, and deterministic Review Candidate Policy configuration authority.
 - `routers/`: modular feature routers for users, teachers, subjects, planning, timetable, academic calendar, observations, students, and talent programs.
 - `templates/`: Jinja templates for the operational app and SaaS app pages.
 - `static/`: CSS, JavaScript, images, branding assets, and generated public artifacts.
@@ -526,7 +526,7 @@ Important operational route families:
 - `/system-configuration`: branch, year, branding, role permissions, and configuration workflows.
 - `/teachers`, `/subjects`, `/planning`, `/timetable`, `/academic-calendar`, `/observations`: core academic operations.
 - `/api/students`: Student identity, external identifiers, and Academic Placement JSON API (`routers/students.py`, `students.*` permissions). No page/UI exists yet.
-- `/api/talent/programs`: Talent Program, Framework Version, and Competency JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). No page/UI exists yet.
+- `/api/talent/programs`: Talent Program, Framework Version, Competency, rubric/level/descriptor, optional KPI, and Review Candidate Policy JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). M3 semantic mutations are Draft-only and expected-revision protected; no page/UI exists yet.
 
 ## Next.js Landing Architecture
 

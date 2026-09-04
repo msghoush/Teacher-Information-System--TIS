@@ -11,10 +11,15 @@ from auth import get_current_user
 from dependencies import get_db
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, create_competency,
+    add_rubric_level, configure_kpi, configure_review_candidate_policy,
     create_framework_draft, create_program, framework_payload, get_program, list_programs,
+    get_framework_configuration,
     program_payload, remove_framework_competency, reorder_framework_competencies,
+    remove_descriptor, remove_kpi, remove_review_candidate_policy, remove_rubric_level,
+    reorder_rubric_levels,
     retire_framework, transition_program, update_competency, update_framework_competency,
-    update_framework_draft, update_program, upsert_annual_configuration,
+    update_framework_draft, update_program, update_rubric_level, upsert_annual_configuration,
+    upsert_descriptor, upsert_rubric,
 )
 
 router = APIRouter(prefix="/api/talent/programs", tags=["Talent Programs"])
@@ -35,7 +40,7 @@ def _organization_authorized(user): return auth.get_access_scope(user) in {auth.
 
 
 def _error(exc):
-    status = 404 if exc.code == "not_found" else 409 if exc.code in {"stale_framework", "duplicate_program", "duplicate_competency", "duplicate_membership", "supersession_required"} else 403 if exc.code == "organization_authority_required" else 400
+    status = 404 if exc.code == "not_found" else 409 if exc.code in {"stale_framework", "duplicate_program", "duplicate_competency", "duplicate_membership", "supersession_required", "duplicate_level", "duplicate_order", "duplicate_rule"} else 403 if exc.code == "organization_authority_required" else 400
     return JSONResponse({"detail": exc.message, "code": exc.code}, status_code=status)
 
 
@@ -227,3 +232,106 @@ def framework_competencies_remove(program_id: int, framework_id: int, competency
     if denied: return denied
     return _run(db, lambda: {"framework_revision": remove_framework_competency(db, school_group_id=group_id, program_id=program_id,
         framework_id=framework_id, competency_id=competency_id, expected_revision=expected_revision, actor=user).revision})
+
+
+@router.get("/{program_id}/frameworks/{framework_id}/configuration")
+def framework_configuration_read(program_id: int, framework_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    _, group_id, denied = _authorize(request, db, current_user, "talent_programs.view")
+    if denied: return denied
+    try: return get_framework_configuration(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id)
+    except TalentProgramError as exc: return _error(exc)
+
+
+@router.put("/{program_id}/frameworks/{framework_id}/rubric")
+def rubric_upsert(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        row, framework = upsert_rubric(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=int(payload.get("expected_revision")), name=payload.get("name"), description=payload.get("description"), actor=user)
+        return {"id": row.id, "name": row.name, "description": row.description, "framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
+    return _run(db, work)
+
+
+@router.post("/{program_id}/frameworks/{framework_id}/rubric/levels")
+def rubric_level_add(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        row, framework = add_rubric_level(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=int(payload.get("expected_revision")), code=payload.get("code"), label=payload.get("label"), description=payload.get("description"), numeric_value=payload.get("numeric_value"), display_order=payload.get("display_order"), actor=user)
+        return {"id": row.id, "code": row.code, "label": row.label, "description": row.description, "display_order": row.display_order, "numeric_value": row.numeric_value, "framework_revision": framework.revision}
+    return _run(db, work, created=True)
+
+
+@router.patch("/{program_id}/frameworks/{framework_id}/rubric/levels/{level_id}")
+def rubric_level_update(program_id: int, framework_id: int, level_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        row, framework = update_rubric_level(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, level_id=level_id, expected_revision=int(payload.get("expected_revision")), label=payload.get("label") if "label" in payload else None, description=payload.get("description") if "description" in payload else None, numeric_value=payload.get("numeric_value", "__unchanged__"), actor=user)
+        return {"id": row.id, "label": row.label, "description": row.description, "numeric_value": row.numeric_value, "framework_revision": framework.revision}
+    return _run(db, work)
+
+
+@router.put("/{program_id}/frameworks/{framework_id}/rubric/levels/order")
+def rubric_levels_reorder(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    return _run(db, lambda: {"framework_revision": reorder_rubric_levels(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, level_ids=[int(v) for v in payload.get("level_ids", [])], expected_revision=int(payload.get("expected_revision")), actor=user).revision})
+
+
+@router.delete("/{program_id}/frameworks/{framework_id}/rubric/levels/{level_id}")
+def rubric_level_remove(program_id: int, framework_id: int, level_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    return _run(db, lambda: {"framework_revision": remove_rubric_level(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, level_id=level_id, expected_revision=expected_revision, actor=user).revision})
+
+
+@router.put("/{program_id}/frameworks/{framework_id}/rubric/descriptors")
+def descriptor_upsert(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        row, framework = upsert_descriptor(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, framework_competency_id=int(payload.get("framework_competency_id")), rubric_level_id=int(payload.get("rubric_level_id")), expected_revision=int(payload.get("expected_revision")), descriptor=payload.get("descriptor"), actor=user)
+        return {"id": row.id, "framework_competency_id": row.framework_competency_id, "rubric_level_id": row.rubric_level_id, "descriptor": row.descriptor, "framework_revision": framework.revision}
+    return _run(db, work)
+
+
+@router.delete("/{program_id}/frameworks/{framework_id}/rubric/descriptors/{descriptor_id}")
+def descriptor_remove(program_id: int, framework_id: int, descriptor_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    return _run(db, lambda: {"framework_revision": remove_descriptor(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, descriptor_id=descriptor_id, expected_revision=expected_revision, actor=user).revision})
+
+
+@router.put("/{program_id}/frameworks/{framework_id}/kpi")
+def kpi_configure(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        row, framework = configure_kpi(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=int(payload.get("expected_revision")), is_enabled=payload.get("is_enabled", True), result_scale_min=payload.get("result_scale_min"), result_scale_max=payload.get("result_scale_max"), interpretation=payload.get("interpretation"), components=payload.get("components"), calculation_method=payload.get("calculation_method", "weighted_level_average"), actor=user)
+        return {"id": row.id, "is_enabled": row.is_enabled, "calculation_method": row.calculation_method, "result_scale_min": row.result_scale_min, "result_scale_max": row.result_scale_max, "interpretation": row.interpretation, "framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
+    return _run(db, work)
+
+
+@router.delete("/{program_id}/frameworks/{framework_id}/kpi")
+def kpi_remove(program_id: int, framework_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    return _run(db, lambda: {"framework_revision": remove_kpi(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=expected_revision, actor=user).revision})
+
+
+@router.put("/{program_id}/frameworks/{framework_id}/review-candidate-policy")
+def candidate_policy_configure(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        row, framework = configure_review_candidate_policy(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=int(payload.get("expected_revision")), is_enabled=payload.get("is_enabled", True), match_mode=payload.get("match_mode"), description=payload.get("description"), rules=payload.get("rules"), actor=user)
+        return {"id": row.id, "is_enabled": row.is_enabled, "match_mode": row.match_mode, "description": row.description, "framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
+    return _run(db, work)
+
+
+@router.delete("/{program_id}/frameworks/{framework_id}/review-candidate-policy")
+def candidate_policy_remove(program_id: int, framework_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    return _run(db, lambda: {"framework_revision": remove_review_candidate_policy(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=expected_revision, actor=user).revision})

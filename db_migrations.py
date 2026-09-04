@@ -6340,6 +6340,59 @@ def _talent_program_framework_foundation(engine, connection):
         Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
 
 
+def _talent_rubric_kpi_candidate_policy_foundation(engine, connection):
+    """Create M3 Framework-owned deterministic rubric, KPI, and candidate policy configuration."""
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "talent_program_framework_versions", "talent_framework_competencies",
+        "talent_configuration_audits",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    if engine.dialect.name == "postgresql":
+        unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("talent_framework_competencies")
+        }
+        if ("id", "framework_version_id", "program_id", "school_group_id") not in unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE talent_framework_competencies ADD CONSTRAINT "
+                "uq_talent_framework_competencies_id_scope "
+                "UNIQUE (id, framework_version_id, program_id, school_group_id)",
+            )
+        # M2's talent_configuration_audits table (and its resource_type CHECK)
+        # was already created by the earlier, already-applied M2 migration
+        # (_talent_program_framework_foundation). Rather than editing that
+        # historical migration function, this M3 migration widens the CHECK
+        # in place so M3 mutations can audit against their specific child
+        # resource (rubric, rubric_level, ...) instead of only
+        # framework_version - matching the M2 framework_competency precedent.
+        _replace_postgres_check(
+            connection, "talent_configuration_audits", "ck_talent_configuration_audits_resource_type",
+            "resource_type IN ('program','annual_configuration','framework_version','competency',"
+            "'framework_competency','rubric','rubric_level','rubric_descriptor','kpi_configuration',"
+            "'kpi_component','review_candidate_policy','review_candidate_rule')",
+        )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "talent_framework_competencies",
+            "uq_talent_framework_competencies_id_scope",
+            "id, framework_version_id, program_id, school_group_id",
+        )
+        if not _sqlite_check_contains(connection, "talent_configuration_audits", "'rubric_level'"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_configuration_audits")
+    for table_name in (
+        "talent_rubrics", "talent_rubric_levels",
+        "talent_competency_rubric_descriptors", "talent_kpi_configurations",
+        "talent_kpi_components", "talent_review_candidate_policies",
+        "talent_review_candidate_rules",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6620,6 +6673,11 @@ MIGRATIONS = (
         migration_id="20260904_002_talent_program_framework_foundation",
         description="Add SchoolGroup Talent Programs, annual configuration, immutable Framework versions, competency lineage, and audit",
         apply=_talent_program_framework_foundation,
+    ),
+    Migration(
+        migration_id="20260904_003_talent_rubric_kpi_candidate_policy_foundation",
+        description="Add Framework-versioned rubric levels/descriptors, optional deterministic KPI, and Review Candidate Policy configuration",
+        apply=_talent_rubric_kpi_candidate_policy_foundation,
     ),
 )
 

@@ -136,7 +136,8 @@ def compute_framework_fingerprint(db, framework):
     payload = {"program_id": framework.program_id, "version_number": framework.version_number,
         "title": framework.title, "summary": framework.summary,
         "supersedes": framework.supersedes_framework_version_id,
-        "competencies": [{"competency_id": m.talent_competency_id, "order": m.display_order, "label": m.label, "description": m.description} for m in _framework_members(db, framework.id)]}
+        "competencies": [{"competency_id": m.talent_competency_id, "order": m.display_order, "label": m.label, "description": m.description} for m in _framework_members(db, framework.id)],
+        "m3_configuration": _m3_semantic_payload(db, framework.id)}
     return hashlib.sha256(_json(payload).encode()).hexdigest()
 
 
@@ -181,6 +182,7 @@ def create_framework_draft(db, *, school_group_id, program_id, title, summary=No
                 framework_version_id=row.id, talent_competency_id=member.talent_competency_id,
                 display_order=member.display_order, label=member.label, description=member.description))
         db.flush()
+        _clone_m3_configuration(db, source=source, target=row)
     _refresh_framework(db, row)
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="framework_version", resource_id=row.id, action="clone" if clone_from_id else "create", after=framework_payload(row))
     return row
@@ -289,6 +291,10 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
     _require_draft(framework, expected_revision)
     row = db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework_id, talent_competency_id=competency_id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Framework competency was not found.")
+    if (db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).first()
+            or db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
+            or db.query(models.TalentReviewCandidateRule).filter_by(framework_competency_id=row.id).first()):
+        raise TalentProgramError("competency_in_use", "Remove rubric descriptors, KPI weighting, and candidate rules referencing this competency first.")
     before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "label": row.label, "description": row.description}
     db.delete(row); db.flush()
     for index, member in enumerate(_framework_members(db, framework_id), 1): member.display_order = index
@@ -322,3 +328,296 @@ def retire_framework(db, *, school_group_id, program_id, framework_id, organizat
     if row.status != "active": raise TalentProgramError("invalid_lifecycle", "Only an Active Framework Version can be retired.")
     before = framework_payload(row); row.status = "retired"; row.retired_at = datetime.utcnow(); row.retired_by_user_id = getattr(actor, "user_id", None); db.flush()
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="framework_version", resource_id=row.id, action="retire", before=before, after=framework_payload(row)); return row
+
+
+def _rubric(db, framework_id):
+    return db.query(models.TalentRubric).filter_by(framework_version_id=framework_id).one_or_none()
+
+
+def _enforce_enabled_kpi_numeric_scale(db, framework_id, numeric_value):
+    """An enabled KPI requires every rubric level to keep an in-scale numeric value; this must
+    hold continuously, not only at the moment KPI is configured, so a later level add/edit
+    cannot silently reintroduce a missing or out-of-scale value."""
+    kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework_id, is_enabled=True).one_or_none()
+    if kpi is None: return
+    if numeric_value is None or not kpi.result_scale_min <= numeric_value <= kpi.result_scale_max:
+        raise TalentProgramError("invalid_kpi", "Enabled KPI requires every rubric level to have a numeric value within the declared result scale.")
+
+
+def _m3_semantic_payload(db, framework_id):
+    rubric = _rubric(db, framework_id)
+    levels = db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework_id).order_by(models.TalentRubricLevel.display_order).all()
+    descriptors = db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_version_id=framework_id).order_by(models.TalentCompetencyRubricDescriptor.framework_competency_id, models.TalentCompetencyRubricDescriptor.rubric_level_id).all()
+    kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework_id).one_or_none()
+    components = db.query(models.TalentKpiComponent).filter_by(framework_version_id=framework_id).order_by(models.TalentKpiComponent.framework_competency_id).all()
+    policy = db.query(models.TalentReviewCandidatePolicy).filter_by(framework_version_id=framework_id).one_or_none()
+    rules = db.query(models.TalentReviewCandidateRule).filter_by(framework_version_id=framework_id).order_by(models.TalentReviewCandidateRule.display_order).all()
+    return {
+        "rubric": None if rubric is None else {"name": rubric.name, "description": rubric.description},
+        "levels": [{"code": r.code, "label": r.label, "description": r.description, "order": r.display_order, "numeric_value": r.numeric_value} for r in levels],
+        "descriptors": [{"framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "descriptor": r.descriptor} for r in descriptors],
+        "kpi": None if kpi is None else {"enabled": kpi.is_enabled, "method": kpi.calculation_method, "scale_min": kpi.result_scale_min, "scale_max": kpi.result_scale_max, "interpretation": kpi.interpretation,
+            "components": [{"framework_competency_id": r.framework_competency_id, "weight_basis_points": r.weight_basis_points} for r in components]},
+        "review_candidate_policy": None if policy is None else {"enabled": policy.is_enabled, "match_mode": policy.match_mode, "description": policy.description,
+            "rules": [{"type": r.rule_type, "order": r.display_order, "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "threshold_value": r.threshold_value} for r in rules]},
+    }
+
+
+def get_framework_configuration(db, *, school_group_id, program_id, framework_id):
+    framework = _framework(db, school_group_id, program_id, framework_id)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    result = _m3_semantic_payload(db, framework.id)
+    result.update({"framework_id": framework.id, "revision": framework.revision, "semantic_fingerprint": framework.semantic_fingerprint})
+    return result
+
+
+def _m3_mutation(db, framework, *, actor, action, before, resources):
+    """Bump the Framework revision/fingerprint once, then append one audit row per
+    (resource_type, resource_id) in ``resources`` - the specific M3 child resource(s)
+    this mutation touched (rubric, rubric_level, rubric_descriptor, kpi_configuration,
+    kpi_component, review_candidate_policy, review_candidate_rule) - not just the
+    containing framework_version, matching the existing M2 framework_competency audit
+    precedent. Every row shares the same before/after configuration snapshot and
+    revision, so the audit shape itself is unchanged - only resource identity is
+    additive. Aggregate operations (e.g. reorder_rubric_levels) pass one entry per
+    changed child row so each level's own audit identity is preserved."""
+    framework.revision += 1; framework.updated_by_user_id = getattr(actor, "user_id", None); _refresh_framework(db, framework)
+    after = get_framework_configuration(db, school_group_id=framework.school_group_id, program_id=framework.program_id, framework_id=framework.id)
+    audit_before = {"configuration": before, "revision": framework.revision - 1}
+    for resource_type, resource_id in resources:
+        _audit(db, group_id=framework.school_group_id, program_id=framework.program_id, actor=actor,
+               resource_type=resource_type, resource_id=resource_id, action=action,
+               before=audit_before, after=after)
+    return framework
+
+
+def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_revision, name, description=None, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); before = _m3_semantic_payload(db, framework.id)
+    row = _rubric(db, framework.id)
+    if row is None:
+        row = models.TalentRubric(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id); db.add(row)
+    row.name = _clean(name, "name", required=True); row.description = _clean(description, "description", maximum=4000); row.updated_at = datetime.utcnow(); db.flush()
+    _m3_mutation(db, framework, actor=actor, action="rubric_upsert", before=before, resources=[("rubric", row.id)]); return row, framework
+
+
+def add_rubric_level(db, *, school_group_id, program_id, framework_id, expected_revision, code, label, description=None, numeric_value=None, display_order=None, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); rubric = _rubric(db, framework.id)
+    if rubric is None: raise TalentProgramError("rubric_required", "Create the Framework rubric before adding levels.")
+    before = _m3_semantic_payload(db, framework.id); code = _clean(code, "code", required=True, maximum=80).upper()
+    if db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id, code=code).first(): raise TalentProgramError("duplicate_level", "Rubric level code already exists in this Framework.")
+    order = display_order or int(db.query(func.max(models.TalentRubricLevel.display_order)).filter_by(rubric_id=rubric.id).scalar() or 0) + 1
+    if db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id, display_order=order).first(): raise TalentProgramError("duplicate_order", "Rubric level display order already exists.")
+    if numeric_value is not None and isinstance(numeric_value, bool): raise TalentProgramError("invalid_kpi", "Numeric level values must be integers.")
+    numeric_value = int(numeric_value) if numeric_value is not None else None
+    _enforce_enabled_kpi_numeric_scale(db, framework.id, numeric_value)
+    row = models.TalentRubricLevel(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id, rubric_id=rubric.id,
+        code=code, label=_clean(label, "label", required=True, maximum=160), description=_clean(description, "description", maximum=4000),
+        display_order=int(order), numeric_value=numeric_value)
+    db.add(row); db.flush(); _m3_mutation(db, framework, actor=actor, action="rubric_level_add", before=before, resources=[("rubric_level", row.id)]); return row, framework
+
+
+def update_rubric_level(db, *, school_group_id, program_id, framework_id, level_id, expected_revision, label=None, description=None, numeric_value="__unchanged__", actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision)
+    row = db.query(models.TalentRubricLevel).filter_by(id=level_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
+    if row is None: raise TalentProgramError("not_found", "Rubric level was not found.")
+    before = _m3_semantic_payload(db, framework.id)
+    if label is not None: row.label = _clean(label, "label", required=True, maximum=160)
+    if description is not None: row.description = _clean(description, "description", maximum=4000)
+    if numeric_value != "__unchanged__":
+        if isinstance(numeric_value, bool): raise TalentProgramError("invalid_kpi", "Numeric level values must be integers.")
+        numeric_value = int(numeric_value) if numeric_value is not None else None
+        _enforce_enabled_kpi_numeric_scale(db, framework.id, numeric_value)
+        row.numeric_value = numeric_value
+    row.updated_at = datetime.utcnow(); db.flush(); _m3_mutation(db, framework, actor=actor, action="rubric_level_update", before=before, resources=[("rubric_level", row.id)]); return row, framework
+
+
+def reorder_rubric_levels(db, *, school_group_id, program_id, framework_id, level_ids, expected_revision, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); rubric = _rubric(db, framework.id); rows = db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id if rubric else -1).all()
+    by_id = {row.id: row for row in rows}
+    if len(level_ids) != len(set(level_ids)) or set(level_ids) != set(by_id): raise TalentProgramError("invalid_order", "Order must contain every rubric level exactly once.")
+    before = _m3_semantic_payload(db, framework.id); offset = len(rows) + 1000000
+    for index, level_id in enumerate(level_ids, 1): by_id[level_id].display_order = offset + index
+    db.flush()
+    for index, level_id in enumerate(level_ids, 1): by_id[level_id].display_order = index
+    # Aggregate operation: every touched level keeps its own rubric_level audit
+    # identity (one row per level) rather than collapsing to the framework or
+    # the rubric, so per-level audit history is preserved for this semantic
+    # order (proficiency rank) change.
+    _m3_mutation(db, framework, actor=actor, action="rubric_levels_reorder", before=before, resources=[("rubric_level", level_id) for level_id in level_ids]); return framework
+
+
+def remove_rubric_level(db, *, school_group_id, program_id, framework_id, level_id, expected_revision, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision)
+    row = db.query(models.TalentRubricLevel).filter_by(id=level_id, framework_version_id=framework.id).one_or_none()
+    if row is None: raise TalentProgramError("not_found", "Rubric level was not found.")
+    if db.query(models.TalentCompetencyRubricDescriptor).filter_by(rubric_level_id=row.id).first() or db.query(models.TalentReviewCandidateRule).filter_by(rubric_level_id=row.id).first(): raise TalentProgramError("level_in_use", "Remove descriptors and policy rules that use this level first.")
+    before = _m3_semantic_payload(db, framework.id); removed_level_id = row.id; db.delete(row); db.flush()
+    for index, remaining in enumerate(db.query(models.TalentRubricLevel).filter_by(rubric_id=row.rubric_id).order_by(models.TalentRubricLevel.display_order), 1): remaining.display_order = index
+    _m3_mutation(db, framework, actor=actor, action="rubric_level_remove", before=before, resources=[("rubric_level", removed_level_id)]); return framework
+
+
+def upsert_descriptor(db, *, school_group_id, program_id, framework_id, framework_competency_id, rubric_level_id, expected_revision, descriptor, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); rubric = _rubric(db, framework.id)
+    member = db.query(models.FrameworkCompetency).filter_by(id=framework_competency_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
+    level = db.query(models.TalentRubricLevel).filter_by(id=rubric_level_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
+    if rubric is None or member is None or level is None or level.rubric_id != rubric.id: raise TalentProgramError("invalid_descriptor_scope", "Descriptor competency and level must belong to this exact Framework.")
+    before = _m3_semantic_payload(db, framework.id)
+    row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=member.id, rubric_level_id=level.id).one_or_none()
+    if row is None:
+        row = models.TalentCompetencyRubricDescriptor(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id, rubric_id=rubric.id, framework_competency_id=member.id, rubric_level_id=level.id); db.add(row)
+    row.descriptor = _clean(descriptor, "descriptor", required=True, maximum=8000); row.updated_at = datetime.utcnow(); db.flush()
+    _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_upsert", before=before, resources=[("rubric_descriptor", row.id)]); return row, framework
+
+
+def remove_descriptor(db, *, school_group_id, program_id, framework_id, descriptor_id, expected_revision, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(id=descriptor_id, framework_version_id=framework.id).one_or_none()
+    if row is None: raise TalentProgramError("not_found", "Rubric descriptor was not found.")
+    before = _m3_semantic_payload(db, framework.id); removed_descriptor_id = row.id; db.delete(row); db.flush(); _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_remove", before=before, resources=[("rubric_descriptor", removed_descriptor_id)]); return framework
+
+
+def configure_kpi(db, *, school_group_id, program_id, framework_id, expected_revision, is_enabled, result_scale_min, result_scale_max, interpretation, components, calculation_method="weighted_level_average", actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); before = _m3_semantic_payload(db, framework.id)
+    # Governed, closed KPI primitive set (Decision 1): weighted_level_average is the
+    # only approved calculation_method. This is intentionally not an open/scriptable
+    # rule engine - no SQL, Python expression, or generic JSON logic is accepted, and
+    # any additional primitive requires future governed Product Owner approval plus a
+    # matching CheckConstraint/model change, not a runtime-configurable expression.
+    if calculation_method != "weighted_level_average": raise TalentProgramError("invalid_kpi", "Only the bounded weighted_level_average KPI method is supported.")
+    scale_min, scale_max = int(result_scale_min), int(result_scale_max)
+    if scale_max <= scale_min: raise TalentProgramError("invalid_kpi", "KPI result scale maximum must exceed minimum.")
+    normalized = components or []
+    ids = [int(item.get("framework_competency_id")) for item in normalized]
+    weights = [int(item.get("weight_basis_points")) for item in normalized]
+    if is_enabled and (not ids or len(ids) != len(set(ids)) or sum(weights) != 10000 or any(weight <= 0 for weight in weights)): raise TalentProgramError("invalid_kpi", "Enabled KPI components must be unique, positive, and total exactly 10000 basis points.")
+    members = {row.id for row in _framework_members(db, framework.id)}
+    if any(item not in members for item in ids): raise TalentProgramError("invalid_kpi", "Every KPI input must be an exact Framework competency.")
+    levels = db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework.id).all()
+    if is_enabled and (not levels or any(level.numeric_value is None or not scale_min <= level.numeric_value <= scale_max for level in levels)): raise TalentProgramError("invalid_kpi", "Enabled KPI requires every rubric level to have a numeric value within the declared result scale.")
+    row = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework.id).one_or_none()
+    if row is None:
+        row = models.TalentKpiConfiguration(
+            school_group_id=school_group_id, program_id=program_id,
+            framework_version_id=framework.id, is_enabled=bool(is_enabled),
+            calculation_method=calculation_method, result_scale_min=scale_min,
+            result_scale_max=scale_max,
+            interpretation=_clean(interpretation, "interpretation", required=True, maximum=4000),
+        ); db.add(row); db.flush()
+    row.is_enabled = bool(is_enabled); row.calculation_method = calculation_method; row.result_scale_min = scale_min; row.result_scale_max = scale_max; row.interpretation = _clean(interpretation, "interpretation", required=True, maximum=4000); row.updated_at = datetime.utcnow()
+    db.query(models.TalentKpiComponent).filter_by(kpi_configuration_id=row.id).delete(synchronize_session=False)
+    new_components = []
+    for member_id, weight in zip(ids, weights):
+        component = models.TalentKpiComponent(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id, kpi_configuration_id=row.id, framework_competency_id=member_id, weight_basis_points=weight)
+        db.add(component); new_components.append(component)
+    db.flush()
+    resources = [("kpi_configuration", row.id)] + [("kpi_component", component.id) for component in new_components]
+    _m3_mutation(db, framework, actor=actor, action="kpi_configure", before=before, resources=resources); return row, framework
+
+
+def remove_kpi(db, *, school_group_id, program_id, framework_id, expected_revision, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); row = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework.id).one_or_none()
+    if row is None: raise TalentProgramError("not_found", "KPI configuration was not found.")
+    if db.query(models.TalentReviewCandidateRule).filter_by(framework_version_id=framework.id, rule_type="kpi_at_or_above").first(): raise TalentProgramError("kpi_in_use", "Remove KPI-based candidate rules before removing KPI configuration.")
+    before = _m3_semantic_payload(db, framework.id); removed_kpi_id = row.id; db.query(models.TalentKpiComponent).filter_by(kpi_configuration_id=row.id).delete(synchronize_session=False); db.delete(row); db.flush(); _m3_mutation(db, framework, actor=actor, action="kpi_remove", before=before, resources=[("kpi_configuration", removed_kpi_id)]); return framework
+
+
+def configure_review_candidate_policy(db, *, school_group_id, program_id, framework_id, expected_revision, is_enabled, match_mode, description, rules, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); mode = str(match_mode or "").strip().lower()
+    if mode not in {"all", "any"}: raise TalentProgramError("invalid_policy", "Candidate policy match_mode must be all or any.")
+    if is_enabled and not rules: raise TalentProgramError("invalid_policy", "Enabled candidate policy requires at least one rule.")
+    rubric = _rubric(db, framework.id); member_ids = {row.id for row in _framework_members(db, framework.id)}
+    level_ids = {row.id for row in db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework.id)}
+    kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework.id, is_enabled=True).one_or_none()
+    normalized = []; seen_competencies = set(); kpi_rule_seen = False
+    for index, item in enumerate(rules or [], 1):
+        rule_type = str(item.get("rule_type") or "")
+        # Decision 3: "at or above" is defined purely by the configured rubric level
+        # order (TalentRubricLevel.display_order, lowest proficiency first), never by
+        # numeric_value, so qualitative Programs with no KPI and no numeric levels
+        # still get correct, meaningful thresholds. Storing rubric_level_id here (the
+        # exact configured level) is sufficient; evaluation against that level's order
+        # is deferred to M4.
+        if rule_type == "rubric_level_at_or_above":
+            member_id, level_id = int(item.get("framework_competency_id")), int(item.get("rubric_level_id"))
+            if member_id not in member_ids or level_id not in level_ids or rubric is None: raise TalentProgramError("invalid_policy", "Rubric candidate rules must reference this exact Framework competency and level.")
+            if member_id in seen_competencies: raise TalentProgramError("duplicate_rule", "Each Framework competency can have only one candidate rule.")
+            seen_competencies.add(member_id)
+            normalized.append((rule_type, index, member_id, rubric.id, level_id, None))
+        elif rule_type == "kpi_at_or_above":
+            threshold = int(item.get("threshold_value"))
+            if kpi is None or not kpi.result_scale_min <= threshold <= kpi.result_scale_max: raise TalentProgramError("invalid_policy", "KPI candidate rules require an enabled KPI and an in-scale threshold.")
+            if kpi_rule_seen: raise TalentProgramError("duplicate_rule", "Only one KPI candidate rule is supported.")
+            kpi_rule_seen = True
+            normalized.append((rule_type, index, None, None, None, threshold))
+        else: raise TalentProgramError("invalid_policy", "Unsupported candidate rule type.")
+    before = _m3_semantic_payload(db, framework.id); policy = db.query(models.TalentReviewCandidatePolicy).filter_by(framework_version_id=framework.id).one_or_none()
+    if policy is None:
+        policy = models.TalentReviewCandidatePolicy(
+            school_group_id=school_group_id, program_id=program_id,
+            framework_version_id=framework.id, is_enabled=bool(is_enabled),
+            match_mode=mode,
+            description=_clean(description, "description", maximum=4000),
+        ); db.add(policy); db.flush()
+    policy.is_enabled = bool(is_enabled); policy.match_mode = mode; policy.description = _clean(description, "description", maximum=4000); policy.updated_at = datetime.utcnow()
+    db.query(models.TalentReviewCandidateRule).filter_by(policy_id=policy.id).delete(synchronize_session=False)
+    new_rules = []
+    for rule_type, order, member_id, rubric_id, level_id, threshold in normalized:
+        rule = models.TalentReviewCandidateRule(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id, policy_id=policy.id,
+            rule_type=rule_type, display_order=order, framework_competency_id=member_id, rubric_id=rubric_id, rubric_level_id=level_id, threshold_value=threshold)
+        db.add(rule); new_rules.append(rule)
+    db.flush()
+    resources = [("review_candidate_policy", policy.id)] + [("review_candidate_rule", rule.id) for rule in new_rules]
+    _m3_mutation(db, framework, actor=actor, action="review_candidate_policy_configure", before=before, resources=resources); return policy, framework
+
+
+def remove_review_candidate_policy(db, *, school_group_id, program_id, framework_id, expected_revision, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision); policy = db.query(models.TalentReviewCandidatePolicy).filter_by(framework_version_id=framework.id).one_or_none()
+    if policy is None: raise TalentProgramError("not_found", "Review Candidate Policy was not found.")
+    before = _m3_semantic_payload(db, framework.id); removed_policy_id = policy.id; db.query(models.TalentReviewCandidateRule).filter_by(policy_id=policy.id).delete(synchronize_session=False); db.delete(policy); db.flush(); _m3_mutation(db, framework, actor=actor, action="review_candidate_policy_remove", before=before, resources=[("review_candidate_policy", removed_policy_id)]); return framework
+
+
+def _clone_m3_configuration(db, *, source, target):
+    rubric = _rubric(db, source.id)
+    source_members = {row.id: row.talent_competency_id for row in _framework_members(db, source.id)}
+    target_members = {row.talent_competency_id: row.id for row in _framework_members(db, target.id)}
+    member_map = {source_id: target_members[competency_id] for source_id, competency_id in source_members.items()}
+    level_map = {}
+    target_rubric = None
+    if rubric:
+        target_rubric = models.TalentRubric(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, name=rubric.name, description=rubric.description); db.add(target_rubric); db.flush()
+        for level in db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id).order_by(models.TalentRubricLevel.display_order):
+            copied = models.TalentRubricLevel(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, rubric_id=target_rubric.id, code=level.code, label=level.label, description=level.description, display_order=level.display_order, numeric_value=level.numeric_value); db.add(copied); db.flush(); level_map[level.id] = copied.id
+        for descriptor in db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_version_id=source.id):
+            db.add(models.TalentCompetencyRubricDescriptor(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, rubric_id=target_rubric.id, framework_competency_id=member_map[descriptor.framework_competency_id], rubric_level_id=level_map[descriptor.rubric_level_id], descriptor=descriptor.descriptor))
+    source_kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=source.id).one_or_none()
+    if source_kpi:
+        target_kpi = models.TalentKpiConfiguration(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, is_enabled=source_kpi.is_enabled, calculation_method=source_kpi.calculation_method, result_scale_min=source_kpi.result_scale_min, result_scale_max=source_kpi.result_scale_max, interpretation=source_kpi.interpretation); db.add(target_kpi); db.flush()
+        for component in db.query(models.TalentKpiComponent).filter_by(kpi_configuration_id=source_kpi.id):
+            db.add(models.TalentKpiComponent(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, kpi_configuration_id=target_kpi.id, framework_competency_id=member_map[component.framework_competency_id], weight_basis_points=component.weight_basis_points))
+    source_policy = db.query(models.TalentReviewCandidatePolicy).filter_by(framework_version_id=source.id).one_or_none()
+    if source_policy:
+        target_policy = models.TalentReviewCandidatePolicy(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, is_enabled=source_policy.is_enabled, match_mode=source_policy.match_mode, description=source_policy.description); db.add(target_policy); db.flush()
+        for rule in db.query(models.TalentReviewCandidateRule).filter_by(policy_id=source_policy.id).order_by(models.TalentReviewCandidateRule.display_order):
+            db.add(models.TalentReviewCandidateRule(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, policy_id=target_policy.id, rule_type=rule.rule_type, display_order=rule.display_order, framework_competency_id=member_map.get(rule.framework_competency_id), rubric_id=target_rubric.id if rule.rubric_id else None, rubric_level_id=level_map.get(rule.rubric_level_id), threshold_value=rule.threshold_value))
+    db.flush()

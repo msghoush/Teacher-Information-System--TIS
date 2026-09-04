@@ -1,11 +1,74 @@
 ---
 title: TIS Change History
-documentation_version: 3.3
+documentation_version: 3.4
 last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-04 - M3 Governance Closure: KPI Approval, Rubric Ordering, And Audit Granularity
+
+- Product Owner approved `weighted_level_average` as one bounded, optional,
+  Framework-specific KPI calculation primitive (not a universal/cross-Program
+  score); made the approval explicit in `models.py` (`TalentKpiConfiguration`
+  docstring near its `calculation_method` CHECK) and
+  `talent_program_service.configure_kpi` (governed closed-enum comment) and in
+  this KMS. Qualitative no-KPI Programs remain first-class; the enum stays
+  closed pending future governed approval of any additional primitive.
+- Defined `rubric_level_at_or_above` candidate-policy semantics as the
+  configured Rubric Level order (`TalentRubricLevel.display_order`, lowest
+  proficiency first), independent of `numeric_value`, so qualitative Programs
+  order and (in a later milestone) evaluate correctly with no numeric levels.
+  Investigated and confirmed `display_order` safely and unambiguously carries
+  both presentation order and semantic proficiency rank - it is dense, unique
+  per rubric, and fully reindexed on every add/remove/reorder, so no field
+  change was needed; documented this explicitly on the model.
+- Extended `TalentConfigurationAudit.resource_type` (model CHECK constraint
+  and, since the audit table was created by the separate already-applied M2
+  migration, a widening step inside the M3 migration
+  `20260904_003_talent_rubric_kpi_candidate_policy_foundation` using the
+  repo's existing `_replace_postgres_check`/`_sqlite_rebuild_from_current_metadata`
+  pattern) to add `rubric`, `rubric_level`, `rubric_descriptor`,
+  `kpi_configuration`, `kpi_component`, `review_candidate_policy`, and
+  `review_candidate_rule`. Every M3 mutation in `talent_program_service.py`
+  now audits its specific child resource (post-flush id for new rows) instead
+  of only `framework_version`, matching the existing M2
+  `framework_competency` precedent. `reorder_rubric_levels` (the one M3 bulk
+  operation) appends one `rubric_level` audit row per reordered level.
+- Added/extended focused regression coverage in
+  `tests/test_talent_rubric_kpi_candidate_policy.py` for child-resource audit
+  identity (rubric, rubric_level add/reorder, rubric_descriptor,
+  kpi_configuration, kpi_component, review_candidate_policy,
+  review_candidate_rule), the CHECK-constraint widening migration, and
+  order-based qualitative rubric semantics. Re-verified the three
+  previously-fixed defects (enabled-KPI numeric-scale guard,
+  duplicate/contradictory candidate-rule rejection, clean
+  `competency_in_use` rejection) remain intact. No M4, AI, or generic
+  rule-engine/expression-language behavior was introduced; no commit, push,
+  merge, deploy, or `tis.db` change was made.
+
+## 2026-09-04 - Talent & Potential M3 Rubric, KPI, And Review Candidate Policy
+
+- Added migration `20260904_003_talent_rubric_kpi_candidate_policy_foundation`
+  with Framework-versioned rubric, configurable ordered levels, exact
+  competency/level descriptors, optional bounded KPI configuration/components,
+  and deterministic Review Candidate Policy/rules. No data is seeded.
+- Added Draft-only, expected-revision-protected service and API mutations;
+  every change refreshes the complete M2+M3 semantic fingerprint and appends
+  an M3 action through the existing `TalentConfigurationAudit`.
+- Kept qualitative Programs first-class: KPI and numeric level values are
+  optional. When enabled, KPI is limited to a validated weighted level average
+  with basis-point weights totaling 10,000. Candidate policy is limited to
+  ordered `all`/`any` rubric-threshold and optional KPI-threshold rules; it is
+  configuration only and creates no candidate/result records.
+- Extended Framework cloning to deep-copy all M3 configuration while mapping
+  competency references through durable lineage. Added composite tenant/
+  Program/Framework integrity and exact membership checks.
+- Reused `talent_programs.view`, `.manage`, and `.govern`; organization/global
+  governance for activation/retirement is unchanged. Added focused M3 and
+  M1/M2/permission/migration regression coverage. No M4+, UI, AI, entitlement,
+  deployment, or `tis.db` change was made.
 
 ## 2026-09-04 - Checkpoint A Governance Closure: Student & Talent Program Permission Reconciliation
 

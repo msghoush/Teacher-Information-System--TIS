@@ -381,6 +381,7 @@ class FrameworkCompetency(Base):
         CheckConstraint("display_order >= 1", name="ck_talent_framework_competencies_order"),
         ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_framework_competencies_framework_scope"),
         ForeignKeyConstraint(["talent_competency_id", "program_id", "school_group_id"], ["talent_competencies.id", "talent_competencies.program_id", "talent_competencies.school_group_id"], name="fk_talent_framework_competencies_competency_scope"),
+        UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_framework_competencies_id_scope"),
         UniqueConstraint("framework_version_id", "talent_competency_id", name="uq_talent_framework_competencies_membership"),
         UniqueConstraint("framework_version_id", "display_order", name="uq_talent_framework_competencies_order"),
     )
@@ -396,10 +397,189 @@ class FrameworkCompetency(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class TalentRubric(Base):
+    __tablename__ = "talent_rubrics"
+    __table_args__ = (
+        ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_rubrics_framework_scope"),
+        UniqueConstraint("framework_version_id", name="uq_talent_rubrics_framework"),
+        UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_rubrics_id_framework_scope"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    name = Column(String(180), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentRubricLevel(Base):
+    """A Framework-owned, configurable ordered rubric level.
+
+    ``display_order`` is the single authority for both presentation order and
+    the "rubric_level_at_or_above" semantic proficiency rank: lowest
+    proficiency is display_order 1, and a rule targeting a given level means
+    that level or any level with a greater display_order. It is dense (1..N),
+    unique per rubric, and fully reindexed on add/remove/reorder, so there is
+    no code path where a valid presentation position could diverge from a
+    valid proficiency rank. Ranking never depends on ``numeric_value``, which
+    stays optional so qualitative Programs (no KPI, no numeric levels) order
+    and evaluate correctly. Reordering is Draft-only and always bumps the
+    Framework revision/fingerprint (see talent_program_service.reorder_rubric_levels).
+    """
+
+    __tablename__ = "talent_rubric_levels"
+    __table_args__ = (
+        CheckConstraint("display_order >= 1", name="ck_talent_rubric_levels_order"),
+        ForeignKeyConstraint(["rubric_id", "framework_version_id", "program_id", "school_group_id"], ["talent_rubrics.id", "talent_rubrics.framework_version_id", "talent_rubrics.program_id", "talent_rubrics.school_group_id"], name="fk_talent_rubric_levels_rubric_scope"),
+        UniqueConstraint("id", "rubric_id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_rubric_levels_id_scope"),
+        UniqueConstraint("rubric_id", "code", name="uq_talent_rubric_levels_code"),
+        UniqueConstraint("rubric_id", "display_order", name="uq_talent_rubric_levels_order"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    rubric_id = Column(Integer, nullable=False)
+    code = Column(String(80), nullable=False)
+    label = Column(String(160), nullable=False)
+    description = Column(Text, nullable=True)
+    display_order = Column(Integer, nullable=False)
+    numeric_value = Column(Integer, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentCompetencyRubricDescriptor(Base):
+    __tablename__ = "talent_competency_rubric_descriptors"
+    __table_args__ = (
+        ForeignKeyConstraint(["framework_competency_id", "framework_version_id", "program_id", "school_group_id"], ["talent_framework_competencies.id", "talent_framework_competencies.framework_version_id", "talent_framework_competencies.program_id", "talent_framework_competencies.school_group_id"], name="fk_talent_descriptors_framework_competency_scope"),
+        ForeignKeyConstraint(["rubric_level_id", "rubric_id", "framework_version_id", "program_id", "school_group_id"], ["talent_rubric_levels.id", "talent_rubric_levels.rubric_id", "talent_rubric_levels.framework_version_id", "talent_rubric_levels.program_id", "talent_rubric_levels.school_group_id"], name="fk_talent_descriptors_level_scope"),
+        UniqueConstraint("framework_competency_id", "rubric_level_id", name="uq_talent_descriptors_competency_level"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    rubric_id = Column(Integer, nullable=False)
+    framework_competency_id = Column(Integer, nullable=False)
+    rubric_level_id = Column(Integer, nullable=False)
+    descriptor = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentKpiConfiguration(Base):
+    """Optional, bounded, Framework-specific KPI configuration.
+
+    ``calculation_method`` is a governed, closed enum of approved KPI
+    calculation primitives - currently only ``weighted_level_average`` - not
+    an open or scriptable rule/expression system. KPI is never required: a
+    Program (e.g. a qualitative Performing Arts Framework) remains fully
+    valid and activatable with no KPI configuration and no numeric rubric
+    levels. When enabled, ``weighted_level_average`` is a bounded, optional,
+    Framework-specific primitive only: it is not a universal Talent Score and
+    is never cross-Program normalized. Inputs must be exact Framework
+    Competencies of the same Framework Version, weights are positive basis
+    points summing to exactly 10000, and every rubric level must carry an
+    in-scale integer numeric_value only while this KPI stays enabled
+    (talent_program_service._enforce_enabled_kpi_numeric_scale). Additional
+    calculation primitives require future governed Product Owner approval and
+    must extend this CHECK constraint explicitly; do not loosen it into a
+    generic expression/scripting mechanism.
+    """
+
+    __tablename__ = "talent_kpi_configurations"
+    __table_args__ = (
+        CheckConstraint("calculation_method IN ('weighted_level_average')", name="ck_talent_kpi_configurations_method"),
+        CheckConstraint("result_scale_max > result_scale_min", name="ck_talent_kpi_configurations_scale"),
+        ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_kpi_configurations_framework_scope"),
+        UniqueConstraint("framework_version_id", name="uq_talent_kpi_configurations_framework"),
+        UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_kpi_configurations_id_scope"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    calculation_method = Column(String(40), nullable=False, default="weighted_level_average")
+    result_scale_min = Column(Integer, nullable=False)
+    result_scale_max = Column(Integer, nullable=False)
+    interpretation = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentKpiComponent(Base):
+    __tablename__ = "talent_kpi_components"
+    __table_args__ = (
+        CheckConstraint("weight_basis_points > 0 AND weight_basis_points <= 10000", name="ck_talent_kpi_components_weight"),
+        ForeignKeyConstraint(["kpi_configuration_id", "framework_version_id", "program_id", "school_group_id"], ["talent_kpi_configurations.id", "talent_kpi_configurations.framework_version_id", "talent_kpi_configurations.program_id", "talent_kpi_configurations.school_group_id"], name="fk_talent_kpi_components_config_scope"),
+        ForeignKeyConstraint(["framework_competency_id", "framework_version_id", "program_id", "school_group_id"], ["talent_framework_competencies.id", "talent_framework_competencies.framework_version_id", "talent_framework_competencies.program_id", "talent_framework_competencies.school_group_id"], name="fk_talent_kpi_components_framework_competency_scope"),
+        UniqueConstraint("kpi_configuration_id", "framework_competency_id", name="uq_talent_kpi_components_competency"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    kpi_configuration_id = Column(Integer, nullable=False)
+    framework_competency_id = Column(Integer, nullable=False)
+    weight_basis_points = Column(Integer, nullable=False)
+
+
+class TalentReviewCandidatePolicy(Base):
+    __tablename__ = "talent_review_candidate_policies"
+    __table_args__ = (
+        CheckConstraint("match_mode IN ('all','any')", name="ck_talent_review_candidate_policies_mode"),
+        ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_review_candidate_policies_framework_scope"),
+        UniqueConstraint("framework_version_id", name="uq_talent_review_candidate_policies_framework"),
+        UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_review_candidate_policies_id_scope"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    match_mode = Column(String(8), nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentReviewCandidateRule(Base):
+    __tablename__ = "talent_review_candidate_rules"
+    __table_args__ = (
+        CheckConstraint("rule_type IN ('rubric_level_at_or_above','kpi_at_or_above')", name="ck_talent_review_candidate_rules_type"),
+        CheckConstraint("display_order >= 1", name="ck_talent_review_candidate_rules_order"),
+        CheckConstraint("(rule_type = 'rubric_level_at_or_above' AND rubric_level_id IS NOT NULL AND rubric_id IS NOT NULL AND framework_competency_id IS NOT NULL AND threshold_value IS NULL) OR (rule_type = 'kpi_at_or_above' AND rubric_level_id IS NULL AND rubric_id IS NULL AND framework_competency_id IS NULL AND threshold_value IS NOT NULL)", name="ck_talent_review_candidate_rules_shape"),
+        ForeignKeyConstraint(["policy_id", "framework_version_id", "program_id", "school_group_id"], ["talent_review_candidate_policies.id", "talent_review_candidate_policies.framework_version_id", "talent_review_candidate_policies.program_id", "talent_review_candidate_policies.school_group_id"], name="fk_talent_review_candidate_rules_policy_scope"),
+        ForeignKeyConstraint(["framework_competency_id", "framework_version_id", "program_id", "school_group_id"], ["talent_framework_competencies.id", "talent_framework_competencies.framework_version_id", "talent_framework_competencies.program_id", "talent_framework_competencies.school_group_id"], name="fk_talent_review_candidate_rules_competency_scope"),
+        ForeignKeyConstraint(["rubric_level_id", "rubric_id", "framework_version_id", "program_id", "school_group_id"], ["talent_rubric_levels.id", "talent_rubric_levels.rubric_id", "talent_rubric_levels.framework_version_id", "talent_rubric_levels.program_id", "talent_rubric_levels.school_group_id"], name="fk_talent_review_candidate_rules_level_scope"),
+        UniqueConstraint("policy_id", "display_order", name="uq_talent_review_candidate_rules_order"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    policy_id = Column(Integer, nullable=False)
+    rule_type = Column(String(40), nullable=False)
+    display_order = Column(Integer, nullable=False)
+    framework_competency_id = Column(Integer, nullable=True)
+    rubric_id = Column(Integer, nullable=True)
+    rubric_level_id = Column(Integer, nullable=True)
+    threshold_value = Column(Integer, nullable=True)
+
+
 class TalentConfigurationAudit(Base):
     __tablename__ = "talent_configuration_audits"
     __table_args__ = (
-        CheckConstraint("resource_type IN ('program','annual_configuration','framework_version','competency','framework_competency')", name="ck_talent_configuration_audits_resource_type"),
+        # M3 governance closure: audit identity now targets the specific M3 child
+        # resource that changed (matching the framework_competency precedent
+        # already used by M2), not just the containing framework_version. See
+        # db_migrations._talent_rubric_kpi_candidate_policy_foundation for the
+        # accompanying widening of this constraint on already-created tables.
+        CheckConstraint("resource_type IN ('program','annual_configuration','framework_version','competency','framework_competency','rubric','rubric_level','rubric_descriptor','kpi_configuration','kpi_component','review_candidate_policy','review_candidate_rule')", name="ck_talent_configuration_audits_resource_type"),
         Index("ix_talent_configuration_audits_scope_resource", "school_group_id", "program_id", "created_at"),
     )
     id = Column(Integer, primary_key=True)
