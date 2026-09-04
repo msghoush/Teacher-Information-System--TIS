@@ -1,11 +1,61 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.4
+documentation_version: 3.5
 last_updated: 2026-09-04
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Assessment Cycle And Frozen Population Foundation
+
+Milestone M4 implements `TalentAssessmentCycle` as one SchoolGroup-wide
+canonical authority bound to a Talent Program, Academic Year, and exact
+Framework Version. A Cycle deliberately has no `branch_id`. Its lifecycle is
+one-way `draft -> open -> closed`: there is no reopen, rollback, deletion,
+post-Open population mutation, late-entry exception, or assessor assignment.
+Draft metadata uses expected-revision stale-write protection. The explicit
+`population_effective_at` may change only in Draft and is required for preview
+and Open; no hidden current-time rule is used.
+
+Draft preview dynamically resolves Students with an effective-dated
+`StudentAcademicPlacement` at that exact instant, in the Cycle Academic Year
+and the enabled Program annual configuration's eligible KG/1-12 grades.
+`Student.status` is current mutable state with no effective-dated history, so
+it never gates this historical-instant derivation - only stable tenant/
+identity alignment between Student and Placement is enforced; a Student's
+present-day status change never silently alters an already-defined historical
+population. Opening requires an Active Program and exact Active Framework, locks and
+revalidates the Cycle, derives the complete SchoolGroup population, inserts
+frozen members, stores the full count and SHA-256 population fingerprint, and
+marks the Cycle Open in one transaction. Each member preserves Student and
+Placement identity plus Academic Year, frozen Branch, grade, section,
+nullable PlanningSection provenance, and effective/frozen timestamps.
+Current Placement, annual configuration, PlanningSection, and later Framework
+retirement cannot reinterpret an Open/Closed population.
+
+M4 adds dedicated Administrator-only-by-default permissions:
+`talent_assessment_cycles.view`, `.manage`, `.view_population`, and `.govern`.
+Branch-scoped `.manage` holders may author Draft metadata but cannot Open or
+Close; lifecycle governance requires `.govern` plus organization/global
+scope and always freezes the complete SchoolGroup population. Identifiable
+preview and frozen reads require `.view_population`. Branch-scoped readers
+receive only members whose resolved preview Branch or frozen historical
+Branch is authorized, an explicitly filtered subset count, and no full count
+or fingerprint. Organization/global population readers receive the complete
+population, count, and fingerprint. Metadata reads never disclose integrity
+metadata merely through `.view`.
+
+Operational create/update/Open/Close events use the bounded append-only
+`TalentAssessmentAudit`, separate from Framework configuration audit, with
+actor, scope, Program/Year/Framework context, before/after JSON, correlation
+id, and Open population provenance. APIs are under
+`/api/talent/assessment-cycles`; no UI exists.
+
+Deferred: Student Assessment, assessor assignment, competency results,
+Review Candidate instances/evaluation, Official Identification, Educator
+Input, Learner Profile, analytics/Talent Map, AI, development plans, and late
+population exception workflow. Live PostgreSQL execution remains a follow-up.
 
 ## Talent Rubric, KPI, And Review Candidate Policy Foundation
 
@@ -51,7 +101,7 @@ reindexed on every add/remove/reorder, so no divergence between a level's
 displayed position and its proficiency rank is possible. Reordering levels is
 Draft-only and always bumps the Framework revision/semantic fingerprint since
 order is part of the M3 semantic payload; Active/Retired order is immutable.
-Candidate-policy rule evaluation itself remains deferred to M4.
+Candidate-policy rule evaluation itself remains deferred to a later assessment milestone.
 
 Every M3 mutation requires `expected_revision`, is restricted to a Draft
 Framework, increments its revision, recomputes its semantic fingerprint over
@@ -80,8 +130,8 @@ existing `talent_programs.govern` plus organization/global scope requirement
 continues to control activation/retirement. No new permission or entitlement
 logic was introduced.
 
-Not implemented: Assessment Cycle, population freezing, assessment/evidence,
-scoring/results, Review Candidate instances, Official Identification,
+Not implemented: assessment/evidence, scoring/results, Review Candidate instances,
+candidate-policy evaluation, Official Identification,
 Educator Input, Learner Profile, analytics/Talent Map, AI, Development &
 Support, Learning Style, or UI. Live PostgreSQL execution remains a follow-up;
 SQLite migration, FK, lifecycle, service, API, permission, and regression
@@ -187,7 +237,7 @@ instead of, the unchanged organization-scope gate).
 `routers/talent_programs.py` (`/api/talent/programs`) is backed by
 `talent_program_service.py`; foreign-tenant Program IDs return a uniform 404.
 
-Not yet implemented: Assessment Cycle, Student Assessment, Review/Identification
+Not yet implemented: Student Assessment, Review/Identification
 workflow, Learner Profile, analytics/Talent Map, and AI. PostgreSQL
 validation has not been executed against live PostgreSQL; only SQLite-backed
 `tests/test_talent_program_framework_foundation.py` coverage exists.

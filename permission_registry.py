@@ -124,6 +124,16 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "talent_assessment_cycles",
+        "label": "Talent Assessment Cycles",
+        "permissions": (
+            ("talent_assessment_cycles.view", "View Talent Assessment Cycle metadata"),
+            ("talent_assessment_cycles.manage", "Create and edit Draft Talent Assessment Cycles"),
+            ("talent_assessment_cycles.view_population", "Preview and read authorized Talent Cycle Student populations"),
+            ("talent_assessment_cycles.govern", "Open and close canonical Talent Assessment Cycles"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (

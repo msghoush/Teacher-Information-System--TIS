@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Talent Assessment Cycle Population Flow
+
+1. An authorized Draft author creates a SchoolGroup-wide Cycle and explicitly
+   selects Program, Academic Year, exact Framework Version, and
+   `population_effective_at`.
+2. Draft preview resolves effective Academic Placements and annual eligible
+   grades dynamically. Organization population readers see the whole preview;
+   Branch readers see only authorized Placement branches and a subset count.
+3. An organization/global governor opens the Draft. The server locks and
+   revalidates it, derives the complete SchoolGroup population, inserts exact
+   frozen historical member snapshots, stores full count/fingerprint, changes
+   status to Open, and audits the event in one transaction.
+4. Open/Closed reads use frozen Branch context. Branch readers never receive
+   the full count/fingerprint; later Student transfers do not change their
+   historical visibility. Close is final. Reopen and late population mutation
+   are not available.
+
 ## Configure And Generate With Teacher Scheduling Rules
 
 1. An administrator with `timetable.manage_teacher_rules` opens System

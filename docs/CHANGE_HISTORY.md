@@ -1,11 +1,36 @@
 ---
 title: TIS Change History
-documentation_version: 3.4
+documentation_version: 3.5
 last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-04 - Talent & Potential M4 Assessment Cycle And Frozen Population
+
+- Product Owner approved one SchoolGroup-wide Cycle authority with no
+  `branch_id`, explicit Draft-only `population_effective_at`, organization-only
+  Open/Close, Branch-filtered identifiable population visibility, no reopen,
+  no post-Open/late mutation, and deferred assessor assignment.
+- Added migration `20260904_004_talent_assessment_cycle_frozen_population`
+  with Cycle, frozen population member, and bounded operational-audit tables.
+  The migration explicitly establishes the scoped Academic Placement unique
+  target needed by frozen-member composite foreign keys.
+- Added dynamic Draft preview from effective-dated Academic Placement and
+  eligible annual-config grades. Open atomically freezes exact Student,
+  Placement, Academic Year, Branch, grade, section, and PlanningSection
+  provenance and stores deterministic full population count/fingerprint.
+- Added Administrator-only-by-default
+  `talent_assessment_cycles.view/manage/view_population/govern`. Branch Draft
+  authors cannot Open/Close; organization/global scope is additionally
+  required. Branch population readers receive only authorized Branch members
+  and subset counts, based on frozen Branch after Open, with no full integrity
+  disclosure.
+- Added `/api/talent/assessment-cycles`, explicit lifecycle/population service,
+  append-only `TalentAssessmentAudit`, and focused security/lifecycle/migration
+  tests. No Student Assessment, candidate instance, AI, entitlement, UI, M5+,
+  deployment, or `tis.db` change was made.
 
 ## 2026-09-04 - M3 Governance Closure: KPI Approval, Rubric Ordering, And Audit Granularity
 

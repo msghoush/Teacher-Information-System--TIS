@@ -1,11 +1,37 @@
 ---
 title: TIS Project State
-documentation_version: 3.4
+documentation_version: 3.5
 last_updated: 2026-09-04
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M4 Talent Assessment Cycle And Frozen Population Implemented
+
+Migration `20260904_004_talent_assessment_cycle_frozen_population` adds the
+SchoolGroup-wide `TalentAssessmentCycle` (`draft -> open -> closed`, no
+`branch_id`), frozen population members, and bounded append-only operational
+audit. Draft preview and Open resolve canonical Academic Placement at the
+explicit `population_effective_at` against the Program Academic Year
+configuration's eligible grades. Open atomically freezes the full organization
+population with exact Placement/Academic Year/Branch/grade/section context and
+stores a deterministic full count and fingerprint. No reopen, post-Open
+mutation, late-entry exception, or assessor assignment exists.
+
+Dedicated `talent_assessment_cycles.view/manage/view_population/govern`
+permissions are Administrator-only by default. Branch authors may manage
+Draft metadata but cannot Open/Close. Governance additionally requires
+organization/global scope. Population reads are separately permissioned:
+Branch actors see only authorized preview/frozen Branch members and subset
+counts, never the full count/fingerprint; organization/global population
+readers see the canonical whole. Frozen visibility uses the member's historical
+Branch, not current Student Placement. Focused coverage is in
+`tests/test_talent_assessment_cycle_frozen_population.py`.
+
+Student Assessment, assessor assignment, results, Review Candidate instances,
+Official Identification, analytics, AI, late population exceptions, and UI
+remain deferred. Live PostgreSQL execution remains outstanding.
 
 ## M3 Governance Closure: KPI Approval, Rubric Ordering, And Audit Granularity
 
@@ -25,7 +51,7 @@ created by the separate already-applied M2 migration) to add `rubric`,
 `review_candidate_policy`, and `review_candidate_rule`; every M3 mutation now
 audits its specific child resource instead of only `framework_version`,
 matching the M2 `framework_competency` precedent. Candidate-policy rule
-evaluation remains deferred to M4. PostgreSQL live validation remains
+evaluation remains deferred to a later assessment milestone. PostgreSQL live validation remains
 outstanding.
 
 ## Talent Program Deterministic Framework Configuration Implemented Through M3
@@ -41,7 +67,7 @@ configuration is immutable. Qualitative Programs can omit KPI and numeric
 levels entirely. Existing `talent_programs.view/manage/govern` permissions are
 reused; governance scope for activation/retirement is unchanged.
 
-No Assessment Cycle, Student Assessment, evidence/result, candidate instance,
+No Student Assessment, evidence/result, candidate instance,
 Official Identification, analytics, AI, entitlement, or UI capability is part
 of M3. Focused M3 coverage is in
 `tests/test_talent_rubric_kpi_candidate_policy.py`.

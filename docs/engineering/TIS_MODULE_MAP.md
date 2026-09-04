@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Assessment Cycles
+
+- Models: `TalentAssessmentCycle`, `TalentAssessmentCyclePopulationMember`,
+  `TalentAssessmentAudit` in `models.py`.
+- Authority: `talent_assessment_cycle_service.py` derives Draft eligibility,
+  performs atomic Open/Close, freezes historical context, and computes the
+  canonical population fingerprint.
+- API: `routers/talent_assessment_cycles.py` exposes bounded Cycle and
+  authorization-filtered population operations under
+  `/api/talent/assessment-cycles`.
+- Permissions: dedicated `talent_assessment_cycles.*`; population visibility
+  and lifecycle governance are distinct from Talent Program configuration.
+
 ## Teacher Scheduling Rules Components
 
 - `teacher_scheduling_rules.py`: exact-scope normalized CRUD, rule-shape and

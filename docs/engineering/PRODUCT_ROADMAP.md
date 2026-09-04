@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## Talent & Potential M4 Status
+
+Implemented: SchoolGroup-wide Assessment Cycle Draft/Open/Closed lifecycle,
+explicit-time dynamic eligibility preview, atomic frozen Student population,
+historical placement snapshots, full population integrity fingerprint,
+dedicated permission boundaries, Branch-filtered identifiable reads, and
+operational audit. Deferred to later milestones: assessor assignment, Student
+Assessment, results, Review Candidate instances/evaluation, Official
+Identification, analytics, AI, development plans, and late-population
+exception workflow.
+
 ### Simplified Timetable Workflow And Published Visibility
 
 Stage 5.2 is implemented with one Working Timetable, safe archive-based deletion,

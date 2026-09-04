@@ -1,6 +1,6 @@
 ---
 title: TIS Master Context
-documentation_version: 3.4
+documentation_version: 3.5
 last_updated: 2026-09-04
 source_of_truth: true
 ---
@@ -513,6 +513,7 @@ Core app areas:
 - `academic_grade.py`: shared canonical KG/1-12 grade vocabulary and normalization, consumed by Planning and by Student Academic Placement.
 - `student_academic_service.py`: Student identity, external identifiers, and effective-dated Academic Placement authority.
 - `talent_program_service.py`: Talent Program, annual configuration, Framework Version lifecycle, competency lineage, Framework-specific rubric/descriptors, optional bounded KPI, and deterministic Review Candidate Policy configuration authority.
+- `talent_assessment_cycle_service.py`: SchoolGroup-wide Assessment Cycle lifecycle, explicit-time Draft eligibility preview, atomic frozen Student population, and population fingerprint authority.
 - `routers/`: modular feature routers for users, teachers, subjects, planning, timetable, academic calendar, observations, students, and talent programs.
 - `templates/`: Jinja templates for the operational app and SaaS app pages.
 - `static/`: CSS, JavaScript, images, branding assets, and generated public artifacts.
@@ -527,6 +528,7 @@ Important operational route families:
 - `/teachers`, `/subjects`, `/planning`, `/timetable`, `/academic-calendar`, `/observations`: core academic operations.
 - `/api/students`: Student identity, external identifiers, and Academic Placement JSON API (`routers/students.py`, `students.*` permissions). No page/UI exists yet.
 - `/api/talent/programs`: Talent Program, Framework Version, Competency, rubric/level/descriptor, optional KPI, and Review Candidate Policy JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). M3 semantic mutations are Draft-only and expected-revision protected; no page/UI exists yet.
+- `/api/talent/assessment-cycles`: Cycle metadata, authorization-filtered Draft/frozen population, and organization-governed Open/Close API (`routers/talent_assessment_cycles.py`, dedicated `talent_assessment_cycles.*` permissions). Cycles have no Branch ownership; identifiable population access is filtered by resolved/frozen Branch context.
 
 ## Next.js Landing Architecture
 

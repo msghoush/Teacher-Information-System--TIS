@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Talent Assessment Cycle Frozen Population
+
+M4 adds `talent_assessment_cycles` as the SchoolGroup-wide Program + Academic
+Year + exact Framework authority, with explicit effective time, one-way
+Draft/Open/Closed lifecycle, revision, and organization-level population
+count/fingerprint. `talent_assessment_cycle_population_members` freezes exact
+Student + Academic Placement + Academic Year + Branch + grade + section
+context through composite scoped foreign keys; current Placement and nullable
+PlanningSection provenance are never historical rendering authority.
+`talent_assessment_audits` is the bounded append-only operational lifecycle
+audit. Migration `20260904_004_talent_assessment_cycle_frozen_population`
+creates all three tables and the exact Academic Placement composite unique
+target required by the member FK.
+
 ## Teacher Scheduling Rules
 
 Migration `20260830_001_teacher_scheduling_rules` adds

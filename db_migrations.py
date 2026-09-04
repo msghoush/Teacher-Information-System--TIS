@@ -6393,6 +6393,45 @@ def _talent_rubric_kpi_candidate_policy_foundation(engine, connection):
         Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
 
 
+def _talent_assessment_cycle_frozen_population_foundation(engine, connection):
+    """Create M4 SchoolGroup-wide Cycles and immutable frozen populations."""
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "students", "student_academic_placements", "talent_programs",
+        "talent_program_academic_year_configurations",
+        "talent_program_framework_versions", "academic_years", "branches", "users",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    placement_scope = ("id", "student_id", "academic_year_id", "branch_id", "school_group_id")
+    if engine.dialect.name == "postgresql":
+        unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("student_academic_placements")
+        }
+        if placement_scope not in unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE student_academic_placements ADD CONSTRAINT "
+                "uq_student_academic_placements_frozen_scope "
+                "UNIQUE (id, student_id, academic_year_id, branch_id, school_group_id)",
+            )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "student_academic_placements",
+            "uq_student_academic_placements_frozen_scope",
+            "id, student_id, academic_year_id, branch_id, school_group_id",
+        )
+    for table_name in (
+        "talent_assessment_cycles",
+        "talent_assessment_cycle_population_members",
+        "talent_assessment_audits",
+    ):
+        Base.metadata.tables[table_name].create(bind=connection, checkfirst=True)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6678,6 +6717,11 @@ MIGRATIONS = (
         migration_id="20260904_003_talent_rubric_kpi_candidate_policy_foundation",
         description="Add Framework-versioned rubric levels/descriptors, optional deterministic KPI, and Review Candidate Policy configuration",
         apply=_talent_rubric_kpi_candidate_policy_foundation,
+    ),
+    Migration(
+        migration_id="20260904_004_talent_assessment_cycle_frozen_population",
+        description="Add SchoolGroup-wide Talent Assessment Cycles, frozen Student populations, and operational audit",
+        apply=_talent_assessment_cycle_frozen_population_foundation,
     ),
 )
 
