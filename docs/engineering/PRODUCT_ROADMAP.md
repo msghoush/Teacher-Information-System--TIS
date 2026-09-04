@@ -1,11 +1,20 @@
 ---
 title: TIS Product Roadmap
-documentation_version: 3.4
-last_updated: 2026-08-26
+documentation_version: 3.5
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## Talent & Potential M8 Status
+
+Annual Evaluation Plan and Planned Evaluation Period configuration is
+implemented with lifecycle governance, deterministic ordering, advisory
+warnings, rollover, optional Draft Cycle linkage, link-aware Cycle Open
+validation, bounded audit, and zero-leakage permission composition. Existing
+Cycles remain ad-hoc. M9/M10, Learning Style, AI, Student evidence, progress,
+growth, comparability, and Talent analytics remain future governed work.
 
 ## Talent & Potential M7 Status
 

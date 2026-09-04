@@ -1,11 +1,51 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.6
-last_updated: 2026-09-04
+documentation_version: 3.7
+last_updated: 2026-09-05
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Annual Evaluation Plans And Periods (M8, Complete)
+
+M8 adds `TalentAnnualEvaluationPlan` as the one annual planning authority for
+an exact `TalentProgramAcademicYearConfiguration`, and ordered
+`TalentPlannedEvaluationPeriod` identities beneath it. Plans are
+SchoolGroup/Program/AcademicYear scoped and move one-way `draft -> active ->
+closed`; Periods move `planned -> cancelled`. Period identity uses persisted
+NFKC/case-folded/whitespace-normalized label and optional short-code keys,
+dense positive sequence, bounded dates/notes, and database uniqueness. Draft
+and Active planning edits use expected Plan revision. Linked Periods are
+historical anchors; only the tail after the last linked Period may reorder.
+
+A Cycle may carry one nullable `planned_evaluation_period_id`; pre-M8/ad-hoc
+Cycles remain NULL and behave exactly as before. Link/unlink is Draft-Cycle
+only, requires BOTH Plan-manage and Cycle-manage plus organization/global
+scope and both expected revisions, increments both aggregates, and follows
+Plan -> Period -> Cycle lock order. New links require an Active Plan and
+Planned Period. Cycle Open still requires only the established M4 govern
+permission, but a linked Cycle revalidates locked Active/Planned/same-Program/
+same-year context before population freeze. A Closed Plan permits only the
+approved optional-Period + Draft-Cycle unlink exception.
+
+Activation requires a non-empty valid Period set and enabled annual config.
+Cancellation requires governance, an Active Plan, no linked Cycle, and a
+bounded reason. Closure resolves required Periods as executed only through a
+Closed linked Cycle or cancelled only with no Cycle; optional unresolved
+Periods do not block. Rollover copies stable labels/order/required flags/short
+codes into a new Draft in a different enabled annual config, resetting dates,
+notes, cancellation, Framework, Cycle, and execution context.
+
+Administrator-only defaults are `talent_evaluation_plans.view/manage/govern`.
+All mutations require organization/global scope; Branch actors are read-only.
+Cycle projection is present only with separate Cycle-view permission and is
+bounded to id/title/status/revision/Framework Version. Without it, no cycle
+key, placeholder, cycle-derived warning, relationship action, or execution
+detail is emitted. Plan/Period APIs contain no Student or analytics data.
+Advisory warnings are recomputed (`period_window_overlap`,
+`cycle_outside_planned_window`, `chronological_inconsistency`). M9/M10,
+Learning Style, AI, analytics, and Student evidence are not implemented.
 
 ## Longitudinal Learner Profile And Placement Read Scope (M7, Complete)
 

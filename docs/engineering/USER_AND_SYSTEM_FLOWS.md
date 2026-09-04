@@ -1,11 +1,31 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.4
-last_updated: 2026-08-26
+documentation_version: 3.5
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Talent Annual Evaluation Plan Flow (M8)
+
+1. An organization-authorized Plan manager creates one Draft Plan from an
+   existing Program Academic Year Configuration and authors ordered Periods.
+2. Govern activates a non-empty valid Plan. Managers may edit/reorder only
+   unused planning context; linked Periods become immutable anchors.
+3. Plan-manage AND Cycle-manage may link one Planned Period to one Draft Cycle
+   under Plan -> Period -> Cycle locks. Unlink is Draft-only.
+4. Existing M4 govern opens a Cycle. If linked, the service revalidates Active
+   Plan, Planned Period, same Program/year, and unchanged linkage before the
+   existing population freeze. Ad-hoc Cycles skip this step.
+5. Govern may cancel an unlinked Planned Period with a reason. Closure allows
+   required Periods only when executed through a Closed Cycle or cancelled
+   without a Cycle; optional unresolved Periods remain advisory.
+6. View+manage may roll an Active/Closed Plan into another enabled annual
+   configuration for the same Program. Only label, order, required flag, and
+   short code copy; execution and semantic context reset.
+7. Without Cycle-view permission, reads omit the cycle key and all derived
+   relationship actions, cycle warnings, and per-Period execution resolution.
 
 ## Talent Learner Profile Flow (M7, Complete)
 

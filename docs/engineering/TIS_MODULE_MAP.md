@@ -1,11 +1,24 @@
 ---
 title: TIS Module Map
-documentation_version: 3.4
-last_updated: 2026-08-26
+documentation_version: 3.5
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent Annual Evaluation Planning (M8)
+
+- `talent_evaluation_plan_service.py`: Plan/Period lifecycle, normalized
+  identity, future-tail ordering, closure, rollover, warning, capability, and
+  the canonical Period/Cycle link validator.
+- `routers/talent_evaluation_plans.py`: bounded `/api/talent/evaluation-plans`,
+  `/evaluation-periods`, and Assessment-Cycle relationship APIs with true AND
+  permission and projection security.
+- `talent_assessment_cycle_service.py`: preserves M4 behavior for ad-hoc Cycles
+  and validates locked M8 context before opening a linked Cycle.
+- `models.py` and `db_migrations.py`: Plan/Period persistence, nullable scoped
+  Cycle linkage, and bounded configuration audit expansion.
 
 ## Talent Learner Profiles (M7, Complete)
 

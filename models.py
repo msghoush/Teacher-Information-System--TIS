@@ -1,7 +1,7 @@
 from datetime import datetime
 import uuid
 
-from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, Column, Date, DateTime, ForeignKey, ForeignKeyConstraint, Index, Integer, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import relationship
 from database import Base
 from workspace_classification import WorkspaceClassification, WorkspaceLifecycleStatus
@@ -302,6 +302,7 @@ class TalentProgramAcademicYearConfiguration(Base):
         ForeignKeyConstraint(["program_id", "school_group_id"], ["talent_programs.id", "talent_programs.school_group_id"], name="fk_talent_program_year_configs_program_scope"),
         ForeignKeyConstraint(["academic_year_id", "school_group_id"], ["academic_years.id", "academic_years.school_group_id"], name="fk_talent_program_year_configs_year_scope"),
         UniqueConstraint("program_id", "academic_year_id", name="uq_talent_program_year_configs_program_year"),
+        UniqueConstraint("id", "program_id", "academic_year_id", "school_group_id", name="uq_talent_program_year_configs_plan_scope"),
         Index("ix_talent_program_year_configs_scope", "school_group_id", "academic_year_id"),
     )
     id = Column(Integer, primary_key=True)
@@ -580,7 +581,7 @@ class TalentConfigurationAudit(Base):
         # already used by M2), not just the containing framework_version. See
         # db_migrations._talent_rubric_kpi_candidate_policy_foundation for the
         # accompanying widening of this constraint on already-created tables.
-        CheckConstraint("resource_type IN ('program','annual_configuration','framework_version','competency','framework_competency','rubric','rubric_level','rubric_descriptor','kpi_configuration','kpi_component','review_candidate_policy','review_candidate_rule')", name="ck_talent_configuration_audits_resource_type"),
+        CheckConstraint("resource_type IN ('program','annual_configuration','framework_version','competency','framework_competency','rubric','rubric_level','rubric_descriptor','kpi_configuration','kpi_component','review_candidate_policy','review_candidate_rule','annual_evaluation_plan','planned_evaluation_period')", name="ck_talent_configuration_audits_resource_type"),
         Index("ix_talent_configuration_audits_scope_resource", "school_group_id", "program_id", "created_at"),
     )
     id = Column(Integer, primary_key=True)
@@ -598,6 +599,85 @@ class TalentConfigurationAudit(Base):
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class TalentAnnualEvaluationPlan(Base):
+    __tablename__ = "talent_annual_evaluation_plans"
+    __table_args__ = (
+        CheckConstraint("status IN ('draft','active','closed')", name="ck_talent_annual_evaluation_plans_status"),
+        CheckConstraint("revision >= 1", name="ck_talent_annual_evaluation_plans_revision"),
+        CheckConstraint("(status = 'draft' AND activated_at IS NULL AND closed_at IS NULL) OR (status = 'active' AND activated_at IS NOT NULL AND closed_at IS NULL) OR (status = 'closed' AND activated_at IS NOT NULL AND closed_at IS NOT NULL)", name="ck_talent_annual_evaluation_plans_lifecycle"),
+        CheckConstraint("source_plan_id IS NULL OR source_plan_id <> id", name="ck_talent_annual_evaluation_plans_not_self_source"),
+        ForeignKeyConstraint(
+            ["program_academic_year_configuration_id", "program_id", "academic_year_id", "school_group_id"],
+            ["talent_program_academic_year_configurations.id", "talent_program_academic_year_configurations.program_id", "talent_program_academic_year_configurations.academic_year_id", "talent_program_academic_year_configurations.school_group_id"],
+            name="fk_talent_annual_evaluation_plans_config_scope",
+        ),
+        ForeignKeyConstraint(
+            ["source_plan_id", "program_id", "school_group_id"],
+            ["talent_annual_evaluation_plans.id", "talent_annual_evaluation_plans.program_id", "talent_annual_evaluation_plans.school_group_id"],
+            name="fk_talent_annual_evaluation_plans_source_scope",
+        ),
+        UniqueConstraint("program_academic_year_configuration_id", name="uq_talent_annual_evaluation_plans_config"),
+        UniqueConstraint("id", "program_id", "school_group_id", name="uq_talent_annual_evaluation_plans_program_scope"),
+        UniqueConstraint("id", "program_id", "academic_year_id", "school_group_id", name="uq_talent_annual_evaluation_plans_cycle_scope"),
+        Index("ix_talent_annual_evaluation_plans_scope", "school_group_id", "program_id", "academic_year_id", "status"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    program_academic_year_configuration_id = Column(Integer, nullable=False)
+    source_plan_id = Column(Integer, nullable=True)
+    status = Column(String(16), nullable=False, default="draft")
+    revision = Column(Integer, nullable=False, default=1)
+    created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    activated_at = Column(DateTime, nullable=True)
+    activated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+    closed_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TalentPlannedEvaluationPeriod(Base):
+    __tablename__ = "talent_planned_evaluation_periods"
+    __table_args__ = (
+        CheckConstraint("sequence > 0", name="ck_talent_planned_evaluation_periods_sequence"),
+        CheckConstraint("status IN ('planned','cancelled')", name="ck_talent_planned_evaluation_periods_status"),
+        CheckConstraint("planned_start_date IS NULL OR planned_end_date IS NULL OR planned_start_date <= planned_end_date", name="ck_talent_planned_evaluation_periods_dates"),
+        CheckConstraint("(status = 'planned' AND cancellation_reason IS NULL AND cancelled_at IS NULL AND cancelled_by_user_id IS NULL) OR (status = 'cancelled' AND cancellation_reason IS NOT NULL AND cancelled_at IS NOT NULL)", name="ck_talent_planned_evaluation_periods_cancellation"),
+        ForeignKeyConstraint(
+            ["annual_evaluation_plan_id", "program_id", "academic_year_id", "school_group_id"],
+            ["talent_annual_evaluation_plans.id", "talent_annual_evaluation_plans.program_id", "talent_annual_evaluation_plans.academic_year_id", "talent_annual_evaluation_plans.school_group_id"],
+            name="fk_talent_planned_evaluation_periods_plan_scope",
+        ),
+        UniqueConstraint("annual_evaluation_plan_id", "sequence", name="uq_talent_planned_evaluation_periods_sequence"),
+        UniqueConstraint("annual_evaluation_plan_id", "normalized_label", name="uq_talent_planned_evaluation_periods_label"),
+        UniqueConstraint("annual_evaluation_plan_id", "normalized_short_code", name="uq_talent_planned_evaluation_periods_code"),
+        UniqueConstraint("id", "program_id", "academic_year_id", "school_group_id", name="uq_talent_planned_evaluation_periods_cycle_scope"),
+        Index("ix_talent_planned_evaluation_periods_plan", "school_group_id", "annual_evaluation_plan_id", "sequence"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    academic_year_id = Column(Integer, nullable=False)
+    annual_evaluation_plan_id = Column(Integer, nullable=False)
+    sequence = Column(Integer, nullable=False)
+    label = Column(String(160), nullable=False)
+    normalized_label = Column(String(160), nullable=False)
+    short_code = Column(String(40), nullable=True)
+    normalized_short_code = Column(String(40), nullable=True)
+    planned_start_date = Column(Date, nullable=True)
+    planned_end_date = Column(Date, nullable=True)
+    is_required = Column(Boolean, nullable=False, default=True)
+    status = Column(String(16), nullable=False, default="planned")
+    notes = Column(String(1000), nullable=True)
+    cancellation_reason = Column(String(500), nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
+    cancelled_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TalentAssessmentCycle(Base):
     __tablename__ = "talent_assessment_cycles"
     __table_args__ = (
@@ -607,6 +687,8 @@ class TalentAssessmentCycle(Base):
         ForeignKeyConstraint(["program_id", "school_group_id"], ["talent_programs.id", "talent_programs.school_group_id"], name="fk_talent_assessment_cycles_program_scope"),
         ForeignKeyConstraint(["academic_year_id", "school_group_id"], ["academic_years.id", "academic_years.school_group_id"], name="fk_talent_assessment_cycles_year_scope"),
         ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_assessment_cycles_framework_scope"),
+        ForeignKeyConstraint(["planned_evaluation_period_id", "program_id", "academic_year_id", "school_group_id"], ["talent_planned_evaluation_periods.id", "talent_planned_evaluation_periods.program_id", "talent_planned_evaluation_periods.academic_year_id", "talent_planned_evaluation_periods.school_group_id"], name="fk_talent_assessment_cycles_period_scope"),
+        UniqueConstraint("planned_evaluation_period_id", name="uq_talent_assessment_cycles_period"),
         UniqueConstraint("id", "program_id", "academic_year_id", "framework_version_id", "school_group_id", name="uq_talent_assessment_cycles_frozen_scope"),
         Index("ix_talent_assessment_cycles_scope", "school_group_id", "program_id", "academic_year_id", "status"),
     )
@@ -615,6 +697,7 @@ class TalentAssessmentCycle(Base):
     program_id = Column(Integer, nullable=False)
     academic_year_id = Column(Integer, nullable=False)
     framework_version_id = Column(Integer, nullable=False)
+    planned_evaluation_period_id = Column(Integer, nullable=True)
     title = Column(String(180), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(String(16), nullable=False, default="draft")

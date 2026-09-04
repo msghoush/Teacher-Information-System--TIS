@@ -6612,6 +6612,88 @@ def _talent_review_workflow_identification_educator_input_foundation(engine, con
     )
 
 
+def _talent_annual_evaluation_plan_period_foundation(engine, connection):
+    """Create M8 annual evaluation plans, periods, and nullable Cycle linkage."""
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "talent_program_academic_year_configurations", "talent_assessment_cycles",
+        "talent_configuration_audits", "talent_programs", "academic_years", "users",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+
+    config_scope = ("id", "program_id", "academic_year_id", "school_group_id")
+    if engine.dialect.name == "postgresql":
+        unique_columns = {
+            tuple(item.get("column_names") or [])
+            for item in inspect(connection).get_unique_constraints("talent_program_academic_year_configurations")
+        }
+        if config_scope not in unique_columns:
+            _execute(
+                connection,
+                "ALTER TABLE talent_program_academic_year_configurations ADD CONSTRAINT "
+                "uq_talent_program_year_configs_plan_scope "
+                "UNIQUE (id, program_id, academic_year_id, school_group_id)",
+            )
+    else:
+        _create_unique_index_if_missing(
+            connection, connection, "talent_program_academic_year_configurations",
+            "uq_talent_program_year_configs_plan_scope",
+            "id, program_id, academic_year_id, school_group_id",
+        )
+
+    Base.metadata.tables["talent_annual_evaluation_plans"].create(bind=connection, checkfirst=True)
+    Base.metadata.tables["talent_planned_evaluation_periods"].create(bind=connection, checkfirst=True)
+
+    resource_expr = (
+        "resource_type IN ('program','annual_configuration','framework_version','competency',"
+        "'framework_competency','rubric','rubric_level','rubric_descriptor','kpi_configuration',"
+        "'kpi_component','review_candidate_policy','review_candidate_rule',"
+        "'annual_evaluation_plan','planned_evaluation_period')"
+    )
+    if engine.dialect.name == "postgresql":
+        _replace_postgres_check(
+            connection, "talent_configuration_audits",
+            "ck_talent_configuration_audits_resource_type", resource_expr,
+        )
+        _add_column_if_missing(
+            connection, connection, "talent_assessment_cycles",
+            "planned_evaluation_period_id", "planned_evaluation_period_id INTEGER",
+        )
+        foreign_names = {
+            item.get("name") for item in inspect(connection).get_foreign_keys("talent_assessment_cycles")
+        }
+        if "fk_talent_assessment_cycles_period_scope" not in foreign_names:
+            _execute(
+                connection,
+                "ALTER TABLE talent_assessment_cycles ADD CONSTRAINT "
+                "fk_talent_assessment_cycles_period_scope FOREIGN KEY "
+                "(planned_evaluation_period_id, program_id, academic_year_id, school_group_id) "
+                "REFERENCES talent_planned_evaluation_periods "
+                "(id, program_id, academic_year_id, school_group_id) NOT VALID",
+            )
+            _execute(
+                connection,
+                "ALTER TABLE talent_assessment_cycles VALIDATE CONSTRAINT "
+                "fk_talent_assessment_cycles_period_scope",
+            )
+        _create_unique_index_if_missing(
+            connection, connection, "talent_assessment_cycles",
+            "uq_talent_assessment_cycles_period", "planned_evaluation_period_id",
+        )
+    else:
+        if not _column_exists(connection, "talent_assessment_cycles", "planned_evaluation_period_id"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_assessment_cycles")
+        if not _sqlite_check_contains(connection, "talent_configuration_audits", "'annual_evaluation_plan'"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_configuration_audits")
+        _create_unique_index_if_missing(
+            connection, connection, "talent_assessment_cycles",
+            "uq_talent_assessment_cycles_period", "planned_evaluation_period_id",
+        )
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -6917,6 +6999,11 @@ MIGRATIONS = (
         migration_id="20260904_007_talent_review_workflow_identification_educator_input_foundation",
         description="Add the Review Candidate review workflow, Official Identification, and Educator Input foundation",
         apply=_talent_review_workflow_identification_educator_input_foundation,
+    ),
+    Migration(
+        migration_id="20260905_001_talent_annual_evaluation_plan_period_foundation",
+        description="Add annual Talent evaluation plans, ordered periods, and optional Cycle linkage",
+        apply=_talent_annual_evaluation_plan_period_foundation,
     ),
 )
 

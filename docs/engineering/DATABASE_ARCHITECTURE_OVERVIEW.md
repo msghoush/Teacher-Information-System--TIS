@@ -1,11 +1,23 @@
 ---
 title: TIS Database Architecture Overview
-documentation_version: 3.4
-last_updated: 2026-08-26
+documentation_version: 3.5
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## Talent Annual Evaluation Plans And Periods (M8)
+
+`talent_annual_evaluation_plans` composite-binds one Plan to its exact Program
+Academic Year Configuration and enforces one Plan per configuration, bounded
+lifecycle, revision, and rollover source scope. `talent_planned_evaluation_periods`
+composite-binds each Period to its Plan and enforces positive unique sequence,
+normalized label/code uniqueness, date order, and cancellation consistency.
+`talent_assessment_cycles.planned_evaluation_period_id` is nullable for
+pre-M8/ad-hoc Cycles, unique, and composite-bound by SchoolGroup/Program/year.
+No historical rows or links are fabricated. `TalentConfigurationAudit` adds
+only bounded Plan and Period resource types.
 
 ## Learner Profile Read Model (M7, Complete)
 

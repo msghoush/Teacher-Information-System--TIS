@@ -134,6 +134,15 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "talent_evaluation_plans",
+        "label": "Talent Annual Evaluation Plans",
+        "permissions": (
+            ("talent_evaluation_plans.view", "View annual Talent evaluation plans and periods"),
+            ("talent_evaluation_plans.manage", "Create and manage annual Talent evaluation plans and periods"),
+            ("talent_evaluation_plans.govern", "Activate, cancel periods in, and close annual Talent evaluation plans"),
+        ),
+    },
+    {
         "key": "talent_assessments",
         "label": "Talent Student Assessments",
         "permissions": (

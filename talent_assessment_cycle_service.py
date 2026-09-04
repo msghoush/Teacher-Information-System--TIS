@@ -241,6 +241,16 @@ def open_cycle(db, *, school_group_id, cycle_id, expected_revision,
                organization_authorized, actor=None):
     if not organization_authorized:
         raise TalentAssessmentCycleError("organization_authority_required", "Organization authority is required to Open a Cycle.")
+    cycle_ref = _cycle(db, school_group_id, cycle_id)
+    if cycle_ref is None:
+        raise TalentAssessmentCycleError("not_found", "Talent Assessment Cycle was not found.")
+    linked_period_id = cycle_ref.planned_evaluation_period_id
+    if linked_period_id is not None:
+        from talent_evaluation_plan_service import TalentEvaluationPlanError, validate_linked_cycle_open
+        try:
+            validate_linked_cycle_open(db, cycle=cycle_ref)
+        except TalentEvaluationPlanError as exc:
+            raise TalentAssessmentCycleError(exc.code, exc.message) from exc
     cycle = _cycle(db, school_group_id, cycle_id, lock=True)
     if cycle is None:
         raise TalentAssessmentCycleError("not_found", "Talent Assessment Cycle was not found.")
@@ -248,6 +258,8 @@ def open_cycle(db, *, school_group_id, cycle_id, expected_revision,
         raise TalentAssessmentCycleError("invalid_lifecycle", "Only a Draft Cycle can be opened.")
     if cycle.revision != int(expected_revision):
         raise TalentAssessmentCycleError("stale_cycle", "Cycle changed since it was read.")
+    if cycle.planned_evaluation_period_id != linked_period_id:
+        raise TalentAssessmentCycleError("linked_period_context_invalid", "Linked planning context changed while opening the Cycle.")
     program, _, framework = _context(
         db, school_group_id=cycle.school_group_id, program_id=cycle.program_id,
         academic_year_id=cycle.academic_year_id, framework_version_id=cycle.framework_version_id,

@@ -1,22 +1,13 @@
 knowledge_impact: yes
-summary: Implement M7 read-only longitudinal Talent Learner Profiles, reconcile M1 direct Student placement reads with approved historical Branch scope, and enforce sensitive M6 permission composition in profile responses.
+summary: Implement Talent & Potential M8 Annual Evaluation Plans and ordered Planned Evaluation Periods, with lifecycle governance, rollover, advisory warnings, optional one-to-one Draft Cycle linkage, Cycle Open validation, composite tenant integrity, bounded audit, and zero-leakage Cycle projection.
 affected_areas:
   - talent-programs
-  - talent-frameworks
-  - talent-rubrics
-  - talent-kpi
-  - review-candidate-policy
+  - program-academic-year-configuration
   - talent-assessment-cycles
-  - frozen-population
-  - talent-student-assessments
-  - competency-results
-  - review-candidates
-  - review-workflow
-  - official-identification
-  - educator-input
-  - learner-profile
-  - learner-profile-permission-composition
-  - student-placement-read-security
+  - annual-evaluation-plans
+  - planned-evaluation-periods
+  - cycle-period-linkage
+  - cycle-open-validation
   - database
   - migrations
   - audit

@@ -1,11 +1,31 @@
 ---
 title: TIS Project State
-documentation_version: 3.6
-last_updated: 2026-09-04
+documentation_version: 3.7
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M8 Annual Evaluation Plan And Periods Implemented
+
+Migration `20260905_001_talent_annual_evaluation_plan_period_foundation` adds
+annual Plan and ordered Period tables, the scoped Program/year/config keys,
+and nullable unique Period linkage on Assessment Cycle. Existing Cycles remain
+ad-hoc with NULL linkage; no history is inferred. Services and `/api/talent`
+routes implement create/read, Period planning, activation, cancellation,
+closure preflight/close, rollover, eligible Period selection, and atomic
+link/unlink. Plan revision and Cycle revision protect stale writes.
+
+New Administrator-only default permissions are
+`talent_evaluation_plans.view/manage/govern`. Every mutation is organization/
+global only. Link/unlink and rollover use true AND permission composition.
+Branch reads never receive Cycle projection or derived relationship/action/
+warning leakage without the separate Cycle-view permission. Linked Cycle Open
+revalidation follows Plan -> Period -> Cycle lock order without adding an M8
+govern requirement. M9/M10, Learning Style, AI, analytics, and Student data
+remain out of scope. Live PostgreSQL concurrency validation remains a
+deployment gate.
 
 ## M7 Longitudinal Learner Profile Implemented
 

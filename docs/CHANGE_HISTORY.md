@@ -1,11 +1,29 @@
 ---
 title: TIS Change History
-documentation_version: 3.6
-last_updated: 2026-09-04
+documentation_version: 3.7
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-05 - Talent & Potential M8 Annual Evaluation Plans And Periods
+
+- Added first-class annual Plan and stable ordered Period persistence with
+  scoped composite keys, lifecycle/date/cancellation checks, normalized
+  uniqueness, dense ordering, stale-write revision, and rollover provenance.
+- Added nullable one-to-one Period linkage to Assessment Cycle. No existing
+  Cycle is inferred or backfilled; NULL remains canonical ad-hoc behavior.
+- Added Plan/Period services and bounded APIs for lifecycle, edits, future-tail
+  reorder, cancellation, closure, rollover, eligible-period selection, and
+  atomic link/unlink. Linked Cycle Open revalidates Plan/Period context under
+  the canonical Plan -> Period -> Cycle lock order.
+- Added Administrator-only `talent_evaluation_plans.view/manage/govern`, true
+  AND permission enforcement, organization-only mutations, and Cycle
+  projection/action/warning zero-leakage without Cycle-view permission.
+- Extended `TalentConfigurationAudit` for bounded Plan/Period/link events and
+  added focused M8 and M1-M7 regression coverage. M9/M10, Student evidence,
+  analytics, Learning Style, and AI were not added.
 
 ## 2026-09-04 - Talent & Potential M7 Longitudinal Learner Profile
 

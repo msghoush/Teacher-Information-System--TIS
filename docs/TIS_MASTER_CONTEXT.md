@@ -1,11 +1,30 @@
 ---
 title: TIS Master Context
-documentation_version: 3.6
-last_updated: 2026-09-04
+documentation_version: 3.7
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Talent Annual Evaluation Planning Authority
+
+The canonical planning chain is `TalentProgram -> Program Academic Year
+Configuration -> TalentAnnualEvaluationPlan -> TalentPlannedEvaluationPeriod
+-> optional TalentAssessmentCycle`. Plan is annual planning authority, Period
+is stable ordered planning identity, Cycle remains execution authority, and
+Framework Version remains owned by the exact Cycle. One Plan exists per annual
+configuration; Plans move `draft -> active -> closed`, Periods move `planned
+-> cancelled`, and neither Plan nor Period owns Framework or Student data.
+
+Cycle linkage is nullable, unique in both directions, same-tenant/Program/year,
+and mutable only while the Cycle is Draft. Link/unlink requires Plan-manage AND
+Cycle-manage, organization/global scope, both expected revisions, and Plan ->
+Period -> Cycle locking. Existing/ad-hoc Cycles stay unlinked. M4 Cycle govern
+still opens a Cycle; linked context is revalidated but M8 govern is not added
+to Cycle Open. Plan reads disclose bounded Cycle projection only with Cycle
+view permission, and otherwise omit all relationship placeholders, derived
+actions, and cycle-derived warnings.
 
 ## Planning Subject Requirement Removal (Single And Bulk)
 
