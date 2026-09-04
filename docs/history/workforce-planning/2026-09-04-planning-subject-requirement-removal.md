@@ -127,3 +127,16 @@ live selection in its visible label: "Remove Subject Requirement" for one or
 the Select All control an indeterminate state, and removal controls are
 disabled with no selection. The existing cross-section form, atomic endpoint,
 permission boundary, confirmation, and persistence behavior are unchanged.
+
+## Empty-section deletion correction (2026-09-04)
+
+After removing every fallback requirement, the visible section was empty but
+its inactive zero-period setup suppression rows still triggered the generic
+Planning-demand blocker. Section deletion now excludes only rows matching all
+safe artifact conditions (`is_active=False`, `weekly_periods=0`, and
+`updated_by_user_id IS NULL`) from the blocker check, then deletes those exact
+branch/year-scoped rows in the same transaction as the otherwise-allowed
+section delete. Cleanup does not run when another blocker exists. Active setup
+requirements, Curriculum Adjustment history, teacher assignments, timetable
+and calendar references, and scheduling rules remain protected. This is a
+narrow artifact cleanup, not cascade deletion.

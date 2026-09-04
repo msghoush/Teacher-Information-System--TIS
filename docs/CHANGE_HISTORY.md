@@ -9,6 +9,12 @@ source_of_truth: true
 
 ## 2026-09-04 - Planning Subject Requirement Removal (Single And Bulk)
 
+- Corrected Planning section deletion after requirement removal: inactive
+  zero-period setup suppressions with no Curriculum Adjustment history are now
+  cleaned atomically with an otherwise dependency-free section. This is not a
+  general cascade; active requirements, permanent demand history, teacher
+  assignments, timetable/calendar dependencies, and scheduling rules still
+  block. The removable-demand error now says "Remove Subject Requirement".
 - Fixed a real gap where "Remove demand" only appeared for a Planning
   requirement with an explicit, untouched `PlanningSubjectDemand` row - a
   purely legacy-fallback requirement (resolved only from the Subject

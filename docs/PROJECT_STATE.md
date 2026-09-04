@@ -36,9 +36,12 @@ the page-level action mirrors that selection state. Selection can still span
 multiple sections in one request. Teacher assignments, timetable data, and Curriculum
 Adjustment audit records are never touched by this action. The existing
 `GET /planning/subject-demand/delete/{demand_id}` route from the prior round
-remains available, superseded in the rendered UI, and is now also the
-supported way for an admin to fully clear a leftover setup-only suppression
-row so Planning section/Subject deletion can proceed.
+remains available, superseded in the rendered UI, for clearing an active
+untouched setup row. An inactive zero-period setup suppression with no
+Curriculum Adjustment history no longer blocks an otherwise-empty section:
+deletion removes that exact scoped artifact and the section atomically. Active
+demands, permanent demand history, assignments, timetable/calendar/rule
+dependencies, and all other existing guards still block.
 
 ## Claude Code KMS Integration
 

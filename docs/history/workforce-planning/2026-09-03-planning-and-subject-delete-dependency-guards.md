@@ -25,6 +25,17 @@ cascade; the admin removes it through the existing Edit Planning Section save
 flow and retries. Multiple simultaneous blockers are listed individually with
 the specific action that resolves each one.
 
+Correction on 2026-09-04: an inactive, zero-period
+`PlanningSubjectDemand` with `updated_by_user_id IS NULL` is the setup-only
+suppression created by Remove Subject Requirement, not operational demand or
+history. It no longer blocks an otherwise-empty section. The delete route
+removes only those exact rows, within the selected section/branch/year and in
+the same transaction as the section delete. If any other dependency blocks,
+the suppression is not cleaned. Active demands, Curriculum-Adjustment-touched
+rows, and every other dependency below remain blockers; no general cascade was
+introduced. Customer-facing remediation uses "Remove Subject Requirement",
+not "Remove demand".
+
 Planning subject demand is split into two honest cases rather than being
 treated as uniformly permanent. Curriculum Adjustment
 (`curriculum_adjustment_apply_service._set_demand`) always stamps

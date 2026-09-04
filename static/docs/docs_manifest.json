@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-04T02:00:26.522387+03:00",
+  "generated_at": "2026-09-04T02:57:08.826744+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "61e1412",
+  "commit_sha": "d564dbb",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "17f24c1b417e3c24011d9153ccfbe45b29f129d53917fc4100e8a25500e4ed01",
-  "pdf_size_bytes": 1119040,
+  "pdf_sha256": "8b8572dcfe50cd95c06910422b2e5eaa93b7a1c8dfc380e211b28f1885879547",
+  "pdf_size_bytes": 1120688,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-09-04T01:59:40.670823+03:00",
-      "size_bytes": 94279,
-      "sha256": "343e35e301cdf3ca3109fe17627c53d85a5015399ab6670465774d7e13dc944f",
+      "modified_at": "2026-09-04T02:56:08.470103+03:00",
+      "size_bytes": 94588,
+      "sha256": "ec7f4a50e0e912bf0dfb3191860ea21fa69aef45d4265c9d0c79541bcdf3d70a",
       "pdf_page": 16
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-04T01:59:40.670823+03:00",
-      "size_bytes": 81647,
-      "sha256": "15917544ed11df7d13f630c8b78a899a02035a3175813d573fc5c70f1cffec93",
+      "modified_at": "2026-09-04T02:55:44.652405+03:00",
+      "size_bytes": 81672,
+      "sha256": "8b4b2ef0c23ad8d9f4b67b9cfc5cfe1d582edf63e2cad5d3f869dd3ccc8766da",
       "pdf_page": 43
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-04T01:59:40.673992+03:00",
-      "size_bytes": 73112,
-      "sha256": "a11256d6b6fd68eca557671846a7abb9e702fc4481d8fa07a5d6306feff71598",
+      "modified_at": "2026-09-04T02:55:44.653401+03:00",
+      "size_bytes": 73339,
+      "sha256": "2963cb294a927c4054bf48b538d030dff3688b7c9e2b3aefe5b5ec8c7bfdca61",
       "pdf_page": 68
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-04T01:59:40.673992+03:00",
-      "size_bytes": 128074,
-      "sha256": "36f00386359773c4e55e668d028d85ef416eb2141db435b32bca34e24bc8dbac",
+      "modified_at": "2026-09-04T02:56:08.470103+03:00",
+      "size_bytes": 128529,
+      "sha256": "f2ed6df9c3374af53383f47e802bfa680ccb738d5d0cc0eaa72a2f6f15465621",
       "pdf_page": 90
     },
     {
@@ -697,9 +697,9 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-09-03-planning-and-subject-delete-dependency-guards.md",
-      "modified_at": "2026-09-03T20:41:50.706526+03:00",
-      "size_bytes": 4029,
-      "sha256": "64a3ffa3d903827e4d84682bef42a5a928e731afd7c1b18d33ba74887e6d3e40",
+      "modified_at": "2026-09-04T02:56:08.472884+03:00",
+      "size_bytes": 4715,
+      "sha256": "60e605c9608ccbc01e02c890128f9aadf11b2cb6cdb995f3849468240f70e7d9",
       "pdf_page": 380
     },
     {
@@ -711,9 +711,9 @@
     },
     {
       "path": "docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md",
-      "modified_at": "2026-09-04T01:59:51.871149+03:00",
-      "size_bytes": 7887,
-      "sha256": "8d5bc50c0701d2a64a53e6b40d3bc62716b0e23a06fb8783fa90dc83d1004d0b",
+      "modified_at": "2026-09-04T02:56:08.474214+03:00",
+      "size_bytes": 8667,
+      "sha256": "f4e6f1447484f02ca0f4db2ff5f5783d3854f6c596f6b5c14186e7fd79dfb1fa",
       "pdf_page": 382
     },
     {
