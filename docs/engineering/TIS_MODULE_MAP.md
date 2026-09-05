@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Module Map
 
-## Talent Deterministic Analytics (M9, Implemented - Not Committed/Pushed)
+## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 
 - `talent_analytics_service.py`: read-only context/filter resolution and
   authorized raw aggregate queries (coverage, rubric level, competency
@@ -34,8 +34,10 @@ source_of_truth: true
   `talent_analytics.view_students`; `main.py` registers the router.
 - Governance: no production `TalentAnalyticsPrivacyPolicy` implementation
   exists (open gate, by design) and PostgreSQL performance/concurrency is
-  unvalidated (open gate, consistent with every prior milestone). This
-  module exists only in the working tree as of this entry.
+  unvalidated (open gate, consistent with every prior milestone). M9 is
+  committed and pushed on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580`
+  (commit `feat: add deterministic talent analytics`); it is not deployed,
+  not production-released, and not merged to `master`.
 
 ## Talent Annual Evaluation Planning (M8)
 

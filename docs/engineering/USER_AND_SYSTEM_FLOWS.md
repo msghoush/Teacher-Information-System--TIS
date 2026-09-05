@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS User And System Flows
 
-## Deterministic Talent Analytics Flow (M9, Implemented - Not Committed/Pushed)
+## Deterministic Talent Analytics Flow (M9, Committed/Pushed On dev)
 
 1. An actor with `talent_analytics.view` requests one Program + one Academic
    Year context; context/filters resolve strictly against that scope

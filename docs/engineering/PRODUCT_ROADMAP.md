@@ -20,8 +20,10 @@ before serialization; `coarsened` publishes only a policy-supplied safe
 replacement and fails closed to `suppressed` otherwise - there is no generic
 bucket-merge algorithm. No production privacy policy is approved yet (open
 governance gate: every route fails closed until one is), and live PostgreSQL
-performance/concurrency has not been validated. This milestone exists only in
-the working tree and is not yet committed/pushed. Talent Score/Index/
+performance/concurrency has not been validated. M9 is committed and pushed
+on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add
+deterministic talent analytics`); it is not deployed, not production-released,
+and not merged to `master`. Talent Score/Index/
 Potential Rate, Talent Map, KPI numeric bins/percentiles, export, AI, and UI
 remain future/out-of-scope work. M10 and Learning Style remain future
 governed work.

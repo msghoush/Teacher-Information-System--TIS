@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Change History
 
-## 2026-09-05 - Talent & Potential M9 Deterministic Talent Analytics (Implemented, Then Remediated)
+## 2026-09-05 - Talent & Potential M9 Deterministic Talent Analytics (Implemented, Remediated, Then Committed/Pushed On dev)
 
 - Added the read-only, aggregate-only `/api/talent/analytics` API (context,
   overview, rubric-distribution, kpi-distribution, competencies,
@@ -40,8 +40,10 @@ source_of_truth: true
   not exist in the implementation.
 - Test count grew from 21 to 43 in `tests/test_talent_analytics.py` in this
   pass. No migration, schema change, or production privacy-policy value was
-  added; no PostgreSQL validation was run. This milestone exists only in the
-  working tree and has not been committed or pushed.
+  added; no PostgreSQL validation was run. M9 is committed and pushed on
+  `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add
+  deterministic talent analytics`); it is not deployed, not production-
+  released, and not merged to `master`.
 - Second remediation pass (same day, independent re-review): fixed a
   HIGH-severity defect of the same reconstruction-risk bug class relocated
   past the call-ordering guard above - `rubric-distribution` and
@@ -64,7 +66,10 @@ source_of_truth: true
   field, plus direct unit tests for the new shared helper. Test count grew
   from 43 to 71 in `tests/test_talent_analytics.py`. No migration, schema
   change, or production privacy-policy value was added; no PostgreSQL
-  validation was run; this milestone remains uncommitted/unpushed.
+  validation was run. M9 is committed and pushed on `dev` at
+  `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add deterministic
+  talent analytics`); it is not deployed, not production-released, and not
+  merged to `master`.
 
 ## 2026-09-05 - Talent & Potential M8 Annual Evaluation Plans And Periods
 

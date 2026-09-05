@@ -7,7 +7,7 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
-## Deterministic Talent Analytics (M9, Implemented In Working Tree - Not Committed/Pushed)
+## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 
 M9 adds a read-only, aggregate-only `/api/talent/analytics/programs/{program_id}/academic-years/{academic_year_id}/...`
 API family (`context`, `overview`, `rubric-distribution`, `kpi-distribution`,
@@ -119,9 +119,10 @@ result. This is documented rather than resolved by inventing a new code path.
 aspirational vocabulary do not exist anywhere in the implementation and are
 not exposed in any response.
 
-M9 exists only in the working tree as of this entry - it is NOT committed or
-pushed, matching the repository's explicit governance record for this
-remediation pass. No production privacy policy is approved (open gate, by
+M9 is committed and pushed on `dev` at
+`23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add deterministic
+talent analytics`); it is not deployed, not production-released, and not
+merged to `master`. No production privacy policy is approved (open gate, by
 design). PostgreSQL execution/performance has not been validated (open gate,
 consistent with every prior milestone) - only SQLite-backed pytest coverage
 exists, including a query-count regression baseline proving no route loops

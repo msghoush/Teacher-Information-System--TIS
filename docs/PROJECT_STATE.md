@@ -7,14 +7,14 @@ source_of_truth: true
 
 # TIS Project State
 
-## M9 Deterministic Talent Analytics Implemented (Working Tree Only - Not Committed/Pushed)
+## M9 Deterministic Talent Analytics Implemented (Committed/Pushed On dev)
 
 M9 adds a read-only, privacy-gated `/api/talent/analytics` aggregate API
 (context/overview/rubric-distribution/kpi-distribution/competencies/
 breakdowns per branch-grade-section/period-comparison/students) strictly
 inside one Program + one Academic Year, over the existing frozen
 `TalentAssessmentCyclePopulationMember` historical scope. See "Deterministic
-Talent Analytics (M9, Implemented In Working Tree - Not Committed/Pushed)" in
+Talent Analytics (M9, Committed/Pushed On dev)" in
 `docs/AI_PROJECT_CONTEXT.md` for full architecture: the `Cell`/`Group`
 privacy-pipeline model, the mandatory `apply_primary_privacy` ->
 `run_complementary_suppression` ordering (now statically regression-guarded),
@@ -49,9 +49,11 @@ production, so every route fails closed until a governed policy is approved
 and wired in (open gate, by design, not a defect). Live PostgreSQL
 performance/concurrency validation has not been run (open gate, consistent
 with every prior milestone) - only SQLite-backed pytest coverage exists.
-Focused coverage is `tests/test_talent_analytics.py`. This milestone exists
-only in the working tree as of this entry; it has not been committed or
-pushed. No Talent Score/Index/Potential Rate, Talent Map, export, AI, or UI
+Focused coverage is `tests/test_talent_analytics.py`. M9 is committed and
+pushed on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat:
+add deterministic talent analytics`). It is not deployed, not production-
+released, and not merged to `master`. No Talent Score/Index/Potential Rate,
+Talent Map, export, AI, or UI
 exists. M10, Learning Style, and Student evidence remain out of scope.
 
 ## M8 Annual Evaluation Plan And Periods Implemented
