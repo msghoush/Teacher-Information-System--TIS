@@ -7,6 +7,36 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Deterministic Analytics (M9, Implemented - Not Committed/Pushed)
+
+- `talent_analytics_service.py`: read-only context/filter resolution and
+  authorized raw aggregate queries (coverage, rubric level, competency
+  matrix, Candidate/Identification counts, query-skip-on-permission),
+  execution-summary/period-timeline derivation, comparability outcome
+  derivation, and privacy-safe insight composition. No Talent Score/Index/
+  KPI mean/median/percentile/bins.
+- `talent_analytics_privacy.py`: the provider/interface boundary
+  (`TalentAnalyticsPrivacyPolicy`, `PrivacyDecision`), the `Cell`/`Group`
+  model, `apply_primary_privacy`, and the `run_complementary_suppression`
+  fixed-point engine (identity/value-independent tie-break, max 8 passes,
+  fails to non-convergence rather than guessing). `resolve_privacy_policy_provider()`
+  returns `None` in production (fail-closed); `AllowAllTestPolicy`/
+  `DeterministicSuppressionTestPolicy`/`CoarsenWithReplacementTestPolicy`/
+  `CoarsenWithoutReplacementTestPolicy` are test-only fixtures, never a
+  production default.
+- `routers/talent_analytics.py`: `/api/talent/analytics` route family
+  (context, overview, rubric-distribution, kpi-distribution, competencies,
+  breakdowns/{branch|grade|section}, period-comparison, students). Every
+  route runs `apply_primary_privacy` on every privacy-sensitive cell/group
+  before any `run_complementary_suppression` call in the same function - a
+  structural test in `tests/test_talent_analytics.py` statically enforces
+  this ordering. `permission_registry.py` adds `talent_analytics.view` and
+  `talent_analytics.view_students`; `main.py` registers the router.
+- Governance: no production `TalentAnalyticsPrivacyPolicy` implementation
+  exists (open gate, by design) and PostgreSQL performance/concurrency is
+  unvalidated (open gate, consistent with every prior milestone). This
+  module exists only in the working tree as of this entry.
+
 ## Talent Annual Evaluation Planning (M8)
 
 - `talent_evaluation_plan_service.py`: Plan/Period lifecycle, normalized

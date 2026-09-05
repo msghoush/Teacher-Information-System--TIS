@@ -7,14 +7,34 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## Talent & Potential M9 Status
+
+Deterministic Talent analytics is implemented: a read-only, aggregate-only,
+privacy-gated `/api/talent/analytics` API (context, overview,
+rubric-distribution, kpi-distribution, competencies, branch/grade/section
+breakdowns, period-comparison, Student drill) over the existing frozen
+population, Assessment/Competency-Result, Review Candidate, and Official
+Identification history. Every route enforces primary per-cell privacy
+evaluation followed by complementary (reconstruction-breaking) suppression
+before serialization; `coarsened` publishes only a policy-supplied safe
+replacement and fails closed to `suppressed` otherwise - there is no generic
+bucket-merge algorithm. No production privacy policy is approved yet (open
+governance gate: every route fails closed until one is), and live PostgreSQL
+performance/concurrency has not been validated. This milestone exists only in
+the working tree and is not yet committed/pushed. Talent Score/Index/
+Potential Rate, Talent Map, KPI numeric bins/percentiles, export, AI, and UI
+remain future/out-of-scope work. M10 and Learning Style remain future
+governed work.
+
 ## Talent & Potential M8 Status
 
 Annual Evaluation Plan and Planned Evaluation Period configuration is
 implemented with lifecycle governance, deterministic ordering, advisory
 warnings, rollover, optional Draft Cycle linkage, link-aware Cycle Open
 validation, bounded audit, and zero-leakage permission composition. Existing
-Cycles remain ad-hoc. M9/M10, Learning Style, AI, Student evidence, progress,
-growth, comparability, and Talent analytics remain future governed work.
+Cycles remain ad-hoc. M9 Deterministic Talent Analytics is now implemented
+(see above); M10, Learning Style, AI, and Student evidence remain future
+governed work.
 
 ## Talent & Potential M7 Status
 

@@ -7,6 +7,128 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Deterministic Talent Analytics (M9, Implemented In Working Tree - Not Committed/Pushed)
+
+M9 adds a read-only, aggregate-only `/api/talent/analytics/programs/{program_id}/academic-years/{academic_year_id}/...`
+API family (`context`, `overview`, `rubric-distribution`, `kpi-distribution`,
+`competencies`, `breakdowns/{branch|grade|section}`, `period-comparison`,
+`students`) composed strictly inside one Program + one Academic Year. It
+never reinterprets current Student Placement for historical scope (frozen
+`TalentAssessmentCyclePopulationMember` fields only), never re-runs M6 Review
+Candidate policy evaluation, and never recomputes M5 KPI. There is no Talent
+Score/Index/Potential Rate, no cross-Program analytics, no ranking field, no
+matched-cohort growth, and no KPI mean/median/percentile/numeric bins -
+`kpi-distribution` explicitly reports `distribution_mode: unavailable` /
+`reason_code: numeric_binning_rule_unapproved` rather than inventing a bin
+rule. `talent_analytics.view` and `talent_analytics.view_students` are new
+Administrator-only-by-default permissions; analytics permission never implies
+access to the raw Plan/Cycle/Assessment/Candidate/Identification/Learner-
+Profile APIs, which remain independently gated. Candidate and Identification
+analytics are query-skipped (not merely response-filtered) without their own
+existing view permission, and Student-level drill additionally requires
+`talent_analytics.view_students` composed with `talent_analytics.view` via
+true AND composition.
+
+Every privacy-sensitive metric is a `Cell` (identity-only, value-independent
+`key`, `privacy_class` P1-P7, `raw_value`, `state`, `value`) and a
+single-dimension breakdown is a `Group` (one parent-total = sum(children)
+reconstruction relationship). The canonical pipeline order is: authorized raw
+aggregate query -> metric construction -> `apply_primary_privacy` (invokes
+the injected `TalentAnalyticsPrivacyPolicy.evaluate_cell` per cell) ->
+`run_complementary_suppression` (reconstruction-breaking fixed point, up to 8
+passes, identity/value-independent tie-break, fails to `restricted` on
+non-convergence) -> comparability -> privacy-safe insights -> serialization.
+Every one of the eight routes calls `apply_primary_privacy` on every
+privacy-sensitive cell/group before any `run_complementary_suppression` call
+in the same function; a structural regression test statically asserts this
+ordering for every `run_complementary_suppression` call site in
+`routers/talent_analytics.py` so a future omission fails CI rather than
+silently publishing an unevaluated `state=visible` cell. That ordering guard
+proves call-site sequence only, not that every independently disclosed
+derived quantity was itself privacy-evaluated - a second, distinct defect of
+the same reconstruction-risk class was found and fixed in a later pass (see
+below).
+
+A route that privacy-evaluates only one headline/total `Cell` (for example
+`frozen_eligible`) and then serializes an entire raw per-status bundle
+computed independently of that decision is the same bug class as the
+call-ordering BLOCKER above, just relocated past the ordering check: the
+per-status counts, the derived `assessment_started`, and the derived
+percentages were never themselves evaluated or protected by complementary
+suppression, so a suppressed/coarsened/restricted status could still be
+reconstructed from its visible siblings or read directly off the raw bundle.
+This was found in `/rubric-distribution`'s and `/period-comparison`'s
+coverage side-bundles (both called `svc.coverage_metrics()` on the raw
+`svc.raw_coverage_counts()` dict once a single total `Cell` passed privacy)
+and fixed by extracting the already-correct `/overview` coverage pattern into
+one shared authority, `talent_analytics_service.build_privacy_safe_coverage_bundle`:
+it builds one `Group` of `frozen_eligible` + the 5 per-status `Cell`s, runs
+`apply_primary_privacy` then `run_complementary_suppression` over the whole
+group, and only returns the full `coverage_metrics()` shape (with derived
+`assessment_started`/percentages) when EVERY cell in the group is
+independently `visible`; any other outcome collapses to a compact
+`{"state": ...}` (or `{"state": "coarsened", "value": ...}`) projection with
+no raw sibling field ever present. `/rubric-distribution` and
+`/period-comparison` now call this shared helper instead of
+`svc.coverage_metrics()` directly; `/overview` already implemented the
+identical all-or-nothing pattern independently and is unchanged. A recursive,
+runtime regression test walks the fully serialized response bodies of all
+three routes under a suppressive test policy and asserts no dict anywhere
+carries a non-visible privacy state next to a raw coverage-shaped sibling
+field, which is a stronger, empirical proof than the call-ordering AST guard
+alone. "Every privacy-sensitive metric is a `Cell`" (above) is accurate only
+as of this fix; before it, the coverage side-bundles briefly serialized raw
+dict values that were never wrapped in a `Cell` at all.
+
+`coarsened` is implemented exactly per Product Owner decision: it is valid
+ONLY when the injected policy's own `PrivacyDecision` supplies an explicit
+safe replacement value alongside `state=coarsened`; `apply_primary_privacy`
+fails closed to `suppressed` if a policy requests `coarsened` with no
+replacement, so a `coarsened+null` cell can never be serialized as if
+coarsening succeeded. `run_complementary_suppression`'s own
+reconstruction-breaking step always demotes its tie-broken victim to
+`suppressed`, never `coarsened` - it has no channel to obtain a policy-
+supplied replacement for an arbitrary victim, so it never fabricates one.
+There is no generic bucket-merge/coarsening algorithm anywhere in this
+module. No production `TalentAnalyticsPrivacyPolicy` implementation exists;
+`resolve_privacy_policy_provider()` returns `None` in production so every
+route fails closed (`analytics_query_failed`, HTTP 500, no threshold value in
+the response) until a governed policy is approved and wired through
+`app.dependency_overrides`-equivalent production configuration. This is an
+intentional open gate, not a defect.
+
+The `competency_id` filter is validated against both tenant scope and the
+resolved `framework_version_id` (must be a `FrameworkCompetency` on that
+exact Framework Version) and narrows `/competencies` output; a foreign or
+wrong-Framework `competency_id` is rejected as `invalid_filter`, matching the
+existing non-enumerating filter-rejection pattern. `request_context_fingerprint`
+is a request-parameter/permission-projection/policy-version hash - explicitly
+not a data-freshness or ETag proof (confirmed by test: identical requests
+against mutated underlying rows still produce an identical fingerprint).
+
+Period comparison implements `framework_changed`, `missing_cycle`,
+`no_frozen_population`, `no_completed_result`, and `metric_unavailable`
+reason codes, each independently tested. `candidate_policy_changed` exists in
+code but is dead/unreachable under the current R1 data model: it only
+re-evaluates when both sides already share an identical
+`framework_version_id` (a precondition of reaching `comparable` at all), and
+a Framework Version's Review Candidate Policy is immutable once Active (M3),
+so two same-framework Cycles always see an identical policy-enablement
+result. This is documented rather than resolved by inventing a new code path.
+`incompatible_kpi_semantics` and `no_valid_kpi_result` from the original
+aspirational vocabulary do not exist anywhere in the implementation and are
+not exposed in any response.
+
+M9 exists only in the working tree as of this entry - it is NOT committed or
+pushed, matching the repository's explicit governance record for this
+remediation pass. No production privacy policy is approved (open gate, by
+design). PostgreSQL execution/performance has not been validated (open gate,
+consistent with every prior milestone) - only SQLite-backed pytest coverage
+exists, including a query-count regression baseline proving no route loops
+per-row/per-dimension. Focused coverage is in `tests/test_talent_analytics.py`.
+UI, export, AI, Learning Style, Talent Map, and M10 remain out of scope and
+unimplemented.
+
 ## Annual Evaluation Plans And Periods (M8, Complete)
 
 M8 adds `TalentAnnualEvaluationPlan` as the one annual planning authority for
@@ -44,8 +166,9 @@ bounded to id/title/status/revision/Framework Version. Without it, no cycle
 key, placeholder, cycle-derived warning, relationship action, or execution
 detail is emitted. Plan/Period APIs contain no Student or analytics data.
 Advisory warnings are recomputed (`period_window_overlap`,
-`cycle_outside_planned_window`, `chronological_inconsistency`). M9/M10,
-Learning Style, AI, analytics, and Student evidence are not implemented.
+`cycle_outside_planned_window`, `chronological_inconsistency`). M9
+Deterministic Talent Analytics is now implemented (see above); M10, Learning
+Style, AI, and Student evidence remain out of scope and unimplemented.
 
 ## Longitudinal Learner Profile And Placement Read Scope (M7, Complete)
 

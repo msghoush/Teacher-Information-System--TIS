@@ -7,6 +7,53 @@ source_of_truth: true
 
 # TIS Project State
 
+## M9 Deterministic Talent Analytics Implemented (Working Tree Only - Not Committed/Pushed)
+
+M9 adds a read-only, privacy-gated `/api/talent/analytics` aggregate API
+(context/overview/rubric-distribution/kpi-distribution/competencies/
+breakdowns per branch-grade-section/period-comparison/students) strictly
+inside one Program + one Academic Year, over the existing frozen
+`TalentAssessmentCyclePopulationMember` historical scope. See "Deterministic
+Talent Analytics (M9, Implemented In Working Tree - Not Committed/Pushed)" in
+`docs/AI_PROJECT_CONTEXT.md` for full architecture: the `Cell`/`Group`
+privacy-pipeline model, the mandatory `apply_primary_privacy` ->
+`run_complementary_suppression` ordering (now statically regression-guarded),
+the Product-Owner-approved fail-closed `coarsened` contract, the enforced
+`competency_id` filter, the documented dead/unreachable
+`candidate_policy_changed` comparability branch, and the coverage-bundle
+privacy fix below.
+
+A second remediation pass fixed a HIGH-severity defect of the same
+reconstruction-risk bug class, relocated past the call-ordering guard:
+`/rubric-distribution` and `/period-comparison` each privacy-evaluated only
+one headline `frozen_eligible` `Cell` and then serialized the entire raw
+per-status coverage bundle unconditionally once that one Cell passed -
+`/rubric-distribution` did not evaluate the coverage bundle at all, and
+`/period-comparison`'s per-side bundle only gated on the total. Both now call
+one shared, `/overview`-pattern-derived authority,
+`talent_analytics_service.build_privacy_safe_coverage_bundle`, which
+independently privacy-evaluates `frozen_eligible` and all 5 per-status
+counts as one `Group`, runs complementary suppression across them, and only
+publishes the full per-status breakdown (with derived `assessment_started`
+and percentages) when every cell in the group is independently visible -
+otherwise the whole bundle collapses to a compact state-only projection with
+no raw sibling field. A recursive runtime regression test proves no
+non-visible-state dict anywhere in the serialized response carries a raw
+coverage-shaped sibling field, in addition to the existing static ordering
+guard.
+
+New Administrator-only default permissions are `talent_analytics.view` and
+`talent_analytics.view_students`. No production `TalentAnalyticsPrivacyPolicy`
+is approved - `resolve_privacy_policy_provider()` returns `None` in
+production, so every route fails closed until a governed policy is approved
+and wired in (open gate, by design, not a defect). Live PostgreSQL
+performance/concurrency validation has not been run (open gate, consistent
+with every prior milestone) - only SQLite-backed pytest coverage exists.
+Focused coverage is `tests/test_talent_analytics.py`. This milestone exists
+only in the working tree as of this entry; it has not been committed or
+pushed. No Talent Score/Index/Potential Rate, Talent Map, export, AI, or UI
+exists. M10, Learning Style, and Student evidence remain out of scope.
+
 ## M8 Annual Evaluation Plan And Periods Implemented
 
 Migration `20260905_001_talent_annual_evaluation_plan_period_foundation` adds
@@ -23,9 +70,9 @@ global only. Link/unlink and rollover use true AND permission composition.
 Branch reads never receive Cycle projection or derived relationship/action/
 warning leakage without the separate Cycle-view permission. Linked Cycle Open
 revalidation follows Plan -> Period -> Cycle lock order without adding an M8
-govern requirement. M9/M10, Learning Style, AI, analytics, and Student data
-remain out of scope. Live PostgreSQL concurrency validation remains a
-deployment gate.
+govern requirement. M9 Deterministic Talent Analytics is now implemented (see
+above); M10, Learning Style, AI, and Student data remain out of scope. Live
+PostgreSQL concurrency validation remains a deployment gate.
 
 ## M7 Longitudinal Learner Profile Implemented
 

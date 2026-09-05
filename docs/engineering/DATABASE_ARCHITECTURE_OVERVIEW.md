@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Deterministic Talent Analytics (M9, No Schema Change)
+
+M9 adds no table, column, or migration. It is a strictly read-only aggregate
+query layer over the existing M1-M8 schema (`talent_assessment_cycle_population_members`,
+`talent_student_assessments`, `talent_student_competency_results`,
+`talent_review_candidates`, `talent_official_identifications`,
+`talent_annual_evaluation_plans`/`talent_planned_evaluation_periods`) - every
+authorized-raw-aggregate query in `talent_analytics_service.py` filters
+directly against these existing tables' own tenant/Branch/historical-scope
+columns; no new persistence authority, cache table, or materialized
+projection exists.
+
 ## Talent Annual Evaluation Plans And Periods (M8)
 
 `talent_annual_evaluation_plans` composite-binds one Plan to its exact Program

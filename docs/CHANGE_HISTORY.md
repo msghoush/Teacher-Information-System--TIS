@@ -7,6 +7,65 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-05 - Talent & Potential M9 Deterministic Talent Analytics (Implemented, Then Remediated)
+
+- Added the read-only, aggregate-only `/api/talent/analytics` API (context,
+  overview, rubric-distribution, kpi-distribution, competencies,
+  branch/grade/section breakdowns, period-comparison, Student drill) and
+  dedicated Administrator-only `talent_analytics.view`/`talent_analytics.view_students`
+  permissions, over the existing frozen population/Assessment/Competency-
+  Result/Candidate/Identification history.
+- Added the `Cell`/`Group` privacy-decision and complementary-suppression
+  engine (`talent_analytics_privacy.py`) with a fail-closed production
+  provider (`resolve_privacy_policy_provider() -> None`).
+- Remediation pass (same day, independent review): fixed a BLOCKER where
+  `rubric-distribution`, `competencies`, and `breakdowns/*` built Cells/Groups
+  and ran complementary suppression WITHOUT first calling
+  `apply_primary_privacy`, so every cell reached suppression in a fake
+  default `visible`/`value=None` state - this raised an unhandled 500 on
+  `rubric-distribution` and silently published null-valued `visible` cells on
+  the other two routes. Added a structural regression test statically
+  guarding every `run_complementary_suppression` call site.
+- Implemented the Product-Owner-approved `coarsened` contract: valid only
+  when the policy decision supplies an explicit safe replacement value;
+  otherwise fails closed to `suppressed`. Fixed several serialization sites
+  that previously discarded any `coarsened` value as if it were unset.
+- Implemented real `competency_id` filter enforcement (tenant- and
+  Framework-Version-bound) - it was previously parsed/fingerprinted but never
+  applied to any query.
+- Added comparability tests for `missing_cycle`, `no_frozen_population`, and
+  `metric_unavailable`; documented `candidate_policy_changed` as dead/
+  unreachable under the current data model rather than inventing a new code
+  path, and confirmed `incompatible_kpi_semantics`/`no_valid_kpi_result` do
+  not exist in the implementation.
+- Test count grew from 21 to 43 in `tests/test_talent_analytics.py` in this
+  pass. No migration, schema change, or production privacy-policy value was
+  added; no PostgreSQL validation was run. This milestone exists only in the
+  working tree and has not been committed or pushed.
+- Second remediation pass (same day, independent re-review): fixed a
+  HIGH-severity defect of the same reconstruction-risk bug class relocated
+  past the call-ordering guard above - `rubric-distribution` and
+  `period-comparison` each privacy-evaluated only the `frozen_eligible`
+  headline `Cell` (or, for `rubric-distribution`, evaluated no coverage
+  privacy at all) and then serialized the raw per-status
+  `coverage_metrics()` bundle directly, so a suppressed/coarsened/restricted
+  status could still be reconstructed from its visible siblings. Extracted
+  the already-correct `/overview` coverage pattern into one shared helper,
+  `talent_analytics_service.build_privacy_safe_coverage_bundle`, which
+  independently privacy-evaluates `frozen_eligible` and all 5 per-status
+  counts as one `Group` with complementary suppression, deriving
+  `assessment_started`/percentages only from a fully-visible group; both
+  routes now use it instead of calling `coverage_metrics()` on raw counts.
+  Audited every `coverage_metrics(`/`raw_coverage_counts(` call site in the
+  M9 router and service modules; confirmed no third unsafe instance exists.
+  Added a recursive runtime regression test that inspects the fully
+  serialized response bodies under a suppressive policy and asserts no
+  non-visible-state dict anywhere carries a raw coverage-shaped sibling
+  field, plus direct unit tests for the new shared helper. Test count grew
+  from 43 to 71 in `tests/test_talent_analytics.py`. No migration, schema
+  change, or production privacy-policy value was added; no PostgreSQL
+  validation was run; this milestone remains uncommitted/unpushed.
+
 ## 2026-09-05 - Talent & Potential M8 Annual Evaluation Plans And Periods
 
 - Added first-class annual Plan and stable ordered Period persistence with
@@ -22,8 +81,9 @@ source_of_truth: true
   AND permission enforcement, organization-only mutations, and Cycle
   projection/action/warning zero-leakage without Cycle-view permission.
 - Extended `TalentConfigurationAudit` for bounded Plan/Period/link events and
-  added focused M8 and M1-M7 regression coverage. M9/M10, Student evidence,
-  analytics, Learning Style, and AI were not added.
+  added focused M8 and M1-M7 regression coverage. M9 Deterministic Talent
+  Analytics was added the same day (see above); M10, Student evidence,
+  Learning Style, and AI were not added.
 
 ## 2026-09-04 - Talent & Potential M7 Longitudinal Learner Profile
 

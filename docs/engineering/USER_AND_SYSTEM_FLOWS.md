@@ -7,6 +7,34 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Deterministic Talent Analytics Flow (M9, Implemented - Not Committed/Pushed)
+
+1. An actor with `talent_analytics.view` requests one Program + one Academic
+   Year context; context/filters resolve strictly against that scope
+   (frozen population, not current Placement).
+2. For every privacy-sensitive metric, the route runs the authorized raw
+   aggregate query, builds one or more `Cell`/`Group` structures, then calls
+   `apply_primary_privacy` (the injected policy's real per-cell decision)
+   BEFORE `run_complementary_suppression` - never the reverse, and never
+   skipped, on any of the eight routes.
+3. `run_complementary_suppression` repeats reconstruction-breaking passes to
+   a fixed point (max 8) using an identity/value-independent tie-break; a
+   projection that cannot reach a safe fixed point serializes `restricted`,
+   never a best-effort guess.
+4. A `coarsened` cell publishes only a safe replacement value that the
+   policy itself supplied with its decision; if the policy requests
+   `coarsened` with no replacement, the cell fails closed to `suppressed`.
+5. Candidate and Identification analytics are query-skipped, not merely
+   response-filtered, without the actor's own `talent_review_candidates.view`/
+   `talent_official_identifications.view` permission respectively.
+6. Student-level drill (`/students`) additionally requires
+   `talent_analytics.view_students` AND `talent_analytics.view`, and is
+   denied (`analytics_drill_restricted`, no cohort size disclosed) whenever
+   the cohort's own privacy cell is not `visible`.
+7. With no production privacy policy configured, every route fails closed
+   (`analytics_query_failed`, HTTP 500) rather than falling back to an
+   implicit permissive or generic threshold default.
+
 ## Talent Annual Evaluation Plan Flow (M8)
 
 1. An organization-authorized Plan manager creates one Draft Plan from an

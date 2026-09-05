@@ -1,16 +1,13 @@
 knowledge_impact: yes
-summary: Implement Talent & Potential M8 Annual Evaluation Plans and ordered Planned Evaluation Periods, with lifecycle governance, rollover, advisory warnings, optional one-to-one Draft Cycle linkage, Cycle Open validation, composite tenant integrity, bounded audit, and zero-leakage Cycle projection.
+summary: Implement and remediate M9 Deterministic Talent Analytics with a read-only aggregate API, explicit permissions, fail-closed privacy policy injection, mandatory primary privacy before complementary suppression, policy-supplied coarsened replacements, tenant- and Framework-bound competency filtering, privacy-safe coverage bundles, comparability semantics, and focused regression coverage. No schema or migration change; no production privacy policy approved; PostgreSQL validation remains outstanding.
 affected_areas:
-  - talent-programs
-  - program-academic-year-configuration
-  - talent-assessment-cycles
-  - annual-evaluation-plans
-  - planned-evaluation-periods
-  - cycle-period-linkage
-  - cycle-open-validation
-  - database
-  - migrations
-  - audit
+  - talent-analytics
+  - privacy-policy-pipeline
+  - complementary-suppression
+  - coarsened-semantics
+  - competency-filter
+  - comparability
+  - coverage-privacy
   - api
   - authorization
   - tenant-isolation

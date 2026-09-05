@@ -184,6 +184,14 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "talent_analytics",
+        "label": "Talent Analytics",
+        "permissions": (
+            ("talent_analytics.view", "View deterministic Talent analytics"),
+            ("talent_analytics.view_students", "View Student-level Talent analytics drill rows"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (
