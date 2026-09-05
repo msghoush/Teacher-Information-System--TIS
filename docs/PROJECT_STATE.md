@@ -1,11 +1,55 @@
 ---
 title: TIS Project State
 documentation_version: 3.7
-last_updated: 2026-09-05
+last_updated: 2026-09-06
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M10 B0-B5 Organization Overview (Working Tree Only)
+
+M10 B0-B2 is implemented without an Organization Intelligence route, aggregate
+query, privacy threshold, entitlement rule, schema, or migration.
+`talent_org_intelligence_contract.py` provides immutable canonical Cell
+identity, exact `+1`/`-1` additive Relationships, inherited M9 privacy-state
+projection semantics, tenant validation, and the V01-V25 ledger.
+`talent_analytics_relationship_graph.py` adds the tenant-bound canonical Cell
+registry, Relationship identity/deduplication, Cell-to-Relationship adjacency,
+fail-closed structural validation, and deterministic connected components.
+`talent_analytics_privacy_closure.py` adds exact Fraction-based RREF,
+per-coordinate uniqueness, inconsistent-system detection, monotonic bounded
+component-local closure, magnitude-independent victim choice, fail-closed
+analyzer handling, exact-source-only derived rates, and all-or-nothing sibling
+projection. V01-V25 are executable. No real M10 Organization Intelligence or
+Talent Map data can be exposed.
+
+B3/B4 adds `talent_org_intelligence_service.py`: immutable tenant/year/
+historical-Branch access context using existing permissions; fail-closed
+unconfigured commercial-availability and breadth providers; normalized context
+fingerprinting; enabled annual Program universe; frozen-population-only filters;
+set-based Program×Branch, Program×Grade, Program/Branch/Organization totals;
+permission-skipped Candidate and Identification queries; and Program-grain M8
+required-period execution. All primitives share the caller's Session and never
+query current Student Placement. Future serialization must accept a B2 closure
+result through `PrivacyClosedProjectionSet`.
+
+B5 adds only `GET /api/talent/organization-analytics/overview`. The closed
+contract now has 12 MetricCodes and 7 MembershipGrains: the approved additions
+are `programs_configured`, `active_programs`, and `program_configuration`, both
+metrics mapped to `count`/`program_configuration` and P1. Configured means an
+enabled Program annual configuration; active is exactly its subset whose
+durable Program lifecycle status is `active`. The route preserves historical
+Branch filtering, skips Candidate/Identification SQL without their independent
+permissions, counts only `decision == identified`, and serializes exclusively
+after M9 primary privacy and B2 closure. No other M10 route exists.
+
+The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
+`membership_grain` use the approved closed string-backed enum vocabularies and
+serialize to their exact governed strings; unknown values are rejected.
+`rate`/`percentage` remain derived disclosures, not identity components.
+Relationship coefficients require an actual Python `int` and exactly
+`+1`/`-1`, so bool, float, `Fraction`, `Decimal`, null, and strings fail.
 
 ## M9 Deterministic Talent Analytics Implemented (Committed/Pushed On dev)
 
@@ -54,7 +98,8 @@ pushed on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat:
 add deterministic talent analytics`). It is not deployed, not production-
 released, and not merged to `master`. No Talent Score/Index/Potential Rate,
 Talent Map, export, AI, or UI
-exists. M10, Learning Style, and Student evidence remain out of scope.
+exists. M10 B0-B5 exists as described above, while other M10 aggregate routes,
+Learning Style, and Student evidence remain out of scope.
 
 ## M8 Annual Evaluation Plan And Periods Implemented
 
@@ -73,7 +118,8 @@ Branch reads never receive Cycle projection or derived relationship/action/
 warning leakage without the separate Cycle-view permission. Linked Cycle Open
 revalidation follows Plan -> Period -> Cycle lock order without adding an M8
 govern requirement. M9 Deterministic Talent Analytics is now implemented (see
-above); M10, Learning Style, AI, and Student data remain out of scope. Live
+above); M10 B0-B5 exists, while further external execution, Learning
+Style, AI, and Student data remain out of scope. Live
 PostgreSQL concurrency validation remains a deployment gate.
 
 ## M7 Longitudinal Learner Profile Implemented

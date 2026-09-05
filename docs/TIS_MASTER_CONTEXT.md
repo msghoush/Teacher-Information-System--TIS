@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Talent Organization Overview Authority
+
+M10 B5 exposes one bounded route:
+`GET /api/talent/organization-analytics/overview`. Its Program configuration
+grain has exactly two P1 count metrics: `programs_configured` counts enabled
+Program Academic-Year configurations in the authorized tenant/year universe;
+`active_programs` is exactly the subset whose durable `TalentProgram.status`
+is `active`. It does not infer active from Framework, Cycle, dates, or activity.
+Frozen population metrics use historical frozen Branch context, and Candidate
+and Official Identification counts require their independent permissions;
+Official Identification counts only `decision == identified`. HTTP output is
+constructed only after M9 primary privacy and B2 reconstruction closure through
+the `PrivacyClosedProjectionSet` boundary. No production privacy or commercial
+availability provider is approved, so production requests remain fail-closed.
+
 ## Talent Annual Evaluation Planning Authority
 
 The canonical planning chain is `TalentProgram -> Program Academic Year

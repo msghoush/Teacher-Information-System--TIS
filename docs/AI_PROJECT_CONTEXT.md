@@ -1,11 +1,101 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.7
-last_updated: 2026-09-05
+last_updated: 2026-09-06
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Organization Intelligence M10 B0-B5 Overview (Working Tree Only)
+
+M10 B0 adds only an executable, non-functional conformance boundary in
+`talent_org_intelligence_contract.py` and
+`tests/test_talent_org_intelligence_contract.py`. It separates canonical
+analytical `CellIdentity` from value/privacy/presentation state, restricts
+`RelationshipTerm` coefficients to exactly `+1`/`-1`, represents only the
+approved additive `sum(coefficient * Cell) = constant` topology, preserves
+the exact M9 privacy-state family, rejects cross-tenant relationship/graph
+membership, and tracks every QA vector V01-V25 with explicit B0/B1/B2
+ownership and implementation status.
+
+B0 performs no graph solving or complementary graph closure, exposes no M10
+route or aggregate, and introduces no privacy threshold, entitlement key,
+production breadth limit, formula language, Talent Score, Potential Rate, or
+cross-Program normalization. V01-V03 structural contracts are implemented;
+`talent_analytics_relationship_graph.py` now implements B1's tenant-bound
+canonical Cell registry, value-independent canonical Relationship identity,
+Cell-to-Relationship adjacency, structural validation, shared-Cell reuse, and
+deterministic bipartite connected-component discovery. V04, V20, and V22 are
+implemented by B1.
+
+Pre-B2 hardening and the approved B5 contract extension close the three identity vocabularies with string-backed
+enums: metric additionally includes `programs_configured` and `active_programs`, alongside `frozen_eligible`, `completed`,
+`completion_coverage`, `assessment_started`, `started_coverage`,
+`required_period_execution`, `candidate_count`, `candidate_of_eligible`,
+`identified_count`, or `identified_of_eligible`; measure component is exactly
+`count`, `numerator`, or `denominator`; membership grain is exactly
+`frozen_membership`, `distinct_student`, `program_participation`,
+`program_configuration`, `review_candidate_membership`, `identification_membership`, or
+`period_execution`. `rate`/`percentage` are derived only after future privacy
+closure and are not Cell identity components. `RelationshipTerm` now requires
+`type(coefficient) is int` plus value `+1`/`-1`, rejecting bool, float,
+`Fraction`, `Decimal`, strings, and other equality-compatible values.
+
+`talent_analytics_privacy_closure.py` implements B2 without route exposure. It
+uses `fractions.Fraction` RREF to detect inconsistent systems and determine
+uniqueness per protected coordinate, including unique coordinates in otherwise
+underdetermined systems. Its explicit pipeline applies M9 primary privacy before
+component-local graph closure. Closure is monotonic, bounded by the initially
+eligible exact-visible Cells, and selects complementary victims using only
+structural rank/exposure, privacy class, depth, provider preference, and
+canonical identity. Analyzer failures and inconsistent components restrict the
+affected component; untrusted graph partitioning fails the whole operation.
+`no_data` excludes a non-authoritative equation rather than becoming zero,
+coarsened replacements never substitute for hidden raw coordinates, and
+restricted Cells remain opaque. Exact derived rates use `Fraction` only when
+all sources are exact-visible; an all-or-nothing payload projection prevents
+raw numerator/denominator/percentage/total/metadata/insight sibling leakage.
+V01-V25 are executable across B0-B2.
+
+There is no schema change, migration, new permission, production privacy
+provider, UI, deployment, or `tis.db` change.
+
+M10 B3/B4 adds only internal access-context and set-based query primitives in
+`talent_org_intelligence_service.py`. Its immutable context resolves active
+authentication, selected SchoolGroup, injected commercial availability,
+existing `talent_analytics.view`, tenant-bound Academic Year, canonical
+historical Branch scope, and independent Candidate/Identification/Student-
+drill/Learner-Profile permissions before analytical aggregation. No M10
+permission or entitlement key is introduced. Production availability and
+matrix breadth providers are intentionally unconfigured/fail-closed; tests
+inject explicit versioned allow/reject providers.
+
+The authorized Program universe uses enabled Program/Academic-Year
+configuration and, for Branch actors, Open/Closed frozen Cycle membership in
+authorized historical Branches. The population query filters only frozen
+`TalentAssessmentCyclePopulationMember` context and never joins current
+Student Placement. One grouped-query family supplies Program×Branch,
+Program×Grade, Program totals, Branch totals, and Organization totals with
+Branch authorization inside the population subquery before aggregation.
+Candidate and Identification functions return before SQL execution unless
+their independent view permission is present. M8 required execution remains
+Program-grain `executed`/`cancelled`/`outstanding`.
+
+`PrivacyClosedProjectionSet` is the mandatory future serialization seam: it
+accepts only a B2 `PrivacyClosureResult`, carries no raw query rows, and
+delegates derived rates and payloads to B2 guards. Context fingerprints remain
+context evidence, never authorization, freshness, or ETag proof. The accepted
+`no_data` rule is unchanged: a relationship containing `no_data` is
+non-authoritative for exact reconstruction in that response; `no_data` is not
+zero. B5 adds the first bounded real M10 route,
+`GET /api/talent/organization-analytics/overview`. It counts configured annual
+Program rows and their exact `TalentProgram.status == active` subset, frozen
+eligible memberships, completion coverage, and required Period execution;
+Candidate and `decision == identified` metrics are omitted unless their own
+permissions are present. It constructs canonical Cells/Relationships, applies
+M9 primary privacy before B2 closure, and serializes only a
+`PrivacyClosedProjectionSet`. No other M10 route or Talent Map exists.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 
@@ -127,8 +217,8 @@ design). PostgreSQL execution/performance has not been validated (open gate,
 consistent with every prior milestone) - only SQLite-backed pytest coverage
 exists, including a query-count regression baseline proving no route loops
 per-row/per-dimension. Focused coverage is in `tests/test_talent_analytics.py`.
-UI, export, AI, Learning Style, Talent Map, and M10 remain out of scope and
-unimplemented.
+UI, export, AI, Learning Style, and M10 Talent Map execution remain out of scope
+and unimplemented; only B0-B5 including the bounded Overview described above exists.
 
 ## Annual Evaluation Plans And Periods (M8, Complete)
 

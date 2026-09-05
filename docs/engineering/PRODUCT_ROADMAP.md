@@ -1,11 +1,40 @@
 ---
 title: TIS Product Roadmap
 documentation_version: 3.5
-last_updated: 2026-09-05
+last_updated: 2026-09-06
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## Talent & Potential M10 Status
+
+B0 Contract / Conformance Harness, B1 structural Privacy Relationship Graph,
+B2 Reconstruction Analyzer / Privacy Closure, B3/B4 internal access/query
+foundation, and B5 Organization Overview are implemented in the
+working tree. They define and test the approved
+canonical Cell identity, `+1`/`-1` additive
+Relationship topology, inherited M9 privacy states, tenant separation,
+forbidden contract fields, explicit V01-V25 milestone ownership, canonical
+Cell/Relationship registration, adjacency, validation, shared coordinates,
+deterministic connected components, exact Fraction RREF, per-coordinate
+uniqueness, inconsistent-system handling, monotonic deterministic closure,
+component-local failure, exact-source derived rates, and sibling-leak guards.
+They add no production privacy threshold, entitlement, schema, migration, UI,
+or Talent Map behavior.
+The B3/B4 foundation resolves tenant/year/historical-Branch authorization and
+secondary permission projection, fails closed behind unconfigured commercial
+availability and breadth providers, performs only set-based frozen-population
+aggregation, skips Candidate/Identification SQL without their own permissions,
+keeps M8 execution at Program grain, and requires serialization to enter
+through B2-closed projections. B5 exposes only the bounded organization
+Overview route with the approved 12-metric/7-grain contract, including P1
+configured and active Program-configuration counts. Other M10 routes remain
+unimplemented.
+The required pre-B2 hardening is complete: canonical metric/component/grain
+vocabularies are closed to the approved serialized strings, rate/percentage
+remain derived rather than Cell identity components, and RelationshipTerm
+accepts only a real Python integer `+1` or `-1`.
 
 ## Talent & Potential M9 Status
 
@@ -25,8 +54,8 @@ on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add
 deterministic talent analytics`); it is not deployed, not production-released,
 and not merged to `master`. Talent Score/Index/
 Potential Rate, Talent Map, KPI numeric bins/percentiles, export, AI, and UI
-remain future/out-of-scope work. M10 and Learning Style remain future
-governed work.
+remain future/out-of-scope work. M10 B0-B5 exists, while further M10 aggregate
+execution and Learning Style remain future governed work.
 
 ## Talent & Potential M8 Status
 
@@ -35,8 +64,8 @@ implemented with lifecycle governance, deterministic ordering, advisory
 warnings, rollover, optional Draft Cycle linkage, link-aware Cycle Open
 validation, bounded audit, and zero-leakage permission composition. Existing
 Cycles remain ad-hoc. M9 Deterministic Talent Analytics is now implemented
-(see above); M10, Learning Style, AI, and Student evidence remain future
-governed work.
+(see above); M10 B0-B5 now exists, while further M10 external execution,
+Learning Style, AI, and Student evidence remain future governed work.
 
 ## Talent & Potential M7 Status
 

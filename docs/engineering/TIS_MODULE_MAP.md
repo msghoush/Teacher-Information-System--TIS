@@ -1,11 +1,72 @@
 ---
 title: TIS Module Map
 documentation_version: 3.5
-last_updated: 2026-09-05
+last_updated: 2026-09-06
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent Organization Intelligence Overview (M10 B0-B5, Working Tree Only)
+
+- `talent_org_intelligence_contract.py`: non-functional contract types for
+  canonical `CellIdentity`, public `PrivacyProjection`, exact `+1`/`-1`
+  `RelationshipTerm`, additive `Relationship`, tenant-only future graph
+  membership validation, and the V01-V25 ownership/status ledger. Pre-B2
+  hardening adds closed string-backed `MetricCode`, `MeasureComponent`, and
+  `MembershipGrain` enums plus immutable approved metric mapping metadata;
+  coefficient validation requires `type(value) is int` and rejects numeric
+  lookalikes that compare equal to `+1`/`-1`.
+- `tests/test_talent_org_intelligence_contract.py`: executable B0 conformance
+  harness for identity/presentation independence, coefficient and additive
+  topology constraints, sign/order/overlap canonicalization, tenant
+  separation, inherited privacy-state semantics, forbidden fields/behavior,
+  complete vector traceability, and absence of any registered M10 aggregate
+  route.
+- `talent_analytics_relationship_graph.py`: B1 tenant-bound canonical Cell
+  registration, Relationship identity/deduplication, Cell-to-Relationship
+  adjacency, structural validation, shared-coordinate reuse, and deterministic
+  bipartite connected-component discovery. It imports only the B0 contract and
+  Python standard library.
+- `tests/test_talent_privacy_relationship_graph.py`: B1 behavioral coverage
+  for validation, component topology, bridging, nested Org/Branch/Grade,
+  shared Program/Branch coordinates, transposition, overlap symmetry,
+  insertion-order independence, and prohibited-dependency boundaries.
+- `talent_analytics_privacy_closure.py`: B2 exact `Fraction` RREF and augmented-
+  rank analysis, per-coordinate uniqueness, deterministic monotonic closure,
+  component-local restriction, structural victim selection, exact-source-only
+  derived rates, and all-or-nothing safe derived-payload projection. Its one
+  orchestration entry applies M9 primary privacy before closure.
+- `tests/test_talent_privacy_reconstruction.py`: executable V05-V25 fixed and
+  bounded metamorphic coverage, including free-variable uniqueness, redundant/
+  inconsistent systems, nested and row/column attacks, transposition, value
+  permutation, no-data/coarsened/restricted semantics, localization, derived
+  rates, sibling leakage, monotonicity, and idempotence.
+- Boundary: no query/service/router, production privacy threshold/provider,
+  permission, entitlement, schema, migration, UI, or production behavior is
+  added by B0-B2.
+- `talent_org_intelligence_service.py`: B3/B4 immutable access context,
+  fail-closed commercial-availability and breadth boundaries, normalized
+  context fingerprint, authorized Program universe, frozen-membership base
+  query, common status aggregation, Program×Branch/Program×Grade and backend
+  totals, independently gated Candidate/Identification membership, Program-
+  grain M8 execution, and mandatory `PrivacyClosedProjectionSet` seam.
+- `tests/test_talent_org_intelligence_queries.py`: access ordering, tenant/year/
+  Branch/filter security, provider injection, current-Placement resistance,
+  grouped-query semantics/count, secondary-query omission, M8 grain,
+  fingerprint, forbidden vocabulary, and B2 integration-seam coverage.
+- `routers/talent_organization_analytics.py`: the single B5
+  `/api/talent/organization-analytics/overview` route. It composes scoped
+  set-based queries into canonical Cells and equality Relationships, runs M9
+  primary privacy then B2 closure, and accepts only
+  `PrivacyClosedProjectionSet` at its serializer boundary. Candidate and
+  Identification metrics are permission-omitted, and Identification counts
+  only `decision == identified`.
+- `tests/test_talent_organization_overview.py`: end-to-end B5 authorization,
+  tenant/year, historical Branch, metric omission, privacy/no-data, active
+  predicate, and safe-serialization coverage.
+- B5 boundary: no additional M10 route, new permission, entitlement mapping,
+  production provider/ceiling, schema, migration, Talent Map, or UI exists.
 
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 

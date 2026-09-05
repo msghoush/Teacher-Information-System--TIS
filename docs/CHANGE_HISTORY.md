@@ -1,11 +1,110 @@
 ---
 title: TIS Change History
 documentation_version: 3.7
-last_updated: 2026-09-05
+last_updated: 2026-09-06
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-06 - M10 B5 Organization Overview
+
+- Extended the closed M10 identity contract by exactly two P1 count metrics,
+  `programs_configured` and `active_programs`, and the
+  `program_configuration` grain.
+- Added the first M10 aggregate route,
+  `GET /api/talent/organization-analytics/overview`, using the B3/B4 scoped
+  query layer, M9 primary privacy, B2 privacy closure, and the mandatory
+  privacy-closed serializer seam.
+- Preserved frozen historical Branch scope, optional-permission SQL omission,
+  exact `decision == identified` meaning, and no-data-not-zero behavior. No
+  migration, entitlement, production provider, UI, or other M10 route was added.
+
+## 2026-09-06 - M10 B3/B4 Access Context And Common Query Primitives
+
+- Added immutable Organization Intelligence access context through canonical
+  authentication, SchoolGroup, injected availability, existing analytics
+  permission, tenant Academic Year, historical Branch scope, and independent
+  Candidate/Identification/Student-drill/Learner-Profile permissions.
+- Added fail-closed commercial availability and breadth provider interfaces
+  with versioned test injection and no plan, entitlement key, or production
+  numeric ceiling.
+- Added enabled annual Program-universe resolution and set-based frozen Cycle
+  queries for Program×Branch, Program×Grade, backend totals, independently
+  gated Candidate/Identification memberships, and Program-grain M8 required
+  execution. Current Placement is never historical grouping authority.
+- Added normalized context fingerprints and a mandatory future serialization
+  seam accepting only B2 closure results. `no_data` remains non-authoritative
+  for exact reconstruction and is never zero.
+- Added focused B3/B4 security and query-count tests. No B5 route, aggregate
+  exposure, migration, schema, permission, entitlement, production provider,
+  UI, deployment, or `tis.db` change was introduced.
+
+## 2026-09-05 - M10 B2 Reconstruction Analyzer And Privacy Closure
+
+- Added a standalone, dependency-bounded B2 module using exact
+  `fractions.Fraction` RREF and augmented-rank checks, including mandatory
+  per-coordinate uniqueness in underdetermined systems and fail-closed
+  inconsistent-system handling.
+- Added deterministic, monotonic, component-local complementary closure with a
+  structural termination bound and magnitude-independent victim selection;
+  analyzer failures restrict only the affected trusted component, while graph
+  validation failures abort closure.
+- Added the explicit primary-privacy-before-closure orchestration path,
+  exact-visible-only derived-rate projection, and all-or-nothing derived payload
+  guard for raw sibling leakage. `no_data`, coarsened replacements, restricted
+  values, and visible zero retain distinct governed semantics.
+- Added executable V05-V25 fixed and bounded metamorphic tests. No aggregate
+  query, real M10 route, migration, schema, permission, entitlement, production
+  privacy policy, UI, deployment, or `tis.db` change was introduced.
+
+## 2026-09-05 - M10 B1 Pre-B2 Contract Hardening
+
+- Reconciled and encoded the approved closed B1/B2 identity vocabularies as
+  string-backed enums: ten metric codes, three measure components, and six
+  membership grains, preserving exact serialized strings and canonical-key/
+  equality/hash behavior while rejecting unknown free text.
+- Recorded the approved metric-to-component/grain mapping as immutable
+  declarative metadata. `rate` and `percentage` are explicitly excluded from
+  Cell identity and remain future derived disclosures after privacy closure.
+- Tightened `RelationshipTerm` to accept only an actual Python `int` equal to
+  `+1` or `-1`; bool, float, `Fraction`, `Decimal`, null, strings, zero, and
+  other coefficients are rejected. Added focused boundary, vocabulary,
+  serialization, canonicalization, tenant, transposition, and overlap tests.
+- Added no B2 reconstruction/closure logic, route, query, permission,
+  entitlement, migration, schema, or deployment behavior.
+
+## 2026-09-05 - M10 B1 Privacy Relationship Graph Primitives
+
+- Added `talent_analytics_relationship_graph.py` with a tenant-bound canonical
+  Cell registry, value-independent Relationship identity/deduplication,
+  Cell-to-Relationship adjacency, fail-closed graph validation, and
+  deterministic bipartite connected-component discovery.
+- Added focused B1 tests for unknown/cross-tenant references, forbidden
+  coefficients, duplicate/degenerate terms, global-sign equivalence,
+  insertion-order independence, disconnected and bridged components, shared
+  Program/Branch coordinates, nested topology, transposition, overlap-pair
+  symmetry, value/no-data independence, and prohibited dependencies.
+- Updated the V01-V25 ledger: V04/V20/V22 are implemented; V16/V24 are partial
+  only for B1 structural behavior. No rank/RREF/nullspace/reconstruction,
+  complementary graph closure, victim selection, query, route, schema,
+  migration, entitlement, privacy threshold/provider, UI, or deployment was
+  introduced.
+
+## 2026-09-05 - M10 B0 Organization Intelligence Contract / Conformance Harness
+
+- Added `talent_org_intelligence_contract.py` as narrow non-functional
+  scaffolding for canonical value-independent Cell identity, exact `+1`/`-1`
+  additive Relationship topology, inherited M9 privacy projection states,
+  tenant separation, and explicit V01-V25 ownership/status traceability.
+- Added `tests/test_talent_org_intelligence_contract.py` to execute V01-V03,
+  state/canonicalization/forbidden-field contracts, prove no real M10 route is
+  registered, and retain every later B1/B2 vector without falsely marking it
+  implemented or silently skipping it.
+- Added no query, route, graph solver, reconstruction analyzer, privacy
+  threshold/provider, permission, entitlement, production limit, schema,
+  migration, UI, Talent Score, Potential Rate, or cross-Program
+  normalization. B1/B2 execution remains deferred.
 
 ## 2026-09-05 - Talent & Potential M9 Deterministic Talent Analytics (Implemented, Remediated, Then Committed/Pushed On dev)
 
