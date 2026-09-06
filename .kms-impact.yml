@@ -1,16 +1,12 @@
 knowledge_impact: yes
-summary: Implement M10 B0-B5 Organization Intelligence foundations and the single Organization Overview route through tenant/year/historical-Branch authorization, M9 primary privacy, B2 reconstruction closure, PrivacyClosedProjectionSet, and safe serialization. Preserve no-data-not-zero semantics, independently authorized Candidate and Identification metrics, identified-only decisions, and fail-closed production provider gates. Add no schema, migration, permission, entitlement, UI, Talent Map, or other M10 route.
+summary: Implement and close M10 B6 Talent Map with Program-by-Branch and Program-by-Grade factual matrices, presentation-only branch_program transpose, backend-authoritative totals, shared canonical Cells, sparse no-data-safe relationships, M9 primary privacy, B2 closure, and privacy-closed serialization. Add no ranking, Talent Score, cross-Program normalization, B7 route, schema, migration, permission, entitlement, or deployment.
 affected_areas:
-  - talent-organization-intelligence-contract
-  - privacy-relationship-graph
-  - reconstruction-analyzer
-  - privacy-closure
-  - authorization-context
-  - aggregate-query-primitives
-  - organization-overview
-  - program-configuration-metrics
-  - tenant-isolation
+  - talent-organization-intelligence
+  - talent-map
+  - sparse-matrix-privacy
+  - reconstruction-closure
   - historical-branch-scope
+  - tenant-isolation
   - privacy-closed-serialization
   - tests
   - documentation

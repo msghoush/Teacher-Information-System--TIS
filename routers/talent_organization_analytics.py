@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from fractions import Fraction
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -17,6 +18,9 @@ from talent_org_intelligence_contract import (
     CellIdentity, MeasureComponent, MembershipGrain, MetricCode, Relationship, RelationshipTerm,
 )
 import talent_org_intelligence_service as svc
+import talent_org_talent_map as talent_map
+import academic_grade
+import models
 
 
 router = APIRouter(prefix="/api/talent/organization-analytics", tags=["Talent Organization Analytics"])
@@ -168,5 +172,91 @@ def organization_overview(
         )
     except (svc.OrganizationAnalyticsError, PrivacyClosureError, KeyError, TypeError, ValueError):
         return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+    except Exception:
+        return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+
+
+@router.get("/talent-map")
+def organization_talent_map(
+    academic_year_id: int = Query(..., gt=0), dimension: str = Query("program_branch"),
+    metric: str = Query(MetricCode.COMPLETION_COVERAGE.value),
+    program_ids: Optional[list[int]] = Query(None), branch_id: Optional[int] = Query(None, gt=0),
+    grade_level: Optional[str] = Query(None), db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
+    breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
+    policy=Depends(resolve_privacy_policy_provider),
+):
+    try:
+        context = svc.resolve_access_context(db, user=current_user, academic_year_id=academic_year_id, availability_provider=availability_provider)
+    except svc.OrganizationAnalyticsError as exc:
+        status = 401 if exc.code == "authentication_required" else 404 if exc.code == "not_found" else 403
+        return _error(exc.code, exc.message, 503 if exc.code == "organization_analytics_unavailable" else status)
+    except Exception:
+        return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    canonical_dimension = "branch" if dimension in {"program_branch", "branch_program"} else "grade" if dimension == "program_grade" else None
+    if canonical_dimension is None:
+        return _error("invalid_filter", "Talent Map dimension is unsupported.", 400)
+    try:
+        selected_metric = MetricCode(metric)
+    except ValueError:
+        return _error("invalid_filter", "Talent Map metric is unsupported.", 400)
+    if selected_metric not in talent_map.COUNT_METRICS | set(talent_map.RATE_METRICS):
+        return _error("invalid_filter", "Talent Map metric is unsupported.", 400)
+    candidate_metric = selected_metric in {MetricCode.CANDIDATE_COUNT, MetricCode.CANDIDATE_OF_ELIGIBLE}
+    identification_metric = selected_metric in {MetricCode.IDENTIFIED_COUNT, MetricCode.IDENTIFIED_OF_ELIGIBLE}
+    if candidate_metric and not context.candidate_projection_allowed or identification_metric and not context.identification_projection_allowed:
+        return _error("forbidden", "Talent Map metric access is denied.", 403)
+    if policy is None:
+        return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    try:
+        authorized = svc.authorized_program_universe(db, context)
+        filters = svc.resolve_filters(db, context, {"program_ids": program_ids or (), "branch_id": branch_id, "grade_level": grade_level}, authorized_program_ids=authorized)
+        selected = filters.program_ids or authorized
+        program_rows = db.query(models.TalentProgram.id, models.TalentProgram.name).filter(models.TalentProgram.school_group_id == context.school_group_id, models.TalentProgram.id.in_(selected or (-1,))).order_by(models.TalentProgram.name, models.TalentProgram.id).all()
+        programs = tuple({"id": int(row.id), "label": row.name} for row in program_rows)
+        selected = tuple(item["id"] for item in programs)
+        if canonical_dimension == "branch":
+            query = db.query(models.Branch.id, models.Branch.name).filter(models.Branch.school_group_id == context.school_group_id)
+            if not context.all_branches:
+                query = query.filter(models.Branch.id.in_(context.accessible_historical_branch_ids or (-1,)))
+            if filters.branch_id is not None:
+                query = query.filter(models.Branch.id == filters.branch_id)
+            columns = tuple({"id": int(row.id), "label": row.name} for row in query.order_by(models.Branch.name, models.Branch.id).all())
+        else:
+            grades = (filters.grade_level,) if filters.grade_level else academic_grade.GRADE_LEVELS
+            columns = tuple({"id": grade, "label": grade} for grade in grades)
+        multiplier = 2 if selected_metric in talent_map.RATE_METRICS else 1
+        breadth_version = svc.enforce_breadth(
+            breadth_policy, projection_family=f"program_{canonical_dimension}", row_count=len(programs), column_count=len(columns),
+            prospective_cells=len(programs) * len(columns) * multiplier,
+            relationship_estimate=(len(programs) + len(columns) + 1) * multiplier, program_count=len(programs),
+        )
+        population = svc.frozen_membership_query(db, context, filters, authorized_program_ids=authorized)
+        coverage = svc.coverage_by_program_branch(db, population) if canonical_dimension == "branch" else svc.coverage_by_program_grade(db, population)
+        facts = {}
+        for row in coverage:
+            value = int(row.branch_id) if canonical_dimension == "branch" else str(row.grade_level)
+            fact = facts.setdefault((int(row.program_id), value), {"population": 0, "completed": 0, "started": 0})
+            fact["population"] += row.count
+            fact["completed"] += row.count if row.status == "completed" else 0
+            fact["started"] += row.count if row.status != "unassessed" else 0
+        if candidate_metric or identification_metric:
+            resource = "candidate" if candidate_metric else "identification"
+            for row in svc.sensitive_membership_by_dimension(db, context, population, dimension=canonical_dimension, resource=resource) or ():
+                value = row.branch_id if canonical_dimension == "branch" else row.grade_level
+                facts.setdefault((row.program_id, value), {"population": 0, "completed": 0, "started": 0})["candidate" if candidate_metric else "identified"] = row.count
+        result = talent_map.build_talent_map_closed(context=context, dimension=canonical_dimension, metric=selected_metric, program_ids=selected, column_values=tuple(item["id"] for item in columns), facts=facts, policy=policy)
+        fingerprint = svc.compute_request_context_fingerprint(context, projection_family=f"program_{canonical_dimension}", metric=selected_metric.value, authorized_program_ids=selected, filters=filters, privacy_policy_version=str(policy.privacy_policy_version), semantic_contract_version="m10-b6-v1")
+        return talent_map.serialize_talent_map(
+            result, requested_orientation=dimension, canonical_dimension=canonical_dimension, metric=selected_metric,
+            programs=programs, columns=columns, context_payload={
+                "academic_year_id": academic_year_id, "authorization_scope": "organization" if context.all_branches else "authorized_branches",
+                "privacy_policy_version": str(policy.privacy_policy_version), "breadth_policy_version": breadth_version,
+                "request_context_fingerprint": fingerprint,
+            },
+        )
+    except svc.OrganizationAnalyticsError as exc:
+        return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
     except Exception:
         return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)

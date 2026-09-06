@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Module Map
 
-## Talent Organization Intelligence Overview (M10 B0-B5, Working Tree Only)
+## Talent Organization Intelligence (M10 B0-B6)
 
 - `talent_org_intelligence_contract.py`: non-functional contract types for
   canonical `CellIdentity`, public `PrivacyProjection`, exact `+1`/`-1`
@@ -65,9 +65,28 @@ source_of_truth: true
 - `tests/test_talent_organization_overview.py`: end-to-end B5 authorization,
   tenant/year, historical Branch, metric omission, privacy/no-data, active
   predicate, and safe-serialization coverage.
-- B5 boundary: no additional M10 route, new permission, entitlement mapping,
-  production provider/ceiling, schema, migration, Talent Map, or UI exists.
+- B5 checkpoint boundary: at that checkpoint no additional M10 route, new
+  permission, entitlement mapping, production provider/ceiling, schema,
+  migration, Talent Map, or UI existed.
+- `talent_org_talent_map.py`: B6 canonical Program-by-Branch/Program-by-Grade
+  Cell construction, shared row/column/scope totals and Relationships,
+  M9/B2 closure orchestration, exact-source rate derivation, and a serializer
+  accepting only its privacy-closed wrapper.
+  Sparse totals use one shared authoritative-child helper for both arithmetic
+  and graph terms; empty totals remain `no_data` and one-child equalities stay
+  connected for privacy closure.
+- `routers/talent_organization_analytics.py`: additionally exposes only
+  `/talent-map`, enforcing metric/dimension/filter/secondary-permission and
+  injected breadth boundaries before set-based aggregation.
 
+- `tests/test_talent_organization_talent_map.py`: B6 route, scope, metric,
+  permission, breadth, transpose, totals, no-data, serializer, and 2x2
+  reconstruction coverage.
+- B6 adds no new permission, entitlement, schema, migration, production
+  provider, ranking, universal score, Program Portfolio, Branch Intelligence,
+  overlap, longitudinal, Student drill, frontend, or B7+ route.
+  The targeted independent sparse-matrix re-review passed after remediation;
+  B6 is closed.
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 
 - `talent_analytics_service.py`: read-only context/filter resolution and

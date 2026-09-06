@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-06 - M10 B6 Talent Map
+
+- Added the bounded Program-by-Branch and Program-by-Grade Talent Map route,
+  with a presentation-only `branch_program` alias.
+- Added canonical shared matrix Cells, backend row/column/authorized-scope
+  totals, additive graph relationships, mandatory breadth enforcement, M9
+  primary privacy, B2 closure, and privacy-closed-only serialization.
+- Preserved historical Branch scope and secondary Candidate/Identification
+  permissions, rejected Program-level required Period execution, and added no
+  schema, migration, ranking, universal score, production provider, or B7+ route.
+- Remediated the independent-review sparse-total blocker by using one exact
+  authoritative numeric child collection for both total summation and
+  Relationship terms. Rectangular `no_data` Cells remain absent from equations,
+  empty totals remain `no_data`, one-child dependencies remain connected, and
+  B2 global behavior is unchanged. The targeted independent sparse-matrix
+  re-review passed, closing B6.
+
 ## 2026-09-06 - M10 B5 Organization Overview
 
 - Extended the closed M10 identity contract by exactly two P1 count metrics,

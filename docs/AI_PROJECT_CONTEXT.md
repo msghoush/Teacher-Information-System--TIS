@@ -7,7 +7,7 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
-## Organization Intelligence M10 B0-B5 Overview (Working Tree Only)
+## Organization Intelligence M10 B0-B6 Overview And Talent Map
 
 M10 B0 adds only an executable, non-functional conformance boundary in
 `talent_org_intelligence_contract.py` and
@@ -95,7 +95,23 @@ eligible memberships, completion coverage, and required Period execution;
 Candidate and `decision == identified` metrics are omitted unless their own
 permissions are present. It constructs canonical Cells/Relationships, applies
 M9 primary privacy before B2 closure, and serializes only a
-`PrivacyClosedProjectionSet`. No other M10 route or Talent Map exists.
+`PrivacyClosedProjectionSet`.
+
+B6 is implemented, independently reviewed, and closed after the targeted
+sparse-matrix re-review passed. It adds `GET /api/talent/organization-analytics/talent-map` for canonical
+Program-by-Branch and Program-by-Grade factual matrices. `branch_program` is
+only a post-closure presentation transpose. Supported metrics are the approved
+frozen/completed/started/Candidate/identified counts and eligible rates;
+Program-level `required_period_execution` is rejected. Backend row, column,
+and authorized-scope totals share canonical Cells and additive Relationships
+before M9 primary privacy and B2 closure. There is no ranking, universal score,
+KPI/rubric comparison, or B7+ route.
+The initial B6 review found a sparse-matrix reconstruction blocker: totals
+excluded `no_data` arithmetically while their Relationships included those
+coordinates, causing B2 to discard the equation. The builder now derives both
+each total and its Relationship from one identical authoritative-numeric child
+set. Empty totals remain `no_data`; a single populated child retains the valid
+`Total - Child = 0` dependency. Global B2 `no_data` semantics are unchanged.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

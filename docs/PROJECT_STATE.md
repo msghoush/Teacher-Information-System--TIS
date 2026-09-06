@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Project State
 
-## M10 B0-B5 Organization Overview (Working Tree Only)
+## M10 B0-B6 Organization Overview And Talent Map
 
 M10 B0-B2 is implemented without an Organization Intelligence route, aggregate
 query, privacy threshold, entitlement rule, schema, or migration.
@@ -42,7 +42,22 @@ enabled Program annual configuration; active is exactly its subset whose
 durable Program lifecycle status is `active`. The route preserves historical
 Branch filtering, skips Candidate/Identification SQL without their independent
 permissions, counts only `decision == identified`, and serializes exclusively
-after M9 primary privacy and B2 closure. No other M10 route exists.
+after M9 primary privacy and B2 closure.
+
+B6 is implemented, independently reviewed, and closed after the targeted
+sparse-matrix re-review passed. It adds only
+`GET /api/talent/organization-analytics/talent-map`, supporting
+Program-by-Branch and Program-by-Grade. `branch_program` reuses the same
+canonical topology and transposes presentation only after closure. Backend
+row/column/authorized-scope totals participate in the graph. It supports the
+approved frozen/completed/started/Candidate/identified counts and eligible
+rates, rejects Program-level required Period execution, and adds no ranking,
+universal score, schema, migration, UI, or B7+ route. Production privacy,
+commercial availability, and breadth providers remain fail-closed.
+The sparse-total fix uses the exact same authoritative numeric child set for
+total arithmetic and graph terms, excluding rectangular `no_data` display
+coordinates without treating them as zero. Empty totals stay `no_data`; one-
+child totals keep an explicit two-term equality. B2 itself is unchanged.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and

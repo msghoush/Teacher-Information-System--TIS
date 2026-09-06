@@ -11,8 +11,9 @@ source_of_truth: true
 
 B0 Contract / Conformance Harness, B1 structural Privacy Relationship Graph,
 B2 Reconstruction Analyzer / Privacy Closure, B3/B4 internal access/query
-foundation, and B5 Organization Overview are implemented in the
-working tree. They define and test the approved
+foundation and B5 Organization Overview are complete; B6 Talent Map is
+implemented, independently reviewed, and closed after its sparse-total blocker
+was remediated and the targeted re-review passed. They define and test the approved
 canonical Cell identity, `+1`/`-1` additive
 Relationship topology, inherited M9 privacy states, tenant separation,
 forbidden contract fields, explicit V01-V25 milestone ownership, canonical
@@ -21,7 +22,7 @@ deterministic connected components, exact Fraction RREF, per-coordinate
 uniqueness, inconsistent-system handling, monotonic deterministic closure,
 component-local failure, exact-source derived rates, and sibling-leak guards.
 They add no production privacy threshold, entitlement, schema, migration, UI,
-or Talent Map behavior.
+or frontend behavior.
 The B3/B4 foundation resolves tenant/year/historical-Branch authorization and
 secondary permission projection, fails closed behind unconfigured commercial
 availability and breadth providers, performs only set-based frozen-population
@@ -29,8 +30,13 @@ aggregation, skips Candidate/Identification SQL without their own permissions,
 keeps M8 execution at Program grain, and requires serialization to enter
 through B2-closed projections. B5 exposes only the bounded organization
 Overview route with the approved 12-metric/7-grain contract, including P1
-configured and active Program-configuration counts. Other M10 routes remain
-unimplemented.
+configured and active Program-configuration counts. B6 adds the bounded
+Program-by-Branch/Program-by-Grade Talent Map with a post-closure transpose
+alias, approved common factual metrics, backend totals, breadth enforcement,
+and shared B2 closure. It rejects required Period execution at Branch/Grade
+grain and adds no ranking or universal score. Sparse totals now derive values
+and graph terms from one authoritative populated-child set while preserving
+global `no_data` semantics. B6 is closed; B7+ routes remain unimplemented.
 The required pre-B2 hardening is complete: canonical metric/component/grain
 vocabularies are closed to the approved serialized strings, rate/percentage
 remain derived rather than Cell identity components, and RelationshipTerm

@@ -106,6 +106,14 @@ class MembershipCountRow:
 
 
 @dataclass(frozen=True)
+class DimensionMembershipCountRow:
+    program_id: int
+    branch_id: Optional[int]
+    grade_level: Optional[str]
+    count: int
+
+
+@dataclass(frozen=True)
 class RequiredExecutionRow:
     program_id: int
     executed: int
@@ -475,6 +483,50 @@ def identification_membership_counts(
     return tuple(MembershipCountRow(int(program_id), int(count)) for program_id, count in rows)
 
 
+def sensitive_membership_by_dimension(
+    db: Session, context: OrganizationAnalyticsAccessContext, population_query,
+    *, dimension: str, resource: str,
+) -> Optional[tuple[DimensionMembershipCountRow, ...]]:
+    """One permission-gated set query for Candidate/identified matrix cells."""
+    if dimension not in {"branch", "grade"} or resource not in {"candidate", "identification"}:
+        raise OrganizationAnalyticsError("invalid_filter", "Matrix membership query is invalid.")
+    if resource == "candidate" and not context.candidate_projection_allowed:
+        return None
+    if resource == "identification" and not context.identification_projection_allowed:
+        return None
+    dimension_column = (
+        models.TalentAssessmentCyclePopulationMember.branch_id
+        if dimension == "branch" else models.TalentAssessmentCyclePopulationMember.grade_level
+    )
+    base = population_query.with_entities(
+        models.TalentAssessmentCyclePopulationMember.id.label("member_id"),
+        models.TalentAssessmentCyclePopulationMember.program_id.label("program_id"),
+        dimension_column.label("dimension_value"),
+    ).subquery()
+    query = db.query(base.c.program_id, base.c.dimension_value)
+    query = query.select_from(base).join(
+        models.TalentStudentAssessment,
+        models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+    ).join(
+        models.TalentReviewCandidate,
+        models.TalentReviewCandidate.assessment_id == models.TalentStudentAssessment.id,
+    )
+    if resource == "candidate":
+        query = query.add_columns(func.count(models.TalentReviewCandidate.id))
+    else:
+        query = query.join(
+            models.TalentOfficialIdentification,
+            models.TalentOfficialIdentification.review_candidate_id == models.TalentReviewCandidate.id,
+        ).filter(models.TalentOfficialIdentification.decision == "identified").add_columns(
+            func.count(models.TalentOfficialIdentification.id)
+        )
+    rows = query.group_by(base.c.program_id, base.c.dimension_value).all()
+    return tuple(DimensionMembershipCountRow(
+        int(program_id), int(value) if dimension == "branch" else None,
+        str(value) if dimension == "grade" else None, int(count),
+    ) for program_id, value, count in rows)
+
+
 def required_period_execution_counts(
     db: Session, context: OrganizationAnalyticsAccessContext, *, authorized_program_ids: tuple[int, ...],
 ) -> tuple[RequiredExecutionRow, ...]:
@@ -513,5 +565,11 @@ def required_period_execution_counts(
 
 def resolve_organization_analytics_availability_provider():
     """Production dependency hook; fail closed until commercial mapping is configured."""
+
+    return None
+
+
+def resolve_organization_analytics_breadth_policy():
+    """Production dependency hook; fail closed until breadth policy is configured."""
 
     return None

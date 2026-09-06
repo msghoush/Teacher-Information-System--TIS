@@ -22,6 +22,23 @@ constructed only after M9 primary privacy and B2 reconstruction closure through
 the `PrivacyClosedProjectionSet` boundary. No production privacy or commercial
 availability provider is approved, so production requests remain fail-closed.
 
+## Talent Map Authority
+
+M10 B6 provides a factual Program-by-Branch or Program-by-Grade matrix over
+frozen Cycle membership. `branch_program` is presentation-only transpose after
+privacy closure. Matrix facts and backend row/column/authorized-scope totals
+are canonical Cells in compatible additive Relationships; rates derive only
+from closed numerator and denominator Cells. Candidate and identified metrics
+retain independent permissions, and identified means only `decision ==
+identified`. Required Period execution, ranking, Program-native rubric/KPI
+comparison, and universal Talent scores are unsupported. Missing production
+privacy, availability, or breadth providers fail closed.
+The B6 sparse-matrix rule derives a total and its additive terms from the same
+authoritative numeric child collection. Rectangular `no_data` coordinates
+remain displayable but are absent—not zero—in the equation. Empty totals are
+`no_data`; a single authoritative child uses `Total - Child = 0`. The targeted
+independent sparse-matrix re-review passed, and B6 is closed.
+
 ## Talent Annual Evaluation Planning Authority
 
 The canonical planning chain is `TalentProgram -> Program Academic Year
