@@ -21,6 +21,28 @@ The P2 pair Cells pass through M9 primary privacy, B2 closure without fabricated
 overlap equations, `PrivacyClosedProjectionSet`, and the strict B8 serializer.
 The response contains no Student identity or Candidate/Identification overlap.
 
+## M10 B9 Student Drill Flow
+
+An authorized Student Drill request resolves the identical B3/B4 pipeline as
+every other M10 route (authentication, SchoolGroup, commercial availability,
+`talent_analytics.view`, tenant-bound Academic Year, historical Branch
+scope), then explicitly requires `talent_analytics.view_students` (true AND
+composition) before any identifiable query. Filters resolve through the
+existing `resolve_filters`/`authorized_program_universe` primitives and
+breadth is enforced (`projection_family="student_drill"`) before any
+identifiable SQL. The system counts distinct authorized Student IDs from frozen
+`TalentAssessmentCyclePopulationMember` context (never current Placement) into
+one P7 `student_drill_population`/`count`/`distinct_student` Cell, then runs it
+through the identical B2 closure pipeline
+(`apply_primary_privacy_and_close`/`PrivacyClosedProjectionSet`) every other
+M10 route uses. Only a visible gate permits pagination over distinct Students,
+followed by page-bounded frozen Program/Cycle contexts and independently
+permission-gated Candidate/Identification evidence for those exact contexts.
+An advisory Learner Profile capability hint remains top-level. The strict
+`StudentDrillClosedProjection` wrapper and its serializer reject any raw SQL
+row, raw ORM object, or non-visible gate. The response has no `total_count`,
+no Student Talent Score/ranking, and no direct Student-ID filter.
+
 ## Deterministic Talent Analytics Flow (M9, Committed/Pushed On dev)
 
 1. An actor with `talent_analytics.view` requests one Program + one Academic

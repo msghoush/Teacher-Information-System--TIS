@@ -7,6 +7,42 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-06 - M10 B9 Student Drill
+
+- Added `GET /api/talent/organization-analytics/students`, the first M10
+  route exposing Student-identifiable output, requiring `talent_analytics.
+  view` AND `talent_analytics.view_students` (true AND composition matching
+  the M9 `analytics_students` precedent).
+- Student inclusion uses only frozen `TalentAssessmentCyclePopulationMember`
+  context (Branch/Grade/Section) inside the authorized tenant/AY/historical-
+  Branch/Program scope; current `StudentAcademicPlacement` never decides
+  inclusion or supplies displayed context.
+- Added `talent_org_student_drill.py`: one gate-level P7
+  `student_drill_population`/`count`/`distinct_student` Cell runs through the
+  same B2 closure pipeline every other M10 route uses
+  (no per-Student additive relationship graph), and a strict
+  `StudentDrillClosedProjection` closed wrapper is the only accepted
+  serialization input, rejecting raw SQL rows, raw ORM objects, and a
+  non-visible gate with `TypeError` (mirroring B8's closed-wrapper
+  discipline).
+- Candidate/Identification fields are independently permissioned and
+  query-skipped (not response-filtered); the key is absent, never
+  `null`/`false`. Learner Profile access exposes only an advisory
+  `can_view_learner_profile` capability hint - the real Learner Profile
+  route still independently authorizes.
+- Pagination (limit 25/max 100, `has_more`, no `total_count`) is over distinct
+  Students in deterministic name/id order; no Student Talent Score, ranking,
+  AI field, or Educator Input was added.
+- No direct Student-ID filter is exposed (avoids an existence oracle since
+  the existing M10 filter resolver has no governed Student-identity filter
+  contract). Added no schema, migration, permission, entitlement,
+  longitudinal/B10, UI, or AI capability.
+- Remediated independent-review findings by gating on distinct authorized
+  Students rather than memberships, paginating one top-level row per Student,
+  and returning deterministic frozen Program/Cycle contexts. Candidate and
+  Identification evidence remains independently permissioned and exact-context
+  scoped. Targeted independent re-review passed; B9 is closed.
+
 ## 2026-09-06 - M10 B8 Participation Overlap
 
 - Added the bounded Participation Overlap route using distinct Open/Closed

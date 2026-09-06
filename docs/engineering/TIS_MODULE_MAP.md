@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Module Map
 
-## Talent Organization Intelligence (M10 B0-B8)
+## Talent Organization Intelligence (M10 B0-B9)
 
 - `talent_org_intelligence_contract.py`: non-functional contract types for
   canonical `CellIdentity`, public `PrivacyProjection`, exact `+1`/`-1`
@@ -113,6 +113,26 @@ source_of_truth: true
 - B8 adds exactly one contract metric (`participation_overlap` = P2 `count` at
   `program_participation` grain) and no permission, entitlement, schema,
   migration, ranking, score, UI, AI, Candidate/Identification overlap, or B9+.
+- `talent_org_student_drill.py`: B9 gate-level P7
+  `student_drill_population`/`count`/`distinct_student` Cell fed by distinct
+  authorized Students (no per-Student additive relationship), one minimized
+  top-level `StudentDrillRow` per Student with frozen Program/Cycle contexts, a strict
+  `StudentDrillClosedProjection` closed wrapper that raises `TypeError` for a
+  raw SQL row/ORM object/non-visible gate, distinct-Student pagination,
+  page/context-bounded Candidate/Identification fetch, and a closed-only serializer.
+- `routers/talent_organization_analytics.py`: additionally exposes only
+  `/students` (B9), requiring `talent_analytics.view_students` composed with
+  `talent_analytics.view` before any identifiable query, reusing existing
+  access/filter/breadth primitives.
+- `tests/test_talent_organization_student_drill.py`: B9 route, permission
+  composition, historical Branch/current-placement-irrelevance, filters,
+  pagination, minimization, P7 gate, Candidate/Identification isolation and
+  semantics, Learner Profile hint, serializer strict-typing, bounded query
+  family, and aggregate-route regression coverage.
+- B9 adds no new permission, entitlement, schema, migration, ranking, score,
+  AI field, Educator Input exposure, Student-ID filter, UI, or B10+
+  (longitudinal) route.
+
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 
 - `talent_analytics_service.py`: read-only context/filter resolution and

@@ -20,6 +20,7 @@ from talent_analytics_privacy import COARSENED, NO_DATA, RESTRICTED, SUPPRESSED,
 PRIVACY_STATES = (VISIBLE, SUPPRESSED, COARSENED, RESTRICTED, NO_DATA)
 RELATIONSHIP_COEFFICIENTS = (-1, 1)
 PARTICIPATION_OVERLAP_PRIVACY_CLASS = "P2"
+STUDENT_DRILL_POPULATION_PRIVACY_CLASS = "P7"
 
 
 class _SerializedStringEnum(str, Enum):
@@ -41,6 +42,7 @@ class MetricCode(_SerializedStringEnum):
     IDENTIFIED_COUNT = "identified_count"
     IDENTIFIED_OF_ELIGIBLE = "identified_of_eligible"
     PARTICIPATION_OVERLAP = "participation_overlap"
+    STUDENT_DRILL_POPULATION = "student_drill_population"
 
 
 class MeasureComponent(_SerializedStringEnum):
@@ -73,6 +75,7 @@ METRIC_IDENTITY_MAPPING = MappingProxyType({
     MetricCode.IDENTIFIED_COUNT: ((MeasureComponent.COUNT,), MembershipGrain.IDENTIFICATION_MEMBERSHIP),
     MetricCode.IDENTIFIED_OF_ELIGIBLE: ((MeasureComponent.NUMERATOR, MeasureComponent.DENOMINATOR), MembershipGrain.IDENTIFICATION_MEMBERSHIP),
     MetricCode.PARTICIPATION_OVERLAP: ((MeasureComponent.COUNT,), MembershipGrain.PROGRAM_PARTICIPATION),
+    MetricCode.STUDENT_DRILL_POPULATION: ((MeasureComponent.COUNT,), MembershipGrain.DISTINCT_STUDENT),
 })
 
 

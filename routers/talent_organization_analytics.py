@@ -21,6 +21,7 @@ import talent_org_intelligence_service as svc
 import talent_org_talent_map as talent_map
 import talent_org_b7 as b7
 import talent_org_participation_overlap as participation_overlap
+import talent_org_student_drill as student_drill
 import academic_grade
 import models
 
@@ -412,6 +413,81 @@ def organization_participation_overlap(
             "branch_id": filters.branch_id,
             "canonical_pair_count": pair_count,
             "presentation_cell_count": len(selected) * len(selected),
+            "privacy_policy_version": str(policy.privacy_policy_version),
+            "breadth_policy_version": breadth_version,
+            "request_context_fingerprint": fingerprint,
+        })
+    except svc.OrganizationAnalyticsError as exc:
+        return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
+    except Exception:
+        return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+
+
+@router.get("/students")
+def organization_student_drill(
+    academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
+    branch_id: Optional[int] = Query(None, gt=0), grade_level: Optional[str] = Query(None),
+    limit: int = Query(25, ge=1), offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
+    breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
+    policy=Depends(resolve_privacy_policy_provider),
+):
+    """M10 B9 identifiable Student Drill.
+
+    Requires BOTH `talent_analytics.view` (enforced inside
+    `resolve_access_context`) AND `talent_analytics.view_students` (checked
+    explicitly below) - a true AND composition, matching the M9
+    `analytics_students` precedent. No identifiable Student fact is queried
+    before both permissions and historical Branch/AY scope are established.
+    """
+    context, error = _b7_context(db, current_user, academic_year_id, availability_provider)
+    if error:
+        return error
+    if not context.student_drill_allowed:
+        return _error("forbidden", "Student drill access is denied.", 403)
+    if policy is None:
+        return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    if limit > 100 or offset < 0:
+        return _error("invalid_pagination", "limit must be at most 100 and offset must be non-negative.", 400)
+    try:
+        authorized = svc.authorized_program_universe(db, context)
+        filters = svc.resolve_filters(
+            db, context, {"program_ids": program_ids or (), "branch_id": branch_id, "grade_level": grade_level},
+            authorized_program_ids=authorized,
+        )
+        selected = filters.program_ids or authorized
+        field_count = 6 + sum((
+            context.candidate_projection_allowed, context.identification_projection_allowed,
+            context.learner_profile_action_allowed,
+        ))
+        breadth_version = svc.enforce_breadth(
+            breadth_policy, projection_family="student_drill", row_count=limit, column_count=field_count,
+            prospective_cells=limit * field_count, relationship_estimate=0, program_count=len(selected),
+        )
+        population = svc.frozen_membership_query(db, context, filters, authorized_program_ids=authorized)
+        eligible_count = student_drill.count_distinct_students(population)
+        closed_gate, gate_id = student_drill.build_gate_closure(context=context, eligible_count=eligible_count, policy=policy)
+        if not student_drill.gate_visible(closed_gate, gate_id):
+            return _error("analytics_drill_restricted", "This Student cohort is not available for drill.", 403)
+        rows, has_more = student_drill.fetch_student_rows(
+            db, population, limit=limit, offset=offset,
+            has_candidate=context.candidate_projection_allowed,
+            has_identification=context.identification_projection_allowed,
+            has_learner_profile=context.learner_profile_action_allowed,
+        )
+        result = student_drill.StudentDrillClosedProjection(
+            closed=closed_gate, gate_identity=gate_id, rows=rows, has_more=has_more,
+        )
+        fingerprint = svc.compute_request_context_fingerprint(
+            context, projection_family="student_drill", metric=MetricCode.STUDENT_DRILL_POPULATION.value,
+            authorized_program_ids=selected, filters=filters,
+            privacy_policy_version=str(policy.privacy_policy_version), semantic_contract_version="m10-b9-v1",
+        )
+        return student_drill.serialize_projection(result, context_payload={
+            "academic_year_id": academic_year_id,
+            "authorization_scope": "organization" if context.all_branches else "authorized_branches",
+            "pagination": {"limit": limit, "offset": offset, "has_more": has_more},
             "privacy_policy_version": str(policy.privacy_policy_version),
             "breadth_policy_version": breadth_version,
             "request_context_fingerprint": fingerprint,

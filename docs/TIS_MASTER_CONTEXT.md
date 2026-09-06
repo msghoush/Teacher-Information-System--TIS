@@ -65,6 +65,37 @@ row/column overlap equations or totals. Candidate/Identification overlap,
 Talent Breadth, ranking, scoring, and Student-identifiable output are absent;
 stateful cross-request controls remain a production privacy-provider gate.
 
+## Student Drill Authority
+
+M10 B9 exposes `GET /api/talent/organization-analytics/students`, the first
+Student-identifiable M10 route. It requires `talent_analytics.view` AND
+`talent_analytics.view_students` (true AND composition), and derives Student
+inclusion only from frozen `TalentAssessmentCyclePopulationMember` context
+within the authorized tenant/Academic-Year/historical-Branch/Program scope;
+current `StudentAcademicPlacement` never decides inclusion or supplies
+displayed Branch/Grade/Section. Every identifiable Student row is P7
+regardless of narrow scope, page size, or a Candidate/Identification field's
+own P5/P6 class - B9 evaluates one gate-level
+`student_drill_population`/`count`/`distinct_student` Cell, fed by distinct
+authorized Student count, through
+the identical B2 closure pipeline (`apply_primary_privacy_and_close`/
+`PrivacyClosedProjectionSet`) every other M10 route uses, since there is no
+authoritative additive relationship across Student rows. Candidate
+(`talent_review_candidates.view`) and Official Identification
+(`talent_official_identifications.view`) fields are independently
+permissioned and query-skipped, not response-filtered - the key is absent,
+never `null`/`false`. Learner Profile access
+(`talent_learner_profiles.view`) exposes only an advisory
+`can_view_learner_profile` hint; the real Learner Profile route still
+independently authorizes. One top-level row exists per Student with explicit
+frozen Program/Cycle contexts. Pagination (limit 25/max 100, `has_more`, no
+`total_count`) is over distinct Students in deterministic name/id order - no Student Talent
+Score, ranking, AI field, or Educator Input. No direct Student-ID filter is
+exposed, to avoid an existence oracle. B9 adds no schema, migration,
+permission, entitlement, longitudinal/B10, UI, or AI capability.
+The distinct-Student remediation passed targeted independent re-review; B9 is
+closed.
+
 ## Talent Annual Evaluation Planning Authority
 
 The canonical planning chain is `TalentProgram -> Program Academic Year

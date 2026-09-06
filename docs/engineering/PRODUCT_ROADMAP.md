@@ -29,7 +29,7 @@ availability and breadth providers, performs only set-based frozen-population
 aggregation, skips Candidate/Identification SQL without their own permissions,
 keeps M8 execution at Program grain, and requires serialization to enter
 through B2-closed projections. B5 exposes only the bounded organization
-Overview route within the now-approved 13-metric/7-grain contract, including P1
+Overview route within the now-approved 14-metric/7-grain contract, including P1
 configured and active Program-configuration counts. B6 adds the bounded
 Program-by-Branch/Program-by-Grade Talent Map with a post-closure transpose
 alias, approved common factual metrics, backend totals, breadth enforcement,
@@ -45,8 +45,21 @@ per symmetric Program pair, using distinct Open/Closed frozen-population
 participants and historical Branch scope before a set-based intersection.
 Diagonals are distinct Program participants; no row/column sums or additive
 overlap equations exist. Candidate/Identification overlap, Grade breakdown,
-ranking, Talent Breadth/score, Student drill, frontend, and B9+ remain
-unimplemented.
+ranking, Talent Breadth/score, frontend, and longitudinal B10 remain
+unimplemented. B9 adds the first Student-identifiable M10 route, Student
+Drill, requiring `talent_analytics.view` AND `talent_analytics.view_students`
+(true AND composition); Student inclusion uses only frozen Cycle population
+context in authorized historical Branch/AY/Program scope, never current
+Placement. Every identifiable row is P7 through one gate-level
+`student_drill_population` count at `distinct_student` grain, fed by distinct
+authorized Student count and shared with the same B2 closure pipeline (no
+per-Student additive relationship). One top-level row per Student carries
+deterministic frozen Program/Cycle contexts; Candidate/Identification fields remain
+independently permissioned and query-skipped; Learner Profile access is an
+advisory capability hint only. Pagination is over distinct Students and has no
+total count; there is no Talent Score, ranking, AI field, or direct Student-ID
+filter. B9 remediation passed independent re-review; B9 is closed and B10 is
+not implemented.
 The required pre-B2 hardening is complete: canonical metric/component/grain
 vocabularies are closed to the approved serialized strings, rate/percentage
 remain derived rather than Cell identity components, and RelationshipTerm

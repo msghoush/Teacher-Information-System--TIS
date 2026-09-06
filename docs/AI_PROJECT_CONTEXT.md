@@ -7,7 +7,7 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
-## Organization Intelligence M10 B0-B8
+## Organization Intelligence M10 B0-B9
 
 M10 B0 adds only an executable, non-functional conformance boundary in
 `talent_org_intelligence_contract.py` and
@@ -33,7 +33,8 @@ Pre-B2 hardening and the approved B5 contract extension close the three identity
 enums: metric additionally includes `programs_configured` and `active_programs`, alongside `frozen_eligible`, `completed`,
 `completion_coverage`, `assessment_started`, `started_coverage`,
 `required_period_execution`, `candidate_count`, `candidate_of_eligible`,
-`identified_count`, or `identified_of_eligible`; measure component is exactly
+`identified_count`, `identified_of_eligible`, `participation_overlap`, or
+`student_drill_population`; measure component is exactly
 `count`, `numerator`, or `denominator`; membership grain is exactly
 `frozen_membership`, `distinct_student`, `program_participation`,
 `program_configuration`, `review_candidate_membership`, `identification_membership`, or
@@ -139,6 +140,52 @@ keys while lookup required `(A,B)`, yielding HTTP 500. One explicit numeric
 `canonical_pair_key` now governs construction, raw aggregate lookup, mirrored
 lookup, and canonical output. Targeted independent re-review passed; B8 is
 closed.
+
+B9 adds `GET /api/talent/organization-analytics/students`, the first M10
+route exposing Student-identifiable output. It requires BOTH
+`talent_analytics.view` AND `talent_analytics.view_students` (true AND
+composition, matching the M9 `analytics_students` precedent) - `context.
+student_drill_allowed` is checked explicitly before any identifiable query.
+Candidate (`talent_review_candidates.view`) and Official Identification
+(`talent_official_identifications.view`) fields remain independently
+permissioned and query-skipped (not merely response-filtered) without their
+own permission; the key is absent, never `null`/`false`. Learner Profile
+access (`talent_learner_profiles.view`) only exposes an advisory
+`can_view_learner_profile` capability hint - the real
+`/api/talent/learner-profiles/{student_id}` route still independently
+authorizes. Student inclusion is derived exclusively from frozen
+`TalentAssessmentCyclePopulationMember` context (Branch/Grade/Section) inside
+the requested Academic Year and the actor's authorized historical Branch
+scope, reusing the same `frozen_membership_query`/`resolve_filters`/
+`authorized_program_universe` primitives every other M10 route uses; current
+`StudentAcademicPlacement` never decides inclusion or supplies displayed
+context. Every identifiable Student row is P7 regardless of narrow scope,
+page size, or a Candidate/Identification field's own P5/P6 class. Following
+independent review, B9 builds exactly one gate-level P7 `CellIdentity` using
+`student_drill_population`/`count`/`distinct_student`, fed by
+`COUNT(DISTINCT student_id)`, through the same
+`apply_primary_privacy_and_close`/`PrivacyClosedProjectionSet` pipeline every
+other M10 route uses - mirroring M9's `analytics_students` eligibility-gate
+pattern rather than Cell-wrapping every row - because B9 has no authoritative
+additive cross-Student relationship. `talent_org_student_drill.py`'s
+`StudentDrillClosedProjection` is the sole accepted serialization input; its
+constructor and `serialize_projection` raise `TypeError` for a raw SQL row,
+raw Student/Candidate/Identification ORM object, or a non-visible gate,
+mirroring B8's closed-wrapper discipline. Response grain is one top-level
+Student (id/name and permission-gated Learner Profile hint) with deterministic
+frozen Program/Cycle contexts containing Branch/Grade/Section, assessment
+state, completed KPI result, and permission-gated Candidate/Identification state;
+there is no Student Talent Score, ranking, AI field, or Educator Input.
+Pagination is over distinct Students: default limit 25, max 100,
+deterministic name/id ordering, `has_more`, and no `total_count`. Breadth
+is evaluated (`projection_family="student_drill"`) before any identifiable
+query. No direct Student-ID filter is exposed - the existing M10 filter
+resolver validates `program_ids`/`branch_id`/`grade_level` but has no
+governed Student-identity filter contract, so one was deliberately not
+invented rather than risking an existence oracle. B9 adds no schema,
+migration, permission, entitlement, longitudinal/B10, UI, or AI capability.
+The distinct-Student remediation passed targeted independent re-review; B9 is
+closed and B10 is not implemented.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

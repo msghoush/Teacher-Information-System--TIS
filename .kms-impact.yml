@@ -1,12 +1,13 @@
 knowledge_impact: yes
-summary: Implement and close M10 B8 Participation Overlap with distinct frozen Program participation, historical Branch scoping, canonical symmetric Program-pair identity, one P2 privacy evaluation per pair, and the reviewed canonical pair-key remediation. Add no overlap totals, Candidate or Identification overlap, Student payload, Talent Breadth, ranking, score, B9 route, schema, migration, permission, entitlement, or deployment.
+summary: Implement and close M10 B9 Student Drill with true analytics and student-view permission composition, a P7 distinct-Student population gate before identifiable fetch, distinct-Student pagination, deterministic frozen Program/Cycle contexts, and independently permissioned Candidate, Identification, and Learner Profile projections. Add no schema, migration, permission, entitlement, total count, rank, score, AI, mutation, or B10 route.
 affected_areas:
   - talent-organization-intelligence
-  - participation-overlap
-  - program-participation-intersection
-  - canonical-pair-identity
-  - historical-branch-scope
-  - privacy-closure
+  - student-drill
+  - distinct-student-privacy-gate
+  - distinct-student-pagination
+  - frozen-historical-context
+  - authorization
+  - tenant-isolation
   - privacy-closed-serialization
   - tests
   - documentation
@@ -15,7 +16,6 @@ kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md

@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Project State
 
-## M10 B0-B8 Organization Intelligence
+## M10 B0-B9 Organization Intelligence
 
 M10 B0-B2 is implemented without an Organization Intelligence route, aggregate
 query, privacy threshold, entitlement rule, schema, or migration.
@@ -35,7 +35,7 @@ query current Student Placement. Future serialization must accept a B2 closure
 result through `PrivacyClosedProjectionSet`.
 
 B5 adds only `GET /api/talent/organization-analytics/overview`. The closed
-contract now has 13 MetricCodes and 7 MembershipGrains: B5 added
+contract now has 14 MetricCodes and 7 MembershipGrains: B5 added
 `programs_configured`, `active_programs`, and `program_configuration`, both
 metrics mapped to `count`/`program_configuration` and P1. Configured means an
 enabled Program annual configuration; active is exactly its subset whose
@@ -81,6 +81,24 @@ Program name order differed from numeric ID order. Construction and every
 lookup now use one explicit numeric canonical-pair helper, preserving name/id
 presentation order while sharing one Cell/privacy decision across both matrix
 orientations. Targeted independent re-review passed; B8 is closed.
+
+B9 adds only `GET /api/talent/organization-analytics/students`, the first
+M10 Student-identifiable route. It requires `talent_analytics.view` AND
+`talent_analytics.view_students` (true AND composition), derives Student
+inclusion only from frozen Cycle population context in the authorized
+tenant/AY/historical-Branch/Program scope (never current Placement), and
+treats every identifiable row as P7 through one gate-level
+`student_drill_population`/`count`/`distinct_student` Cell fed by
+`COUNT(DISTINCT student_id)` and run through the same B2 closure pipeline (no
+per-Student additive relationship graph). Candidate/Identification fields
+are independently permissioned and query-skipped, not response-filtered;
+Learner Profile access exposes only an advisory `can_view_learner_profile`
+hint. One top-level row exists per Student with deterministic frozen
+Program/Cycle contexts; pagination is over distinct Students (limit 25/max
+100, `has_more`, no `total_count`) and breadth precedes identifiable queries. No
+direct Student-ID filter is exposed. No schema, migration, permission,
+entitlement, longitudinal/B10, UI, or AI capability was added.
+The remediation passed targeted independent re-review; B9 is closed.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and

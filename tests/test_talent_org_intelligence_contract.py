@@ -15,6 +15,7 @@ import pytest
 from talent_org_intelligence_contract import (
     PRIVACY_STATES,
     PARTICIPATION_OVERLAP_PRIVACY_CLASS,
+    STUDENT_DRILL_POPULATION_PRIVACY_CLASS,
     PRIVACY_VECTOR_LEDGER,
     CellIdentity,
     METRIC_IDENTITY_MAPPING,
@@ -86,6 +87,7 @@ def test_closed_metric_vocabulary_accepts_every_approved_serialized_value():
         "candidate_count", "candidate_of_eligible", "identified_count",
         "identified_of_eligible",
         "participation_overlap",
+        "student_drill_population",
     )
     assert tuple(item.value for item in MetricCode) == expected
     for metric in expected:
@@ -133,11 +135,12 @@ def test_approved_initial_metric_mapping_is_exact_and_declarative():
         MetricCode.IDENTIFIED_COUNT: ((MeasureComponent.COUNT,), MembershipGrain.IDENTIFICATION_MEMBERSHIP),
         MetricCode.IDENTIFIED_OF_ELIGIBLE: ((MeasureComponent.NUMERATOR, MeasureComponent.DENOMINATOR), MembershipGrain.IDENTIFICATION_MEMBERSHIP),
         MetricCode.PARTICIPATION_OVERLAP: ((MeasureComponent.COUNT,), MembershipGrain.PROGRAM_PARTICIPATION),
+        MetricCode.STUDENT_DRILL_POPULATION: ((MeasureComponent.COUNT,), MembershipGrain.DISTINCT_STUDENT),
     }
 
 
 def test_participation_overlap_contract_is_exact_and_symmetric():
-    assert len(MetricCode) == 13
+    assert len(MetricCode) == 14
     assert len(MeasureComponent) == 3
     assert len(MembershipGrain) == 7
     assert PARTICIPATION_OVERLAP_PRIVACY_CLASS == "P2"
@@ -148,6 +151,13 @@ def test_participation_overlap_contract_is_exact_and_symmetric():
     assert diagonal.overlap_program_ids == (4,)
     for forbidden in ("overlap_rate", "talent_breadth", "rate", "percentage"):
         assert forbidden not in {metric.value for metric in MetricCode}
+
+
+def test_student_drill_population_contract_is_exact():
+    assert STUDENT_DRILL_POPULATION_PRIVACY_CLASS == "P7"
+    assert METRIC_IDENTITY_MAPPING[MetricCode.STUDENT_DRILL_POPULATION] == (
+        (MeasureComponent.COUNT,), MembershipGrain.DISTINCT_STUDENT,
+    )
 
 
 def test_closed_vocabulary_canonical_key_and_hash_are_stable_for_strings_or_enums():
