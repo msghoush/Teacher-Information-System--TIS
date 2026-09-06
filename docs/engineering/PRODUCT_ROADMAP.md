@@ -58,12 +58,23 @@ deterministic frozen Program/Cycle contexts; Candidate/Identification fields rem
 independently permissioned and query-skipped; Learner Profile access is an
 advisory capability hint only. Pagination is over distinct Students and has no
 total count; there is no Talent Score, ranking, AI field, or direct Student-ID
-filter. B9 remediation passed independent re-review; B9 is closed and B10 is
-not implemented.
+filter. B9 remediation passed targeted independent re-review; B9 is CLOSED.
+B8 is also implemented, remediated, and CLOSED after its targeted independent
+re-review passed. Both committed/pushed implementations remain part of current
+dev; B10 is not implemented.
 The required pre-B2 hardening is complete: canonical metric/component/grain
 vocabularies are closed to the approved serialized strings, rate/percentage
 remain derived rather than Cell identity components, and RelationshipTerm
 accepts only a real Python integer `+1` or `-1`.
+
+ADR 0027 approves the B10-A Longitudinal Organization Intelligence
+architecture as a governance decision only (B10 itself is still not
+implemented; B9 status above is unchanged): one Program, one Academic Year,
+ordered M8 Period slots (Period = order authority, optional linked Cycle =
+evidence), exactly nine approved metrics of the existing fourteen, one
+metric per response, `comparable`/`not_comparable` states with no growth
+language, and no server-computed delta between points. B10-B implementation
+is READY TO BEGIN after the governance checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green.
 
 ## Talent & Potential M9 Status
 

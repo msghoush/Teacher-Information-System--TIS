@@ -139,7 +139,7 @@ name/id-divergent Program presentation order could create `(B,A)` dictionary
 keys while lookup required `(A,B)`, yielding HTTP 500. One explicit numeric
 `canonical_pair_key` now governs construction, raw aggregate lookup, mirrored
 lookup, and canonical output. Targeted independent re-review passed; B8 is
-closed.
+CLOSED. Its committed/pushed implementation remains part of current dev.
 
 B9 adds `GET /api/talent/organization-analytics/students`, the first M10
 route exposing Student-identifiable output. It requires BOTH
@@ -185,7 +185,120 @@ governed Student-identity filter contract, so one was deliberately not
 invented rather than risking an existence oracle. B9 adds no schema,
 migration, permission, entitlement, longitudinal/B10, UI, or AI capability.
 The distinct-Student remediation passed targeted independent re-review; B9 is
-closed and B10 is not implemented.
+CLOSED. Its committed/pushed implementation remains part of current dev;
+B10 is not implemented.
+
+## B10-A Longitudinal Organization Intelligence Governance Decision (Approved Architecture, Not Implemented)
+
+Following an independent governance review that returned "approve with
+required amendments," ADR 0027 records the approved B10 "Longitudinal
+Organization Intelligence" architecture contract. This is a governance-
+closure task: it authorizes no code, adds no route, schema, migration,
+permission, or entitlement. B10 itself remains NOT IMPLEMENTED; B10-B
+implementation is READY TO BEGIN after the governance checkpoint is committed
+and pushed to origin/dev, and GitHub cumulative kms-check is green. B8 and B9 remain CLOSED; this decision does not reopen them.
+
+B10 MVP is bounded to one Talent Program, one Academic Year, aggregate/
+non-identifiable output, and the ordered M8 `TalentPlannedEvaluationPeriod`
+slots within that Academic Year, exposed through exactly one future route,
+`GET /api/talent/organization-analytics/programs/{program_id}/longitudinal`,
+requiring `academic_year_id` and exactly one approved metric, with only
+`branch_id`/`grade_level`/`planning_section_id` as optional filters reusing
+existing M10 B3/B4 frozen-provenance semantics. B10 MVP explicitly excludes
+multi-Academic-Year chronology, matched-cohort analytics, Student growth
+analytics, Student-level longitudinal history, cross-Program performance
+normalization, ranking, and AI; the M7 Learner Profile remains the governed
+individual-Student historical surface.
+
+`AcademicYear.year_name`/label is descriptive only and must never be parsed,
+numerically interpreted, lexically sorted, or treated as chronology
+authority; multi-Academic-Year longitudinal ordering is deferred pending a
+future, separately governed Academic Year chronology contract. Because B10
+MVP is single-AY, authorization reuses the existing single-AY
+`resolve_access_context` for exactly the requested Academic Year; no new
+multi-AY access resolver is approved or required.
+
+The approved time-point model corrects the original proposal's lean toward
+treating `TalentAssessmentCycle` as the ordering authority: one longitudinal
+point is one M8 `TalentPlannedEvaluationPeriod` slot, ordered only by its
+governed `sequence` - the Period is the presentation/order authority, and
+its optional linked Open/Closed Cycle supplies the factual evidence for that
+point. This is evidenced by the existing database constraint
+`uq_talent_assessment_cycles_period`, which enforces at most one Cycle per
+Period; `TalentAssessmentCycle.status` is exactly `draft`/`open`/`closed`
+and `TalentPlannedEvaluationPeriod.status` is exactly `planned`/`cancelled`
+(both verified in `models.py`). Point states are, using those exact values: a
+linked Open/Closed Cycle is authoritative; a missing linked Cycle is
+`no_data`/`missing_cycle`; a linked Draft Cycle is `no_data`/
+`cycle_not_authoritative`; a cancelled Period is `no_data`/
+`cancelled_period`; an authoritative point with no frozen population is
+`no_data`/`no_frozen_population`. An unlinked/ad-hoc Cycle (no governed M8
+Period) is excluded from B10 MVP entirely, and a missing or
+non-authoritative annual Plan never fabricates series facts.
+
+The approved metric allowlist is exactly nine of the fourteen existing
+`MetricCode` values (verified in `talent_org_intelligence_contract.py`):
+unconditional `frozen_eligible`, `completed`, `completion_coverage`,
+`assessment_started`, `started_coverage`; Candidate-permission-conditional
+(`talent_review_candidates.view`) `candidate_count`, `candidate_of_eligible`;
+Identification-permission-conditional (`talent_official_identifications.
+view`) `identified_count`, `identified_of_eligible`. Excluded, with reasons:
+`required_period_execution` (Plan-wide execution grain, not a Cycle-
+population point), `programs_configured`/`active_programs` (organization
+configuration headline metrics), `participation_overlap` (a cross-Program
+pair metric incompatible with single-Program B10), and
+`student_drill_population` (the P7 Student Drill disclosure gate, not a
+longitudinal metric). No new `MetricCode` is approved; the contract remains
+exactly 14 `MetricCode` / 3 `MeasureComponent` / 7 `MembershipGrain` values.
+Exactly one metric is selected per response - a multi-metric B10 query is
+not approved.
+
+Adjacent Period-point pairs for the selected metric are evaluated as exactly
+`comparable` or `not_comparable`, with approved reason codes `missing_cycle`,
+`cycle_not_authoritative`, `cancelled_period`, `no_frozen_population`,
+`metric_unavailable`, `framework_changed`, and `privacy_protected`.
+"Comparable" means only that two cross-sectional factual points may be
+neutrally shown side by side - never same-cohort, growth, improvement,
+decline, or progress. Framework sensitivity is metric-specific: the five
+unconditional metrics remain comparable across a Framework-version change,
+while Candidate/Identification metrics become `not_comparable`/
+`framework_changed` when adjacent points use different Framework versions;
+no KPI/rubric normalization or universal performance scale is approved.
+
+B10 MVP returns no server-computed longitudinal arithmetic between points -
+no `delta`, `change`, `percent_change`, or `current = previous + delta`
+relationship - because an exact derived difference could reconstruct a
+protected endpoint; only individually privacy-closed points plus safe
+comparability metadata are returned. Future UI may use neutral factual
+language ("higher/lower than previous Period," "period-to-period
+difference," "side-by-side result") only when both points are already
+safely visible and comparable, never `growth`/`improvement`/`decline`/
+`progress` language, since no matched-cohort authority exists.
+
+The privacy architecture reuses the existing M9/M10 P1-P7 classes with no
+new privacy class: authorization -> frozen scope -> canonical Cell ->
+primary privacy -> B2 closure -> strict closed wrapper -> serializer, with
+no arithmetic from raw pre-closure values and no fabricated cross-time
+additive Relationship (Period populations are not presumed disjoint, and no
+`annual total = sum of Period populations` identity is asserted). Rate
+metrics derive each Period point's percentage only from that Period's own
+compatible numerator/denominator after closure, never by averaging
+percentages across Periods. Candidate/Identification metrics remain
+query-skipped (not response-filtered) before any analytical SQL when their
+respective permission is absent, matching the existing M10 discipline.
+
+Deferred capabilities: multi-Academic-Year chronology and longitudinal
+series, canonical Academic Year ordering, a multi-AY authorization resolver,
+matched Student cohorts, retained-Student growth, Student movement
+decomposition, per-Student organization longitudinal analytics, KPI/rubric
+normalization across Framework versions, cross-Program performance
+normalization, server deltas, and AI interpretation. Open production gates:
+production privacy provider/threshold, commercial availability mapping,
+production breadth configuration, PostgreSQL consistent-snapshot and
+performance/concurrency qualification, future Academic Year chronology
+governance, and final M10 security/release qualification. See
+`docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md` for
+the complete recorded decision.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

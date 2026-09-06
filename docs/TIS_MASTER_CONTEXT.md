@@ -94,7 +94,33 @@ Score, ranking, AI field, or Educator Input. No direct Student-ID filter is
 exposed, to avoid an existence oracle. B9 adds no schema, migration,
 permission, entitlement, longitudinal/B10, UI, or AI capability.
 The distinct-Student remediation passed targeted independent re-review; B9 is
-closed.
+CLOSED. Its committed/pushed implementation remains part of current dev.
+
+## B10-A Longitudinal Organization Intelligence Governance Authority (Approved, Not Implemented)
+
+ADR 0027 governs B10 as an approved architecture decision only; B10 has no
+route, query, schema, or migration yet, and B9's own closure status above is
+unchanged. B10 MVP is bounded to one Program, one Academic Year, and the
+ordered M8 `TalentPlannedEvaluationPeriod` slots within it, presented through
+the future `GET /api/talent/organization-analytics/programs/{program_id}/
+longitudinal`. The Period is the presentation/order authority (ordered only
+by its governed `sequence`); its optional linked Open/Closed
+`TalentAssessmentCycle` supplies the factual evidence, per the database's
+`uq_talent_assessment_cycles_period` one-Cycle-per-Period constraint. The
+approved metric allowlist is exactly nine of the fourteen existing
+`MetricCode` values: `frozen_eligible`, `completed`, `completion_coverage`,
+`assessment_started`, `started_coverage` unconditionally, plus
+`candidate_count`/`candidate_of_eligible` and
+`identified_count`/`identified_of_eligible` under their existing
+permissions. `AcademicYear.year_name` remains descriptive only, never
+chronology authority; multi-Academic-Year longitudinal ordering is deferred.
+Comparability between adjacent Period points is exactly `comparable`/
+`not_comparable`, never growth/improvement language, and B10 returns no
+server-computed delta/percent-change between points - an intentional privacy
+decision reusing the existing P1-P7 privacy classes and B2 closure pipeline
+with no new privacy class. See
+`docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md` for
+the complete decision, deferred-capability list, and open production gates.
 
 ## Talent Annual Evaluation Planning Authority
 

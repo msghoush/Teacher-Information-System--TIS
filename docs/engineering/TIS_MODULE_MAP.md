@@ -132,6 +132,20 @@ source_of_truth: true
 - B9 adds no new permission, entitlement, schema, migration, ranking, score,
   AI field, Educator Input exposure, Student-ID filter, UI, or B10+
   (longitudinal) route.
+- ADR 0027 (`docs/adr/0027-b10-longitudinal-organization-intelligence-
+  contract.md`) records the B10-A "Longitudinal Organization Intelligence"
+  architecture as an APPROVED governance decision only - it adds no module
+  file, route, query, schema, migration, permission, or entitlement. The
+  future `GET /api/talent/organization-analytics/programs/{program_id}/
+  longitudinal` route is bounded to one Program/one Academic Year, ordered
+  M8 `TalentPlannedEvaluationPeriod` slots (Period = order authority via its
+  governed `sequence`; optional linked Open/Closed `TalentAssessmentCycle` =
+  evidence authority, consistent with `uq_talent_assessment_cycles_period`),
+  exactly nine of the fourteen existing `MetricCode` values, one metric per
+  response, `comparable`/`not_comparable` states, and no server-computed
+  delta/percent-change. B10 remains NOT IMPLEMENTED; B9's own status above is
+  unchanged; B10-B implementation is READY TO BEGIN after the governance
+  checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green.
 
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 

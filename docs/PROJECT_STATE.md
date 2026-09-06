@@ -80,7 +80,8 @@ Its initial independent review identified a canonical pair-index mismatch when
 Program name order differed from numeric ID order. Construction and every
 lookup now use one explicit numeric canonical-pair helper, preserving name/id
 presentation order while sharing one Cell/privacy decision across both matrix
-orientations. Targeted independent re-review passed; B8 is closed.
+orientations. Targeted independent re-review passed; B8 is CLOSED.
+Its committed/pushed implementation remains part of current dev.
 
 B9 adds only `GET /api/talent/organization-analytics/students`, the first
 M10 Student-identifiable route. It requires `talent_analytics.view` AND
@@ -98,7 +99,28 @@ Program/Cycle contexts; pagination is over distinct Students (limit 25/max
 100, `has_more`, no `total_count`) and breadth precedes identifiable queries. No
 direct Student-ID filter is exposed. No schema, migration, permission,
 entitlement, longitudinal/B10, UI, or AI capability was added.
-The remediation passed targeted independent re-review; B9 is closed.
+The remediation passed targeted independent re-review; B9 is CLOSED.
+Its committed/pushed implementation remains part of current dev.
+
+ADR 0027 records the B10-A "Longitudinal Organization Intelligence"
+architecture as an approved governance decision only, following independent
+governance review ("approve with required amendments"). B10 itself remains
+NOT IMPLEMENTED - no route, query, schema, migration, permission, or
+entitlement was added by this decision, and B9's status above is unchanged.
+The approved contract: one Program, one Academic Year (`AcademicYear.
+year_name` stays descriptive only, never chronology authority), ordered M8
+`TalentPlannedEvaluationPeriod` slots as the sole ordering authority (Period
+= presentation/order, optional linked Open/Closed Cycle = evidence,
+consistent with the existing `uq_talent_assessment_cycles_period`
+constraint), exactly nine of the fourteen existing `MetricCode` values
+(`frozen_eligible`, `completed`, `completion_coverage`,
+`assessment_started`, `started_coverage`, `candidate_count`,
+`candidate_of_eligible`, `identified_count`, `identified_of_eligible`), one
+metric per response, `comparable`/`not_comparable` states with no growth
+language, and no server-computed delta/percent-change between points. B10-B
+implementation is READY TO BEGIN after the governance checkpoint is committed
+and pushed to origin/dev, and GitHub cumulative kms-check is green. See
+`docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md`.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and

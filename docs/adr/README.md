@@ -50,3 +50,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0024-promo-expiry-recovery-and-paid-continuation.md`
 - `0025-capacity-based-packaging-and-common-customer-feature-baseline.md`
 - `0026-versioned-constraint-based-smart-timetable-generation.md`
+- `0027-b10-longitudinal-organization-intelligence-contract.md`

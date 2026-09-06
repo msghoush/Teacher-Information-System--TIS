@@ -1,24 +1,18 @@
 knowledge_impact: yes
-summary: Implement and close M10 B9 Student Drill with true analytics and student-view permission composition, a P7 distinct-Student population gate before identifiable fetch, distinct-Student pagination, deterministic frozen Program/Cycle contexts, and independently permissioned Candidate, Identification, and Learner Profile projections. Add no schema, migration, permission, entitlement, total count, rank, score, AI, mutation, or B10 route.
+summary: Govern the approved B10-A single-Program single-Academic-Year longitudinal contract in ADR 0027; preserve B8/B9 CLOSED committed truth. B10 remains NOT IMPLEMENTED; B10-B requires the checkpoint pushed to origin/dev and a green GitHub cumulative kms-check. No application, schema, permission, or entitlement changes.
 affected_areas:
-  - talent-organization-intelligence
-  - student-drill
-  - distinct-student-privacy-gate
-  - distinct-student-pagination
-  - frozen-historical-context
-  - authorization
-  - tenant-isolation
-  - privacy-closed-serialization
-  - tests
-  - documentation
+  - m10-b10a-governance
+  - longitudinal-organization-intelligence-contract
+  - b8-b9-closure-truth
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/CHANGE_HISTORY.md
-  - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/adr/README.md
+  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
 no_impact_reason:
 major_change_override: no

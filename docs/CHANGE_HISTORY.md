@@ -7,6 +7,42 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-06 - B10-A Longitudinal Organization Intelligence Governance Closure
+
+- Added ADR 0027 recording the approved, amended B10 "Longitudinal
+  Organization Intelligence" architecture contract following an independent
+  governance review ("approve with required amendments"). This is a
+  governance-closure task only: no route, query, schema, migration,
+  permission, or entitlement was added. B8 and B9 remain CLOSED following
+  passed targeted independent re-reviews and committed/pushed checkpoints.
+- Approved product boundary: one Talent Program, one Academic Year,
+  aggregate/non-identifiable output, and the ordered M8
+  `TalentPlannedEvaluationPeriod` slots within that Academic Year, exposed
+  through the future `GET /api/talent/organization-analytics/programs/
+  {program_id}/longitudinal` route.
+- Approved time-point model corrects the original proposal's lean toward the
+  `TalentAssessmentCycle` as ordering authority: the Period is the
+  presentation/order authority (ordered only by its governed `sequence`);
+  its optional linked Open/Closed Cycle supplies factual evidence, per the
+  existing `uq_talent_assessment_cycles_period` one-Cycle-per-Period
+  constraint.
+- Approved metric allowlist is exactly nine of the fourteen existing
+  `MetricCode` values (`frozen_eligible`, `completed`,
+  `completion_coverage`, `assessment_started`, `started_coverage`,
+  `candidate_count`, `candidate_of_eligible`, `identified_count`,
+  `identified_of_eligible`); one metric per response.
+- Approved comparability vocabulary is exactly `comparable`/`not_comparable`
+  with governed reason codes; B10 MVP returns no server-computed delta,
+  change, or percent-change between points (an intentional privacy
+  decision), and never uses growth/improvement/decline language.
+  `AcademicYear.year_name` remains descriptive only, never chronology
+  authority; multi-Academic-Year longitudinal ordering is explicitly
+  deferred.
+- B10 itself remains NOT IMPLEMENTED. B10-B implementation is READY TO BEGIN
+  after the governance checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green. No schema,
+  migration, permission, entitlement, `tis.
+  db` change, commit, or deployment occurred as part of this task.
+
 ## 2026-09-06 - M10 B9 Student Drill
 
 - Added `GET /api/talent/organization-analytics/students`, the first M10
@@ -41,7 +77,8 @@ source_of_truth: true
   Students rather than memberships, paginating one top-level row per Student,
   and returning deterministic frozen Program/Cycle contexts. Candidate and
   Identification evidence remains independently permissioned and exact-context
-  scoped. Targeted independent re-review passed; B9 is closed.
+  scoped. Targeted independent re-review passed; B9 is CLOSED.
+  Its committed/pushed implementation remains part of current dev.
 
 ## 2026-09-06 - M10 B8 Participation Overlap
 
@@ -58,8 +95,8 @@ source_of_truth: true
   differing from numeric ID order caused inconsistent pair dictionary keys and
   HTTP 500. One canonical numeric pair-key helper now governs construction and
   lookup; divergent two/three-Program order, mirror, diagonal, reverse-filter,
-  and uniqueness regressions pass. Targeted independent re-review passed and B8
-  is closed.
+  and uniqueness regressions pass. Targeted independent re-review passed;
+  B8 is CLOSED. Its committed/pushed implementation remains part of current dev.
 
 ## 2026-09-06 - M10 B7 Program Portfolio And Branch Intelligence
 

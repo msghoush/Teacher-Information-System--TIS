@@ -43,6 +43,26 @@ An advisory Learner Profile capability hint remains top-level. The strict
 row, raw ORM object, or non-visible gate. The response has no `total_count`,
 no Student Talent Score/ranking, and no direct Student-ID filter.
 
+## B10-A Longitudinal Organization Intelligence Flow (Approved Architecture, Not Implemented)
+
+ADR 0027 records the approved flow for a future single-Program, single-
+Academic-Year longitudinal request; no route exists yet, and this section
+describes governance only. A future request would resolve the identical B3/
+B4 access pipeline for exactly the requested Academic Year, then resolve the
+Program's ordered M8 `TalentPlannedEvaluationPeriod` slots by governed
+`sequence` - the Period is the order authority, and its optional linked
+Open/Closed `TalentAssessmentCycle` (never a Draft or missing Cycle) is the
+factual evidence source for that point. For the one selected metric (nine of
+the fourteen existing `MetricCode` values are approved), each point would be
+built as a canonical Cell, pass through primary privacy and B2 closure, and
+be wrapped in a strict closed serializer identical in discipline to B8/B9.
+Adjacent points would carry `comparable`/`not_comparable` metadata with a
+governed reason code - never a server-computed delta, percent-change, or
+growth/improvement language. Candidate/Identification metrics would remain
+query-skipped before any privacy-sensitive point is selected without their
+own permission. `AcademicYear.year_name` would never be parsed or sorted as
+chronology; multi-Academic-Year longitudinal ordering remains deferred.
+
 ## Deterministic Talent Analytics Flow (M9, Committed/Pushed On dev)
 
 1. An actor with `talent_analytics.view` requests one Program + one Academic
