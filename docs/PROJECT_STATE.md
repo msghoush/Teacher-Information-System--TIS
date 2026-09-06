@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Project State
 
-## M10 B0-B6 Organization Overview And Talent Map
+## M10 B0-B7 Organization Intelligence
 
 M10 B0-B2 is implemented without an Organization Intelligence route, aggregate
 query, privacy threshold, entitlement rule, schema, or migration.
@@ -58,6 +58,13 @@ The sparse-total fix uses the exact same authoritative numeric child set for
 total arithmetic and graph terms, excluding rectangular `no_data` display
 coordinates without treating them as zero. Empty totals stay `no_data`; one-
 child totals keep an explicit two-term equality. B2 itself is unchanged.
+
+B7 implements Program Portfolio and one-Branch Intelligence. Portfolio uses
+Program/Academic-Year common facts and required-Period execution only at that
+grain. Branch Intelligence filters frozen Branch before grouping, shares B6
+Program/Branch identities, and excludes execution. Candidate/identified fields
+are permission-omitted. Both routes use breadth and closed projections. Grade
+breakdown, ranking, scores, and B8+ remain unimplemented.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and

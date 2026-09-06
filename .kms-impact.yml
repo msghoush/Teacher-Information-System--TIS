@@ -1,12 +1,12 @@
 knowledge_impact: yes
-summary: Implement and close M10 B6 Talent Map with Program-by-Branch and Program-by-Grade factual matrices, presentation-only branch_program transpose, backend-authoritative totals, shared canonical Cells, sparse no-data-safe relationships, M9 primary privacy, B2 closure, and privacy-closed serialization. Add no ranking, Talent Score, cross-Program normalization, B7 route, schema, migration, permission, entitlement, or deployment.
+summary: Implement and close M10 B7 Program Portfolio and Branch Intelligence with authorized Program rows, Program/AY execution grain, one authorized historical Branch, shared B6 canonical Program-by-Branch identities, permission-projected Candidate and Identification metrics, M9 primary privacy, B2 closure, and closed-only serialization. Add no Grade breakdown, cross-Branch comparison, ranking, score, normalization, B8 route, schema, migration, permission, entitlement, or deployment.
 affected_areas:
   - talent-organization-intelligence
-  - talent-map
-  - sparse-matrix-privacy
-  - reconstruction-closure
+  - program-portfolio
+  - branch-intelligence
   - historical-branch-scope
   - tenant-isolation
+  - privacy-closure
   - privacy-closed-serialization
   - tests
   - documentation

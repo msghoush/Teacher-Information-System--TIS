@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Module Map
 
-## Talent Organization Intelligence (M10 B0-B6)
+## Talent Organization Intelligence (M10 B0-B7)
 
 - `talent_org_intelligence_contract.py`: non-functional contract types for
   canonical `CellIdentity`, public `PrivacyProjection`, exact `+1`/`-1`
@@ -87,6 +87,17 @@ source_of_truth: true
   overlap, longitudinal, Student drill, frontend, or B7+ route.
   The targeted independent sparse-matrix re-review passed after remediation;
   B6 is closed.
+- `talent_org_b7.py`: B7 canonical Program-series and Branch-series Cells,
+  authoritative sparse totals, additive relationships, closure, and strict
+  closed-wrapper serialization for Portfolio and Branch Intelligence.
+- `routers/talent_organization_analytics.py`: additionally exposes
+  `/program-portfolio` and `/branches/{branch_id}` with existing access,
+  filter, breadth, historical-scope, and secondary-permission composition.
+- `tests/test_talent_organization_program_portfolio.py` and
+  `tests/test_talent_organization_branch_intelligence.py`: B7 semantics,
+  privacy, omission, historical Branch, identity, and serializer coverage.
+- B7 adds no Grade breakdown, Branch execution attribution, permission,
+  entitlement, schema, migration, ranking, score, UI, AI, or B8+ route.
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 
 - `talent_analytics_service.py`: read-only context/filter resolution and

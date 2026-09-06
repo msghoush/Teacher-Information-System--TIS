@@ -7,7 +7,7 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
-## Organization Intelligence M10 B0-B6 Overview And Talent Map
+## Organization Intelligence M10 B0-B7
 
 M10 B0 adds only an executable, non-functional conformance boundary in
 `talent_org_intelligence_contract.py` and
@@ -112,6 +112,15 @@ coordinates, causing B2 to discard the equation. The builder now derives both
 each total and its Relationship from one identical authoritative-numeric child
 set. Empty totals remain `no_data`; a single populated child retains the valid
 `Total - Child = 0` dependency. Global B2 `no_data` semantics are unchanged.
+
+B7 adds `GET /api/talent/organization-analytics/program-portfolio` and
+`GET /api/talent/organization-analytics/branches/{branch_id}`. Portfolio emits
+stable Program rows with common factual participation/coverage, permission-
+projected Candidate/identified counts, and Program/AY required-Period execution.
+Branch Intelligence is constrained to one authorized historical frozen Branch,
+shares B6 Program/Branch identities, and does not attribute execution to a
+Branch. Both use breadth, set-based queries, M9 primary privacy, B2 closure,
+and closed-only serialization. No ranking, score, Grade breakdown, or B8+ is added.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

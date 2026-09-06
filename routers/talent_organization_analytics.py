@@ -19,6 +19,7 @@ from talent_org_intelligence_contract import (
 )
 import talent_org_intelligence_service as svc
 import talent_org_talent_map as talent_map
+import talent_org_b7 as b7
 import academic_grade
 import models
 
@@ -260,3 +261,99 @@ def organization_talent_map(
         return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
     except Exception:
         return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+
+
+def _b7_response(*, db, context, policy, breadth_policy, program_ids, branch=None):
+    raw_filters = {"program_ids": program_ids or ()}
+    if branch is not None:
+        raw_filters["branch_id"] = branch["id"]
+    authorized = svc.authorized_program_universe(db, context)
+    filters = svc.resolve_filters(db, context, raw_filters, authorized_program_ids=authorized)
+    selected = filters.program_ids or authorized
+    program_rows = db.query(models.TalentProgram.id, models.TalentProgram.name, models.TalentProgram.status).filter(
+        models.TalentProgram.school_group_id == context.school_group_id,
+        models.TalentProgram.id.in_(selected or (-1,)),
+    ).order_by(models.TalentProgram.name, models.TalentProgram.id).all()
+    programs = tuple({"id": int(row.id), "name": row.name, "status": row.status, "configured": True, "active": row.status == "active"} for row in program_rows)
+    selected = tuple(item["id"] for item in programs)
+    metrics = list(b7.BRANCH_METRICS if branch else b7.PORTFOLIO_METRICS)
+    if context.candidate_projection_allowed: metrics.append(MetricCode.CANDIDATE_COUNT)
+    if context.identification_projection_allowed: metrics.append(MetricCode.IDENTIFIED_COUNT)
+    multiplier = sum(2 if metric in b7.RATE_SOURCE else 1 for metric in metrics)
+    breadth_version = svc.enforce_breadth(
+        breadth_policy, projection_family="branch_intelligence" if branch else "program_portfolio",
+        row_count=len(programs), column_count=len(metrics), prospective_cells=len(programs) * multiplier,
+        relationship_estimate=multiplier, program_count=len(programs),
+    )
+    population = svc.frozen_membership_query(db, context, filters, authorized_program_ids=authorized)
+    coverage = svc.coverage_program_totals(db, population)
+    facts = {program_id: {"population": 0, "completed": 0, "started": 0} for program_id in selected}
+    for row in coverage:
+        fact = facts[int(row.program_id)]; fact["population"] += row.count
+        fact["completed"] += row.count if row.status == "completed" else 0
+        fact["started"] += row.count if row.status != "unassessed" else 0
+    if context.candidate_projection_allowed:
+        for row in svc.candidate_membership_counts(db, context, population) or (): facts[row.program_id]["candidate"] = row.count
+    if context.identification_projection_allowed:
+        for row in svc.identification_membership_counts(db, context, population) or (): facts[row.program_id]["identified"] = row.count
+    if branch is None:
+        for row in svc.required_period_execution_counts(db, context, authorized_program_ids=selected):
+            facts[row.program_id].update(executed=row.executed, execution_denominator=row.executed + row.cancelled + row.outstanding)
+    result = b7.build_closed_projection(
+        context=context, program_ids=selected, facts=facts, metrics=tuple(metrics), policy=policy,
+        branch_id=None if branch is None else branch["id"],
+    )
+    fingerprint = svc.compute_request_context_fingerprint(
+        context, projection_family="branch_intelligence" if branch else "program_portfolio",
+        metric=MetricCode.FROZEN_ELIGIBLE.value, authorized_program_ids=selected, filters=filters,
+        privacy_policy_version=str(policy.privacy_policy_version), semantic_contract_version="m10-b7-v1",
+    )
+    return b7.serialize_projection(result, programs=programs, metrics=tuple(metrics), branch=branch, context_payload={
+        "academic_year_id": context.academic_year_id,
+        "authorization_scope": "organization" if context.all_branches else "authorized_branches",
+        "privacy_policy_version": str(policy.privacy_policy_version), "breadth_policy_version": breadth_version,
+        "request_context_fingerprint": fingerprint,
+    })
+
+
+def _b7_context(db, current_user, academic_year_id, availability_provider):
+    try:
+        return svc.resolve_access_context(db, user=current_user, academic_year_id=academic_year_id, availability_provider=availability_provider), None
+    except svc.OrganizationAnalyticsError as exc:
+        status = 401 if exc.code == "authentication_required" else 404 if exc.code == "not_found" else 403
+        return None, _error(exc.code, exc.message, 503 if exc.code == "organization_analytics_unavailable" else status)
+    except Exception:
+        return None, _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+
+
+@router.get("/program-portfolio")
+def organization_program_portfolio(
+    academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
+    breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy), policy=Depends(resolve_privacy_policy_provider),
+):
+    context, error = _b7_context(db, current_user, academic_year_id, availability_provider)
+    if error: return error
+    if policy is None: return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    try: return _b7_response(db=db, context=context, policy=policy, breadth_policy=breadth_policy, program_ids=program_ids, branch=None)
+    except svc.OrganizationAnalyticsError as exc: return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
+    except Exception: return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+
+
+@router.get("/branches/{branch_id}")
+def organization_branch_intelligence(
+    branch_id: int, academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
+    breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy), policy=Depends(resolve_privacy_policy_provider),
+):
+    context, error = _b7_context(db, current_user, academic_year_id, availability_provider)
+    if error: return error
+    branch_row = db.query(models.Branch.id, models.Branch.name).filter_by(id=branch_id, school_group_id=context.school_group_id).one_or_none()
+    if branch_row is None or (not context.all_branches and branch_id not in context.accessible_historical_branch_ids):
+        return _error("not_found", "Branch was not found.", 404)
+    if policy is None: return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    try: return _b7_response(db=db, context=context, policy=policy, breadth_policy=breadth_policy, program_ids=program_ids, branch={"id": int(branch_row.id), "name": branch_row.name})
+    except svc.OrganizationAnalyticsError as exc: return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
+    except Exception: return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)

@@ -36,7 +36,11 @@ alias, approved common factual metrics, backend totals, breadth enforcement,
 and shared B2 closure. It rejects required Period execution at Branch/Grade
 grain and adds no ranking or universal score. Sparse totals now derive values
 and graph terms from one authoritative populated-child set while preserving
-global `no_data` semantics. B6 is closed; B7+ routes remain unimplemented.
+global `no_data` semantics. B6 is closed. B7 implements Program Portfolio and
+single-Branch Intelligence using common factual Program rows, historical frozen
+Branch scope, permission-projected sensitive fields, mandatory breadth, and the
+same privacy-closure stack. Required-Period execution is Portfolio-only at
+Program/AY grain. Grade breakdown and B8+ routes remain unimplemented.
 The required pre-B2 hardening is complete: canonical metric/component/grain
 vocabularies are closed to the approved serialized strings, rate/percentage
 remain derived rather than Cell identity components, and RelationshipTerm

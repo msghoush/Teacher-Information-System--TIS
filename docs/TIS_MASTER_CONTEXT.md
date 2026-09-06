@@ -39,6 +39,17 @@ remain displayable but are absent—not zero—in the equation. Empty totals are
 `no_data`; a single authoritative child uses `Total - Child = 0`. The targeted
 independent sparse-matrix re-review passed, and B6 is closed.
 
+## Program Portfolio And Branch Intelligence Authority
+
+M10 B7 Program Portfolio summarizes configured Programs for one tenant/year
+using common participation and coverage facts plus Program-grain required-
+Period execution. Branch Intelligence is one authorized historical frozen
+Branch context and never attributes Program/AY execution to that Branch.
+Shared Program/Branch facts reuse B6 canonical identities. Candidate and
+identified fields retain independent permissions. Both projections require
+breadth and traverse M9 primary privacy, B2 closure, and closed-only
+serializers. There is no ranking, universal score, Grade breakdown, or B8+.
+
 ## Talent Annual Evaluation Planning Authority
 
 The canonical planning chain is `TalentProgram -> Program Academic Year

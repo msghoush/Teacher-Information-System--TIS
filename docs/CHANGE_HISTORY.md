@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-06 - M10 B7 Program Portfolio And Branch Intelligence
+
+- Added bounded Program Portfolio and authorized single-Branch Intelligence
+  routes through existing M10 access, breadth, set-based aggregation, privacy
+  closure, and safe serialization.
+- Kept required-Period execution at Program/AY Portfolio grain and excluded it
+  from Branch Intelligence; shared Program/Branch facts retain B6 identities.
+- Added no ranking, score, Grade breakdown, schema, migration, permission,
+  entitlement, UI, AI, or B8+ route.
+
 ## 2026-09-06 - M10 B6 Talent Map
 
 - Added the bounded Program-by-Branch and Program-by-Grade Talent Map route,
