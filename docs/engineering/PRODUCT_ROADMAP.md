@@ -29,7 +29,7 @@ availability and breadth providers, performs only set-based frozen-population
 aggregation, skips Candidate/Identification SQL without their own permissions,
 keeps M8 execution at Program grain, and requires serialization to enter
 through B2-closed projections. B5 exposes only the bounded organization
-Overview route with the approved 12-metric/7-grain contract, including P1
+Overview route within the now-approved 13-metric/7-grain contract, including P1
 configured and active Program-configuration counts. B6 adds the bounded
 Program-by-Branch/Program-by-Grade Talent Map with a post-closure transpose
 alias, approved common factual metrics, backend totals, breadth enforcement,
@@ -40,7 +40,13 @@ global `no_data` semantics. B6 is closed. B7 implements Program Portfolio and
 single-Branch Intelligence using common factual Program rows, historical frozen
 Branch scope, permission-projected sensitive fields, mandatory breadth, and the
 same privacy-closure stack. Required-Period execution is Portfolio-only at
-Program/AY grain. Grade breakdown and B8+ routes remain unimplemented.
+Program/AY grain. B8 adds Participation Overlap through one P2 canonical Cell
+per symmetric Program pair, using distinct Open/Closed frozen-population
+participants and historical Branch scope before a set-based intersection.
+Diagonals are distinct Program participants; no row/column sums or additive
+overlap equations exist. Candidate/Identification overlap, Grade breakdown,
+ranking, Talent Breadth/score, Student drill, frontend, and B9+ remain
+unimplemented.
 The required pre-B2 hardening is complete: canonical metric/component/grain
 vocabularies are closed to the approved serialized strings, rate/percentage
 remain derived rather than Cell identity components, and RelationshipTerm

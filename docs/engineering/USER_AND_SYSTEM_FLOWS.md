@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## M10 B8 Participation Overlap Flow
+
+An authorized Organization Intelligence request resolves authentication,
+SchoolGroup, commercial availability, `talent_analytics.view`, tenant-bound
+Academic Year, historical Branch scope, normalized filters, and injected
+breadth approval before analytical SQL. The system then deduplicates
+Open/Closed frozen Cycle population membership to `(program_id, student_id)`
+within that authorized scope and performs one set-based self-join for canonical
+Program pairs. Each diagonal is the Program's distinct participants and each
+off-diagonal is the distinct intersection; no row or column sums are created.
+The P2 pair Cells pass through M9 primary privacy, B2 closure without fabricated
+overlap equations, `PrivacyClosedProjectionSet`, and the strict B8 serializer.
+The response contains no Student identity or Candidate/Identification overlap.
+
 ## Deterministic Talent Analytics Flow (M9, Committed/Pushed On dev)
 
 1. An actor with `talent_analytics.view` requests one Program + one Academic

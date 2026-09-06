@@ -48,7 +48,22 @@ Branch context and never attributes Program/AY execution to that Branch.
 Shared Program/Branch facts reuse B6 canonical identities. Candidate and
 identified fields retain independent permissions. Both projections require
 breadth and traverse M9 primary privacy, B2 closure, and closed-only
-serializers. There is no ranking, universal score, Grade breakdown, or B8+.
+serializers. B7 itself adds no ranking, universal score, Grade breakdown, or
+Participation Overlap.
+
+## Participation Overlap Authority
+
+M10 B8 exposes `GET
+/api/talent/organization-analytics/participation-overlap`. Participation is a
+distinct `(program_id, student_id)` fact from Open/Closed frozen Cycle
+population membership in one tenant/year and authorized historical Branch
+scope. Pair values are distinct Student intersections; the diagonal is the
+Program participant count. `participation_overlap` is exactly a P2 `count` at
+`program_participation` grain, and normalized Program pairs share one Cell and
+one privacy decision even when presented symmetrically. There are no additive
+row/column overlap equations or totals. Candidate/Identification overlap,
+Talent Breadth, ranking, scoring, and Student-identifiable output are absent;
+stateful cross-request controls remain a production privacy-provider gate.
 
 ## Talent Annual Evaluation Planning Authority
 

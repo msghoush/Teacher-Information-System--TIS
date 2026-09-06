@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Module Map
 
-## Talent Organization Intelligence (M10 B0-B7)
+## Talent Organization Intelligence (M10 B0-B8)
 
 - `talent_org_intelligence_contract.py`: non-functional contract types for
   canonical `CellIdentity`, public `PrivacyProjection`, exact `+1`/`-1`
@@ -96,8 +96,23 @@ source_of_truth: true
 - `tests/test_talent_organization_program_portfolio.py` and
   `tests/test_talent_organization_branch_intelligence.py`: B7 semantics,
   privacy, omission, historical Branch, identity, and serializer coverage.
-- B7 adds no Grade breakdown, Branch execution attribution, permission,
-  entitlement, schema, migration, ranking, score, UI, AI, or B8+ route.
+- B7 itself added no Grade breakdown, Branch execution attribution, permission,
+  entitlement, schema, migration, ranking, score, UI, AI, or overlap route.
+- `talent_org_participation_overlap.py`: B8 canonical symmetric Program-pair
+  P2 Cells, diagonal distinct-participant semantics, privacy closure without
+  fabricated additive overlap equations, and strict closed-only matrix
+  serialization.
+- `talent_org_intelligence_service.py`: adds one set-based B8 aggregation that
+  deduplicates `(program_id, student_id)` in frozen authorized scope before a
+  canonical Program-pair self-join; only aggregate rows leave SQL.
+- `routers/talent_organization_analytics.py`: additionally exposes only
+  `/participation-overlap`, with access/filter/breadth gates before aggregation.
+- `tests/test_talent_organization_participation_overlap.py`: B8 route,
+  diagonal/symmetry/deduplication, scope, zero/no-data, privacy, serializer,
+  deferred-domain omission, and breadth coverage.
+- B8 adds exactly one contract metric (`participation_overlap` = P2 `count` at
+  `program_participation` grain) and no permission, entitlement, schema,
+  migration, ranking, score, UI, AI, Candidate/Identification overlap, or B9+.
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 
 - `talent_analytics_service.py`: read-only context/filter resolution and

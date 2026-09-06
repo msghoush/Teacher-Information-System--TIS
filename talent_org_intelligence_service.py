@@ -49,7 +49,8 @@ class OrganizationAnalyticsBreadthPolicy:
     breadth_policy_version = "unconfigured"
 
     def allows(self, *, projection_family: str, row_count: int, column_count: int,
-               prospective_cells: int, relationship_estimate: int, program_count: int) -> bool:
+               prospective_cells: int, relationship_estimate: int, program_count: int,
+               prospective_pair_count: Optional[int] = None) -> bool:
         raise NotImplementedError
 
 
@@ -125,6 +126,13 @@ class RequiredExecutionRow:
 class ProgramConfigurationCounts:
     configured: int
     active: int
+
+
+@dataclass(frozen=True)
+class ParticipationOverlapRow:
+    first_program_id: int
+    second_program_id: int
+    count: int
 
 
 class PrivacyClosedProjectionSet:
@@ -218,15 +226,21 @@ def enforce_breadth(
     prospective_cells: int,
     relationship_estimate: int,
     program_count: int,
+    prospective_pair_count: Optional[int] = None,
 ) -> str:
     values = (row_count, column_count, prospective_cells, relationship_estimate, program_count)
     if not projection_family or any(type(value) is not int or value < 0 for value in values):
         raise OrganizationAnalyticsError("invalid_breadth_request", "Breadth inputs are invalid.")
-    allowed = False if policy is None else policy.allows(
+    if prospective_pair_count is not None and (type(prospective_pair_count) is not int or prospective_pair_count < 0):
+        raise OrganizationAnalyticsError("invalid_breadth_request", "Breadth inputs are invalid.")
+    shape = dict(
         projection_family=projection_family, row_count=row_count, column_count=column_count,
         prospective_cells=prospective_cells, relationship_estimate=relationship_estimate,
         program_count=program_count,
     )
+    if prospective_pair_count is not None:
+        shape["prospective_pair_count"] = prospective_pair_count
+    allowed = False if policy is None else policy.allows(**shape)
     if allowed is not True:
         raise OrganizationAnalyticsError("analytics_breadth_unavailable", "The requested analytical breadth is unavailable.")
     return str(getattr(policy, "breadth_policy_version", "unversioned"))
@@ -389,6 +403,29 @@ def frozen_membership_query(
     if filters.planning_section_id is not None:
         query = query.filter(models.TalentAssessmentCyclePopulationMember.planning_section_id == filters.planning_section_id)
     return query
+
+
+def participation_overlap_counts(db: Session, population_query) -> tuple[ParticipationOverlapRow, ...]:
+    """Aggregate canonical Program-pair intersections without materializing Students."""
+
+    participation = population_query.with_entities(
+        models.TalentAssessmentCyclePopulationMember.program_id.label("program_id"),
+        models.TalentAssessmentCyclePopulationMember.student_id.label("student_id"),
+    ).distinct().subquery()
+    first = participation.alias("participation_first")
+    second = participation.alias("participation_second")
+    rows = db.query(
+        first.c.program_id,
+        second.c.program_id,
+        func.count(func.distinct(first.c.student_id)),
+    ).select_from(first).join(
+        second,
+        (first.c.student_id == second.c.student_id)
+        & (first.c.program_id <= second.c.program_id),
+    ).group_by(first.c.program_id, second.c.program_id).order_by(
+        first.c.program_id, second.c.program_id,
+    ).all()
+    return tuple(ParticipationOverlapRow(int(a), int(b), int(count)) for a, b, count in rows)
 
 
 def _coverage_grouped(db: Session, population_query, dimensions: tuple[str, ...]) -> tuple[CoverageCountRow, ...]:

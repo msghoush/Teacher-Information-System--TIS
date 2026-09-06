@@ -1,11 +1,11 @@
 knowledge_impact: yes
-summary: Implement and close M10 B7 Program Portfolio and Branch Intelligence with authorized Program rows, Program/AY execution grain, one authorized historical Branch, shared B6 canonical Program-by-Branch identities, permission-projected Candidate and Identification metrics, M9 primary privacy, B2 closure, and closed-only serialization. Add no Grade breakdown, cross-Branch comparison, ranking, score, normalization, B8 route, schema, migration, permission, entitlement, or deployment.
+summary: Implement and close M10 B8 Participation Overlap with distinct frozen Program participation, historical Branch scoping, canonical symmetric Program-pair identity, one P2 privacy evaluation per pair, and the reviewed canonical pair-key remediation. Add no overlap totals, Candidate or Identification overlap, Student payload, Talent Breadth, ranking, score, B9 route, schema, migration, permission, entitlement, or deployment.
 affected_areas:
   - talent-organization-intelligence
-  - program-portfolio
-  - branch-intelligence
+  - participation-overlap
+  - program-participation-intersection
+  - canonical-pair-identity
   - historical-branch-scope
-  - tenant-isolation
   - privacy-closure
   - privacy-closed-serialization
   - tests
@@ -15,7 +15,6 @@ kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md

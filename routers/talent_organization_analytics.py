@@ -1,4 +1,4 @@
-"""M10 B5 privacy-closed organization Overview API."""
+"""M10 B5-B8 privacy-closed Organization Intelligence APIs."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ from talent_org_intelligence_contract import (
 import talent_org_intelligence_service as svc
 import talent_org_talent_map as talent_map
 import talent_org_b7 as b7
+import talent_org_participation_overlap as participation_overlap
 import academic_grade
 import models
 
@@ -357,3 +358,65 @@ def organization_branch_intelligence(
     try: return _b7_response(db=db, context=context, policy=policy, breadth_policy=breadth_policy, program_ids=program_ids, branch={"id": int(branch_row.id), "name": branch_row.name})
     except svc.OrganizationAnalyticsError as exc: return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
     except Exception: return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+
+
+@router.get("/participation-overlap")
+def organization_participation_overlap(
+    academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
+    branch_id: Optional[int] = Query(None, gt=0), db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+    availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
+    breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
+    policy=Depends(resolve_privacy_policy_provider),
+):
+    context, error = _b7_context(db, current_user, academic_year_id, availability_provider)
+    if error:
+        return error
+    if policy is None:
+        return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    try:
+        authorized = svc.authorized_program_universe(db, context)
+        filters = svc.resolve_filters(
+            db, context, {"program_ids": program_ids or (), "branch_id": branch_id},
+            authorized_program_ids=authorized,
+        )
+        selected = filters.program_ids or authorized
+        program_rows = db.query(models.TalentProgram.id, models.TalentProgram.name).filter(
+            models.TalentProgram.school_group_id == context.school_group_id,
+            models.TalentProgram.id.in_(selected or (-1,)),
+        ).order_by(models.TalentProgram.name, models.TalentProgram.id).all()
+        programs = tuple({"id": int(row.id), "name": row.name} for row in program_rows)
+        selected = tuple(program["id"] for program in programs)
+        pair_count = len(selected) * (len(selected) + 1) // 2
+        breadth_version = svc.enforce_breadth(
+            breadth_policy, projection_family="participation_overlap",
+            row_count=len(selected), column_count=len(selected),
+            prospective_cells=len(selected) * len(selected), relationship_estimate=0,
+            program_count=len(selected), prospective_pair_count=pair_count,
+        )
+        population = svc.frozen_membership_query(db, context, filters, authorized_program_ids=authorized)
+        overlap_rows = svc.participation_overlap_counts(db, population)
+        counts = {(row.first_program_id, row.second_program_id): row.count for row in overlap_rows}
+        result = participation_overlap.build_closed_projection(
+            context=context, program_ids=selected, overlap_counts=counts, policy=policy,
+        )
+        fingerprint = svc.compute_request_context_fingerprint(
+            context, projection_family="participation_overlap",
+            metric=MetricCode.PARTICIPATION_OVERLAP.value, authorized_program_ids=selected,
+            filters=filters, privacy_policy_version=str(policy.privacy_policy_version),
+            semantic_contract_version="m10-b8-v1",
+        )
+        return participation_overlap.serialize_projection(result, programs=programs, context_payload={
+            "academic_year_id": academic_year_id,
+            "authorization_scope": "organization" if context.all_branches else "authorized_branches",
+            "branch_id": filters.branch_id,
+            "canonical_pair_count": pair_count,
+            "presentation_cell_count": len(selected) * len(selected),
+            "privacy_policy_version": str(policy.privacy_policy_version),
+            "breadth_policy_version": breadth_version,
+            "request_context_fingerprint": fingerprint,
+        })
+    except svc.OrganizationAnalyticsError as exc:
+        return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
+    except Exception:
+        return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)

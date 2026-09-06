@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-06 - M10 B8 Participation Overlap
+
+- Added the bounded Participation Overlap route using distinct Open/Closed
+  frozen Cycle Program/Student participation and historical Branch scope before
+  one set-based Program-pair intersection.
+- Extended the closed contract only with P2 `participation_overlap`, mapped to
+  `count` at `program_participation` grain; canonical symmetric pairs share one
+  privacy decision and diagonals represent distinct Program participants.
+- Added no invalid overlap totals/equations, Candidate/Identification overlap,
+  ranking, Talent Breadth/score, Student payload, schema, migration, permission,
+  entitlement, UI, AI, commit, deployment, or B9+ route.
+- Remediated the initial independent-review failure where Program display order
+  differing from numeric ID order caused inconsistent pair dictionary keys and
+  HTTP 500. One canonical numeric pair-key helper now governs construction and
+  lookup; divergent two/three-Program order, mirror, diagonal, reverse-filter,
+  and uniqueness regressions pass. Targeted independent re-review passed and B8
+  is closed.
+
 ## 2026-09-06 - M10 B7 Program Portfolio And Branch Intelligence
 
 - Added bounded Program Portfolio and authorized single-Branch Intelligence

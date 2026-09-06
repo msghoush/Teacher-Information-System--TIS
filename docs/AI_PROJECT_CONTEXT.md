@@ -7,7 +7,7 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
-## Organization Intelligence M10 B0-B7
+## Organization Intelligence M10 B0-B8
 
 M10 B0 adds only an executable, non-functional conformance boundary in
 `talent_org_intelligence_contract.py` and
@@ -120,7 +120,25 @@ projected Candidate/identified counts, and Program/AY required-Period execution.
 Branch Intelligence is constrained to one authorized historical frozen Branch,
 shares B6 Program/Branch identities, and does not attribute execution to a
 Branch. Both use breadth, set-based queries, M9 primary privacy, B2 closure,
-and closed-only serialization. No ranking, score, Grade breakdown, or B8+ is added.
+and closed-only serialization. No ranking, score, or Grade breakdown is added.
+
+B8 adds `GET /api/talent/organization-analytics/participation-overlap`. The
+closed contract adds only `participation_overlap`, mapped to `count` at
+`program_participation` grain with governed P2 privacy. One set-based query
+deduplicates frozen Open/Closed Cycle membership to `(program_id, student_id)`
+inside authorized historical Branch scope, then aggregates canonical symmetric
+Program pairs. The diagonal is the Program's distinct participant count. Pair
+Cells have no fabricated additive row/column relationships; the full matrix
+mirrors each already-closed canonical pair projection. Candidate and
+Identification overlap, row sums, ranking, Talent Breadth/scores, Student data,
+schema, migration, UI, AI, and B9+ remain absent. Cross-request differencing
+remains a production privacy-provider responsibility.
+The first independent review found one implementation-only pair-index defect:
+name/id-divergent Program presentation order could create `(B,A)` dictionary
+keys while lookup required `(A,B)`, yielding HTTP 500. One explicit numeric
+`canonical_pair_key` now governs construction, raw aggregate lookup, mirrored
+lookup, and canonical output. Targeted independent re-review passed; B8 is
+closed.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

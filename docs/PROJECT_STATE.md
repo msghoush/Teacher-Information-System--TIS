@@ -7,7 +7,7 @@ source_of_truth: true
 
 # TIS Project State
 
-## M10 B0-B7 Organization Intelligence
+## M10 B0-B8 Organization Intelligence
 
 M10 B0-B2 is implemented without an Organization Intelligence route, aggregate
 query, privacy threshold, entitlement rule, schema, or migration.
@@ -35,8 +35,8 @@ query current Student Placement. Future serialization must accept a B2 closure
 result through `PrivacyClosedProjectionSet`.
 
 B5 adds only `GET /api/talent/organization-analytics/overview`. The closed
-contract now has 12 MetricCodes and 7 MembershipGrains: the approved additions
-are `programs_configured`, `active_programs`, and `program_configuration`, both
+contract now has 13 MetricCodes and 7 MembershipGrains: B5 added
+`programs_configured`, `active_programs`, and `program_configuration`, both
 metrics mapped to `count`/`program_configuration` and P1. Configured means an
 enabled Program annual configuration; active is exactly its subset whose
 durable Program lifecycle status is `active`. The route preserves historical
@@ -64,7 +64,23 @@ Program/Academic-Year common facts and required-Period execution only at that
 grain. Branch Intelligence filters frozen Branch before grouping, shares B6
 Program/Branch identities, and excludes execution. Candidate/identified fields
 are permission-omitted. Both routes use breadth and closed projections. Grade
-breakdown, ranking, scores, and B8+ remain unimplemented.
+breakdown, ranking, and scores remain unimplemented.
+
+B8 implements Participation Overlap as distinct Student intersections across
+Open/Closed frozen Cycle participation. It adds the sole governed
+`participation_overlap` P2 count metric at `program_participation` grain,
+deduplicates Program/Student participation before one set-based self-join,
+applies historical Branch scope before intersection, and uses one symmetric
+canonical Cell per normalized Program pair. Diagonals are distinct Program
+participants; absent participation basis is `no_data`, while an authoritative
+empty intersection is factual zero subject to privacy. No overlap sums,
+Candidate/Identification overlap, ranking, Talent Breadth/score, Student data,
+schema, migration, UI, AI, or B9+ route is implemented.
+Its initial independent review identified a canonical pair-index mismatch when
+Program name order differed from numeric ID order. Construction and every
+lookup now use one explicit numeric canonical-pair helper, preserving name/id
+presentation order while sharing one Cell/privacy decision across both matrix
+orientations. Targeted independent re-review passed; B8 is closed.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and
