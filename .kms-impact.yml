@@ -1,10 +1,12 @@
 knowledge_impact: yes
 summary: Govern the approved B10-A single-Program single-Academic-Year longitudinal contract in ADR 0027; preserve B8/B9 CLOSED committed truth. B10 remains NOT IMPLEMENTED; B10-B requires the checkpoint pushed to origin/dev and a green GitHub cumulative kms-check. No application, schema, permission, or entitlement changes.
 affected_areas:
+  - cumulative-kms-declaration-reconciliation
   - m10-b10a-governance
   - longitudinal-organization-intelligence-contract
   - b8-b9-closure-truth
 kms_files_updated:
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/AI_PROJECT_CONTEXT.md
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
