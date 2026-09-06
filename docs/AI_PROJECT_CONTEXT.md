@@ -188,15 +188,17 @@ The distinct-Student remediation passed targeted independent re-review; B9 is
 CLOSED. Its committed/pushed implementation remains part of current dev;
 B10 is not implemented.
 
-## B10-A Longitudinal Organization Intelligence Governance Decision (Approved Architecture, Not Implemented)
+## B10-A Longitudinal Organization Intelligence Governance Decision (Approved Architecture)
 
 Following an independent governance review that returned "approve with
 required amendments," ADR 0027 records the approved B10 "Longitudinal
-Organization Intelligence" architecture contract. This is a governance-
-closure task: it authorizes no code, adds no route, schema, migration,
-permission, or entitlement. B10 itself remains NOT IMPLEMENTED; B10-B
-implementation is READY TO BEGIN after the governance checkpoint is committed
-and pushed to origin/dev, and GitHub cumulative kms-check is green. B8 and B9 remain CLOSED; this decision does not reopen them.
+Organization Intelligence" architecture contract. This governance-closure
+task itself authorized no code, route, schema, migration, permission, or
+entitlement. B8 and B9 remain CLOSED; this decision does not reopen them.
+B10-B has since implemented this approved contract - see "B10-B Longitudinal
+Organization Intelligence (Implemented)" below and
+`docs/PROJECT_STATE.md` for the implementation-truth detail; the remainder of
+this section is the unmodified B10-A architecture record.
 
 B10 MVP is bounded to one Talent Program, one Academic Year, aggregate/
 non-identifiable output, and the ordered M8 `TalentPlannedEvaluationPeriod`
@@ -299,6 +301,37 @@ performance/concurrency qualification, future Academic Year chronology
 governance, and final M10 security/release qualification. See
 `docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md` for
 the complete recorded decision.
+
+## B10-B Longitudinal Organization Intelligence (Implemented)
+
+B10-B implements the ADR 0027 contract exactly as governed above, in
+`talent_org_longitudinal.py` plus one new route in
+`routers/talent_organization_analytics.py`: the seventh Organization
+Intelligence route, `GET /api/talent/organization-analytics/programs/
+{program_id}/longitudinal`. It reuses `resolve_access_context`/
+`authorized_program_universe`/`resolve_filters`/`frozen_membership_query`
+unchanged, fetches the single governed M8 Plan and its Period+linked-Cycle
+series in one bounded query, and aggregates population/completed/started/
+Candidate/identified counts grouped by Cycle id in one bounded query each -
+never one query per Period. Every Cell/component is built with
+`relationships=()` (no same-point or cross-time additive Relationship
+anywhere in the module), so no `delta`/`change`/`percent_change` field is
+ever computed; rates are derived only through the unchanged
+`derive_exact_rate`/`project_safe_derived_payload` helpers. Comparability
+follows the ADR's exact precedence (a missing/cancelled/no-population
+reason, then `privacy_protected`, then `framework_changed`, then
+`comparable`) with an explicit regression test proving a missing/non-
+authoritative reason overrides `framework_changed` even when the Framework
+versions also differ. Candidate/Identification SQL is skipped entirely
+unless the selected metric requires it AND the actor holds the matching
+secondary permission - requesting an unrelated metric never triggers that
+SQL merely because the actor holds the permission. Breadth
+(`projection_family="program_longitudinal"`) is enforced before the
+aggregate queries run. See `docs/PROJECT_STATE.md` for the full
+implementation-truth summary and `tests/test_talent_organization_longitudinal.py`
+for the complete test matrix. Independent security/privacy review passed with
+non-blocking observations; B10 is CLOSED. B11 (frontend), B12 (closeout), and
+every ADR 0027 "Deferred capabilities"/"Production gates" item remain open.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

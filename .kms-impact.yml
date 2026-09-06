@@ -1,20 +1,23 @@
 knowledge_impact: yes
-summary: Govern the approved B10-A single-Program single-Academic-Year longitudinal contract in ADR 0027; preserve B8/B9 CLOSED committed truth. B10 remains NOT IMPLEMENTED; B10-B requires the checkpoint pushed to origin/dev and a green GitHub cumulative kms-check. No application, schema, permission, or entitlement changes.
+summary: Implement and close M10 B10 longitudinal organization intelligence under ADR 0027 with one Program, one Academic Year, M8 Period ordering, linked Open or Closed Cycle evidence, the exact nine-metric allowlist, privacy-closed points, metadata-only comparability, and secondary Candidate or Identification permission gates. Add no schema, migration, permission, entitlement, Student identity, server delta, matched cohort, ranking, AI, B11, B12, or deployment.
 affected_areas:
-  - cumulative-kms-declaration-reconciliation
-  - m10-b10a-governance
-  - longitudinal-organization-intelligence-contract
-  - b8-b9-closure-truth
+  - talent-organization-intelligence
+  - longitudinal-analytics
+  - evaluation-period-ordering
+  - cycle-evidence-authority
+  - comparability
+  - privacy-closure
+  - candidate-identification-permissions
+  - tenant-isolation
+  - tests
+  - documentation
 kms_files_updated:
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/TIS_MODULE_MAP.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/adr/README.md
-  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
 no_impact_reason:
 major_change_override: no

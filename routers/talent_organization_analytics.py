@@ -22,6 +22,7 @@ import talent_org_talent_map as talent_map
 import talent_org_b7 as b7
 import talent_org_participation_overlap as participation_overlap
 import talent_org_student_drill as student_drill
+import talent_org_longitudinal as longitudinal
 import academic_grade
 import models
 
@@ -417,6 +418,104 @@ def organization_participation_overlap(
             "breadth_policy_version": breadth_version,
             "request_context_fingerprint": fingerprint,
         })
+    except svc.OrganizationAnalyticsError as exc:
+        return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
+    except Exception:
+        return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
+
+
+@router.get("/programs/{program_id}/longitudinal")
+def organization_program_longitudinal(
+    program_id: int, academic_year_id: int = Query(..., gt=0), metric: str = Query(...),
+    branch_id: Optional[int] = Query(None, gt=0), grade_level: Optional[str] = Query(None),
+    planning_section_id: Optional[int] = Query(None, gt=0),
+    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
+    breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
+    policy=Depends(resolve_privacy_policy_provider),
+):
+    """M10 B10 Longitudinal Organization Intelligence (ADR 0027).
+
+    One Program x one Academic Year, ordered by M8 Period ``sequence``,
+    exactly one selected metric, privacy-closed, and with NO server-computed
+    delta/change/percent-change field anywhere in the response - see
+    ``talent_org_longitudinal`` for the full safety rationale.
+    """
+    context, error = _b7_context(db, current_user, academic_year_id, availability_provider)
+    if error:
+        return error
+    try:
+        selected_metric = MetricCode(metric)
+    except ValueError:
+        return _error("invalid_filter", "Longitudinal metric is unsupported.", 400)
+    if selected_metric not in longitudinal.LONGITUDINAL_METRICS:
+        return _error("invalid_filter", "Longitudinal metric is unsupported.", 400)
+    if policy is None:
+        return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    authorized = svc.authorized_program_universe(db, context)
+    if program_id not in authorized:
+        return _error("not_found", "Program was not found.", 404)
+    try:
+        filters = svc.resolve_filters(
+            db, context, {
+                "program_ids": (program_id,), "branch_id": branch_id,
+                "grade_level": grade_level, "planning_section_id": planning_section_id,
+            },
+            authorized_program_ids=authorized,
+        )
+        candidate_metric = longitudinal.requires_candidate_permission(selected_metric)
+        identification_metric = longitudinal.requires_identification_permission(selected_metric)
+        if candidate_metric and not context.candidate_projection_allowed:
+            return _error("forbidden", "Longitudinal Candidate metric access is denied.", 403)
+        if identification_metric and not context.identification_projection_allowed:
+            return _error("forbidden", "Longitudinal Identification metric access is denied.", 403)
+
+        plan = longitudinal.fetch_plan(
+            db, school_group_id=context.school_group_id, program_id=program_id, academic_year_id=academic_year_id,
+        )
+        slots = () if plan is None else longitudinal.fetch_period_slots(
+            db, school_group_id=context.school_group_id, program_id=program_id, plan_id=plan.id,
+        )
+        component_count = 1 if selected_metric in longitudinal.COUNT_METRICS else 2
+        period_count = len(slots)
+        breadth_version = svc.enforce_breadth(
+            breadth_policy, projection_family=longitudinal.PROJECTION_FAMILY,
+            row_count=period_count, column_count=component_count,
+            prospective_cells=period_count * component_count, relationship_estimate=0,
+            program_count=1, prospective_pair_count=max(period_count - 1, 0),
+        )
+        population = svc.frozen_membership_query(db, context, filters, authorized_program_ids=authorized)
+        coverage = longitudinal.coverage_by_cycle(db, population)
+        candidate_counts = longitudinal.candidate_counts_by_cycle(db, population) if candidate_metric else None
+        identified_counts = longitudinal.identified_counts_by_cycle(db, population) if identification_metric else None
+        result = longitudinal.build_closed_projection(
+            context=context, program_id=program_id, metric=selected_metric, slots=slots,
+            coverage=coverage, candidate_counts=candidate_counts, identified_counts=identified_counts,
+            policy=policy,
+        )
+        program_row = db.query(models.TalentProgram.id, models.TalentProgram.name).filter_by(
+            id=program_id, school_group_id=context.school_group_id,
+        ).one()
+        year_row = db.query(models.AcademicYear.year_name).filter_by(
+            id=academic_year_id, school_group_id=context.school_group_id,
+        ).one()
+        fingerprint = svc.compute_request_context_fingerprint(
+            context, projection_family=longitudinal.PROJECTION_FAMILY, metric=selected_metric.value,
+            authorized_program_ids=(program_id,), filters=filters,
+            privacy_policy_version=str(policy.privacy_policy_version), semantic_contract_version="m10-b10-v1",
+        )
+        return longitudinal.serialize_projection(
+            result, program={"id": program_id, "name": program_row.name},
+            academic_year={"id": academic_year_id, "label": year_row.year_name}, plan=plan,
+            scope={
+                "authorization_scope": "organization" if context.all_branches else "authorized_branches",
+                "branch_id": filters.branch_id, "grade_level": filters.grade_level,
+                "planning_section_id": filters.planning_section_id,
+                "privacy_policy_version": str(policy.privacy_policy_version),
+                "breadth_policy_version": breadth_version,
+                "request_context_fingerprint": fingerprint,
+            },
+        )
     except svc.OrganizationAnalyticsError as exc:
         return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
     except Exception:

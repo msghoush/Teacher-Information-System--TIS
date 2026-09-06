@@ -96,14 +96,18 @@ permission, entitlement, longitudinal/B10, UI, or AI capability.
 The distinct-Student remediation passed targeted independent re-review; B9 is
 CLOSED. Its committed/pushed implementation remains part of current dev.
 
-## B10-A Longitudinal Organization Intelligence Governance Authority (Approved, Not Implemented)
+## B10-A Longitudinal Organization Intelligence Governance Authority (Approved) / B10-B Implemented
 
-ADR 0027 governs B10 as an approved architecture decision only; B10 has no
-route, query, schema, or migration yet, and B9's own closure status above is
-unchanged. B10 MVP is bounded to one Program, one Academic Year, and the
+ADR 0027 governs B10 as an approved architecture decision, and B10-B has
+implemented it exactly as governed: `GET /api/talent/organization-analytics/
+programs/{program_id}/longitudinal` (`talent_org_longitudinal.py`, the
+seventh Organization Intelligence route) is implemented and independently
+security/privacy reviewed with PASS and non-blocking observations; B10 is
+CLOSED. B9's own closure status above is
+unchanged, and no schema, migration, permission, or entitlement was added.
+B10 MVP is bounded to one Program, one Academic Year, and the
 ordered M8 `TalentPlannedEvaluationPeriod` slots within it, presented through
-the future `GET /api/talent/organization-analytics/programs/{program_id}/
-longitudinal`. The Period is the presentation/order authority (ordered only
+the now-implemented route above. The Period is the presentation/order authority (ordered only
 by its governed `sequence`); its optional linked Open/Closed
 `TalentAssessmentCycle` supplies the factual evidence, per the database's
 `uq_talent_assessment_cycles_period` one-Cycle-per-Period constraint. The

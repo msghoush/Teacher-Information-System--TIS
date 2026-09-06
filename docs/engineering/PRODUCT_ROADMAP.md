@@ -73,8 +73,9 @@ implemented; B9 status above is unchanged): one Program, one Academic Year,
 ordered M8 Period slots (Period = order authority, optional linked Cycle =
 evidence), exactly nine approved metrics of the existing fourteen, one
 metric per response, `comparable`/`not_comparable` states with no growth
-language, and no server-computed delta between points. B10-B implementation
-is READY TO BEGIN after the governance checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green.
+language, and no server-computed delta between points. B10-B is implemented,
+independently reviewed with PASS and non-blocking observations, and B10 is
+CLOSED. B11 and B12 remain unimplemented.
 
 ## Talent & Potential M9 Status
 

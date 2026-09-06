@@ -199,9 +199,9 @@ performance/concurrency qualification; future Academic Year chronology
 governance before multi-AY support; final M10 security/release
 qualification.
 
-**Status.** B10-A architecture contract: APPROVED/GOVERNED by this ADR. B10
-implementation: NOT IMPLEMENTED. B10-B: READY TO BEGIN once this KMS
-governance update is committed, pushed to origin/dev, and GitHub cumulative kms-check is green. B8 Participation Overlap and B9
+**Status.** B10-A architecture contract: APPROVED/GOVERNED by this ADR. B10-B
+is implemented and independently security/privacy reviewed with PASS and
+non-blocking observations; B10 is CLOSED. B11/B12 are NOT IMPLEMENTED. B8 Participation Overlap and B9
 Student Drill remain CLOSED after passed targeted independent re-reviews;
 their committed/pushed implementations remain part of current dev. This
 decision does not reopen either milestone.
@@ -227,7 +227,7 @@ decision does not reopen either milestone.
 
 ## Consequences
 
-- After the governance checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green, B10-B may proceed using the exact
+- After the governance checkpoint is committed and pushed, B10-B may proceed using the exact
   route, metric allowlist, time-point model, comparability vocabulary, and
   privacy discipline recorded above, without re-litigating the Period-vs-
   Cycle ordering question.

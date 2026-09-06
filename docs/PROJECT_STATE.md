@@ -117,10 +117,45 @@ constraint), exactly nine of the fourteen existing `MetricCode` values
 `assessment_started`, `started_coverage`, `candidate_count`,
 `candidate_of_eligible`, `identified_count`, `identified_of_eligible`), one
 metric per response, `comparable`/`not_comparable` states with no growth
-language, and no server-computed delta/percent-change between points. B10-B
-implementation is READY TO BEGIN after the governance checkpoint is committed
-and pushed to origin/dev, and GitHub cumulative kms-check is green. See
+language, and no server-computed delta/percent-change between points. See
 `docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md`.
+
+B10-B implements the ADR 0027 contract as
+`GET /api/talent/organization-analytics/programs/{program_id}/longitudinal`
+in `talent_org_longitudinal.py` (the seventh Organization Intelligence
+route). It reuses `resolve_access_context`/`authorized_program_universe`/
+`resolve_filters`/`frozen_membership_query` unchanged, fetches the single
+governed M8 Plan (`uq_talent_annual_evaluation_plans_config` guarantees at
+most one Plan per Program/Academic-Year) and its ordered Periods left-joined
+to their linked Cycle in one bounded query, and aggregates population/
+completed/started/Candidate/identified counts grouped by Cycle id in one
+additional bounded query each (never one query per Period). Point status
+uses the exact verified lifecycle values: a cancelled Period is
+`no_data`/`cancelled_period`; a missing linked Cycle is
+`no_data`/`missing_cycle`; a linked Draft Cycle is
+`no_data`/`cycle_not_authoritative`; an authoritative (Open/Closed) Cycle
+with zero frozen population is `no_data`/`no_frozen_population`; a Program
+with no Plan yields an empty, non-fabricated `points`/`comparisons` series.
+An unlinked/ad-hoc Cycle is structurally excluded because it is only ever
+looked up by Period-linked `cycle_id`. Every Cell/component uses
+`relationships=()` - there is no same-point or cross-time additive
+Relationship anywhere in this module, so no `delta`/`change`/
+`percent_change` field is computed or exposed; rates reuse
+`derive_exact_rate`/`project_safe_derived_payload` unchanged. Adjacent-Period
+comparisons are `comparable`/`not_comparable` only, evaluated in the ADR's
+governed precedence (missing/cancelled/no-population reason, then
+`privacy_protected`, then `framework_changed`, then `comparable`); the five
+Framework-independent metrics stay comparable across a Framework change,
+while the four Candidate/Identification metrics become
+`not_comparable`/`framework_changed`. Candidate/Identification SQL is
+skipped entirely unless both the selected metric requires it and the actor
+holds the corresponding secondary permission. Breadth is enforced (Period
+count, 1/2 components, `prospective_pair_count = periods-1`,
+`relationship_estimate=0`) before the aggregate queries run. B10-B is
+implemented and unit/integration tested. Independent security/privacy review
+passed with non-blocking observations; B10 is CLOSED. B11 (frontend), B12
+(closeout), and every ADR 0027 "Deferred
+capabilities"/"Production gates" item remain unimplemented/open.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and

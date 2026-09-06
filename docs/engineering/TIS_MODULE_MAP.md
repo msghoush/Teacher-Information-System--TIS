@@ -134,18 +134,53 @@ source_of_truth: true
   (longitudinal) route.
 - ADR 0027 (`docs/adr/0027-b10-longitudinal-organization-intelligence-
   contract.md`) records the B10-A "Longitudinal Organization Intelligence"
-  architecture as an APPROVED governance decision only - it adds no module
-  file, route, query, schema, migration, permission, or entitlement. The
-  future `GET /api/talent/organization-analytics/programs/{program_id}/
-  longitudinal` route is bounded to one Program/one Academic Year, ordered
-  M8 `TalentPlannedEvaluationPeriod` slots (Period = order authority via its
-  governed `sequence`; optional linked Open/Closed `TalentAssessmentCycle` =
-  evidence authority, consistent with `uq_talent_assessment_cycles_period`),
-  exactly nine of the fourteen existing `MetricCode` values, one metric per
-  response, `comparable`/`not_comparable` states, and no server-computed
-  delta/percent-change. B10 remains NOT IMPLEMENTED; B9's own status above is
-  unchanged; B10-B implementation is READY TO BEGIN after the governance
-  checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green.
+  architecture as an APPROVED governance decision, and B10-B has now
+  implemented it exactly as governed. The route is bounded to one Program/one
+  Academic Year, ordered M8 `TalentPlannedEvaluationPeriod` slots (Period =
+  order authority via its governed `sequence`; optional linked Open/Closed
+  `TalentAssessmentCycle` = evidence authority, consistent with
+  `uq_talent_assessment_cycles_period`), exactly nine of the fourteen
+  existing `MetricCode` values, one metric per response, `comparable`/
+  `not_comparable` states, and no server-computed delta/percent-change. B9's
+  own status above is unchanged; B10-B added no new permission, entitlement,
+  schema, or migration.
+- `talent_org_longitudinal.py` (B10-B): `GET /api/talent/organization-
+  analytics/programs/{program_id}/longitudinal`, the seventh Organization
+  Intelligence route, added in `routers/talent_organization_analytics.py`.
+  Reuses `resolve_access_context`/`authorized_program_universe`/
+  `resolve_filters`/`frozen_membership_query` unchanged; fetches the single
+  governed M8 Plan (`uq_talent_annual_evaluation_plans_config`) and its
+  Period+linked-Cycle series in one bounded query, then aggregates
+  population/completed/started/Candidate/identified counts grouped by Cycle
+  id in one bounded query each (never one query per Period, never a Student
+  ORM fetch or Student-ID set). Every Cell uses `relationships=()` - no
+  same-point or cross-time additive Relationship exists anywhere in the
+  module, so no `delta`/`change`/`percent_change` field can ever be produced;
+  rates reuse `derive_exact_rate`/`project_safe_derived_payload` unchanged.
+  `LongitudinalClosedProjection` is the sole strict closed-wrapper
+  serialization boundary (`TypeError` on a raw dict/ORM row/unclosed point),
+  matching B8's/B9's discipline. Comparability follows the ADR's governed
+  precedence (missing/cancelled/no-population reason, then
+  `privacy_protected`, then `framework_changed`, then `comparable`).
+  Candidate/Identification SQL is skipped entirely unless the selected
+  metric requires it AND the actor holds the matching secondary permission.
+- `tests/test_talent_organization_longitudinal.py`: route/contract, exact
+  nine-metric allowlist and five-exclusion coverage, authorization
+  (unauthenticated/forbidden/foreign-AY/foreign-and-unconfigured-Program
+  non-enumeration/unavailable/unauthorized-Branch-filter/historical-scope),
+  Period/Cycle/Plan lifecycle states (varying cadence, sequence-not-
+  insertion-order, draft Cycle, cancelled Period, missing Cycle, no frozen
+  population, empty Plan, unlinked ad-hoc Cycle exclusion), Framework
+  sensitivity (including the mandatory missing-reason-overrides-
+  framework_changed precedence test), privacy (no delta/change/
+  percent_change, provider-exception fail-closed, no_data-is-never-zero,
+  factual-zero-passes-privacy, privacy_protected comparisons, no second
+  privacy evaluation from comparison metadata), rate arithmetic, secondary
+  permission query-skip discipline, breadth-before-aggregation shape and
+  fail-closed rejection, bounded (non-per-Period) query count, and strict
+  serializer-isolation. Independent B10-B security/privacy review passed with
+  non-blocking observations; B10 is CLOSED. B11 (frontend), B12 (closeout), and every ADR 0027 deferred-
+  capability/production-gate item remain open.
 
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 

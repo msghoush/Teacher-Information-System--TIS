@@ -7,6 +7,64 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-07 - M10 B10-B Longitudinal Organization Intelligence Implementation
+
+- Implemented the ADR 0027 / B10-A approved contract: `GET /api/talent/
+  organization-analytics/programs/{program_id}/longitudinal`, the seventh
+  Organization Intelligence route, in new module `talent_org_longitudinal.py`
+  plus one added route function in `routers/talent_organization_analytics.py`.
+  No schema, migration, permission, or entitlement was added; B8/B9 remain
+  CLOSED and unmodified.
+- Reuses `resolve_access_context`/`authorized_program_universe`/
+  `resolve_filters`/`frozen_membership_query` unchanged. Fetches the single
+  governed M8 Plan and its Period+linked-Cycle series in one bounded query,
+  then aggregates population/completed/started/Candidate/identified counts
+  grouped by Cycle id in one bounded query each - never one query per Period,
+  never a Student ORM fetch, never a Student-ID Python set.
+- Every Cell/component is built with `relationships=()`: there is no
+  same-point or cross-time additive Relationship anywhere in the module, so
+  no `delta`/`change`/`percent_change` field can ever be computed or exposed.
+  Rates are derived only through the unchanged `derive_exact_rate`/
+  `project_safe_derived_payload` helpers.
+- Point status uses the exact verified lifecycle values: cancelled Period ->
+  `no_data`/`cancelled_period`; missing linked Cycle -> `no_data`/
+  `missing_cycle`; linked Draft Cycle -> `no_data`/`cycle_not_authoritative`;
+  authoritative Cycle with zero frozen population -> `no_data`/
+  `no_frozen_population`; a Program with no Plan yields an empty,
+  non-fabricated series. An unlinked/ad-hoc Cycle is structurally excluded
+  (only ever looked up by Period-linked `cycle_id`).
+- Comparability follows the ADR's governed precedence exactly: a missing/
+  cancelled/no-population reason first, then `privacy_protected`, then
+  `framework_changed`, then `comparable`. A dedicated regression test proves
+  a missing/non-authoritative reason overrides `framework_changed` even when
+  the adjacent Framework versions also differ. The five Framework-
+  independent metrics stay comparable across a Framework change; the four
+  Candidate/Identification metrics become `not_comparable`/
+  `framework_changed`.
+- Candidate/Identification SQL is skipped entirely unless the selected
+  metric requires it AND the actor holds the matching secondary permission -
+  requesting an unrelated metric never triggers that SQL merely because the
+  actor holds the permission.
+- Added `LongitudinalClosedProjection`, a strict closed-wrapper serialization
+  boundary (`TypeError` on a raw dict/ORM row/unclosed point), matching the
+  B8/B9 discipline.
+- Added `tests/test_talent_organization_longitudinal.py` (48 tests) covering
+  route/contract, the exact nine-metric allowlist and five exclusions,
+  authorization and non-enumeration, Period/Cycle/Plan lifecycle states,
+  Framework sensitivity and the precedence test above, privacy (no delta/
+  change/percent_change, provider-exception fail-closed, no_data-never-zero,
+  factual-zero-passes-privacy, `privacy_protected` comparisons, no second
+  privacy evaluation from comparison metadata), rate arithmetic, secondary
+  permission query-skip discipline, breadth-before-aggregation, bounded
+  (non-per-Period) query count, and serializer isolation. Full proportional
+  regression (M10 B0-B9 + M9 Talent Analytics + permissions + tenant
+  isolation + M8 Plan/Cycle/Candidate/Identification/Framework suites) passed
+  with no regressions.
+- Independent B10-B security/privacy review passed with non-blocking
+  observations; B10 is CLOSED. B11 (frontend), B12 (closeout), and every ADR 0027 "Deferred capabilities"/
+  "Production gates" item remain open. No `tis.db` change, commit, push, or
+  deployment occurred as part of this task.
+
 ## 2026-09-06 - B10-A Longitudinal Organization Intelligence Governance Closure
 
 - Added ADR 0027 recording the approved, amended B10 "Longitudinal
@@ -39,7 +97,7 @@ source_of_truth: true
   authority; multi-Academic-Year longitudinal ordering is explicitly
   deferred.
 - B10 itself remains NOT IMPLEMENTED. B10-B implementation is READY TO BEGIN
-  after the governance checkpoint is committed, pushed to origin/dev, and GitHub cumulative kms-check is green. No schema,
+  after the governance checkpoint is committed and pushed. No schema,
   migration, permission, entitlement, `tis.
   db` change, commit, or deployment occurred as part of this task.
 
