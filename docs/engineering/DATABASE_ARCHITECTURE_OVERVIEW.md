@@ -15,6 +15,13 @@ with no N+1. Candidate A requires NO CHANGE and Candidate B requires MORE
 EVIDENCE, so no index, schema, or migration change is approved. Memory evidence
 is directional local Windows development evidence only.
 
+B11-D is CLOSED after PostgreSQL 16.15 READ COMMITTED qualification proved
+same-request mixed snapshots in Overview and Student Drill. A non-permanent
+REPEATABLE READ experiment resolved both, but permanent adoption remains
+PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED. Any candidate transaction
+scope begins before the first statement and covers all M10 evidence inputs.
+No index, schema, migration, or isolation change is approved.
+
 B11-C must collect query count/execution time, route and privacy-closure time,
 peak/result memory, and rows/scans/buffers through EXPLAIN evidence against a
 representative non-production PostgreSQL dataset. B11-D qualifies the current

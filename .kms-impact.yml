@@ -1,11 +1,12 @@
 knowledge_impact: yes
-summary: Close M10 B11-C after durable PostgreSQL 16.15 evidence for all seven Organization Intelligence routes passed independent re-review with non-blocking observations. Record bounded query counts and no N+1, retain Candidate A as no change and Candidate B as requiring more evidence, and carry performance, concurrency, statistics, privacy-timing, provider, memory, and SLO qualification forward to B11-D/E. Add no application code, schema, migration, index, permission, privacy, entitlement, commercial mapping, production threshold, breadth limit, SLO, memory value, merge, or deployment.
+summary: Close M10 B11-D after PostgreSQL 16.15 READ COMMITTED concurrency and consistency evidence passed independent review with non-blocking observations. Record proven same-request mixed snapshots in Overview and Student Drill, a successful non-permanent REPEATABLE READ experiment, and permanent REPEATABLE READ as proposed and governance-required but not implemented. Carry suppressing-policy concurrency, other route reproduction, scale, statistics freshness, provider, memory, SLO, and release qualification into B11-E. Add no application code, schema, migration, index, permission, entitlement, privacy semantic, production threshold, breadth limit, commercial mapping, SLO, memory value, merge, or deployment.
 affected_areas:
   - talent-organization-intelligence
-  - m10-b11c-postgresql-qualification
-  - postgresql-performance-qualification
-  - durable-engineering-evidence
-  - index-candidate-evaluation
+  - m10-b11d-postgresql-concurrency-qualification
+  - read-committed-consistency
+  - repeatable-read-governance-proposal
+  - privacy-concurrency-qualification
+  - postgresql-statistics-freshness
   - release-readiness
   - documentation
 kms_files_updated:
@@ -22,5 +23,6 @@ kms_files_updated:
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/history/engineering-handbook/README.md
   - docs/history/engineering-handbook/2026-09-07-b11c-postgresql-profiling-evidence-remediation.md
+  - docs/history/engineering-handbook/2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md
 no_impact_reason:
 major_change_override: no

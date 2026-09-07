@@ -138,6 +138,12 @@ B10 is CLOSED. B11-A qualification architecture is complete. B11-B
 observability is CLOSED. These B11 governance boundaries are APPROVED/GOVERNED.
 B11-C completed PostgreSQL 16.15 profiling and is CLOSED after independent
 re-review returned PASS WITH NON-BLOCKING OBSERVATIONS. No index or production
-policy value was approved. B11-D is NOT
-IMPLEMENTED. B11-E is NOT COMPLETE. B11 overall is NOT CLOSED, B12 is NOT
+policy value was approved.
+
+B11-D subsequently completed PostgreSQL 16.15 READ COMMITTED qualification and
+is CLOSED after independent review returned PASS WITH NON-BLOCKING
+OBSERVATIONS. Same-request mixed snapshots were proven. REPEATABLE READ remains
+PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED pending a separate governed
+decision covering full-request transaction scope and retry/error handling.
+B11-E is NOT COMPLETE. B11 overall is NOT CLOSED, B12 is NOT
 IMPLEMENTED, and production readiness is NOT achieved.

@@ -20,6 +20,9 @@ source_of_truth: true
    READ COMMITTED behavior first. Evidence, a governed ADR, and full-request
    transaction scope are prerequisites for stronger isolation; indexes follow
    the separate evidence/migration/rollback/ADR gate.
+   This qualification is complete and B11-D is CLOSED. READ COMMITTED mixed
+   snapshots were proven; permanent REPEATABLE READ remains governance-required
+   and not implemented.
 4. B11-E blocks B11 closure, B12, master merge, and deployment until production
    privacy, commercial availability, breadth, performance, concurrency,
    memory/OOM, seven-route security, qualification-environment migration/index,

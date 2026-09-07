@@ -25,6 +25,12 @@ source_of_truth: true
   PASS WITH NON-BLOCKING OBSERVATIONS independent re-review. Query counts were
   bounded with no N+1; no index, schema, migration, permission, privacy, or
   entitlement semantic change was made.
+- B11-D is CLOSED after READ COMMITTED qualification proved mixed snapshots
+  within Overview and Student Drill requests. REPEATABLE READ remains a
+  governance-required, not-implemented proposal for a dedicated full-request
+  M10 transaction boundary. Suppressing-policy concurrency and other route
+  reproduction remain B11-E gates; Candidate B trends NO CHANGE and no index
+  is approved.
 
 ## Talent Organization Intelligence (M10 B0-B9)
 

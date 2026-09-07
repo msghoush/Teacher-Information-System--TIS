@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Project State
 
+## M10 B11-D PostgreSQL Concurrency Qualification Closure
+
+B11-D is CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
+review. READ COMMITTED mixed snapshots were reproduced within one request:
+Overview Candidate count 314 to 315 and Student Drill gate/page population
+705 to 706. A non-permanent REPEATABLE READ experiment resolved both cases,
+but permanent adoption is PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED.
+Its candidate scope begins before the first database statement and spans every
+M10 evidence input through privacy/reconstruction.
+
+Other multi-statement routes require live B11-E consistency verification.
+Suppression under concurrency remains unmeasured, Candidate B trends NO CHANGE
+with no index approved, and statistics freshness/ANALYZE remains an operational
+gate. The 209-test regression passed; tenant isolation remained clean.
+B11-E is NOT COMPLETE, B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and
+production readiness is NOT achieved.
+
 ## M10 B11-C PostgreSQL Qualification Closure
 
 B11-C is CLOSED. PostgreSQL 16.15 profiling of all seven M10 routes produced
@@ -17,7 +34,7 @@ was made. The 209-test regression passed. Memory evidence is directional local
 Windows development evidence only; no production threshold, breadth limit,
 commercial mapping, SLO, or memory value was selected.
 
-B11-D is NOT IMPLEMENTED, B11-E is NOT COMPLETE, B11 overall is NOT CLOSED,
+B11-D subsequently completed and is CLOSED. B11-E is NOT COMPLETE, B11 overall is NOT CLOSED,
 B12 is NOT IMPLEMENTED, and production readiness is NOT achieved. Outstanding
 B11-D/E work includes overlap planner instability, the MEDIUM-scale nested-loop
 plan, 10-100x scale retesting, statistics/ANALYZE freshness, real concurrency,
@@ -35,12 +52,11 @@ exception paths remain fail closed. Numeric thresholds, plan packaging,
 breadth limits, performance SLOs, memory ceilings, isolation changes, feature-
 key decisions, and indexes remain unresolved.
 
-B11-C subsequently completed and is CLOSED as recorded above. B11-D requires
-production-like PostgreSQL and controlled concurrent writers and tests READ
-COMMITTED first. B11-E blocks B11 closure, B12, master merge, and deployment
+B11-C and B11-D subsequently completed and are CLOSED as recorded above.
+B11-E blocks B11 closure, B12, master merge, and deployment
 until every provider/configuration, performance, concurrency, memory, security,
 qualification-environment migration/index, and KMS gate in ADR 0028 passes.
-B11-D is NOT IMPLEMENTED; B11-E is NOT COMPLETE; B11 overall is NOT CLOSED;
+B11-E is NOT COMPLETE; B11 overall is NOT CLOSED;
 B12 is NOT IMPLEMENTED.
 
 ## M10 B0-B9 Organization Intelligence

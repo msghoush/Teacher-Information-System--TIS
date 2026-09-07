@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Master Context
 
+## B11-D PostgreSQL Concurrency Qualification Authority
+
+B11-D is CLOSED after independent review passed with non-blocking observations.
+READ COMMITTED produced same-request mixed snapshots for Overview (Candidate
+314 to 315) and Student Drill (gate/page population 705 to 706). An isolated,
+non-permanent REPEATABLE READ experiment resolved both. Permanent adoption
+remains PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED; its candidate scope
+must cover the complete M10 request from the first database statement through
+privacy/reconstruction inputs.
+
+Other multi-statement route reproduction, suppressing-policy concurrency,
+statistics freshness, final scale/index disposition, and production provider,
+memory, and SLO qualification remain B11-E gates. Candidate B trends NO CHANGE
+and no index is approved. B11-E is NOT COMPLETE, B11 overall NOT CLOSED, B12
+NOT IMPLEMENTED, and production readiness NOT achieved.
+
 ## B11-C PostgreSQL Qualification Authority
 
 B11-C is CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
@@ -16,7 +32,7 @@ MORE EVIDENCE REQUIRED. No index, schema, migration, permission, privacy, or
 entitlement semantic change followed. Memory results are directional local
 Windows development evidence only, and no production policy value was chosen.
 
-B11-D remains NOT IMPLEMENTED, B11-E NOT COMPLETE, B11 overall NOT CLOSED,
+B11-D subsequently completed and is CLOSED. B11-E remains NOT COMPLETE, B11 overall NOT CLOSED,
 B12 NOT IMPLEMENTED, and production readiness NOT achieved.
 
 ## B11 Production Qualification Policy Authority
@@ -32,7 +48,7 @@ READ COMMITTED first; stronger isolation or an index requires demonstrated
 evidence and its own governed ADR.
 
 B11-C subsequently completed and is CLOSED. B11-E remains the release gate.
-B10 and B11-B remain CLOSED; B11-A is complete; B11-D is NOT IMPLEMENTED; B11-E is NOT
+B10 and B11-B remain CLOSED; B11-A is complete; B11-D is CLOSED; B11-E is NOT
 COMPLETE; B11 overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production
 readiness is NOT achieved.
 

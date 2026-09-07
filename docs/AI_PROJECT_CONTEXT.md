@@ -7,6 +7,31 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## B11-D PostgreSQL Concurrency Qualification Closure
+
+B11-D is CLOSED after independent review returned PASS WITH NON-BLOCKING
+OBSERVATIONS. PostgreSQL 16.15 / READ COMMITTED qualification proved two
+same-request mixed-snapshot inconsistencies: Overview Candidate total changed
+314 to 315, and Student Drill gate/page population changed 705 to 706.
+Other multi-statement projections remain structurally vulnerable; the
+Participation Overlap core matrix is partly safer because one statement drives
+the intersection, while surrounding response inputs remain multi-statement.
+
+A non-permanent REPEATABLE READ experiment resolved both reproduced cases.
+Permanent M10 REPEATABLE READ is PROPOSED - GOVERNANCE REQUIRED and NOT
+IMPLEMENTED. Any future transaction boundary must start before the first
+database statement and span access/context resolution, aggregate and frozen
+population reads, Candidate/Identification and Student Drill reads,
+longitudinal inputs, and privacy/reconstruction inputs. Suppression and
+reconstruction under concurrency remain unmeasured because qualification used
+the non-production AllowAllTestPolicy.
+
+Tenant isolation remained clean. Candidate B now trends NO CHANGE; no index,
+schema, migration, permission, entitlement, privacy semantic, production
+threshold, breadth, SLO, or memory value was approved. B11-E is NOT COMPLETE,
+B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is
+NOT achieved.
+
 ## B11-C PostgreSQL Qualification Closure
 
 B11-C is CLOSED after independent re-review returned PASS WITH NON-BLOCKING
@@ -20,7 +45,8 @@ profiling-evidence-remediation.md`.
 The memory measurements are directional local Windows development evidence
 only. No production privacy threshold, breadth limit, commercial mapping, SLO,
 or memory value was selected, and no permission, privacy, or entitlement
-semantics changed. B11-D is NOT IMPLEMENTED, B11-E is NOT COMPLETE, B11 overall
+semantics changed. B11-D subsequently completed and is CLOSED as recorded
+above. B11-E is NOT COMPLETE, B11 overall
 is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
 
 ## B11 Production Qualification Governance
@@ -35,8 +61,8 @@ PostgreSQL performance and memory evidence before any numeric SLO, limit, or
 ceiling is approved. B11-D tests current READ COMMITTED under controlled
 concurrency before any stronger isolation or evidence-backed index ADR.
 
-B11-C subsequently completed and is CLOSED as recorded above. B11-D is NOT
-IMPLEMENTED and B11-E is NOT COMPLETE.
+B11-C and B11-D subsequently completed and are CLOSED as recorded above.
+B11-E is NOT COMPLETE.
 B11 overall remains NOT CLOSED; B12 is NOT IMPLEMENTED and production
 readiness is NOT achieved. See ADR 0028 for the complete entry criteria,
 release gate, required evidence, and explicitly deferred Owner decisions.

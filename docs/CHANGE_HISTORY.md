@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-07 - M10 B11-D PostgreSQL Concurrency Qualification Closure
+
+- Closed B11-D after independent review returned PASS WITH NON-BLOCKING
+  OBSERVATIONS.
+- Recorded proven READ COMMITTED mixed snapshots within one request: Overview
+  Candidate count 314 to 315 and Student Drill gate/page population 705 to 706.
+- Recorded that a non-permanent REPEATABLE READ experiment resolved both cases,
+  while permanent adoption is PROPOSED - GOVERNANCE REQUIRED and NOT
+  IMPLEMENTED, with full-request transaction scope beginning before the first
+  database statement.
+- Preserved unmeasured suppressing-policy concurrency, other route consistency,
+  scale, statistics freshness, providers, memory, and SLO work as B11-E gates.
+  Candidate B trends NO CHANGE; no index or semantic/runtime change was made.
+  The 209-test regression passed and tenant isolation remained clean.
+
 ## 2026-09-07 - M10 B11-C PostgreSQL Qualification Closure
 
 - Closed B11-C after independent evidence re-review returned PASS WITH
@@ -17,7 +32,7 @@ source_of_truth: true
   and a passing 209-test regression.
 - Added no index, schema, migration, permission, privacy, or entitlement change
   and selected no production threshold, breadth limit, commercial mapping,
-  SLO, or memory value. B11-D remains NOT IMPLEMENTED; B11-E and B11 overall
+  SLO, or memory value. B11-D subsequently completed and is CLOSED; B11-E and B11 overall
   remain open; B12 remains NOT IMPLEMENTED; production is not ready.
 
 ## 2026-09-07 - M10 B11 Production Qualification Governance
@@ -29,7 +44,7 @@ source_of_truth: true
   and memory decisions; B11-C/D entry criteria; and the B11-E release gate.
 - Preserved every numeric threshold, plan/feature mapping, breadth limit, SLO,
   memory ceiling, isolation change, and index decision as explicitly deferred.
-- B11-C subsequently completed and is CLOSED. B11-D is NOT IMPLEMENTED; B11-E is NOT COMPLETE; B11
+- B11-C and B11-D subsequently completed and are CLOSED. B11-E is NOT COMPLETE; B11
   overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production is not ready.
 
 ## 2026-09-07 - M10 B11-A/B11-B Organization Analytics Observability

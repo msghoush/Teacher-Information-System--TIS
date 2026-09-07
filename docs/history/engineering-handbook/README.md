@@ -10,6 +10,10 @@ This folder tracks meaningful changes to the TIS Engineering Handbook, including
 
 Latest change:
 
+- `2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md`:
+  durable PostgreSQL 16.15 READ COMMITTED consistency evidence; independent
+  review passed with non-blocking observations and B11-D is CLOSED.
+
 - `2026-09-07-b11c-postgresql-profiling-evidence-remediation.md`: durable,
   sanitized PostgreSQL 16.15 evidence for all seven M10 routes; independent
   re-review passed with non-blocking observations and B11-C is CLOSED.

@@ -13,9 +13,12 @@ ADR 0028 approves the B11 production-policy boundaries. B11-C used local
 non-production PostgreSQL, representative synthetic data, and test provider
 configuration to gather performance, memory, and EXPLAIN evidence.
 B11-C is now CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
-re-review. B11-D qualifies READ COMMITTED under controlled concurrency; B11-E is the
+re-review. B11-D is CLOSED after READ COMMITTED qualification proved mixed
+same-request snapshots and an isolated REPEATABLE READ experiment resolved the
+two reproduced cases. Permanent REPEATABLE READ remains proposed, governed,
+and not implemented. B11-E is the
 release gate. No numeric thresholds, packaging, breadth limits, SLOs, memory
-ceilings, isolation changes, or indexes are approved yet. B11-D is NOT IMPLEMENTED, B11-E is NOT COMPLETE, B11
+ceilings, isolation changes, or indexes are approved yet. B11-E is NOT COMPLETE, B11
 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production is not ready.
 
 ## Talent & Potential M10 Status
