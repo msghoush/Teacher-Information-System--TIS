@@ -17,6 +17,7 @@ kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
   - docs/adr/0028-b11-production-qualification-policy.md
   - docs/adr/README.md
   - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
