@@ -10,9 +10,18 @@ kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
+  - docs/adr/0028-b11-production-qualification-policy.md
+  - docs/adr/README.md
   - docs/engineering/AI_CODING_WORKFLOW.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/PROJECT_GOVERNANCE.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/history/engineering-handbook/README.md
   - docs/history/engineering-handbook/2026-09-05-cline-kms-configuration.md
+  - docs/history/engineering-handbook/2026-09-07-b11c-postgresql-profiling-evidence-remediation.md
+  - docs/history/engineering-handbook/2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md
 no_impact_reason:
 major_change_override: no
