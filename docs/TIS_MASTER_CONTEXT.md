@@ -126,6 +126,27 @@ with no new privacy class. See
 `docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md` for
 the complete decision, deferred-capability list, and open production gates.
 
+## B11-A/B11-B Organization Analytics Observability
+
+B11-A (read-only qualification) is completed: the privacy, commercial-
+availability, and breadth-policy provider seams used by all 7 M10 routes
+exist with no production implementation and correctly fail closed. B11-B
+adds safe, non-sensitive operational observability (`projection_family`,
+`outcome`, latency, safe structural counts reused from each route's own
+breadth-policy inputs, and each provider's coarse missing/allowed-or-
+available/rejected-or-unavailable/exception outcome - never a Student
+identifier, raw value, privacy threshold, or Candidate/Identification
+decision) around all 7 routes, through a new dedicated logger in
+`talent_organization_analytics_observability.py`, kept separate from the
+immutable business/security audit trail. Every fail-closed HTTP outcome is
+unchanged byte-for-byte and a telemetry failure can never affect the HTTP
+response. Query-count instrumentation is deferred to a future "B11-C
+profiling" phase. B11-B is implemented and unit-tested; independent security/
+privacy review passed with non-blocking observations and B11-B is CLOSED. No schema, migration, permission,
+entitlement, privacy threshold, or breadth limit was added; every
+PostgreSQL/production ADR 0027 gate remains open; B11 overall is not
+CLOSED and B12 remains unimplemented.
+
 ## Talent Annual Evaluation Planning Authority
 
 The canonical planning chain is `TalentProgram -> Program Academic Year

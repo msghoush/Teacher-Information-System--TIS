@@ -7,6 +7,55 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-07 - M10 B11-A/B11-B Organization Analytics Observability
+
+- B11-A (read-only qualification, completed) confirmed the privacy,
+  commercial-availability, and breadth-policy provider seams used by all 7
+  M10 Organization Intelligence routes exist with no production
+  implementation and correctly fail closed today.
+- B11-B adds safe, non-sensitive operational observability around all 7
+  existing routes (`overview`, `talent-map`, `program-portfolio`,
+  `branches/{branch_id}`, `participation-overlap`, `students`,
+  `programs/{program_id}/longitudinal`) through a new module,
+  `talent_organization_analytics_observability.py`, and telemetry wiring in
+  `routers/talent_organization_analytics.py`. Uses a dedicated
+  `tis.talent.organization_analytics.observability` stdlib logger, kept
+  separate from the immutable business/security audit trail (`audit.py`).
+- Recorded signals are a bounded allowlist only: `projection_family`,
+  `outcome` (`success`/`rejected`/`unavailable`/`failed`), route latency,
+  safe structural counts reused from each route's own existing
+  `OrganizationAnalyticsBreadthPolicy.allows(...)` inputs
+  (`program_count`/`row_count`/`column_count`/`prospective_cell_count`/
+  `prospective_pair_count`/`relationship_estimate`, plus route-specific
+  `emitted_pair_count`, `period_count`/`component_count`/
+  `authoritative_cycle_count`/`comparison_count`, and Student Drill's
+  `page_limit`/`page_returned_count`/`has_more`), and each provider's
+  coarse outcome (missing/available/unavailable/exception for
+  availability; missing/evaluated/exception for privacy; missing/allowed/
+  rejected/exception for breadth). Never a Student identifier, raw
+  analytical value, privacy threshold, suppressed value, Candidate/
+  Identification decision, or `delta`/`change`/`percent_change`/
+  `total_count`.
+- Every existing fail-closed HTTP outcome (provider missing/false/
+  exception, breadth reject/exception, privacy provider missing/
+  exception) is unchanged byte-for-byte; observability wraps existing
+  decision points purely to observe them and never recomputes/duplicates a
+  provider call or alters a response body. A telemetry emission failure is
+  swallowed internally and can never affect the HTTP response or weaken a
+  fail-closed decision.
+- Query-count instrumentation is explicitly deferred to a future "B11-C
+  profiling" phase; no new SQLAlchemy event-listener instrumentation was
+  added outside existing test-only usage.
+- New coverage: `tests/test_talent_organization_observability.py` (22
+  tests). Full existing B5-B10 regression suites and the broader M9/M10/
+  permission/tenant-isolation suites remain green. No schema, migration,
+  permission, entitlement, privacy threshold, or breadth limit was added.
+  Independent security/privacy review passed with non-blocking observations;
+  B11-B is CLOSED. PostgreSQL
+  performance/concurrency/memory qualification and every ADR 0027
+  production gate remain open; B11 overall is not CLOSED and B12 remains
+  unimplemented.
+
 ## 2026-09-07 - M10 B10-B Longitudinal Organization Intelligence Implementation
 
 - Implemented the ADR 0027 / B10-A approved contract: `GET /api/talent/
@@ -61,7 +110,7 @@ source_of_truth: true
   isolation + M8 Plan/Cycle/Candidate/Identification/Framework suites) passed
   with no regressions.
 - Independent B10-B security/privacy review passed with non-blocking
-  observations; B10 is CLOSED. B11 (frontend), B12 (closeout), and every ADR 0027 "Deferred capabilities"/
+  observations; B10 is CLOSED. B11, B12 (closeout), and every ADR 0027 "Deferred capabilities"/
   "Production gates" item remain open. No `tis.db` change, commit, push, or
   deployment occurred as part of this task.
 

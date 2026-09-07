@@ -153,9 +153,36 @@ holds the corresponding secondary permission. Breadth is enforced (Period
 count, 1/2 components, `prospective_pair_count = periods-1`,
 `relationship_estimate=0`) before the aggregate queries run. B10-B is
 implemented and unit/integration tested. Independent security/privacy review
-passed with non-blocking observations; B10 is CLOSED. B11 (frontend), B12
-(closeout), and every ADR 0027 "Deferred
+passed with non-blocking observations; B10 is CLOSED. B11, B12 (closeout),
+and every ADR 0027 "Deferred
 capabilities"/"Production gates" item remain unimplemented/open.
+
+B11-A (read-only qualification) is completed: it confirmed the privacy,
+commercial-availability, and breadth-policy provider seams used by all 7
+M10 routes exist with no production implementation and correctly fail
+closed. B11-B adds safe, non-sensitive operational observability around
+all 7 existing routes via a new dedicated logger in
+`talent_organization_analytics_observability.py` (separate from the
+immutable business/security audit trail in `audit.py`) plus telemetry
+wiring in `routers/talent_organization_analytics.py`. Recorded signals are
+a bounded allowlist only - `projection_family`, `outcome`, route latency,
+safe structural counts reused from each route's own existing breadth-policy
+inputs, and each provider's coarse outcome (missing/available/unavailable/
+exception for availability; missing/evaluated/exception for privacy;
+missing/allowed/rejected/exception for breadth) - never a Student
+identifier, raw analytical value, privacy threshold, suppressed value,
+Candidate/Identification decision, or `delta`/`change`/`percent_change`/
+`total_count`. Every existing fail-closed HTTP outcome is unchanged
+byte-for-byte, and a telemetry emission failure is swallowed internally and
+can never affect the HTTP response. Query-count instrumentation is
+explicitly deferred to a future "B11-C profiling" phase. B11-B is
+implemented and unit-tested (`tests/test_talent_organization_observability.py`,
+22 tests, full existing B5-B10 regression suites green). Independent
+security/privacy review passed with non-blocking observations; B11-B is
+CLOSED. No schema, migration, permission, entitlement, privacy threshold,
+or production breadth limit was added; PostgreSQL performance/concurrency/
+memory qualification and every ADR 0027 production gate remain open; B11
+overall is not CLOSED and B12 remains unimplemented.
 
 The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
 `membership_grain` use the approved closed string-backed enum vocabularies and

@@ -179,8 +179,33 @@ source_of_truth: true
   permission query-skip discipline, breadth-before-aggregation shape and
   fail-closed rejection, bounded (non-per-Period) query count, and strict
   serializer-isolation. Independent B10-B security/privacy review passed with
-  non-blocking observations; B10 is CLOSED. B11 (frontend), B12 (closeout), and every ADR 0027 deferred-
+  non-blocking observations; B10 is CLOSED. B11, B12 (closeout), and every ADR 0027 deferred-
   capability/production-gate item remain open.
+- B11-A (read-only qualification, completed) confirmed the privacy,
+  commercial-availability, and breadth-policy provider seams used by all 7
+  M10 routes exist with no production implementation and fail closed today.
+  `talent_organization_analytics_observability.py` (B11-B) adds one
+  reusable `OrganizationAnalyticsObservation` accumulator and a dedicated
+  `tis.talent.organization_analytics.observability` logger - separate from
+  the immutable business/security audit trail in `audit.py` - emitting only
+  a bounded allowlist (`projection_family`, `outcome`, `latency_ms`, safe
+  structural counts reused from each route's own existing breadth-policy
+  inputs, and each provider's coarse missing/available-or-evaluated/
+  rejected-or-unavailable/exception outcome). `routers/
+  talent_organization_analytics.py` wires this around all 7 routes purely
+  observationally (`_enforce_breadth_observed`/`_privacy_evaluated`/
+  `_b7_context` telemetry wrappers reuse the exact shape values/decision
+  distinctions each route already computes; they never recompute a
+  provider decision or alter a response body). A telemetry emission
+  failure is swallowed internally and can never affect the HTTP response
+  or weaken a fail-closed decision. Query-count instrumentation is
+  explicitly deferred to a future "B11-C profiling" phase - no new
+  SQLAlchemy event-listener instrumentation was added. See
+  `tests/test_talent_organization_observability.py` (22 tests). B11-B is
+  implemented/tested and independently security/privacy reviewed with PASS
+  and non-blocking observations; B11-B is CLOSED. No schema,
+  migration, permission, entitlement, privacy threshold, or breadth limit
+  was added; B11 overall is not CLOSED and B12 remains unimplemented.
 
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 

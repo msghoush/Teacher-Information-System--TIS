@@ -330,8 +330,55 @@ SQL merely because the actor holds the permission. Breadth
 aggregate queries run. See `docs/PROJECT_STATE.md` for the full
 implementation-truth summary and `tests/test_talent_organization_longitudinal.py`
 for the complete test matrix. Independent security/privacy review passed with
-non-blocking observations; B10 is CLOSED. B11 (frontend), B12 (closeout), and
-every ADR 0027 "Deferred capabilities"/"Production gates" item remain open.
+non-blocking observations; B10 is CLOSED. B11, B12 (closeout), and every ADR 0027
+"Deferred capabilities"/"Production gates" item remain open.
+
+## B11-A/B11-B Organization Analytics Observability
+
+B11-A (read-only qualification, completed) confirmed that the privacy,
+commercial-availability, and breadth-policy provider seams used by all 7
+M10 Organization Intelligence routes exist with no production
+implementation and correctly fail closed today. B11-B adds safe,
+non-sensitive operational observability around all 7 existing routes
+(`overview`, `talent-map`, `program-portfolio`, `branches/{branch_id}`,
+`participation-overlap`, `students`, `programs/{program_id}/longitudinal`)
+through a new `talent_organization_analytics_observability.py` module (a
+dedicated, non-exported stdlib logger, `tis.talent.organization_analytics
+.observability`, deliberately kept separate from the immutable business/
+security audit trail in `audit.py`) plus telemetry wiring in
+`routers/talent_organization_analytics.py`. Recorded signals are bounded
+and allowlisted only: `projection_family`, `outcome`
+(`success`/`rejected`/`unavailable`/`failed`), route latency, safe
+structural counts already computed for each route's own
+`OrganizationAnalyticsBreadthPolicy.allows(...)` call
+(`program_count`/`row_count`/`column_count`/`prospective_cell_count`/
+`prospective_pair_count`/`relationship_estimate`, plus route-specific
+`emitted_pair_count`, `period_count`/`component_count`/
+`authoritative_cycle_count`/`comparison_count`, and Student Drill's
+`page_limit`/`page_returned_count`/`has_more`), and each governed
+provider's coarse outcome (`provider_missing`/`available`/`unavailable`/
+`provider_exception` for availability; `provider_missing`/`evaluated`/
+`provider_exception` for privacy; `policy_missing`/`allowed`/`rejected`/
+`policy_exception` for breadth) - never a Student identifier, raw
+analytical value, privacy threshold, suppressed value, or Candidate/
+Identification decision, and never `delta`/`change`/`percent_change`/
+`total_count`. Every existing fail-closed HTTP outcome (provider missing/
+false/exception, breadth reject/exception, privacy provider missing/
+exception) is unchanged byte-for-byte; observability only observes an
+existing decision after the fact and never becomes a new oracle or alters
+a response body. A telemetry emission failure is swallowed internally and
+cannot affect the HTTP response or weaken a fail-closed decision.
+Query-count instrumentation is explicitly deferred to a future "B11-C
+profiling" phase - no new SQLAlchemy event-listener instrumentation was
+added outside existing test-only usage. B11-B is implemented and unit-
+tested (`tests/test_talent_organization_observability.py`, 22 tests, plus
+the full pre-existing B5-B10 regression suites green). Independent security/
+privacy review passed with non-blocking observations; B11-B is CLOSED. No
+schema, migration, permission, entitlement, privacy threshold,
+or production breadth limit was added; PostgreSQL performance/concurrency/
+memory qualification and every ADR 0027 production gate remain open; B11
+overall (including any frontend work) is not CLOSED and B12 remains
+unimplemented.
 
 ## Deterministic Talent Analytics (M9, Committed/Pushed On dev)
 

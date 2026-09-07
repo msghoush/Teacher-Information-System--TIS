@@ -1,13 +1,14 @@
 knowledge_impact: yes
-summary: Implement and close M10 B10 longitudinal organization intelligence under ADR 0027 with one Program, one Academic Year, M8 Period ordering, linked Open or Closed Cycle evidence, the exact nine-metric allowlist, privacy-closed points, metadata-only comparability, and secondary Candidate or Identification permission gates. Add no schema, migration, permission, entitlement, Student identity, server delta, matched cohort, ranking, AI, B11, B12, or deployment.
+summary: Implement and close M10 B11-B operational observability across the seven existing Organization Intelligence routes using one dedicated logger and a bounded telemetry allowlist, while keeping observability separate from audit, preserving response, authorization, privacy, validation, analytical, and fail-closed behavior, and deferring B11-C/D/E and all production provider, configuration, PostgreSQL, and release decisions.
 affected_areas:
   - talent-organization-intelligence
-  - longitudinal-analytics
-  - evaluation-period-ordering
-  - cycle-evidence-authority
-  - comparability
-  - privacy-closure
-  - candidate-identification-permissions
+  - m10-b11a-qualification-architecture
+  - m10-b11b-observability-implementation
+  - operational-telemetry-boundary
+  - provider-fail-closed-telemetry
+  - audit-vs-operational-logging-separation
+  - safe-structural-signal-allowlist
+  - privacy
   - tenant-isolation
   - tests
   - documentation
@@ -16,11 +17,7 @@ kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
-  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
-  - docs/adr/README.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/TIS_MODULE_MAP.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
 no_impact_reason:
 major_change_override: no

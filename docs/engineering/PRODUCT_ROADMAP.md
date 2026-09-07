@@ -75,7 +75,9 @@ evidence), exactly nine approved metrics of the existing fourteen, one
 metric per response, `comparable`/`not_comparable` states with no growth
 language, and no server-computed delta between points. B10-B is implemented,
 independently reviewed with PASS and non-blocking observations, and B10 is
-CLOSED. B11 and B12 remain unimplemented.
+CLOSED. B11-B observability is implemented, independently reviewed with PASS
+and non-blocking observations, and CLOSED; B11 overall remains NOT CLOSED
+pending B11-C/D/E. B12 remains NOT IMPLEMENTED.
 
 ## Talent & Potential M9 Status
 
