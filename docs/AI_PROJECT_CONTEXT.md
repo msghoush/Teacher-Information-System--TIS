@@ -1109,6 +1109,20 @@ never touched. The prior round's `GET
 /planning/subject-demand/delete/{demand_id}` route remains in place for
 removing active setup requirements.
 
+## Cline And Three-Agent Development Pool
+
+Codex, Claude Code, and Cline/ClinePass are approved TIS development agents.
+Cline's repository entry points are `.clinerules/tis.md` and
+`.cline/skills/tis-kms-developer/SKILL.md`. They require governing KMS onboarding,
+implementation inspection, isolation/RBAC and database safety, minimal diffs,
+proportional tests, task-level KIA, KMS sync/check, and deployment reporting.
+
+The master conversation balances tasks by complexity, specialization, risk,
+independent-review value, and current usage/load, without permanent assignments.
+See [Project Governance](engineering/PROJECT_GOVERNANCE.md) for the allocation policy and
+[AI Coding Workflow](engineering/AI_CODING_WORKFLOW.md) for Cline setup/invocation.
+This configuration changes no application, schema, or production behavior.
+
 ## Claude Code KMS Configuration
 
 Claude Code uses root `CLAUDE.md` as its repository entry point,

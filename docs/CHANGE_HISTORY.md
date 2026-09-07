@@ -371,6 +371,19 @@ source_of_truth: true
   migration, UI, Talent Score, Potential Rate, or cross-Program
   normalization. B1/B2 execution remains deferred.
 
+## 2026-09-05 - Cline KMS Configuration And Three-Agent Orchestration
+
+- Added Cline project rules and the reusable tis-kms-developer skill, governed by
+  existing AGENTS.md/KMS with scope, safety, validation, and deployment safeguards.
+- Approved Codex, Claude Code, and Cline/ClinePass as the development pool, with
+  flexible master-conversation allocation by complexity, specialization, risk,
+  review independence, and usage/load.
+- Documented setup, slash/natural-language invocation, skill discovery caveats,
+  and independent verification. No application/schema/production change.
+- Preserved the then-existing M9 KIA state without modifying M9 implementation or governance; generated artifacts are synchronized from
+  the combined current authoritative Markdown.
+- See [module history](history/engineering-handbook/2026-09-05-cline-kms-configuration.md).
+
 ## 2026-09-05 - Talent & Potential M9 Deterministic Talent Analytics (Implemented, Remediated, Then Committed/Pushed On dev)
 
 - Added the read-only, aggregate-only `/api/talent/analytics` API (context,

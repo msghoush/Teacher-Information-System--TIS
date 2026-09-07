@@ -8,6 +8,10 @@ last_updated: 2026-09-07
 
 This folder tracks meaningful changes to the TIS Engineering Handbook, including module maps, repository architecture, user/system flows, and onboarding guidance for humans and AI coding conversations.
 
+Cline integration:
+- [2026-09-05 Cline KMS configuration](2026-09-05-cline-kms-configuration.md):
+  project rules, reusable skill, and flexible three-agent orchestration.
+
 Latest change:
 
 - `2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md`:
