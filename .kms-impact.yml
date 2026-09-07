@@ -1,27 +1,30 @@
 knowledge_impact: yes
-summary: Add Cline project configuration and document the approved three-agent development pool while preserving committed TIS milestone truth through B11-D. No application behavior, schema, migration, permission, entitlement, isolation, production policy, or deployment change.
+summary: Govern (ADR 0029) and implement the M10-only REPEATABLE READ transaction boundary for the seven Organization Intelligence routes, live-re-test all seven routes and suppression/reconstruction concurrency, and finalize Index Candidate B and statistics-freshness disposition. Independent review passed with non-blocking observations; B11-E implementation is checkpointable while production closure remains pending, B11 overall remains NOT CLOSED, and B12 remains NOT IMPLEMENTED. No server-wide isolation, schema, migration, index, permission, entitlement, or production-provider-value change.
 affected_areas:
-  - cline-kms-configuration
-  - three-agent-development-governance
+  - m10-organization-analytics
+  - postgresql-isolation-governance
+  - b11-production-qualification
+  - privacy-concurrency-qualification
   - documentation
-  - local-kms-reconciliation
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
   - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
   - docs/adr/0028-b11-production-qualification-policy.md
+  - docs/adr/0029-m10-organization-analytics-repeatable-read-boundary.md
   - docs/adr/README.md
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/CHANGE_HISTORY.md
   - docs/engineering/AI_CODING_WORKFLOW.md
   - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/PRODUCT_ROADMAP.md
   - docs/engineering/PROJECT_GOVERNANCE.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-  - docs/history/engineering-handbook/README.md
   - docs/history/engineering-handbook/2026-09-05-cline-kms-configuration.md
   - docs/history/engineering-handbook/2026-09-07-b11c-postgresql-profiling-evidence-remediation.md
   - docs/history/engineering-handbook/2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md
+  - docs/history/engineering-handbook/2026-09-08-b11e-integrated-production-qualification.md
+  - docs/history/engineering-handbook/README.md
+  - docs/PROJECT_STATE.md
+  - docs/TIS_MASTER_CONTEXT.md
 no_impact_reason:
 major_change_override: no

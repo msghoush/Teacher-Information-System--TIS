@@ -7,6 +7,25 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## B11-E Integrated Production Qualification
+
+ADR 0029 governs and implements a dedicated M10-only REPEATABLE READ session/
+dependency for the seven Organization Intelligence routes only, strictly
+backend-conditional (PostgreSQL only), with no server-wide or other-route
+isolation change. All seven routes were live-re-tested under the permanent
+implementation and confirmed consistent, including the five routes B11-D had
+only structurally inferred. Suppression/reconstruction concurrency was
+tested live with the existing non-production `DeterministicSuppressionTestPolicy`
+(primary and complementary suppression); no suppressed value became
+reconstructable. Index Candidate B is finalized NO CHANGE; statistics
+freshness is finalized as operational/runbook guidance. The production
+privacy/availability/breadth providers remain unimplemented and fail-closed -
+explicit B11-E production-closure blockers for the Owner. **Independent review
+returned PASS WITH NON-BLOCKING OBSERVATIONS; B11-E implementation is PASSED
+and checkpointable, but B11-E production closure remains PENDING. B11 overall
+is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT
+achieved.**
+
 ## B11-D PostgreSQL Concurrency Qualification Closure
 
 B11-D is CLOSED after independent review returned PASS WITH NON-BLOCKING
@@ -18,19 +37,19 @@ Participation Overlap core matrix is partly safer because one statement drives
 the intersection, while surrounding response inputs remain multi-statement.
 
 A non-permanent REPEATABLE READ experiment resolved both reproduced cases.
-Permanent M10 REPEATABLE READ is PROPOSED - GOVERNANCE REQUIRED and NOT
-IMPLEMENTED. Any future transaction boundary must start before the first
+Permanent M10 REPEATABLE READ was then PROPOSED - GOVERNANCE REQUIRED and NOT
+IMPLEMENTED. B11-E subsequently governed and implemented that boundary, which starts before the first
 database statement and span access/context resolution, aggregate and frozen
 population reads, Candidate/Identification and Student Drill reads,
-longitudinal inputs, and privacy/reconstruction inputs. Suppression and
-reconstruction under concurrency remain unmeasured because qualification used
-the non-production AllowAllTestPolicy.
+longitudinal inputs, and privacy/reconstruction inputs. B11-E subsequently
+measured suppression and reconstruction under concurrency with the
+non-production `DeterministicSuppressionTestPolicy`.
 
 Tenant isolation remained clean. Candidate B now trends NO CHANGE; no index,
 schema, migration, permission, entitlement, privacy semantic, production
-threshold, breadth, SLO, or memory value was approved. B11-E is NOT COMPLETE,
-B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is
-NOT achieved.
+threshold, breadth, SLO, or memory value was approved. B11-E implementation is
+PASSED and checkpointable, but production closure remains PENDING; B11 overall
+is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
 
 ## B11-C PostgreSQL Qualification Closure
 
@@ -46,8 +65,9 @@ The memory measurements are directional local Windows development evidence
 only. No production privacy threshold, breadth limit, commercial mapping, SLO,
 or memory value was selected, and no permission, privacy, or entitlement
 semantics changed. B11-D subsequently completed and is CLOSED as recorded
-above. B11-E is NOT COMPLETE, B11 overall
-is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
+above. B11-E implementation subsequently PASSED, but production closure remains
+PENDING; B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production
+readiness is NOT achieved.
 
 ## B11 Production Qualification Governance
 
@@ -62,7 +82,7 @@ ceiling is approved. B11-D tests current READ COMMITTED under controlled
 concurrency before any stronger isolation or evidence-backed index ADR.
 
 B11-C and B11-D subsequently completed and are CLOSED as recorded above.
-B11-E is NOT COMPLETE.
+B11-E implementation subsequently PASSED, but production closure remains PENDING.
 B11 overall remains NOT CLOSED; B12 is NOT IMPLEMENTED and production
 readiness is NOT achieved. See ADR 0028 for the complete entry criteria,
 release gate, required evidence, and explicitly deferred Owner decisions.

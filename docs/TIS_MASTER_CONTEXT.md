@@ -7,21 +7,46 @@ source_of_truth: true
 
 # TIS Master Context
 
+## B11-E Integrated Production Qualification Authority
+
+ADR 0029 governs and implements a dedicated M10-only REPEATABLE READ
+transaction boundary (`database.M10OrganizationAnalyticsSessionLocal`,
+`dependencies.get_m10_organization_analytics_db`), applied only to the seven
+M10 Organization Intelligence routes, strictly backend-conditional
+(PostgreSQL only), with no server-wide or other-route isolation change. All
+seven routes were live-re-tested under the permanent implementation: the two
+B11-D-proven mismatches are resolved, and the five previously
+structurally-inferred routes were independently reproduced live for the
+first time and confirmed resolved.
+
+Suppression/reconstruction concurrency was tested live with the existing
+non-production `DeterministicSuppressionTestPolicy` for both primary and
+complementary (relationship-linked) suppression; no suppressed value became
+reconstructable under a concurrent write. Index Candidate B is finalized as
+NO CHANGE (the isolation change has no mechanism to affect query planning);
+statistics freshness is finalized as operational/runbook guidance. The
+production privacy/availability/breadth providers remain unimplemented and
+fail-closed - explicit B11-E production-closure blockers for the Owner.
+**Independent review returned PASS WITH NON-BLOCKING OBSERVATIONS; B11-E
+implementation is PASSED and checkpointable, but B11-E production closure
+remains PENDING. B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and
+production readiness is NOT achieved.**
+
 ## B11-D PostgreSQL Concurrency Qualification Authority
 
 B11-D is CLOSED after independent review passed with non-blocking observations.
 READ COMMITTED produced same-request mixed snapshots for Overview (Candidate
 314 to 315) and Student Drill (gate/page population 705 to 706). An isolated,
-non-permanent REPEATABLE READ experiment resolved both. Permanent adoption
-remains PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED; its candidate scope
-must cover the complete M10 request from the first database statement through
-privacy/reconstruction inputs.
+non-permanent REPEATABLE READ experiment resolved both. Permanent adoption was
+then PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED; B11-E subsequently
+governed and implemented the complete M10 request boundary from the first
+database statement through privacy/reconstruction inputs.
 
-Other multi-statement route reproduction, suppressing-policy concurrency,
-statistics freshness, final scale/index disposition, and production provider,
-memory, and SLO qualification remain B11-E gates. Candidate B trends NO CHANGE
-and no index is approved. B11-E is NOT COMPLETE, B11 overall NOT CLOSED, B12
-NOT IMPLEMENTED, and production readiness NOT achieved.
+B11-E subsequently completed the multi-statement route reproduction,
+suppressing-policy concurrency, statistics-freshness, and final scale/index
+disposition. Candidate B is NO CHANGE and no index is approved. Production
+provider, memory-ceiling, multi-worker, and SLO gates remain open; B11 overall
+is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
 
 ## B11-C PostgreSQL Qualification Authority
 
@@ -32,8 +57,9 @@ MORE EVIDENCE REQUIRED. No index, schema, migration, permission, privacy, or
 entitlement semantic change followed. Memory results are directional local
 Windows development evidence only, and no production policy value was chosen.
 
-B11-D subsequently completed and is CLOSED. B11-E remains NOT COMPLETE, B11 overall NOT CLOSED,
-B12 NOT IMPLEMENTED, and production readiness NOT achieved.
+B11-D subsequently completed and is CLOSED. B11-E implementation subsequently
+PASSED, but production closure remains PENDING; B11 overall is NOT CLOSED, B12
+is NOT IMPLEMENTED, and production readiness is NOT achieved.
 
 ## B11 Production Qualification Policy Authority
 
@@ -47,10 +73,10 @@ privacy-closure and EXPLAIN evidence before numeric SLOs or limits. B11-D tests
 READ COMMITTED first; stronger isolation or an index requires demonstrated
 evidence and its own governed ADR.
 
-B11-C subsequently completed and is CLOSED. B11-E remains the release gate.
-B10 and B11-B remain CLOSED; B11-A is complete; B11-D is CLOSED; B11-E is NOT
-COMPLETE; B11 overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production
-readiness is NOT achieved.
+B11-C and B11-D subsequently completed and are CLOSED. B11-E implementation
+subsequently PASSED, but its production closure remains the release gate.
+B10 and B11-B remain CLOSED; B11-A is complete; B11 overall is NOT CLOSED; B12
+is NOT IMPLEMENTED; production readiness is NOT achieved.
 
 ## Talent Organization Overview Authority
 

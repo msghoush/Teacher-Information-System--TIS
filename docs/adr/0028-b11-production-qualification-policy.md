@@ -70,6 +70,13 @@ inconsistency evidence and a governed ADR; if adopted, its transaction scope
 must cover the full M10 request evidence set: access context, aggregation,
 Candidate/Identification reads, and privacy-closure inputs.
 
+B11-D supplied that evidence and ADR 0029 subsequently governed and
+implemented the resulting, scoped decision: `REPEATABLE READ` for the seven
+M10 Organization Intelligence routes only, via a dedicated session/dependency,
+covering the full request evidence set named above. This remains scoped to
+M10 only; no server-wide PostgreSQL isolation change was made, and no other
+route's session/transaction behavior changed.
+
 No index migration is approved without `EXPLAIN`/`ANALYZE` evidence of material
 plan improvement, redundant/overlapping-index review, migration review,
 documented rollback implications, and a governing ADR. This checkpoint
@@ -142,8 +149,26 @@ policy value was approved.
 
 B11-D subsequently completed PostgreSQL 16.15 READ COMMITTED qualification and
 is CLOSED after independent review returned PASS WITH NON-BLOCKING
-OBSERVATIONS. Same-request mixed snapshots were proven. REPEATABLE READ remains
-PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED pending a separate governed
-decision covering full-request transaction scope and retry/error handling.
-B11-E is NOT COMPLETE. B11 overall is NOT CLOSED, B12 is NOT
-IMPLEMENTED, and production readiness is NOT achieved.
+OBSERVATIONS. Same-request mixed snapshots were proven. REPEATABLE READ was
+PROPOSED - GOVERNANCE REQUIRED pending a separate governed decision covering
+full-request transaction scope and retry/error handling.
+
+B11-E subsequently governed and implemented that decision as ADR 0029: a
+dedicated M10-only `REPEATABLE READ` session/dependency
+(`database.M10OrganizationAnalyticsSessionLocal`,
+`dependencies.get_m10_organization_analytics_db`) beginning before the first
+statement of every one of the seven M10 Organization Intelligence routes,
+strictly backend-conditional (PostgreSQL only), never applied server-wide or
+to any other route. Live re-testing under the permanent implementation
+confirmed all seven routes are consistent (see
+`docs/history/engineering-handbook/2026-09-08-b11e-integrated-production-qualification.md`).
+No retry logic was added (no serialization failure/deadlock evidence).
+Suppression/reconstruction concurrency was tested live with the existing
+non-production `DeterministicSuppressionTestPolicy` and found consistent.
+Index Candidate B remains classified NO CHANGE. Independent review returned
+PASS WITH NON-BLOCKING OBSERVATIONS; B11-E implementation is PASSED and
+checkpointable, but B11-E production closure remains PENDING. B11 overall is
+NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved. The production
+privacy/availability/breadth providers remain unimplemented and fail-closed,
+blocked on Owner-approved production values per this ADR's Deferred
+Decisions.

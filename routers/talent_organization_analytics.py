@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from auth import get_current_user
-from dependencies import get_db
+from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy import Cell, COARSENED, VISIBLE, resolve_privacy_policy_provider
 from talent_analytics_privacy_closure import PrivacyClosureError, apply_primary_privacy_and_close
 from talent_analytics_relationship_graph import PrivacyRelationshipGraph
@@ -170,7 +170,7 @@ def _safe_overview_payload(
 
 @router.get("/overview")
 def organization_overview(
-    academic_year_id: int = Query(..., gt=0), db: Session = Depends(get_db),
+    academic_year_id: int = Query(..., gt=0), db: Session = Depends(get_m10_organization_analytics_db),
     current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     policy=Depends(resolve_privacy_policy_provider),
@@ -265,7 +265,7 @@ def organization_talent_map(
     academic_year_id: int = Query(..., gt=0), dimension: str = Query("program_branch"),
     metric: str = Query(MetricCode.COMPLETION_COVERAGE.value),
     program_ids: Optional[list[int]] = Query(None), branch_id: Optional[int] = Query(None, gt=0),
-    grade_level: Optional[str] = Query(None), db: Session = Depends(get_db),
+    grade_level: Optional[str] = Query(None), db: Session = Depends(get_m10_organization_analytics_db),
     current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
@@ -448,7 +448,7 @@ def _b7_context(db, current_user, academic_year_id, availability_provider, obser
 @router.get("/program-portfolio")
 def organization_program_portfolio(
     academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
-    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy), policy=Depends(resolve_privacy_policy_provider),
 ):
@@ -471,7 +471,7 @@ def organization_program_portfolio(
 @router.get("/branches/{branch_id}")
 def organization_branch_intelligence(
     branch_id: int, academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
-    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy), policy=Depends(resolve_privacy_policy_provider),
 ):
@@ -498,7 +498,7 @@ def organization_branch_intelligence(
 @router.get("/participation-overlap")
 def organization_participation_overlap(
     academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
-    branch_id: Optional[int] = Query(None, gt=0), db: Session = Depends(get_db),
+    branch_id: Optional[int] = Query(None, gt=0), db: Session = Depends(get_m10_organization_analytics_db),
     current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
@@ -569,7 +569,7 @@ def organization_program_longitudinal(
     program_id: int, academic_year_id: int = Query(..., gt=0), metric: str = Query(...),
     branch_id: Optional[int] = Query(None, gt=0), grade_level: Optional[str] = Query(None),
     planning_section_id: Optional[int] = Query(None, gt=0),
-    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
     policy=Depends(resolve_privacy_policy_provider),
@@ -682,7 +682,7 @@ def organization_student_drill(
     academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
     branch_id: Optional[int] = Query(None, gt=0), grade_level: Optional[str] = Query(None),
     limit: int = Query(25, ge=1), offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db), current_user=Depends(get_current_user),
+    db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy),
     policy=Depends(resolve_privacy_policy_provider),

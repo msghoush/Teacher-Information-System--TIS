@@ -14,6 +14,13 @@ Cline integration:
 
 Latest change:
 
+- `2026-09-08-b11e-integrated-production-qualification.md`: governed
+  (ADR 0029) and implemented the M10-only REPEATABLE READ transaction
+  boundary; live-re-tested all seven Organization Intelligence routes;
+  tested suppression/reconstruction concurrency with a real non-production
+  deterministic suppressing policy; finalized Index Candidate B (NO CHANGE)
+  and statistics-freshness disposition. B11-E independent review PENDING.
+
 - `2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md`:
   durable PostgreSQL 16.15 READ COMMITTED consistency evidence; independent
   review passed with non-blocking observations and B11-D is CLOSED.

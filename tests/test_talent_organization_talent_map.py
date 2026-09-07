@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 import pytest
 
 from auth import get_current_user
-from dependencies import get_db
+from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy import AllowAllTestPolicy, DeterministicSuppressionTestPolicy, PrivacyDecision, TalentAnalyticsPrivacyPolicy, resolve_privacy_policy_provider
 from talent_org_intelligence_service import resolve_organization_analytics_availability_provider, resolve_organization_analytics_breadth_policy
 from routers import talent_organization_analytics as route
@@ -18,7 +18,7 @@ from test_talent_org_intelligence_queries import AllowAvailability, AllowBreadth
 def client(db):
     app = FastAPI(); app.include_router(route.router)
     state = {"user": actor(scope="ORGANIZATION"), "availability": AllowAvailability(), "breadth": AllowBreadth(), "policy": AllowAllTestPolicy()}
-    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_m10_organization_analytics_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: state["user"]
     app.dependency_overrides[resolve_organization_analytics_availability_provider] = lambda: state["availability"]
     app.dependency_overrides[resolve_organization_analytics_breadth_policy] = lambda: state["breadth"]

@@ -7,6 +7,33 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-08 - M10 B11-E Integrated Production Qualification
+
+- Governed and implemented ADR 0029: a dedicated M10-only REPEATABLE READ
+  session/dependency (`database.M10OrganizationAnalyticsSessionLocal`,
+  `dependencies.get_m10_organization_analytics_db`), applied to all seven
+  Organization Intelligence routes, backend-conditional (PostgreSQL only),
+  never applied server-wide or to any other route/module.
+- Live-re-tested all seven routes under the permanent implementation:
+  Overview and Student Drill (B11-D's exact proven mismatches) now resolved;
+  talent-map, program-portfolio, branch intelligence, participation-overlap,
+  and longitudinal independently reproduced live for the first time (B11-D
+  had only inferred them structurally) and confirmed resolved.
+- Tested suppression/reconstruction concurrency with the existing
+  non-production `DeterministicSuppressionTestPolicy` (primary and
+  complementary suppression); confirmed no suppressed value becomes
+  reconstructable and no raw value/threshold leaks under a concurrent write.
+- Finalized Index Candidate B as NO CHANGE and statistics freshness as an
+  operational/runbook disposition (no code/migration change). Provider
+  readiness (privacy/availability/breadth) remains unimplemented and
+  fail-closed, listed as explicit B11-E closure blockers for the Owner.
+- Added 14 new committed regression tests
+  (`tests/test_talent_organization_repeatable_read.py`); the full 226-test
+  M10/PostgreSQL/privacy regression passed; `tis.db` was confirmed unchanged.
+  Independent review returned PASS WITH NON-BLOCKING OBSERVATIONS. B11-E
+  implementation is PASSED and checkpointable, but B11-E production closure
+  remains PENDING; B11 overall is NOT CLOSED and B12 is NOT IMPLEMENTED.
+
 ## 2026-09-07 - M10 B11-D PostgreSQL Concurrency Qualification Closure
 
 - Closed B11-D after independent review returned PASS WITH NON-BLOCKING
@@ -44,8 +71,9 @@ source_of_truth: true
   and memory decisions; B11-C/D entry criteria; and the B11-E release gate.
 - Preserved every numeric threshold, plan/feature mapping, breadth limit, SLO,
   memory ceiling, isolation change, and index decision as explicitly deferred.
-- B11-C and B11-D subsequently completed and are CLOSED. B11-E is NOT COMPLETE; B11
-  overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production is not ready.
+- B11-C and B11-D subsequently completed and are CLOSED. B11-E implementation
+  subsequently PASSED, but production closure remains PENDING; B11 overall is
+  NOT CLOSED, B12 is NOT IMPLEMENTED, and production is not ready.
 
 ## 2026-09-07 - M10 B11-A/B11-B Organization Analytics Observability
 

@@ -7,22 +7,50 @@ source_of_truth: true
 
 # TIS Project State
 
+## M10 B11-E Integrated Production Qualification
+
+ADR 0029 governs and implements a dedicated M10-only REPEATABLE READ session/
+dependency (`database.M10OrganizationAnalyticsSessionLocal`,
+`dependencies.get_m10_organization_analytics_db`) for all seven Organization
+Intelligence routes, backend-conditional (PostgreSQL only), with no
+server-wide or other-route isolation change. All seven routes were
+live-re-tested under the permanent implementation and confirmed consistent;
+the two B11-D-proven mismatches (Overview Candidate, Student Drill gate/page)
+no longer occur, and the five previously structurally-inferred routes
+(talent-map, program-portfolio, branch intelligence, participation-overlap,
+longitudinal) were independently reproduced live for the first time and
+confirmed resolved.
+
+Suppression/reconstruction concurrency was tested live with the existing
+non-production `DeterministicSuppressionTestPolicy` (primary and
+complementary suppression); no suppressed value became reconstructable.
+Index Candidate B is finalized as NO CHANGE; statistics freshness is
+finalized as an operational/runbook disposition (no code/migration change).
+The production privacy/availability/breadth providers remain unimplemented
+and fail-closed - explicit B11-E closure blockers for the Owner. 14 new
+committed regression tests were added; the full 226-test regression passed;
+`tis.db` was confirmed unchanged. **Independent review returned PASS WITH
+NON-BLOCKING OBSERVATIONS; B11-E implementation is PASSED and checkpointable,
+but B11-E production closure remains PENDING. B11 overall is NOT CLOSED, B12
+is NOT IMPLEMENTED, and production readiness is NOT achieved.**
+
 ## M10 B11-D PostgreSQL Concurrency Qualification Closure
 
 B11-D is CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
 review. READ COMMITTED mixed snapshots were reproduced within one request:
 Overview Candidate count 314 to 315 and Student Drill gate/page population
 705 to 706. A non-permanent REPEATABLE READ experiment resolved both cases,
-but permanent adoption is PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED.
-Its candidate scope begins before the first database statement and spans every
-M10 evidence input through privacy/reconstruction.
+but permanent adoption was then PROPOSED - GOVERNANCE REQUIRED and NOT
+IMPLEMENTED. B11-E subsequently governed and implemented a scope beginning
+before the first database statement and spanning every M10 evidence input
+through privacy/reconstruction.
 
-Other multi-statement routes require live B11-E consistency verification.
-Suppression under concurrency remains unmeasured, Candidate B trends NO CHANGE
-with no index approved, and statistics freshness/ANALYZE remains an operational
-gate. The 209-test regression passed; tenant isolation remained clean.
-B11-E is NOT COMPLETE, B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and
-production readiness is NOT achieved.
+B11-E subsequently live-qualified all other multi-statement routes and
+suppression under concurrency. Candidate B is NO CHANGE with no index approved;
+statistics freshness/ANALYZE is operational guidance. Tenant isolation remained
+clean. B11-E implementation is PASSED, but production closure remains PENDING;
+B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is
+NOT achieved.
 
 ## M10 B11-C PostgreSQL Qualification Closure
 
@@ -34,12 +62,11 @@ was made. The 209-test regression passed. Memory evidence is directional local
 Windows development evidence only; no production threshold, breadth limit,
 commercial mapping, SLO, or memory value was selected.
 
-B11-D subsequently completed and is CLOSED. B11-E is NOT COMPLETE, B11 overall is NOT CLOSED,
-B12 is NOT IMPLEMENTED, and production readiness is NOT achieved. Outstanding
-B11-D/E work includes overlap planner instability, the MEDIUM-scale nested-loop
-plan, 10-100x scale retesting, statistics/ANALYZE freshness, real concurrency,
-fine-grained privacy timing, provider governance, and production memory/SLO
-qualification.
+B11-D subsequently completed and is CLOSED. B11-E implementation subsequently
+PASSED, but production closure remains PENDING; B11 overall is NOT CLOSED, B12
+is NOT IMPLEMENTED, and production readiness is NOT achieved. Remaining gates
+are production privacy configuration, commercial mapping, breadth limits,
+performance SLO, memory ceiling, and multi-process/multi-worker qualification.
 
 ## M10 B11 Production Qualification Governance
 
@@ -53,11 +80,11 @@ breadth limits, performance SLOs, memory ceilings, isolation changes, feature-
 key decisions, and indexes remain unresolved.
 
 B11-C and B11-D subsequently completed and are CLOSED as recorded above.
-B11-E blocks B11 closure, B12, master merge, and deployment
-until every provider/configuration, performance, concurrency, memory, security,
-qualification-environment migration/index, and KMS gate in ADR 0028 passes.
-B11-E is NOT COMPLETE; B11 overall is NOT CLOSED;
-B12 is NOT IMPLEMENTED.
+B11-E production closure blocks B11 closure, B12, master merge, and deployment
+until every remaining provider/configuration, performance, multi-worker,
+memory, security, and KMS gate in ADR 0028 passes. B11-E implementation is
+PASSED; production closure remains PENDING. B11 overall is NOT CLOSED and B12
+is NOT IMPLEMENTED.
 
 ## M10 B0-B9 Organization Intelligence
 
