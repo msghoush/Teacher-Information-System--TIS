@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Project State
 
+## M10 B11-C PostgreSQL Qualification Closure
+
+B11-C is CLOSED. PostgreSQL 16.15 profiling of all seven M10 routes produced
+durable evidence, bounded query counts across tested scales, no N+1 finding,
+Index Candidate A = NO CHANGE, and Candidate B = MORE EVIDENCE REQUIRED. No
+index, schema, migration, permission, privacy, or entitlement semantic change
+was made. The 209-test regression passed. Memory evidence is directional local
+Windows development evidence only; no production threshold, breadth limit,
+commercial mapping, SLO, or memory value was selected.
+
+B11-D is NOT IMPLEMENTED, B11-E is NOT COMPLETE, B11 overall is NOT CLOSED,
+B12 is NOT IMPLEMENTED, and production readiness is NOT achieved. Outstanding
+B11-D/E work includes overlap planner instability, the MEDIUM-scale nested-loop
+plan, 10-100x scale retesting, statistics/ANALYZE freshness, real concurrency,
+fine-grained privacy timing, provider governance, and production memory/SLO
+qualification.
+
 ## M10 B11 Production Qualification Governance
 
 ADR 0028 records the approved B11 production-policy boundaries. No application
@@ -18,16 +35,13 @@ exception paths remain fail closed. Numeric thresholds, plan packaging,
 breadth limits, performance SLOs, memory ceilings, isolation changes, feature-
 key decisions, and indexes remain unresolved.
 
-B11-C is READY TO BEGIN after this checkpoint is pushed and cumulative KMS is
-green, with local/staging PostgreSQL, representative non-production data, and
-non-production provider configuration. It must collect latency, query-count/
-time, memory, privacy-closure, and EXPLAIN evidence. B11-D later requires
+B11-C subsequently completed and is CLOSED as recorded above. B11-D requires
 production-like PostgreSQL and controlled concurrent writers and tests READ
 COMMITTED first. B11-E blocks B11 closure, B12, master merge, and deployment
 until every provider/configuration, performance, concurrency, memory, security,
 qualification-environment migration/index, and KMS gate in ADR 0028 passes.
-B11-C is NOT YET IMPLEMENTED/EXECUTED; B11-D is NOT IMPLEMENTED; B11-E is NOT
-COMPLETE; B11 overall is NOT CLOSED; B12 is NOT IMPLEMENTED.
+B11-D is NOT IMPLEMENTED; B11-E is NOT COMPLETE; B11 overall is NOT CLOSED;
+B12 is NOT IMPLEMENTED.
 
 ## M10 B0-B9 Organization Intelligence
 

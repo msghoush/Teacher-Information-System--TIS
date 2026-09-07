@@ -136,7 +136,8 @@ change; and any index addition.
 
 B10 is CLOSED. B11-A qualification architecture is complete. B11-B
 observability is CLOSED. These B11 governance boundaries are APPROVED/GOVERNED.
-B11-C is READY TO BEGIN only after this checkpoint is pushed and its cumulative
-KMS check is green, but is NOT YET IMPLEMENTED/EXECUTED. B11-D is NOT
+B11-C completed PostgreSQL 16.15 profiling and is CLOSED after independent
+re-review returned PASS WITH NON-BLOCKING OBSERVATIONS. No index or production
+policy value was approved. B11-D is NOT
 IMPLEMENTED. B11-E is NOT COMPLETE. B11 overall is NOT CLOSED, B12 is NOT
 IMPLEMENTED, and production readiness is NOT achieved.

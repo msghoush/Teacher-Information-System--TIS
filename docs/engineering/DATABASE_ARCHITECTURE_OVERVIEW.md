@@ -9,6 +9,12 @@ source_of_truth: true
 
 ## M10 B11 PostgreSQL Qualification Policy
 
+B11-C is CLOSED after PostgreSQL 16.15 profiling and independent re-review.
+All seven routes were profiled; query counts were bounded across tested scales
+with no N+1. Candidate A requires NO CHANGE and Candidate B requires MORE
+EVIDENCE, so no index, schema, or migration change is approved. Memory evidence
+is directional local Windows development evidence only.
+
 B11-C must collect query count/execution time, route and privacy-closure time,
 peak/result memory, and rows/scans/buffers through EXPLAIN evidence against a
 representative non-production PostgreSQL dataset. B11-D qualifies the current

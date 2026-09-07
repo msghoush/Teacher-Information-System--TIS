@@ -21,6 +21,10 @@ source_of_truth: true
 - B11-C/D provide evidence before any SLO, isolation, or index decision. ADR
   0028 governs entry criteria and B11-E release gates; it adds no runtime
   module or implementation.
+- B11-C is CLOSED after PostgreSQL 16.15 profiling of all seven routes and a
+  PASS WITH NON-BLOCKING OBSERVATIONS independent re-review. Query counts were
+  bounded with no N+1; no index, schema, migration, permission, privacy, or
+  entitlement semantic change was made.
 
 ## Talent Organization Intelligence (M10 B0-B9)
 

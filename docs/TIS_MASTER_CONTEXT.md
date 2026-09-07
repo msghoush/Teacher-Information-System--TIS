@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Master Context
 
+## B11-C PostgreSQL Qualification Authority
+
+B11-C is CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
+re-review. PostgreSQL 16.15 evidence covers all seven M10 routes, bounded query
+counts across tested scales, no N+1, Candidate A = NO CHANGE, and Candidate B =
+MORE EVIDENCE REQUIRED. No index, schema, migration, permission, privacy, or
+entitlement semantic change followed. Memory results are directional local
+Windows development evidence only, and no production policy value was chosen.
+
+B11-D remains NOT IMPLEMENTED, B11-E NOT COMPLETE, B11 overall NOT CLOSED,
+B12 NOT IMPLEMENTED, and production readiness NOT achieved.
+
 ## B11 Production Qualification Policy Authority
 
 ADR 0028 governs B11 production qualification. Privacy thresholds and breadth
@@ -19,11 +31,8 @@ privacy-closure and EXPLAIN evidence before numeric SLOs or limits. B11-D tests
 READ COMMITTED first; stronger isolation or an index requires demonstrated
 evidence and its own governed ADR.
 
-B11-C may start only after this checkpoint is pushed and KMS is green and the
-required non-production PostgreSQL, representative dataset, and provider
-configuration are available. B11-E remains the release gate. B10 and B11-B
-remain CLOSED; B11-A is complete; B11-C is READY TO BEGIN after that checkpoint
-gate but NOT YET IMPLEMENTED/EXECUTED; B11-D is NOT IMPLEMENTED; B11-E is NOT
+B11-C subsequently completed and is CLOSED. B11-E remains the release gate.
+B10 and B11-B remain CLOSED; B11-A is complete; B11-D is NOT IMPLEMENTED; B11-E is NOT
 COMPLETE; B11 overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production
 readiness is NOT achieved.
 

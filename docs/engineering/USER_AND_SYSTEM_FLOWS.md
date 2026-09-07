@@ -15,6 +15,7 @@ source_of_truth: true
    non-production provider configuration, B11-C profiles latency, queries,
    memory, privacy closure, and EXPLAIN evidence without requiring final
    production thresholds, packaging, breadth limits, SLOs, or isolation.
+   This step is complete and B11-C is CLOSED after independent re-review.
 3. B11-D uses production-like PostgreSQL and controlled writers to test current
    READ COMMITTED behavior first. Evidence, a governed ADR, and full-request
    transaction scope are prerequisites for stronger isolation; indexes follow

@@ -1,7 +1,7 @@
 ---
 title: Engineering Handbook History
 module: engineering-handbook
-last_updated: 2026-09-03
+last_updated: 2026-09-07
 ---
 
 # Engineering Handbook History
@@ -9,6 +9,10 @@ last_updated: 2026-09-03
 This folder tracks meaningful changes to the TIS Engineering Handbook, including module maps, repository architecture, user/system flows, and onboarding guidance for humans and AI coding conversations.
 
 Latest change:
+
+- `2026-09-07-b11c-postgresql-profiling-evidence-remediation.md`: durable,
+  sanitized PostgreSQL 16.15 evidence for all seven M10 routes; independent
+  re-review passed with non-blocking observations and B11-C is CLOSED.
 
 - `2026-09-03-claude-code-kms-configuration.md`: repository-native Claude Code
   entry point, reusable TIS KMS skill, and bounded specialized subagent.

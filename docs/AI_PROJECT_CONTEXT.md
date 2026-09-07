@@ -7,6 +7,22 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## B11-C PostgreSQL Qualification Closure
+
+B11-C is CLOSED after independent re-review returned PASS WITH NON-BLOCKING
+OBSERVATIONS. Real PostgreSQL 16.15 profiling covered all seven M10 Organization
+Intelligence routes. Query counts remained bounded across tested scales and no
+N+1 behavior was found. Index Candidate A is NO CHANGE; Candidate B requires
+more evidence, so no index, schema, or migration is approved. The durable
+evidence is `docs/history/engineering-handbook/2026-09-07-b11c-postgresql-
+profiling-evidence-remediation.md`.
+
+The memory measurements are directional local Windows development evidence
+only. No production privacy threshold, breadth limit, commercial mapping, SLO,
+or memory value was selected, and no permission, privacy, or entitlement
+semantics changed. B11-D is NOT IMPLEMENTED, B11-E is NOT COMPLETE, B11 overall
+is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
+
 ## B11 Production Qualification Governance
 
 ADR 0028 approves the DECIDE-NOW B11 policy boundaries without implementing
@@ -19,10 +35,8 @@ PostgreSQL performance and memory evidence before any numeric SLO, limit, or
 ceiling is approved. B11-D tests current READ COMMITTED under controlled
 concurrency before any stronger isolation or evidence-backed index ADR.
 
-B11-C is READY TO BEGIN only after this governance checkpoint is pushed and
-the cumulative KMS check is green, with local/staging PostgreSQL, representative
-non-production data, and non-production provider configuration. It is NOT YET
-IMPLEMENTED/EXECUTED. B11-D is NOT IMPLEMENTED and B11-E is NOT COMPLETE.
+B11-C subsequently completed and is CLOSED as recorded above. B11-D is NOT
+IMPLEMENTED and B11-E is NOT COMPLETE.
 B11 overall remains NOT CLOSED; B12 is NOT IMPLEMENTED and production
 readiness is NOT achieved. See ADR 0028 for the complete entry criteria,
 release gate, required evidence, and explicitly deferred Owner decisions.

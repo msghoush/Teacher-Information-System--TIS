@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-07 - M10 B11-C PostgreSQL Qualification Closure
+
+- Closed B11-C after independent evidence re-review returned PASS WITH
+  NON-BLOCKING OBSERVATIONS.
+- Preserved durable PostgreSQL 16.15 evidence for all seven M10 routes: bounded
+  query counts across tested scales, no N+1, Candidate A = NO CHANGE, Candidate
+  B = MORE EVIDENCE REQUIRED, directional local Windows memory measurements,
+  and a passing 209-test regression.
+- Added no index, schema, migration, permission, privacy, or entitlement change
+  and selected no production threshold, breadth limit, commercial mapping,
+  SLO, or memory value. B11-D remains NOT IMPLEMENTED; B11-E and B11 overall
+  remain open; B12 remains NOT IMPLEMENTED; production is not ready.
+
 ## 2026-09-07 - M10 B11 Production Qualification Governance
 
 - Accepted ADR 0028 without application or production configuration changes.
@@ -16,9 +29,7 @@ source_of_truth: true
   and memory decisions; B11-C/D entry criteria; and the B11-E release gate.
 - Preserved every numeric threshold, plan/feature mapping, breadth limit, SLO,
   memory ceiling, isolation change, and index decision as explicitly deferred.
-- B11-C becomes READY TO BEGIN only after checkpoint push and green cumulative
-  KMS with the required non-production environment. It remains NOT YET
-  IMPLEMENTED/EXECUTED; B11-D is NOT IMPLEMENTED; B11-E is NOT COMPLETE; B11
+- B11-C subsequently completed and is CLOSED. B11-D is NOT IMPLEMENTED; B11-E is NOT COMPLETE; B11
   overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production is not ready.
 
 ## 2026-09-07 - M10 B11-A/B11-B Organization Analytics Observability
