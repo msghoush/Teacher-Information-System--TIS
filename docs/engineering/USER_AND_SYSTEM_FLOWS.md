@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## M10 B11 Qualification And Release Flow
+
+1. Commit and push the ADR 0028 governance checkpoint and require green
+   cumulative KMS.
+2. With local/staging PostgreSQL, representative non-production data, and
+   non-production provider configuration, B11-C profiles latency, queries,
+   memory, privacy closure, and EXPLAIN evidence without requiring final
+   production thresholds, packaging, breadth limits, SLOs, or isolation.
+3. B11-D uses production-like PostgreSQL and controlled writers to test current
+   READ COMMITTED behavior first. Evidence, a governed ADR, and full-request
+   transaction scope are prerequisites for stronger isolation; indexes follow
+   the separate evidence/migration/rollback/ADR gate.
+4. B11-E blocks B11 closure, B12, master merge, and deployment until production
+   privacy, commercial availability, breadth, performance, concurrency,
+   memory/OOM, seven-route security, qualification-environment migration/index,
+   observability, and authoritative KMS gates all pass.
+
 ## M10 B8 Participation Overlap Flow
 
 An authorized Organization Intelligence request resolves authentication,

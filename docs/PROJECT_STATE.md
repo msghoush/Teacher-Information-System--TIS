@@ -7,6 +7,28 @@ source_of_truth: true
 
 # TIS Project State
 
+## M10 B11 Production Qualification Governance
+
+ADR 0028 records the approved B11 production-policy boundaries. No application
+code, provider, schema, migration, index, permission, entitlement, isolation,
+or HTTP contract changed. External configuration owns privacy thresholds and
+breadth limits; existing entitlement/feature-registry architecture owns the
+future commercial-availability decision. All provider missing/false/reject/
+exception paths remain fail closed. Numeric thresholds, plan packaging,
+breadth limits, performance SLOs, memory ceilings, isolation changes, feature-
+key decisions, and indexes remain unresolved.
+
+B11-C is READY TO BEGIN after this checkpoint is pushed and cumulative KMS is
+green, with local/staging PostgreSQL, representative non-production data, and
+non-production provider configuration. It must collect latency, query-count/
+time, memory, privacy-closure, and EXPLAIN evidence. B11-D later requires
+production-like PostgreSQL and controlled concurrent writers and tests READ
+COMMITTED first. B11-E blocks B11 closure, B12, master merge, and deployment
+until every provider/configuration, performance, concurrency, memory, security,
+qualification-environment migration/index, and KMS gate in ADR 0028 passes.
+B11-C is NOT YET IMPLEMENTED/EXECUTED; B11-D is NOT IMPLEMENTED; B11-E is NOT
+COMPLETE; B11 overall is NOT CLOSED; B12 is NOT IMPLEMENTED.
+
 ## M10 B0-B9 Organization Intelligence
 
 M10 B0-B2 is implemented without an Organization Intelligence route, aggregate

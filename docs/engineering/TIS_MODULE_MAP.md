@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Module Map
 
+## B11 Production Qualification Boundary
+
+- `TalentAnalyticsPrivacyPolicy`: one future production implementation must
+  consume governed external thresholds, with no test-policy or permissive
+  fallback and fail-closed missing/exception behavior.
+- Organization Analytics availability: future provider resolution remains
+  plan-agnostic and consumes the existing `entitlement_service`/feature-
+  registry decision pattern; permission and entitlement remain separate.
+- Organization Analytics breadth: future external configuration supports
+  per-projection-family cell, relationship, and pair limits with fail-closed
+  missing/reject/exception behavior.
+- B11-C/D provide evidence before any SLO, isolation, or index decision. ADR
+  0028 governs entry criteria and B11-E release gates; it adds no runtime
+  module or implementation.
+
 ## Talent Organization Intelligence (M10 B0-B9)
 
 - `talent_org_intelligence_contract.py`: non-functional contract types for

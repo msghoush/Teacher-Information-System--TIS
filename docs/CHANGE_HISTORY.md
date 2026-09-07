@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-07 - M10 B11 Production Qualification Governance
+
+- Accepted ADR 0028 without application or production configuration changes.
+- Governed external, fail-closed privacy-threshold and breadth configuration;
+  plan-agnostic commercial availability through the existing entitlement/
+  feature-registry architecture; evidence-first performance, isolation, index,
+  and memory decisions; B11-C/D entry criteria; and the B11-E release gate.
+- Preserved every numeric threshold, plan/feature mapping, breadth limit, SLO,
+  memory ceiling, isolation change, and index decision as explicitly deferred.
+- B11-C becomes READY TO BEGIN only after checkpoint push and green cumulative
+  KMS with the required non-production environment. It remains NOT YET
+  IMPLEMENTED/EXECUTED; B11-D is NOT IMPLEMENTED; B11-E is NOT COMPLETE; B11
+  overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production is not ready.
+
 ## 2026-09-07 - M10 B11-A/B11-B Organization Analytics Observability
 
 - B11-A (read-only qualification, completed) confirmed the privacy,

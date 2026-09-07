@@ -7,6 +7,26 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## B11 Production Qualification Governance
+
+ADR 0028 approves the DECIDE-NOW B11 policy boundaries without implementing
+code or selecting production values. Privacy thresholds and breadth limits are
+external provider-owned configuration with no hard-coded or permissive
+fallback; missing/exception/reject outcomes retain existing fail-closed HTTP
+behavior. M10 remains plan-agnostic while commercial availability consumes the
+existing entitlement/feature-registry decision pattern. B11-C collects
+PostgreSQL performance and memory evidence before any numeric SLO, limit, or
+ceiling is approved. B11-D tests current READ COMMITTED under controlled
+concurrency before any stronger isolation or evidence-backed index ADR.
+
+B11-C is READY TO BEGIN only after this governance checkpoint is pushed and
+the cumulative KMS check is green, with local/staging PostgreSQL, representative
+non-production data, and non-production provider configuration. It is NOT YET
+IMPLEMENTED/EXECUTED. B11-D is NOT IMPLEMENTED and B11-E is NOT COMPLETE.
+B11 overall remains NOT CLOSED; B12 is NOT IMPLEMENTED and production
+readiness is NOT achieved. See ADR 0028 for the complete entry criteria,
+release gate, required evidence, and explicitly deferred Owner decisions.
+
 ## Organization Intelligence M10 B0-B9
 
 M10 B0 adds only an executable, non-functional conformance boundary in

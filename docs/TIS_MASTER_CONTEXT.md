@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Master Context
 
+## B11 Production Qualification Policy Authority
+
+ADR 0028 governs B11 production qualification. Privacy thresholds and breadth
+limits remain external configuration with fail-closed provider resolution and
+no hard-coded, implicit, or permissive fallback. Organization Analytics stays
+plan-agnostic; commercial availability uses the existing entitlement/feature-
+registry architecture while exact packaging and any new semantic feature key
+remain Owner decisions. B11-C must gather PostgreSQL query/latency/memory/
+privacy-closure and EXPLAIN evidence before numeric SLOs or limits. B11-D tests
+READ COMMITTED first; stronger isolation or an index requires demonstrated
+evidence and its own governed ADR.
+
+B11-C may start only after this checkpoint is pushed and KMS is green and the
+required non-production PostgreSQL, representative dataset, and provider
+configuration are available. B11-E remains the release gate. B10 and B11-B
+remain CLOSED; B11-A is complete; B11-C is READY TO BEGIN after that checkpoint
+gate but NOT YET IMPLEMENTED/EXECUTED; B11-D is NOT IMPLEMENTED; B11-E is NOT
+COMPLETE; B11 overall is NOT CLOSED; B12 is NOT IMPLEMENTED; production
+readiness is NOT achieved.
+
 ## Talent Organization Overview Authority
 
 M10 B5 exposes one bounded route:

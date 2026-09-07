@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## M10 B11 PostgreSQL Qualification Policy
+
+B11-C must collect query count/execution time, route and privacy-closure time,
+peak/result memory, and rows/scans/buffers through EXPLAIN evidence against a
+representative non-production PostgreSQL dataset. B11-D qualifies the current
+READ COMMITTED behavior first with controlled concurrent writers and
+representative M10 reads. REPEATABLE READ is not pre-approved; any stronger
+isolation must be evidence-driven, governed by a new ADR, and span access
+context, aggregation, Candidate/Identification reads, and privacy inputs.
+
+No index is approved without EXPLAIN/ANALYZE evidence of material plan
+improvement, overlap/redundancy review, migration review, documented rollback,
+and a governing ADR. This governance checkpoint adds no schema, migration,
+index, isolation, or database behavior.
+
 ## Deterministic Talent Analytics (M9, No Schema Change)
 
 M9 adds no table, column, or migration. It is a strictly read-only aggregate

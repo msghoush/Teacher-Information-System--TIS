@@ -1,23 +1,23 @@
 knowledge_impact: yes
-summary: Implement and close M10 B11-B operational observability across the seven existing Organization Intelligence routes using one dedicated logger and a bounded telemetry allowlist, while keeping observability separate from audit, preserving response, authorization, privacy, validation, analytical, and fail-closed behavior, and deferring B11-C/D/E and all production provider, configuration, PostgreSQL, and release decisions.
+summary: Govern M10 B11 production qualification with external fail-closed privacy and breadth configuration, plan-agnostic commercial availability, evidence-first performance, READ COMMITTED concurrency, index, and memory policy, explicit B11-C/D entry criteria, and the B11-E release gate. Add no code, provider, numeric value, schema, migration, index, isolation, permission, entitlement, HTTP change, push, or deployment.
 affected_areas:
   - talent-organization-intelligence
-  - m10-b11a-qualification-architecture
-  - m10-b11b-observability-implementation
-  - operational-telemetry-boundary
-  - provider-fail-closed-telemetry
-  - audit-vs-operational-logging-separation
-  - safe-structural-signal-allowlist
-  - privacy
-  - tenant-isolation
-  - tests
+  - m10-b11-production-qualification-governance
+  - privacy-threshold-policy
+  - commercial-availability-policy
+  - breadth-policy
+  - postgresql-performance-qualification
+  - transaction-isolation-governance
+  - index-governance
+  - memory-oom-release-gate
+  - release-readiness
   - documentation
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
-  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
+  - docs/adr/0028-b11-production-qualification-policy.md
   - docs/adr/README.md
   - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/PRODUCT_ROADMAP.md
