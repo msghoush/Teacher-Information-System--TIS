@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import Callable
 
 from sqlalchemy import inspect, text
+from sqlalchemy.schema import CreateTable
 
 
 logger = logging.getLogger("tis.db_migrations")
@@ -6268,6 +6269,61 @@ def _timetable_feasibility_verification_foundation(engine, connection):
     )
 
 
+_STUDENT_TALENT_PARENT_SCOPE_KEYS = (
+    ("branches", ("id", "school_group_id"), "uq_branches_id_school_group"),
+    ("academic_years", ("id", "school_group_id"), "uq_academic_years_id_school_group"),
+    ("students", ("id", "school_group_id"), "uq_students_id_school_group"),
+)
+
+
+def _has_equivalent_unique_key(connection, table_name: str, columns: tuple[str, ...]) -> bool:
+    inspector = inspect(connection)
+    if columns in {
+        tuple(item.get("column_names") or [])
+        for item in inspector.get_unique_constraints(table_name)
+    }:
+        return True
+    return columns in {
+        tuple(item.get("column_names") or [])
+        for item in inspector.get_indexes(table_name)
+        if item.get("unique")
+    }
+
+
+def _student_talent_parent_scope_prerequisites(engine, connection):
+    """Establish PostgreSQL-valid parent keys before Student/Talent tables.
+
+    Legacy production tables predate the composite tenant-scoped foreign keys.
+    Primary-key ``id`` makes duplicates impossible in the canonical schema, but
+    the explicit preflight keeps a malformed legacy table fail-closed and leaves
+    the migration transaction available for rollback rather than rewriting data.
+    """
+    for table_name, columns, constraint_name in _STUDENT_TALENT_PARENT_SCOPE_KEYS:
+        if not _table_exists(connection, table_name):
+            continue
+        if _has_equivalent_unique_key(connection, table_name, columns):
+            continue
+        grouped_columns = ", ".join(columns)
+        duplicate = connection.execute(text(
+            f"SELECT 1 FROM {table_name} GROUP BY {grouped_columns} "
+            "HAVING COUNT(*) > 1 LIMIT 1"
+        )).first()
+        if duplicate is not None:
+            raise RuntimeError(
+                f"Cannot establish {constraint_name}: duplicate {table_name} parent scope."
+            )
+        if engine.dialect.name == "postgresql":
+            _execute(
+                connection,
+                f"ALTER TABLE {table_name} ADD CONSTRAINT {constraint_name} "
+                f"UNIQUE ({grouped_columns})",
+            )
+        else:
+            _create_unique_index_if_missing(
+                connection, connection, table_name, constraint_name, grouped_columns,
+            )
+
+
 def _student_academic_placement_foundation(engine, connection):
     """Create the additive canonical Student and historical Placement foundation."""
     from database import Base
@@ -6425,8 +6481,24 @@ def _talent_assessment_cycle_frozen_population_foundation(engine, connection):
             "uq_student_academic_placements_frozen_scope",
             "id, student_id, academic_year_id, branch_id, school_group_id",
         )
+    cycle_table = Base.metadata.tables["talent_assessment_cycles"]
+    if not _table_exists(connection, cycle_table.name):
+        if engine.dialect.name == "postgresql":
+            # Current metadata includes the later M8 nullable Period link. M4
+            # must not require that future parent table; M8 adds and validates
+            # this exact FK after creating Plans and Periods.
+            m4_foreign_keys = [
+                constraint
+                for constraint in cycle_table.foreign_key_constraints
+                if constraint.name != "fk_talent_assessment_cycles_period_scope"
+            ]
+            connection.execute(CreateTable(
+                cycle_table,
+                include_foreign_key_constraints=m4_foreign_keys,
+            ))
+        else:
+            cycle_table.create(bind=connection, checkfirst=True)
     for table_name in (
-        "talent_assessment_cycles",
         "talent_assessment_cycle_population_members",
         "talent_assessment_audits",
     ):
@@ -6964,6 +7036,11 @@ MIGRATIONS = (
         migration_id="20260830_003_timetable_feasibility_verification",
         description="Persist solver-backed timetable feasibility verification and fallback solutions",
         apply=_timetable_feasibility_verification_foundation,
+    ),
+    Migration(
+        migration_id="20260904_000_student_talent_parent_scope_prerequisites",
+        description="Add tenant-scoped unique parent keys required by Student and Talent foreign keys",
+        apply=_student_talent_parent_scope_prerequisites,
     ),
     Migration(
         migration_id="20260904_001_student_academic_placement_foundation",

@@ -222,6 +222,7 @@ def test_migration_is_registered_additive_and_idempotent():
         db_migrations._student_academic_placement_foundation(engine, connection)
         db_migrations._student_academic_placement_foundation(engine, connection)
     assert {"students", "student_external_identifiers", "student_academic_placements", "student_audits"}.issubset(inspect(engine).get_table_names())
+    assert any(m.migration_id == "20260904_000_student_talent_parent_scope_prerequisites" for m in db_migrations.MIGRATIONS)
     assert any(m.migration_id == "20260904_001_student_academic_placement_foundation" for m in db_migrations.MIGRATIONS)
 
 

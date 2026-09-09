@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Student/Talent Migration Ordering Authority
+
+Student and Talent persistence is owned by the ordered migration ledger, not
+pre-ledger baseline metadata creation. `scripts/run_migrations.py` excludes all
+`students`/`student_*` and `talent_*` tables from its baseline set. Migration
+`20260904_000_student_talent_parent_scope_prerequisites` precedes `001` and
+requires PostgreSQL-valid unique parent keys on `(id, school_group_id)` for
+`branches`, `academic_years`, and `students` when that table already exists.
+Equivalent keys are accepted; duplicate legacy data aborts without mutation or
+a migration marker.
+
+Migration `004` creates the Cycle table without requiring the future M8 Period
+parent. Migration `20260905_001` remains the authority that creates Plans and
+Periods and then adds the nullable composite Cycle-to-Period foreign key. This
+ordering preserves every composite tenant-isolation constraint and supports
+both fresh production execution and safe late application of `000` to an
+environment where `001` already ran.
+
 ## B11-E F1 Provider Authority
 
 ADR 0028 now approves and F1 implements three Organization Intelligence

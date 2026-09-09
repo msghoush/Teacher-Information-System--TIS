@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## Production Migration Blocker Status
+
+The Student Academic Placement PostgreSQL pre-deploy blocker is repaired and
+locally qualified. The new `20260904_000` prerequisite plus baseline metadata
+deferral preserves tenant-scoped foreign keys and enables the complete nine-step
+Student/Talent chain on a fresh production-style schema. Dedicated PostgreSQL
+fresh, repeat, existing-schema, duplicate-failure, rollback, and all-composite-
+target checks pass. Independent review is required before commit/push and the
+next Render pre-deploy retry; no deployment has been attempted by this task.
+
 ## M10 B11-E F1 Provider Status
 
 The current dev checkpoint implements the approved production privacy,

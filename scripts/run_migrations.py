@@ -27,6 +27,36 @@ DEFERRED_METADATA_TABLES = frozenset({
     "teacher_scheduling_rules",
     "teacher_scheduling_rule_slots",
     "teacher_scheduling_rule_targets",
+    # These tables are owned by the ordered 20260904_001-007 and
+    # 20260905_001 migration chain. Creating them here would bypass the new
+    # 20260904_000 parent-key prerequisite on an existing PostgreSQL schema.
+    "students",
+    "student_external_identifiers",
+    "student_academic_placements",
+    "student_audits",
+    "talent_programs",
+    "talent_program_academic_year_configurations",
+    "talent_program_framework_versions",
+    "talent_competencies",
+    "talent_framework_competencies",
+    "talent_rubrics",
+    "talent_rubric_levels",
+    "talent_competency_rubric_descriptors",
+    "talent_kpi_configurations",
+    "talent_kpi_components",
+    "talent_review_candidate_policies",
+    "talent_review_candidate_rules",
+    "talent_configuration_audits",
+    "talent_assessment_cycles",
+    "talent_assessment_cycle_population_members",
+    "talent_assessment_audits",
+    "talent_student_assessments",
+    "talent_student_competency_results",
+    "talent_review_candidates",
+    "talent_official_identifications",
+    "talent_educator_inputs",
+    "talent_annual_evaluation_plans",
+    "talent_planned_evaluation_periods",
 })
 
 

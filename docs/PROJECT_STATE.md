@@ -7,6 +7,27 @@ source_of_truth: true
 
 # TIS Project State
 
+## Production Student/Talent Migration Blocker Repair
+
+The Render pre-deploy blocker is repaired locally and ready for independent
+review. Root cause was pre-ledger `metadata.create_all()` attempting the new
+Student/Talent model graph against legacy PostgreSQL parents before migration
+`001` could establish required composite uniqueness. `branches(id,
+school_group_id)` failed first; `academic_years(id, school_group_id)` was also
+missing in the production-style baseline. `students(id, school_group_id)` is
+created with its unique constraint on fresh runs and is covered by the new
+prerequisite for already-existing schemas.
+
+The runner defers the complete Student/Talent table set and the ledger adds
+`20260904_000` before the existing eight migrations. A separate current-model
+coupling found by the fresh-chain test is also resolved: M4 Cycle creation no
+longer requires the future M8 Period table, while M8 still adds the exact
+nullable composite foreign key after creating its parent. PostgreSQL 16 results:
+complete 63-entry fresh run PASS, second run no-pending PASS, existing-schema
+late-`000` PASS, duplicate preflight rollback PASS, and old-runner partial-DDL
+rollback PASS. No production inspection, SQL, deployment, commit, or push was
+performed.
+
 ## Phase H Cumulative Release Qualification
 
 Phase H is PASS WITH BASELINE EXCLUSIONS. The current full-suite run collected

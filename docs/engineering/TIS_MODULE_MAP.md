@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Student/Talent Migration Prerequisite
+
+- `db_migrations.py`: migration `20260904_000` ensures PostgreSQL-valid
+  `(id, school_group_id)` keys for Branch, Academic Year, and any existing
+  Student table, with equivalent-key detection and duplicate-data failure.
+  The M4 Cycle creation omits only its future M8 Period FK; M8 adds it after the
+  parent exists.
+- `scripts/run_migrations.py`: baseline metadata excludes all Student/Talent
+  migration-owned tables so the ordered `000` through `20260905_001` chain is
+  authoritative on fresh and existing schemas.
+- `tests/test_postgresql_migration_transactions.py`: reproduces the prior
+  PostgreSQL failure/rollback and validates fresh-chain order, every composite
+  target, late prerequisite application, idempotency, and duplicate failure.
+- `tests/test_render_startup.py` and `tests/test_student_academic_foundation.py`:
+  enforce the baseline deferral and migration registration boundaries.
+
 ## Talent Results & Analytics UI (M11 Phase C)
 
 - `routers/talent_ui.py`: permission-gated server-rendered routes and public Results titles.

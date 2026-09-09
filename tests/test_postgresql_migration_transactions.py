@@ -208,3 +208,170 @@ def test_m8b7_repeated_system_notification_inspection_uses_transaction_connectio
         with admin_engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
         admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_student_talent_prerequisite_unblocks_full_fresh_chain_and_is_idempotent():
+    schema_name = f"tis_student_talent_chain_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=60s",
+    })
+    try:
+        models.Base.metadata.create_all(
+            engine, tables=run_migrations._baseline_metadata_tables(),
+        )
+        with engine.begin() as connection:
+            connection.execute(text(
+                "ALTER TABLE branches DROP CONSTRAINT uq_branches_id_school_group"
+            ))
+            connection.execute(text(
+                "ALTER TABLE academic_years DROP CONSTRAINT uq_academic_years_id_school_group"
+            ))
+        assert not inspect(engine).has_table("student_academic_placements")
+
+        applied = db_migrations.run_pending_migrations(engine)
+        assert "20260904_000_student_talent_parent_scope_prerequisites" in applied
+        assert "20260904_001_student_academic_placement_foundation" in applied
+        assert "20260905_001_talent_annual_evaluation_plan_period_foundation" in applied
+        assert db_migrations.run_pending_migrations(engine) == []
+
+        inspector = inspect(engine)
+        for table_name in ("branches", "academic_years", "students"):
+            unique_keys = {
+                tuple(item.get("column_names") or [])
+                for item in inspector.get_unique_constraints(table_name)
+            }
+            assert ("id", "school_group_id") in unique_keys
+        assert inspector.has_table("student_academic_placements")
+        assert inspector.has_table("talent_educator_inputs")
+        assert inspector.has_table("talent_planned_evaluation_periods")
+        migration_tables = {
+            name for name in models.Base.metadata.tables
+            if name == "students" or name.startswith("student_") or name.startswith("talent_")
+        }
+        for child_table in migration_tables:
+            for foreign_key in inspector.get_foreign_keys(child_table):
+                referred_columns = tuple(foreign_key.get("referred_columns") or [])
+                if len(referred_columns) < 2:
+                    continue
+                parent_table = foreign_key["referred_table"]
+                parent_keys = {
+                    tuple(item.get("column_names") or [])
+                    for item in inspector.get_unique_constraints(parent_table)
+                }
+                parent_keys.add(tuple(
+                    inspector.get_pk_constraint(parent_table).get("constrained_columns") or []
+                ))
+                assert referred_columns in parent_keys, (
+                    child_table, foreign_key.get("name"), parent_table, referred_columns,
+                )
+
+        # Simulate a development database where 001+ already ran before the new
+        # prerequisite ID existed. Reapplying 000 detects equivalent keys.
+        with engine.begin() as connection:
+            connection.execute(text(
+                "DELETE FROM schema_migrations "
+                "WHERE migration_id = '20260904_000_student_talent_parent_scope_prerequisites'"
+            ))
+        assert db_migrations.run_pending_migrations(engine) == [
+            "20260904_000_student_talent_parent_scope_prerequisites"
+        ]
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_student_talent_prerequisite_duplicate_preflight_fails_without_marker_or_rewrite():
+    schema_name = f"tis_student_talent_duplicate_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE TABLE branches (id INTEGER NOT NULL, school_group_id INTEGER)"
+            ))
+            connection.execute(text(
+                "INSERT INTO branches (id, school_group_id) VALUES (1, 9), (1, 9)"
+            ))
+        db_migrations._ensure_schema_migrations_table(engine)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO schema_migrations (migration_id, description) "
+                "VALUES (:migration_id, :description)"
+            ), [
+                {"migration_id": migration.migration_id, "description": migration.description}
+                for migration in db_migrations.MIGRATIONS
+                if migration.migration_id != "20260904_000_student_talent_parent_scope_prerequisites"
+            ])
+
+        with pytest.raises(RuntimeError, match="duplicate branches parent scope"):
+            db_migrations.run_pending_migrations(engine)
+        with engine.connect() as connection:
+            assert connection.execute(text("SELECT COUNT(*) FROM branches")).scalar() == 2
+            assert connection.execute(text(
+                "SELECT COUNT(*) FROM schema_migrations "
+                "WHERE migration_id = '20260904_000_student_talent_parent_scope_prerequisites'"
+            )).scalar() == 0
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_postgresql_failed_preledger_create_all_rolls_back_partial_student_tables():
+    schema_name = f"tis_student_old_runner_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        models.Base.metadata.create_all(
+            engine, tables=run_migrations._baseline_metadata_tables(),
+        )
+        with engine.begin() as connection:
+            connection.execute(text(
+                "ALTER TABLE branches DROP CONSTRAINT uq_branches_id_school_group"
+            ))
+        with pytest.raises(Exception, match="no unique constraint"):
+            models.Base.metadata.create_all(engine, tables=[
+                models.Student.__table__,
+                models.StudentExternalIdentifier.__table__,
+                models.StudentAcademicPlacement.__table__,
+                models.StudentAudit.__table__,
+            ])
+        inspector = inspect(engine)
+        assert not inspector.has_table("students")
+        assert not inspector.has_table("student_external_identifiers")
+        assert not inspector.has_table("student_academic_placements")
+        assert not inspector.has_table("student_audits")
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()

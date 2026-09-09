@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-09 - PostgreSQL Student/Talent Migration Prerequisite Repair
+
+- Fixed the Render pre-deploy `InvalidForeignKey` failure without removing or
+  weakening any tenant-scoped composite foreign key.
+- Added ordered migration `20260904_000_student_talent_parent_scope_prerequisites`
+  to establish equivalent unique `(id, school_group_id)` parent keys on legacy
+  Branch, Academic Year, and existing Student tables before migration `001`.
+- Deferred all Student/Talent migration-owned tables from baseline
+  `metadata.create_all()`, ensuring fresh runs execute `000` before `001` while
+  already-migrated environments can apply `000` safely later.
+- Removed the fresh-chain M4/M8 ordering hazard by creating the M4 Cycle table
+  without its future Period FK; the existing M8 migration adds that exact
+  composite FK after creating Plans and Periods.
+- Dedicated PostgreSQL 16 tests verify the full 63-entry ledger, all composite
+  Talent parent targets, repeat idempotency, late prerequisite application,
+  duplicate-data failure without rewrite/marker, and transactional rollback of
+  the old pre-ledger failure. No production database, deployment, commit, push,
+  or `tis.db` change was made.
+
 ## 2026-09-09 - Phase H Cumulative Release Qualification and Baseline A/B
 
 - Ran the complete current `tests/` suite. Pytest collected 1,748 parent test

@@ -7,6 +7,33 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Student/Talent PostgreSQL Migration Prerequisite Repair
+
+Render pre-deploy exposed a PostgreSQL ordering defect before application
+startup: baseline `metadata.create_all()` attempted
+`student_academic_placements` against legacy `branches` and `academic_years`
+tables that lacked explicit `(id, school_group_id)` unique keys. PostgreSQL
+therefore rejected the composite tenant-scoped foreign key. Branch was the
+first error; Academic Year would have been the next legacy-parent blocker.
+
+The migration runner now defers all Student/Talent migration-owned tables to
+the ordered ledger. New additive migration
+`20260904_000_student_talent_parent_scope_prerequisites` runs before `001` on a
+fresh deployment and later on an already-migrated environment. It detects any
+equivalent unique key and otherwise adds the governed keys for `branches`,
+`academic_years`, and an existing `students` table. Duplicate preflight fails
+the transaction without rewriting rows or recording the migration. The M4
+Cycle migration also omits its later M8 Period foreign key at initial creation;
+the existing M8 migration installs that exact key after the Period parent
+exists. All tenant-scoped foreign keys remain intact.
+
+Dedicated PostgreSQL 16 validation applied the complete 63-entry ledger and
+nine-step Student/Talent chain from a pre-Talent baseline, verified every
+composite target key, reran with no pending work, and proved failed old-runner
+DDL rolls back without partial Student tables. No production database was read
+or changed; the Render failure state conclusion is based on the transactional
+runner and reproduced PostgreSQL behavior.
+
 ## B11-E F1 Production Providers
 
 The seven M10 Organization Intelligence routes now resolve production-capable,
