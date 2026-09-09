@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Database Architecture Overview
 
+## Student/Talent PostgreSQL Parent-Key Prerequisite
+
+The legacy `branches` and `academic_years` tables may predate their explicit
+`UNIQUE (id, school_group_id)` constraints. PostgreSQL requires such a key
+before accepting the composite tenant-scoped foreign keys on
+`student_academic_placements`; a primary key on `id` alone does not match that
+declared composite reference. `students` has the same parent-key requirement
+for downstream tables.
+
+Migration `20260904_000_student_talent_parent_scope_prerequisites` establishes
+all three keys before `20260904_001`. It recognizes equivalent unique
+constraints/indexes, performs a duplicate preflight, never rewrites rows, and
+relies on the migration transaction to roll back both DDL and its ledger marker
+on failure. Student/Talent tables are excluded from baseline metadata creation
+so the prerequisite actually runs first. For current metadata compatibility,
+M4 creates `talent_assessment_cycles` without the future M8 Period FK; M8 creates
+the parent and adds that exact FK. Every other composite Student/Talent target
+is created with a matching primary/unique constraint before its child.
+
 ## M10 B11 PostgreSQL Qualification Policy
 
 B11-C is CLOSED after PostgreSQL 16.15 profiling and independent re-review.

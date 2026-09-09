@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Student/Talent Pre-Deploy Migration Flow
+
+1. The dedicated pre-deploy command creates only baseline metadata; all
+   Student/Talent migration-owned tables remain absent.
+2. The ledger runs `20260904_000`, accepting equivalent unique parent keys or
+   adding `(id, school_group_id)` uniqueness to Branch, Academic Year, and any
+   existing Student table. Duplicate data aborts the transaction and marker.
+3. Migration `001` creates Students and Academic Placements with the original
+   composite tenant-scoped foreign keys intact, followed by the Talent chain.
+4. M4 creates Cycles before M8 without binding to a parent that does not exist;
+   M8 creates Plans/Periods and adds the nullable composite Cycle-to-Period FK.
+5. Each migration and marker commits together. Any failure rolls back that
+   migration and stops pre-deploy before web activation; a retry re-evaluates
+   only unmarked work.
+
 ## M10 Production Provider Resolution Flow
 
 1. Before analytical SQL, the route resolves commercial availability through
