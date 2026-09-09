@@ -2,13 +2,11 @@
 
 This module implements ONLY the provider/interface boundary and the
 result-set-level complementary suppression engine (Section G/J of the M9
-brief). No production privacy threshold is approved in this milestone: there
-is no constant cohort threshold, no fallback 5/10, and no permissive
-"AllowAll" default active outside explicit test injection anywhere in this
-module. ``resolve_privacy_policy_provider`` intentionally returns ``None`` in
-production so an unconfigured runtime fails closed
-(``analytics_query_failed``) rather than emitting analytics under an implicit
-fallback; see ``routers/talent_analytics.py`` for the fail-closed wiring.
+brief). The Release 1 production provider is resolved through governed external
+configuration and fails closed when that configuration is absent or invalid.
+There is no permissive "AllowAll" default outside explicit test injection.
+The sanctioned local provider is limited to the dedicated Phase D database and
+uses deterministic suppression rather than disabling privacy.
 
 Privacy classes P1-P7 are opaque strings threaded through every policy call
 (never hardcoded per-metric logic) so a future governed setting for P5
@@ -70,8 +68,7 @@ class PrivacyDecision:
 
 
 class TalentAnalyticsPrivacyPolicy:
-    """Abstract provider interface. No concrete production implementation
-    exists in this codebase yet - see module docstring."""
+    """Abstract provider interface for production and test implementations."""
 
     privacy_policy_version: str = "unversioned"
 
@@ -188,14 +185,10 @@ class CoarsenWithoutReplacementTestPolicy(TalentAnalyticsPrivacyPolicy):
 
 
 def resolve_privacy_policy_provider():
-    """Production FastAPI dependency hook.
+    """Resolve the governed production or sanctioned local provider."""
+    from talent_organization_analytics_providers import build_privacy_provider
 
-    No production privacy policy is approved for M9 - this intentionally
-    returns ``None`` so request handling fails closed. Tests override this
-    dependency (``app.dependency_overrides``) to inject an explicit policy;
-    nothing overrides it in production.
-    """
-    return None
+    return build_privacy_provider()
 
 
 def apply_primary_privacy(cells, policy):

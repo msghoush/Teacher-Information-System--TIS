@@ -1,11 +1,65 @@
 ---
 title: TIS Master Context
 documentation_version: 3.7
-last_updated: 2026-09-05
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## B11-E F1 Provider Authority
+
+ADR 0028 now approves and F1 implements three Organization Intelligence
+provider decisions. Privacy requires external configuration equal to the
+approved minimum cohort of 5 and applies it to P1-P7 through the existing
+primary and complementary suppression pipeline. Availability uses only the
+registered `feature.organization_intelligence` key and the canonical active
+commercial-state/feature-entitlement path; `talent_analytics.view` and all
+secondary permissions remain independent authorization checks. Breadth requires
+external configuration equal to 1000 for matrix cells, relationship results,
+and Program-pair results; an over-limit request is rejected and never silently
+truncated.
+
+Every missing, invalid, mismatched, rejected, or exceptional production input
+fails closed. The only automatic deterministic provider path is non-production
+with `DATABASE_URL` resolving exactly to
+`.local_test_data/talent_local_test.db`. Production environment names always
+disable that path, and `tis.db`, memory databases, and other SQLite paths never
+qualify. This implementation adds no schema, migration, new permission,
+plan-specific packaging, price, or HTTP response field. F1 does not close the
+remaining B11 release gates or B12 and is not a production-readiness claim.
+
+## Talent Results Experience Authority
+
+The M11 Results & Analytics UI is a presentation layer over the seven M10 privacy-closed projections. Public navigation uses Organization Overview, Talent Map, Program Results, Branch Results, Students Across Programs, Students, and Progress Over Time. It does not expose internal projection names or provider metadata. Organization, Program, and Branch visuals may use only returned factual counts and already-visible percentages; there is no composite score, Branch ranking, cross-Program averaging, or client-derived metric.
+
+Talent Map color intensity and progress/chart dimensions may be computed only from an already-visible backend percentage. Zero is a visible result. No data, privacy protection, unavailable analytics, and permission denial remain separate categorical outcomes. A protected result must not affect text, percentage, range, width, height, opacity, intensity, tooltip, animation, hidden DOM data, or accessible name. Students preserve the P7 gate and frozen historical context, and Progress Over Time stays within one Program and Academic Year with governed comparability states and no delta or improvement claim.
+
+
+## Talent Operational Workspace Authority
+
+The Talent & Potential operational workspace is a presentation/orchestration
+layer over the existing M2-M8 APIs. It never owns domain state or frontend-only
+authorization. Program setup remains Program-specific and versioned; qualitative
+rubrics and Performing Arts remain first-class, while the optional numeric KPI
+is the approved bounded Framework-specific calculation only. No universal
+rubric, Talent Score, or cross-Program normalization exists.
+
+The user journey is Program -> Annual Evaluation Plan -> Period -> Cycle ->
+frozen Students -> Assessment -> Review. Assessment editing resolves stable
+FrameworkCompetency and RubricLevel row IDs from authorized reads and writes
+each competency separately. Every subsequent write uses the revision returned
+by the preceding write. A stale conflict stops remaining writes and retains
+unsaved input; the UI never represents this sequence as an atomic bulk save.
+
+Display labels for operational Assessment and Candidate screens are enriched
+only after the existing tenant/Branch authorization gates. Student and Program
+names are current display labels; Branch, Grade, and Section interpretation is
+always from the frozen Cycle population member. Review Candidate, review state,
+append-only Official Identification, and append-only-with-lineage Educator Input
+remain separate permission and data boundaries. Identification is never inferred
+or automatically recorded. UI action visibility mirrors permissions and
+organization-scope requirements, while backend authorization remains final.
 
 ## B11-E Integrated Production Qualification Authority
 
@@ -24,13 +78,13 @@ non-production `DeterministicSuppressionTestPolicy` for both primary and
 complementary (relationship-linked) suppression; no suppressed value became
 reconstructable under a concurrent write. Index Candidate B is finalized as
 NO CHANGE (the isolation change has no mechanism to affect query planning);
-statistics freshness is finalized as operational/runbook guidance. The
-production privacy/availability/breadth providers remain unimplemented and
-fail-closed - explicit B11-E production-closure blockers for the Owner.
-**Independent review returned PASS WITH NON-BLOCKING OBSERVATIONS; B11-E
-implementation is PASSED and checkpointable, but B11-E production closure
-remains PENDING. B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and
-production readiness is NOT achieved.**
+statistics freshness is finalized as operational/runbook guidance. F1
+subsequently implements the approved fail-closed privacy, commercial-
+availability, and breadth providers described above. The earlier independent
+review returned PASS WITH NON-BLOCKING OBSERVATIONS. **As of 2026-09-09
+(ADR 0028, ADR 0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+VERIFICATION ITEM REMAINING and B11 overall is CLOSED on that same basis; B12
+is CLOSED. Production deployment has not occurred.**
 
 ## B11-D PostgreSQL Concurrency Qualification Authority
 
@@ -45,8 +99,10 @@ database statement through privacy/reconstruction inputs.
 B11-E subsequently completed the multi-statement route reproduction,
 suppressing-policy concurrency, statistics-freshness, and final scale/index
 disposition. Candidate B is NO CHANGE and no index is approved. Production
-provider, memory-ceiling, multi-worker, and SLO gates remain open; B11 overall
-is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
+provider, memory-ceiling, multi-worker, and SLO gates were subsequently
+resolved. As of 2026-09-09, B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC
+DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028); B11 overall is CLOSED on
+that same basis; B12 is CLOSED.
 
 ## B11-C PostgreSQL Qualification Authority
 
@@ -58,8 +114,9 @@ entitlement semantic change followed. Memory results are directional local
 Windows development evidence only, and no production policy value was chosen.
 
 B11-D subsequently completed and is CLOSED. B11-E implementation subsequently
-PASSED, but production closure remains PENDING; B11 overall is NOT CLOSED, B12
-is NOT IMPLEMENTED, and production readiness is NOT achieved.
+PASSED. As of 2026-09-09, B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC
+DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028); B11 overall is CLOSED on
+that same basis; B12 is CLOSED.
 
 ## B11 Production Qualification Policy Authority
 
@@ -74,9 +131,10 @@ READ COMMITTED first; stronger isolation or an index requires demonstrated
 evidence and its own governed ADR.
 
 B11-C and B11-D subsequently completed and are CLOSED. B11-E implementation
-subsequently PASSED, but its production closure remains the release gate.
-B10 and B11-B remain CLOSED; B11-A is complete; B11 overall is NOT CLOSED; B12
-is NOT IMPLEMENTED; production readiness is NOT achieved.
+subsequently PASSED. B10 and B11-B remain CLOSED; B11-A is complete. As of
+2026-09-09, B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+VERIFICATION ITEM REMAINING (ADR 0028); B11 overall is CLOSED on that same
+basis; B12 is CLOSED.
 
 ## Talent Organization Overview Authority
 
@@ -201,7 +259,8 @@ the complete decision, deferred-capability list, and open production gates.
 
 B11-A (read-only qualification) is completed: the privacy, commercial-
 availability, and breadth-policy provider seams used by all 7 M10 routes
-exist with no production implementation and correctly fail closed. B11-B
+existed with no production implementation and correctly failed closed at that
+checkpoint. F1 subsequently implements the governed providers. B11-B
 adds safe, non-sensitive operational observability (`projection_family`,
 `outcome`, latency, safe structural counts reused from each route's own
 breadth-policy inputs, and each provider's coarse missing/allowed-or-
@@ -214,9 +273,12 @@ unchanged byte-for-byte and a telemetry failure can never affect the HTTP
 response. Query-count instrumentation is deferred to a future "B11-C
 profiling" phase. B11-B is implemented and unit-tested; independent security/
 privacy review passed with non-blocking observations and B11-B is CLOSED. No schema, migration, permission,
-entitlement, privacy threshold, or breadth limit was added; every
-PostgreSQL/production ADR 0027 gate remains open; B11 overall is not
-CLOSED and B12 remains unimplemented.
+entitlement, privacy threshold, or breadth limit was added by B11-B; F1 later
+adds the governed provider decisions. Every
+PostgreSQL/production ADR 0027 gates were subsequently resolved. As of
+2026-09-09, B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+VERIFICATION ITEM REMAINING (ADR 0028); B11 overall is CLOSED on that same
+basis; B12 is CLOSED.
 
 ## Talent Annual Evaluation Planning Authority
 
@@ -777,7 +839,7 @@ Important operational route families:
 - `/system-configuration`: branch, year, branding, role permissions, and configuration workflows.
 - `/teachers`, `/subjects`, `/planning`, `/timetable`, `/academic-calendar`, `/observations`: core academic operations.
 - `/api/students`: Student identity, external identifiers, and Academic Placement JSON API (`routers/students.py`, `students.*` permissions). No page/UI exists yet.
-- `/api/talent/programs`: Talent Program, Framework Version, Competency, rubric/level/descriptor, optional KPI, and Review Candidate Policy JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). M3 semantic mutations are Draft-only and expected-revision protected; no page/UI exists yet.
+- `/api/talent/programs`: Talent Program, Framework Version, Competency, rubric/level/descriptor, optional KPI, and Review Candidate Policy JSON API (`routers/talent_programs.py`, `talent_programs.*` permissions). M3 semantic mutations are Draft-only and expected-revision protected; no page/UI exists yet. `GET .../frameworks/{framework_id}` additively exposes each competency's own `FrameworkCompetency.id` (alongside the pre-existing parent-catalog `competency_id`), and `GET .../frameworks/{framework_id}/configuration` additively exposes each `levels[]` entry's own `TalentRubricLevel.id`, so a future assessment-entry UI can read the exact identifiers the `/api/talent/assessments/{id}/competency-results/{framework_competency_id}` write route is FK-constrained on. Purely additive read fields; no permission, schema, migration, or write-route contract changed.
 - `/api/talent/assessment-cycles`: Cycle metadata, authorization-filtered Draft/frozen population, and organization-governed Open/Close API (`routers/talent_assessment_cycles.py`, dedicated `talent_assessment_cycles.*` permissions). Cycles have no Branch ownership; identifiable population access is filtered by resolved/frozen Branch context.
 - `/api/talent/assessments`: Open-Cycle frozen-member Assessment and exact Competency Result API (`routers/talent_assessments.py`, `talent_assessments.view/manage/complete`). Results are editable only while In Progress, use expected-revision protection, and resolve Branch authorization from frozen-member context. Completed requires every Framework Competency; it and Incomplete/Insufficient Evidence are read-only. An enabled KPI uses integer weighted contributions over denominator 10,000, nearest-integer ROUND_HALF_UP, and persists Framework-scale result provenance only at completion. Qualitative/no-KPI completion has no result sentinel. Corrections and assessor assignment remain deferred.
 - `/api/talent/review-candidates`: deterministic Review Candidate evaluation/materialization from a Completed Assessment plus the Review workflow transition (`routers/talent_review_candidates.py`, dedicated `talent_review_candidates.view/manage`, distinct from `talent_assessments.*`/`talent_programs.*`). `POST .../evaluate` is read-only against Assessment evidence, idempotent, and persists a candidate row (starting `pending_review`) only when the exact M3 policy is satisfied - a non-qualifying evaluation is structurally audited instead. `POST .../{id}/review` (`.manage`) is the one-way `pending_review` -> `reviewed` transition. Branch authorization resolves the frozen Cycle Population Member.

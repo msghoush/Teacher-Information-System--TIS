@@ -1,0 +1,128 @@
+"""Canonical Students UI presentation smoke tests against isolated SQLite."""
+
+import inspect
+from datetime import datetime
+
+import pytest
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.testclient import TestClient
+
+import models
+from auth import get_current_user
+from dependencies import get_db
+from routers import students_ui
+from test_talent_org_intelligence_queries import actor, db, permissions
+
+
+@pytest.fixture
+def client(db):
+    db.add_all([
+        models.Student(id=1001, school_group_id=1, first_name="Alya", last_name="Learner", status="active"),
+        models.Student(id=1002, school_group_id=1, first_name="Bilal", last_name="Student", status="inactive"),
+        models.Student(id=2001, school_group_id=2, first_name="Foreign", last_name="Learner", status="active"),
+    ])
+    db.commit()
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor()
+    return TestClient(app)
+
+
+def test_list_requires_students_view(db, client):
+    assert client.get("/students/").status_code == 403
+    permissions(db, "students.view")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    assert "Students" in response.text
+    assert "Alya" in response.text
+
+
+def test_new_student_workflow(db, client):
+    permissions(db, "students.view", "students.create")
+    assert client.get("/students/new").status_code == 200
+    before = db.query(models.Student).filter_by(school_group_id=1).count()
+    response = client.post("/students/new", data={
+        "first_name": "Carla", "last_name": "New", "father_name": "", "gender": "Female",
+    })
+    # TestClient follows the post-login redirect; the student creation is what matters.
+    assert response.status_code in (200, 302)
+    after = db.query(models.Student).filter_by(school_group_id=1).count()
+    assert after == before + 1
+    created = db.query(models.Student).filter_by(school_group_id=1, first_name="Carla").one()
+    assert created.last_name == "New"
+    assert created.status == "active"
+
+
+def test_profile_sections_render(db, client):
+    permissions(db, "students.view", "talent_learner_profiles.view",
+                "talent_review_candidates.view", "talent_official_identifications.view")
+    for section in ("overview", "placement", "history"):
+        response = client.get(f"/students/1001?section={section}")
+        assert response.status_code == 200
+    talent = client.get("/students/1001?section=talent")
+    assert talent.status_code == 200
+    assert "Talent" in talent.text
+
+
+def test_foreign_student_is_not_found(db, client):
+    permissions(db, "students.view")
+    assert client.get("/students/2001").status_code == 404
+
+
+def test_history_tab_uses_canonical_audit_service_and_shows_actor(db, client):
+    permissions(db, "students.view")
+    # actor() (the request identity used by this fixture's dependency override) defaults
+    # to school_group_id=1, branch_id=10, which resolves to user_id "u110".
+    db.add(models.User(
+        user_id="u110", username="u110", first_name="Nadia", last_name="Haddad",
+        role="Editor", user_type="TENANT", access_scope="ORGANIZATION",
+        school_group_id=1, branch_id=10, academic_year_id=100, is_active=True,
+    ))
+    db.add_all([
+        models.StudentAudit(
+            school_group_id=1, student_id=1001, actor_user_id="u110", actor_branch_id=10,
+            resource_type="student", resource_id=1001, action="updated",
+            created_at=datetime(2026, 1, 5, 9, 30),
+        ),
+        models.StudentAudit(
+            school_group_id=1, student_id=1001, actor_user_id=None, actor_branch_id=None,
+            resource_type="student", resource_id=1001, action="created",
+            created_at=datetime(2026, 1, 1, 8, 0),
+        ),
+    ])
+    db.commit()
+
+    response = client.get("/students/1001?section=history")
+    assert response.status_code == 200
+    # (a) real audit rows sourced from the canonical service are rendered.
+    assert "Updated" in response.text and "Created" in response.text
+    # (b) a resolvable actor's human-readable display name is rendered.
+    assert "Nadia Haddad" in response.text
+    # No-actor event falls back to a neutral label, never a raw id/blank.
+    assert "System" in response.text
+    assert "u110" not in response.text
+
+    # (c) foreign-tenant Student History access remains blocked, non-enumerating.
+    assert client.get("/students/2001?section=history").status_code == 404
+
+    # (d) the duplicate raw StudentAudit query is gone; the canonical service is used.
+    source = inspect.getsource(students_ui)
+    assert "db.query(models.StudentAudit" not in source
+    assert "list_audit_events(" in source
+    assert "audit_event_payload(" in source
+
+
+def test_create_placement(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    response = client.post("/students/1002/placements", data={
+        "academic_year_id": "100", "branch_id": "11", "grade_level": "2",
+        "section_name": "B", "effective_from": "2026-09-01", "effective_to": "", "reason": "Test",
+    })
+    assert response.status_code in (200, 302)
+    placements = db.query(models.StudentAcademicPlacement).filter_by(student_id=1002, school_group_id=1).all()
+    assert len(placements) == 1
+    assert placements[0].branch_id == 11
+    assert placements[0].grade_level == "2"

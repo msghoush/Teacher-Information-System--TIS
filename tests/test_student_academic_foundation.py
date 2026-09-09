@@ -341,3 +341,51 @@ def test_placement_reads_use_historical_branch_scope_without_transfer_reinterpre
     with TestClient(app) as client:
         assert [row["id"] for row in client.get(f"/api/students/{student.id}/placements").json()] == [branch_a.id, branch_b.id]
         assert client.get(f"/api/students/{student.id}/placements/effective", params={"at": "2027-10-01", "academic_year_id": 101}).json()["id"] == branch_b.id
+
+
+def test_audit_endpoint_reuses_existing_append_only_trail_and_resolves_actor_names(database):
+    # Canonical Student Profile History section support: this is a read-only
+    # projection of the existing append-only StudentAudit rows every mutation
+    # already writes. No new persistence authority or resource_type is added.
+    _, db = database
+    actor = models.User(user_id="1000000009", username="student.editor", first_name="Nour", last_name="Fares",
+        role="Administrator", user_type="TENANT", access_scope="ORGANIZATION", school_group_id=1,
+        branch_id=10, academic_year_id=100, is_active=True)
+    db.add(actor); db.commit()
+    actor.scope_school_group_id = 1; actor.scope_branch_id = 10; actor.scope_academic_year_id = 100
+    app = FastAPI(); app.include_router(students_router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor
+    with TestClient(app) as client:
+        created = client.post("/api/students", json={"first_name": "Amal", "last_name": "Nassar"})
+        assert created.status_code == 201
+        student_id = created.json()["id"]
+        patched = client.patch(f"/api/students/{student_id}", json={"status": "inactive"})
+        assert patched.status_code == 200
+        events = client.get(f"/api/students/{student_id}/audit")
+        assert events.status_code == 200
+        payload = events.json()
+        # Newest first.
+        assert [row["action"] for row in payload] == ["status_change", "create"]
+        assert all(row["resource_type"] == "student" for row in payload)
+        assert all(row["actor_name"] == "Nour Fares" for row in payload)
+        assert all(row["created_at"] for row in payload)
+        # Cross-tenant Student id stays a uniform non-enumerating 404, matching every
+        # other direct Student-scoped read route.
+        foreign_student = _student(db, group=2, first="Foreign")
+        assert client.get(f"/api/students/{foreign_student.id}/audit").status_code == 404
+
+
+def test_audit_endpoint_requires_students_view_permission(database):
+    _, db = database
+    student = _student(db)
+    editor_user = models.User(user_id="1000000010", username="editor.noview", first_name="Editor", last_name="NoView",
+        role="Editor", user_type="TENANT", access_scope="BRANCH", school_group_id=1,
+        branch_id=10, academic_year_id=100, is_active=True)
+    db.add(editor_user); db.commit()
+    editor_user.scope_school_group_id = 1; editor_user.scope_branch_id = 10; editor_user.scope_academic_year_id = 100
+    app = FastAPI(); app.include_router(students_router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: editor_user
+    with TestClient(app) as client:
+        assert client.get(f"/api/students/{student.id}/audit").status_code == 403

@@ -9,6 +9,7 @@ import authorization
 import models
 from auth import get_current_user
 from dependencies import get_db
+from talent_operational_context import authorized_contexts, authorized_payload
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, complete_assessment,
     competency_result_payload, get_assessment, list_assessments,
@@ -17,6 +18,10 @@ from talent_student_assessment_service import (
 )
 
 router = APIRouter(prefix="/api/talent/assessments", tags=["Talent Student Assessments"])
+
+
+def _display_payload(db, row):
+    return authorized_payload(db, row, assessment_payload)
 
 
 def _scope(db, user):
@@ -102,7 +107,7 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
         return JSONResponse({"detail": "Student must belong to this Cycle's frozen population.", "code": "invalid_population_member"}, status_code=400)
     if not auth.can_access_all_branches(user) and member.branch_id not in _visible_branch_ids(db, user):
         return JSONResponse({"detail": "Assessment is outside your authorized Branch scope."}, status_code=403)
-    return _run(db, lambda: assessment_payload(start_assessment(
+    return _run(db, lambda: _display_payload(db, start_assessment(
         db, school_group_id=group_id, cycle_id=cycle_id,
         cycle_population_member_id=member_id, actor=user,
     )), created=True)
@@ -121,7 +126,8 @@ def assessments_list(request: Request, cycle_id: int | None = Query(None), db: S
             models.TalentAssessmentCyclePopulationMember.branch_id.in_(visible or [-1]),
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
-    return [assessment_payload(row) for row in rows]
+    contexts = authorized_contexts(db, group_id, rows)
+    return [{**assessment_payload(row), "context": contexts[row.id]} for row in rows]
 
 
 @router.get("/{assessment_id}")
@@ -130,7 +136,7 @@ def assessments_read(assessment_id: int, request: Request, db: Session = Depends
     if denied:
         return denied
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
-    return error or assessment_payload(assessment)
+    return error or _display_payload(db, assessment)
 
 
 @router.get("/{assessment_id}/competency-results")
@@ -160,7 +166,7 @@ def competency_results_set(assessment_id: int, framework_competency_id: int, req
             rubric_level_id=int(payload.get("rubric_level_id")),
             expected_revision=int(payload.get("expected_revision")), evidence=payload.get("evidence"), actor=user,
         )[0]),
-        "assessment": assessment_payload(get_assessment(db, school_group_id=group_id, assessment_id=assessment.id)),
+        "assessment": _display_payload(db, get_assessment(db, school_group_id=group_id, assessment_id=assessment.id)),
     })
 
 
@@ -172,7 +178,7 @@ def competency_results_remove(assessment_id: int, framework_competency_id: int, 
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     if error:
         return error
-    return _run(db, lambda: assessment_payload(remove_competency_result(
+    return _run(db, lambda: _display_payload(db, remove_competency_result(
         db, school_group_id=group_id, assessment_id=assessment.id,
         framework_competency_id=framework_competency_id,
         expected_revision=expected_revision, actor=user,
@@ -187,7 +193,7 @@ def assessments_complete(assessment_id: int, request: Request, payload: dict = B
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     if error:
         return error
-    return _run(db, lambda: assessment_payload(complete_assessment(
+    return _run(db, lambda: _display_payload(db, complete_assessment(
         db, school_group_id=group_id, assessment_id=assessment.id,
         expected_revision=int(payload.get("expected_revision")), actor=user,
     )))
@@ -201,7 +207,7 @@ def assessments_incomplete(assessment_id: int, request: Request, payload: dict =
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     if error:
         return error
-    return _run(db, lambda: assessment_payload(mark_non_complete(
+    return _run(db, lambda: _display_payload(db, mark_non_complete(
         db, school_group_id=group_id, assessment_id=assessment.id,
         expected_revision=int(payload.get("expected_revision")), status="incomplete", actor=user,
     )))
@@ -215,7 +221,7 @@ def assessments_insufficient_evidence(assessment_id: int, request: Request, payl
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     if error:
         return error
-    return _run(db, lambda: assessment_payload(mark_non_complete(
+    return _run(db, lambda: _display_payload(db, mark_non_complete(
         db, school_group_id=group_id, assessment_id=assessment.id,
         expected_revision=int(payload.get("expected_revision")), status="insufficient_evidence", actor=user,
     )))

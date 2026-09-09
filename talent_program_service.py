@@ -344,7 +344,7 @@ def _enforce_enabled_kpi_numeric_scale(db, framework_id, numeric_value):
         raise TalentProgramError("invalid_kpi", "Enabled KPI requires every rubric level to have a numeric value within the declared result scale.")
 
 
-def _m3_semantic_payload(db, framework_id):
+def _m3_semantic_payload(db, framework_id, *, include_ids=False):
     rubric = _rubric(db, framework_id)
     levels = db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework_id).order_by(models.TalentRubricLevel.display_order).all()
     descriptors = db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_version_id=framework_id).order_by(models.TalentCompetencyRubricDescriptor.framework_competency_id, models.TalentCompetencyRubricDescriptor.rubric_level_id).all()
@@ -354,8 +354,8 @@ def _m3_semantic_payload(db, framework_id):
     rules = db.query(models.TalentReviewCandidateRule).filter_by(framework_version_id=framework_id).order_by(models.TalentReviewCandidateRule.display_order).all()
     return {
         "rubric": None if rubric is None else {"name": rubric.name, "description": rubric.description},
-        "levels": [{"code": r.code, "label": r.label, "description": r.description, "order": r.display_order, "numeric_value": r.numeric_value} for r in levels],
-        "descriptors": [{"framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "descriptor": r.descriptor} for r in descriptors],
+        "levels": [{**({"id": r.id} if include_ids else {}), "code": r.code, "label": r.label, "description": r.description, "order": r.display_order, "numeric_value": r.numeric_value} for r in levels],
+        "descriptors": [{**({"id": r.id} if include_ids else {}), "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "descriptor": r.descriptor} for r in descriptors],
         "kpi": None if kpi is None else {"enabled": kpi.is_enabled, "method": kpi.calculation_method, "scale_min": kpi.result_scale_min, "scale_max": kpi.result_scale_max, "interpretation": kpi.interpretation,
             "components": [{"framework_competency_id": r.framework_competency_id, "weight_basis_points": r.weight_basis_points} for r in components]},
         "review_candidate_policy": None if policy is None else {"enabled": policy.is_enabled, "match_mode": policy.match_mode, "description": policy.description,
@@ -366,7 +366,9 @@ def _m3_semantic_payload(db, framework_id):
 def get_framework_configuration(db, *, school_group_id, program_id, framework_id):
     framework = _framework(db, school_group_id, program_id, framework_id)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    result = _m3_semantic_payload(db, framework.id)
+    # Stable row IDs are needed by write clients, but must remain outside the
+    # semantic fingerprint/audit projection used by every mutation above.
+    result = _m3_semantic_payload(db, framework.id, include_ids=True)
     result.update({"framework_id": framework.id, "revision": framework.revision, "semantic_fingerprint": framework.semantic_fingerprint})
     return result
 

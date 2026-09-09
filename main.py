@@ -8685,6 +8685,11 @@ app.include_router(timetable.published_router)
 app.include_router(academic_calendar.router)
 app.include_router(observations.router)
 app.include_router(students.router)
+from routers import students_ui
+app.include_router(students_ui.router)
+
+from routers import talent_ui
+app.include_router(talent_ui.router)
 app.include_router(talent_programs.router)
 app.include_router(talent_assessment_cycles.router)
 app.include_router(talent_evaluation_plans.router)

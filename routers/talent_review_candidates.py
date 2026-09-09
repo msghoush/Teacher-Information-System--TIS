@@ -9,12 +9,17 @@ import authorization
 import models
 from auth import get_current_user
 from dependencies import get_db
+from talent_operational_context import authorized_contexts, authorized_payload
 from talent_review_candidate_service import (
     TalentReviewCandidateError, candidate_payload, evaluate_review_candidate,
     get_candidate, list_candidates, mark_reviewed,
 )
 
 router = APIRouter(prefix="/api/talent/review-candidates", tags=["Talent Review Candidates"])
+
+
+def _display_payload(db, row):
+    return authorized_payload(db, row, candidate_payload)
 
 
 def _scope(db, user):
@@ -97,7 +102,7 @@ def review_candidates_evaluate(request: Request, payload: dict = Body(...), db: 
         db.rollback()
         return JSONResponse({"detail": "Concurrent Review Candidate evaluation.", "code": "candidate_conflict"}, status_code=409)
     status_code = 201 if outcome == "qualified" else 200
-    body = {"outcome": outcome, "candidate": candidate_payload(candidate) if candidate else None}
+    body = {"outcome": outcome, "candidate": _display_payload(db, candidate) if candidate else None}
     return JSONResponse(jsonable_encoder(body), status_code=status_code)
 
 
@@ -121,7 +126,7 @@ def review_candidates_mark_reviewed(candidate_id: int, request: Request, db: Ses
     except IntegrityError:
         db.rollback()
         return JSONResponse({"detail": "Concurrent Review Candidate review.", "code": "candidate_conflict"}, status_code=409)
-    return candidate_payload(candidate)
+    return _display_payload(db, candidate)
 
 
 @router.get("")
@@ -137,7 +142,8 @@ def review_candidates_list(request: Request, cycle_id: int | None = Query(None),
             models.TalentAssessmentCyclePopulationMember.branch_id.in_(visible or [-1]),
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
-    return [candidate_payload(row) for row in rows]
+    contexts = authorized_contexts(db, group_id, rows)
+    return [{**candidate_payload(row), "context": contexts[row.id]} for row in rows]
 
 
 @router.get("/{candidate_id}")
@@ -151,4 +157,4 @@ def review_candidates_read(candidate_id: int, request: Request, db: Session = De
         return _error(exc)
     if not _candidate_authorized(db, user, candidate):
         return JSONResponse({"detail": "Review Candidate was not found.", "code": "not_found"}, status_code=404)
-    return candidate_payload(candidate)
+    return _display_payload(db, candidate)

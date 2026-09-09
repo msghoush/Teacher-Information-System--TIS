@@ -1,11 +1,41 @@
 ---
 title: TIS User And System Flows
 documentation_version: 3.5
-last_updated: 2026-09-05
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## M10 Production Provider Resolution Flow
+
+1. Before analytical SQL, the route resolves commercial availability through
+   `feature.organization_intelligence` and the active canonical entitlement
+   state. A false, missing, invalid, or exceptional result returns unavailable.
+2. The existing `talent_analytics.view` permission check then runs separately;
+   Student drill and sensitive secondary metrics retain their additional
+   permission gates.
+3. Breadth configuration must resolve to 1000 matrix cells, 1000 relationship
+   results, and 1000 Program-pair results. A request above any applicable limit
+   is rejected before aggregation and is never truncated.
+4. Privacy configuration must resolve to minimum cohort 5 for P1-P7. Raw cells
+   below 5 are suppressed, then existing relationship-aware complementary
+   suppression runs before any serializer receives the closed projection.
+5. Outside production only, an exact `.local_test_data/talent_local_test.db`
+   URL substitutes deterministic privacy, bounded breadth, and local
+   availability providers. Production names, `tis.db`, memory databases, and
+   every other database path remain on the production fail-closed path.
+
+## Talent Results & Analytics Experience Flow
+
+1. An authorized user opens Results & Analytics and selects an Academic Year. The Organization Overview requests the existing Overview, Program Portfolio, and Talent Map projections for that same authorized context.
+2. The page presents returned facts as headline cards, Program progress, non-ranked Branch links, and a Talent Map preview. Only visible backend percentages can set a bar or chart dimension.
+3. The user can drill from Organization to Branch, Program, or a visible Talent Map Branch cell. Program and Branch pages call their existing M10 routes and preserve supported Program/Branch filters.
+4. Students Across Programs calls the symmetric distinct-participant pair route and explains diagonal versus shared Program participation without inferring similarity or ability.
+5. Students requires both analytics and Student-view permissions, retains the P7 privacy gate and max-100 paging, shows frozen historical context, and exposes Candidate/Identification fields only when returned by the separately permissioned queries.
+6. Progress Over Time calls one Program/one Academic Year with one allowed metric. It orders Periods by the governed response, translates comparability reasons, and never calculates a delta, trend, or improvement claim.
+7. Permission denial, analytics unavailability, no data, and privacy protection are presented as separate plain-language states. A protected result supplies no visual or accessible magnitude.
+
 
 ## M10 B11 Qualification And Release Flow
 
@@ -23,10 +53,12 @@ source_of_truth: true
    This qualification is complete and B11-D is CLOSED. READ COMMITTED mixed
    snapshots were proven; permanent REPEATABLE READ remains governance-required
    and not implemented.
-4. B11-E blocks B11 closure, B12, master merge, and deployment until production
-   privacy, commercial availability, breadth, performance, concurrency,
-   memory/OOM, seven-route security, qualification-environment migration/index,
-   observability, and authoritative KMS gates all pass.
+4. F1 implements the approved production privacy, commercial-availability, and
+   breadth providers. As of 2026-09-09 (ADR 0028/ADR 0030), B11-E is CLOSED
+   WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING and
+   B11 overall is CLOSED on that same basis; B12 is CLOSED. Cumulative
+   production release qualification and a separate `dev`->`master` approval
+   still block master merge and deployment.
 
 ## M10 B8 Participation Overlap Flow
 
@@ -108,11 +140,25 @@ chronology; multi-Academic-Year longitudinal ordering remains deferred.
    `talent_analytics.view_students` AND `talent_analytics.view`, and is
    denied (`analytics_drill_restricted`, no cohort size disclosed) whenever
    the cohort's own privacy cell is not `visible`.
-7. With no production privacy policy configured, every route fails closed
-   (`analytics_query_failed`, HTTP 500) rather than falling back to an
-   implicit permissive or generic threshold default.
+7. Production privacy resolves only when the configured cohort value equals the
+   approved value 5. Missing, malformed, mismatched, or exceptional policy state
+   fails closed rather than using an implicit permissive threshold.
 
 ## Talent Annual Evaluation Plan Flow (M8)
+
+The operational workspace presents the approved cross-milestone journey as:
+
+1. Configure one Program's eligible Grades and exact competencies/rubric version.
+2. Create and activate its Annual Evaluation Plan and ordered Periods.
+3. Prepare a Draft evaluation, link it to an eligible Period, then open it to
+   freeze the historically scoped Student population.
+4. Start a Student assessment and save each competency result through M5,
+   consuming the returned revision before the next result write.
+5. Complete the Assessment, evaluate deterministic Candidate rules, review any
+   resulting Candidate, and separately record an authorized human Official
+   Identification decision when appropriate.
+6. Record or amend Educator Input through its independent M6 permission and
+   lineage without changing Assessment, Candidate, or Identification state.
 
 1. An organization-authorized Plan manager creates one Draft Plan from an
    existing Program Academic Year Configuration and authors ordered Periods.

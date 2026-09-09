@@ -1,11 +1,139 @@
 ---
 title: TIS Change History
-documentation_version: 3.7
-last_updated: 2026-09-06
+documentation_version: 3.8
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-09 - Phase H Cumulative Release Qualification and Baseline A/B
+
+- Ran the complete current `tests/` suite. Pytest collected 1,748 parent test
+  items and reported 1,618 passed, 78 failed, and 59 skipped, plus 87 passed
+  subtests. The apparent 1,755 total is the arithmetic sum of the headline
+  outcome counters; it is not a second collection count because unittest
+  subtest outcomes are reported separately from their collected parent items.
+- Reproduced all 78 current failures against the clean pre-Talent baseline
+  `8ed2cc998b8f1c29b5f1d7b34c3b9532deff603e`: 78 failed, 192 passed,
+  1 skipped, plus 60 passed subtests in the bounded seven-file failure set.
+  Therefore 78/78 failures are baseline/environment failures and the
+  Talent-caused regression count is zero.
+- Phase H cumulative release qualification is PASS WITH BASELINE EXCLUSIONS.
+  The separate production-deployment check that peak worker/process RSS is no
+  more than 70% of the actual Render worker/container memory allocation remains
+  unevaluated until the real allocation and worker count are known.
+- This qualification record changes no product behavior, schema, migration,
+  permission, entitlement, production configuration, or deployment state.
+
+## 2026-09-09 - M10 B11-E Live Multi-Worker Qualification, ADR 0028 Completion, ADR 0030, B12 Definition
+
+- Personally built and ran a live, >=2-independent-process (`uvicorn`)
+  multi-worker qualification against the dedicated non-production PostgreSQL
+  database, with real F1 production providers engaged (not test doubles) -
+  see `docs/history/engineering-handbook/2026-09-09-b11e-live-multiworker-qualification.md`
+  for full methodology and results.
+- Results: byte-identical cross-worker responses on 5 of 7 M10 routes; no
+  worker-local correctness dependency (code inspection, corroborated by a
+  worker-kill test); concurrent-writer safety and fresh-transaction-per-
+  request semantics confirmed across workers; performance PASS against
+  p95<=2.0s/p99<=4.0s with substantial margin; memory PASS against
+  <=128MB incremental/request with substantial margin, no monotonic growth.
+- Formally adopted the Owner-approved performance (p95<=2.0s/p99<=4.0s) and
+  memory (<=128MB incremental/request; <=70% allocated worker/container
+  memory) targets into `docs/adr/0028-b11-production-qualification-policy.md`,
+  framed as directional multi-run evidence with no single figure treated as
+  canonical; the <=70% sub-item is explicitly classified NOT EVALUATED
+  LOCALLY / ENVIRONMENT-SPECIFIC (no authoritative production allocation
+  value exists in this repository), not a code defect.
+- Created `docs/adr/0030-m10-organization-analytics-multi-worker-qualification-minimum.md`
+  (accepted): >=2 independent workers/processes as the release-qualification
+  minimum; correctness must not depend on worker-local mutable state; not a
+  declaration of actual production topology.
+- Added a B12 (M10 closeout only) definition as a new subsection of ADR 0028,
+  strictly downstream of B11-E, explicitly separate from and not satisfied by
+  the concurrent Talent & Potential Phase A-E product/UI work.
+- Classified B11-E as CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+  VERIFICATION ITEM REMAINING, and B12 as DEFINED, NOT YET CLOSED (closure
+  itself remains a separate future governance/independent-review action).
+- No schema, migration, permission, pricing, AI, or timetable change.
+  `tis.db` untouched (SHA-256 confirmed unchanged before and after). All
+  ephemeral PostgreSQL qualification schemas were dropped; zero leftover
+  schemas confirmed.
+
+## 2026-09-09 - M10 B11-E F2 Qualification Re-Verification (Bounded)
+
+- Independently re-ran `tests/test_talent_organization_repeatable_read.py`
+  against the live non-production PostgreSQL test database: 15 passed,
+  including `test_entitlement_availability_check_shares_the_m10_repeatable_read_snapshot`,
+  confirming the F1 entitlement-availability query shares the M10 REPEATABLE
+  READ snapshot.
+- Ran a new, bounded, throwaway (not committed) independent latency sanity
+  check reusing the existing PostgreSQL fixture builder against all seven
+  M10 routes; results were comfortably within a generous latency ceiling on
+  a small fixture dataset with no concurrent load, but did not reproduce the
+  specific performance figures a prior session reportedly measured, and no
+  memory or multi-worker evidence was produced or reproduced.
+- Declined to formally adopt specific unverified performance/memory figures
+  or a multi-worker qualification conclusion into ADR 0028 or a new ADR
+  0030; no ADR was created or substantively amended by this task.
+- Corrected two stale "Independent review... PENDING" lines in
+  `docs/history/engineering-handbook/2026-09-08-b11e-integrated-production-qualification.md`
+  and `docs/history/engineering-handbook/README.md` to match the same
+  document's own already-stated "PASS WITH NON-BLOCKING OBSERVATIONS"
+  conclusion (a same-document self-consistency fix, independently confirmed
+  by direct reading).
+- `tis.db` untouched. No schema, migration, permission, pricing, AI, or
+  timetable change. See
+  `docs/history/engineering-handbook/2026-09-09-b11e-f2-postgresql-qualification.md`
+  for the full, honestly-scoped re-verification record.
+
+## 2026-09-08 - M10 B11-E F1 Production Providers
+
+- Added fail-closed production provider resolution for all seven Organization
+  Intelligence routes: externally configured P1-P7 minimum cohort 5 with the
+  existing complementary suppression engine, canonical commercial availability
+  through `feature.organization_intelligence`, and explicit 1000-cell,
+  1000-relationship, and 1000-Program-pair breadth ceilings.
+- Registered the semantic feature key in the existing normal customer-feature
+  catalog and added a permission-free entitlement decision for provider use;
+  route permission checks remain separate and no plan or pricing rule was added.
+- Added a deterministic local provider path restricted to non-production and
+  the exact `.local_test_data/talent_local_test.db` URL. It does not activate for
+  `tis.db`, memory/other SQLite databases, or production environment names.
+- Added focused boundary, configuration, exception, entitlement, local-path,
+  route, and no-truncation tests. Real normal-dependency HTTP checks returned
+  200 for all seven APIs and pages; a production-like missing-configuration
+  request failed closed. No schema, migration, new permission, production data,
+  API response shape, commit, push, merge, or deployment change was made.
+
+## 2026-09-08 - Talent Phase C Results & Analytics Experience
+
+- Reworked the seven existing M10 projections into a visual, stakeholder-ready Results experience with Organization Overview, Program Results, Branch Results, Talent Map, Students Across Programs, Students, and Progress Over Time.
+- Added governed KPI cards, percentage progress visuals, non-ranked Branch navigation, a Talent Map preview, Program and Student cards, a symmetric overlap grid, period visuals, and friendly comparability explanations.
+- Added Academic Year, Program, metric, and Branch/Grade dimension navigation only where backend routes support those parameters; added contextual drill-down links and a sticky Results subnavigation.
+- Preserved zero/no-data/privacy distinctions and ensured only visible backend percentages control chart magnitude. Protected states expose no hidden magnitude in DOM, ARIA, hover/focus help, color, or size.
+- Added focused Node tests; all seven M10 backend suites and isolated local-data HTTP checks pass. Browser visual acceptance remains pending because no browser surface was available. No backend, schema, migration, provider, permission, production-data, or `tis.db` change was made.
+
+
+## 2026-09-08 - Talent Phase B Operational Workflow
+
+- Converted the uncommitted M11 Talent workspace into a real operational UI for
+  Program setup, eligible Grades, versioned competencies/rubrics/descriptors,
+  optional Program-specific KPI configuration, and Review Candidate rules.
+- Reused the existing M8 Plan/Period and M4 Cycle APIs for the path from Program
+  planning to a frozen Student population; added real M5 assessment entry with
+  sequential returned-revision consumption and stop-on-stale behavior.
+- Added M6 Candidate review, separate human Official Identification, and
+  separately permissioned Educator Input add/amend/history interactions. No
+  Candidate automatically becomes identified.
+- Added authorized human-readable Assessment/Candidate/frozen-population context
+  and exposed stable write IDs through read projections. Kept those row IDs out
+  of the M3 semantic fingerprint and added descriptor IDs for precise removal.
+- Added focused Node/UI/API tests plus a real-router temporary-SQLite end-to-end
+  journey. No schema, migration, new permission, AI, billing, `tis.db`, commit,
+  push, or deployment change was made. Browser acceptance remains pending because
+  no browser connection was available.
 
 ## 2026-09-08 - M10 B11-E Integrated Production Qualification
 
@@ -25,8 +153,8 @@ source_of_truth: true
   reconstructable and no raw value/threshold leaks under a concurrent write.
 - Finalized Index Candidate B as NO CHANGE and statistics freshness as an
   operational/runbook disposition (no code/migration change). Provider
-  readiness (privacy/availability/breadth) remains unimplemented and
-  fail-closed, listed as explicit B11-E closure blockers for the Owner.
+  readiness (privacy/availability/breadth) remained an explicit fail-closed
+  B11-E blocker at that checkpoint and was subsequently addressed by F1.
 - Added 14 new committed regression tests
   (`tests/test_talent_organization_repeatable_read.py`); the full 226-test
   M10/PostgreSQL/privacy regression passed; `tis.db` was confirmed unchanged.

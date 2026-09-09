@@ -1,26 +1,50 @@
 ---
 title: TIS Module Map
 documentation_version: 3.5
-last_updated: 2026-09-06
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS Module Map
 
+## Talent Results & Analytics UI (M11 Phase C)
+
+- `routers/talent_ui.py`: permission-gated server-rendered routes and public Results titles.
+- `templates/talent/workspace.html`: shared Talent shell, sticky Results subnavigation, Academic Year/Program/metric/dimension controls, and live status region.
+- `static/js/talent.js`: consumes only existing M10 API projections and renders Organization, Program, Branch, Talent Map, Students Across Programs, Students, and Progress Over Time views. It owns presentation and navigation only; no metric calculation or authorization.
+- `static/css/talent.css`: scoped responsive cards, progress visuals, accessible matrices, categorical privacy/no-data states, focus treatments, sticky context navigation, and reduced-motion behavior using shared TIS design tokens.
+- `tests/talent_results_experience.test.cjs`: presentation, friendly-language, privacy-leak, matrix, error-state, responsive, and accessibility invariants.
+
+The UI does not own analytics semantics. M9/M10 privacy closure, access, historical frozen population, paging, and comparison rules remain authoritative.
+
+
 ## B11 Production Qualification Boundary
 
-- `TalentAnalyticsPrivacyPolicy`: one future production implementation must
-  consume governed external thresholds, with no test-policy or permissive
-  fallback and fail-closed missing/exception behavior.
-- Organization Analytics availability: future provider resolution remains
-  plan-agnostic and consumes the existing `entitlement_service`/feature-
-  registry decision pattern; permission and entitlement remain separate.
-- Organization Analytics breadth: future external configuration supports
-  per-projection-family cell, relationship, and pair limits with fail-closed
-  missing/reject/exception behavior.
-- B11-C/D provide evidence before any SLO, isolation, or index decision. ADR
-  0028 governs entry criteria and B11-E release gates; it adds no runtime
-  module or implementation.
+- `talent_organization_analytics_providers.py`: F1 production provider module.
+  It accepts only the externally configured approved cohort value 5 and breadth
+  values 1000/1000/1000; missing, invalid, mismatched, rejected, and exceptional
+  state fails closed. Its deterministic local path requires non-production and
+  the exact `.local_test_data/talent_local_test.db` URL.
+- `talent_analytics_privacy.resolve_privacy_policy_provider`: lazily resolves
+  the configured P1-P7 cohort policy and retains the existing primary-then-
+  complementary suppression engine. There is no permissive fallback.
+- `saas.customer_feature_policy` and `saas.demo_feature_registry`: register
+  `feature.organization_intelligence` as a normal customer feature.
+  `saas.entitlement_service.organization_feature_available` resolves only
+  active commercial/feature state and does not perform permission checks.
+- `talent_org_intelligence_service`: availability and breadth dependency seams
+  now resolve F1 providers. Availability still runs before the separate
+  `talent_analytics.view` permission check, and breadth rejects without
+  truncation.
+- `tests/test_talent_organization_analytics_providers.py`: cohort boundary,
+  complementary suppression, configuration failure, entitlement/permission
+  separation, exact breadth boundaries, local-path, seven-route accessibility,
+  and production-environment fail-closed coverage.
+- ADR 0028 governs the approved provider values and B11-E release gates. F1
+  resolved the provider implementation gate. As of 2026-09-09 (ADR 0028/ADR
+  0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+  VERIFICATION ITEM REMAINING and B11 overall is CLOSED on that same basis;
+  B12 is CLOSED.
 - B11-C is CLOSED after PostgreSQL 16.15 profiling of all seven routes and a
   PASS WITH NON-BLOCKING OBSERVATIONS independent re-review. Query counts were
   bounded with no N+1; no index, schema, migration, permission, privacy, or
@@ -208,7 +232,8 @@ source_of_truth: true
   capability/production-gate item remain open.
 - B11-A (read-only qualification, completed) confirmed the privacy,
   commercial-availability, and breadth-policy provider seams used by all 7
-  M10 routes exist with no production implementation and fail closed today.
+  M10 routes then had no production implementation and correctly failed closed;
+  the F1 provider module documented above subsequently resolved that code gate.
   `talent_organization_analytics_observability.py` (B11-B) adds one
   reusable `OrganizationAnalyticsObservation` accumulator and a dedicated
   `tis.talent.organization_analytics.observability` logger - separate from
@@ -229,8 +254,11 @@ source_of_truth: true
   `tests/test_talent_organization_observability.py` (22 tests). B11-B is
   implemented/tested and independently security/privacy reviewed with PASS
   and non-blocking observations; B11-B is CLOSED. No schema,
-  migration, permission, entitlement, privacy threshold, or breadth limit
-  was added; B11 overall is not CLOSED and B12 remains unimplemented.
+  migration, permission, entitlement, privacy threshold, or breadth limit was
+  added by B11-B; F1 subsequently added the governed provider decisions
+  without schema or permission changes. As of 2026-09-09, B11-E is CLOSED
+  WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR
+  0028); B11 overall is CLOSED on that same basis; B12 is CLOSED.
 
 ## Talent Deterministic Analytics (M9, Committed/Pushed On dev)
 
@@ -265,6 +293,13 @@ source_of_truth: true
   not production-released, and not merged to `master`.
 
 ## Talent Annual Evaluation Planning (M8)
+
+- Operational UI: `routers/talent_ui.py`, `templates/talent/workspace.html`, and
+  the scoped `static/js/talent-*-workspace.js` modules orchestrate existing
+  Program, Plan/Period, Cycle, Assessment, Candidate, Identification, and
+  Educator Input APIs. They add no persistence authority. API permissions,
+  organization scope, frozen historical Branch scope, revisions, and audit
+  behavior remain authoritative.
 
 - `talent_evaluation_plan_service.py`: Plan/Period lifecycle, normalized
   identity, future-tail ordering, closure, rollover, warning, capability, and

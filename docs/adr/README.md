@@ -53,3 +53,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0027-b10-longitudinal-organization-intelligence-contract.md`
 - `0028-b11-production-qualification-policy.md`
 - `0029-m10-organization-analytics-repeatable-read-boundary.md`
+- `0030-m10-organization-analytics-multi-worker-qualification-minimum.md`

@@ -1,7 +1,7 @@
 ---
 title: B10 Longitudinal Organization Intelligence Contract
 documentation_version: 3.7
-last_updated: 2026-09-06
+last_updated: 2026-09-09
 status: accepted
 module: architecture
 ---
@@ -201,7 +201,10 @@ qualification.
 
 **Status.** B10-A architecture contract: APPROVED/GOVERNED by this ADR. B10-B
 is implemented and independently security/privacy reviewed with PASS and
-non-blocking observations; B10 is CLOSED. B11/B12 are NOT IMPLEMENTED. B8 Participation Overlap and B9
+non-blocking observations; B10 is CLOSED. As of 2026-09-09 (ADR 0028, ADR
+0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION
+ITEM REMAINING and B11 overall is CLOSED on that same basis; B12 is CLOSED.
+B8 Participation Overlap and B9
 Student Drill remain CLOSED after passed targeted independent re-reviews;
 their committed/pushed implementations remain part of current dev. This
 decision does not reopen either milestone.

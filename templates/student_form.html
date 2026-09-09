@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+{% block title %}Add Student | TIS{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
+{% block content %}
+<section class="stu" style="max-width: 760px;">
+  <header class="stu-head">
+    <div>
+      <p class="stu-eyebrow">Student Records</p>
+      <h1>Add Student</h1>
+      <p class="stu-intro">Add the essential details. You can set their academic placement right after.</p>
+    </div>
+    <div class="stu-actions"><a class="stu-btn" href="/students/">{{ icon('close', 'shell-icon') }}Cancel</a></div>
+  </header>
+
+  {% if error %}<div class="stu-banner stu-banner-error" role="alert">{{ error }}</div>{% endif %}
+
+  <div class="stu-panel">
+    <form class="stu-form" method="post" action="/students/new">
+      <div class="stu-form-grid">
+        <div class="stu-field">
+          <label for="first_name">First name</label>
+          <input id="first_name" name="first_name" required maxlength="100" value="{{ form.first_name if form else '' }}" autofocus>
+        </div>
+        <div class="stu-field">
+          <label for="last_name">Last name</label>
+          <input id="last_name" name="last_name" required maxlength="100" value="{{ form.last_name if form else '' }}">
+        </div>
+        <div class="stu-field">
+          <label for="father_name">Father's name <span class="stu-hint">(optional)</span></label>
+          <input id="father_name" name="father_name" maxlength="100" value="{{ form.father_name if form else '' }}">
+        </div>
+        <div class="stu-field">
+          <label for="gender">Gender <span class="stu-hint">(optional)</span></label>
+          <select id="gender" name="gender">
+            {% for option in gender_options %}<option value="{{ option }}" {% if form and form.gender == option %}selected{% endif %}>{{ option or '—' }}</option>{% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="stu-form-actions">
+        <button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save Student</button>
+        <a class="stu-btn" href="/students/">Cancel</a>
+      </div>
+    </form>
+  </div>
+</section>
+{% endblock %}

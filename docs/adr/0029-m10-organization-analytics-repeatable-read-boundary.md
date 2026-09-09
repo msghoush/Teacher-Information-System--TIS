@@ -1,7 +1,7 @@
 ---
 title: M10 Organization Analytics REPEATABLE READ Transaction Boundary
 documentation_version: 1.0
-last_updated: 2026-09-08
+last_updated: 2026-09-09
 status: accepted
 module: architecture
 ---
@@ -171,5 +171,8 @@ only (`database.py`, `dependencies.py`,
 re-testing are recorded in
 `docs/history/engineering-handbook/2026-09-08-b11e-integrated-production-qualification.md`.
 Independent review returned PASS WITH NON-BLOCKING OBSERVATIONS. B11-E
-implementation is PASSED and checkpointable, but B11-E production closure
-remains PENDING; B11 overall is NOT CLOSED and B12 is NOT IMPLEMENTED.
+implementation is PASSED and checkpointable. As of 2026-09-09
+(`docs/history/engineering-handbook/2026-09-09-b11e-live-multiworker-qualification.md`,
+ADR 0028, ADR 0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+VERIFICATION ITEM REMAINING and B11 overall is CLOSED on that same basis; B12
+is CLOSED.

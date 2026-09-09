@@ -239,6 +239,27 @@ def list_placements(db: Session, *, school_group_id: int, student_id: int):
     ).order_by(models.StudentAcademicPlacement.effective_from, models.StudentAcademicPlacement.id).all()
 
 
+def audit_event_payload(row):
+    return {
+        "id": row.id, "resource_type": row.resource_type, "resource_id": row.resource_id,
+        "action": row.action, "actor_user_id": row.actor_user_id,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def list_audit_events(db: Session, *, school_group_id: int, student_id: int, limit: int = 200):
+    """Read-only history trail for the canonical Student Profile History section.
+
+    Reuses the existing append-only StudentAudit rows every mutation in this
+    module already writes; this adds no new persistence authority.
+    """
+    if get_student(db, school_group_id, student_id) is None:
+        raise StudentAcademicError("not_found", "Student was not found.")
+    return db.query(models.StudentAudit).filter_by(
+        school_group_id=school_group_id, student_id=student_id
+    ).order_by(models.StudentAudit.created_at.desc(), models.StudentAudit.id.desc()).limit(limit).all()
+
+
 def resolve_placement(db: Session, *, school_group_id: int, student_id: int, at: datetime,
                       academic_year_id: int | None = None):
     query = db.query(models.StudentAcademicPlacement).filter(

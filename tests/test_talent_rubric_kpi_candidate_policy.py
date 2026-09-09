@@ -324,6 +324,9 @@ def test_rubric_level_order_is_the_semantic_rank_independent_of_numeric_value(db
     ordered = sorted(payload["levels"], key=lambda item: item["order"])
     assert [item["code"] for item in ordered] == ["EXPLORING", "READY"]
     assert all(item["numeric_value"] is None for item in ordered)
+    # Each level's own TalentRubricLevel.id must be exposed (not just its code/order),
+    # because the assessment write route is FK-constrained on this id, not the code.
+    assert [item["id"] for item in ordered] == [emerging.id, ready.id]
     policy, framework = configure_review_candidate_policy(db, school_group_id=1, program_id=program.id, framework_id=framework.id,
         expected_revision=framework.revision, is_enabled=True, match_mode="all", description=None,
         rules=[{"rule_type": "rubric_level_at_or_above", "framework_competency_id": member.id, "rubric_level_id": ready.id}])

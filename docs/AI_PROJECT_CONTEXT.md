@@ -1,11 +1,90 @@
 ---
 title: TIS AI Project Context
 documentation_version: 3.7
-last_updated: 2026-09-06
+last_updated: 2026-09-09
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## B11-E F1 Production Providers
+
+The seven M10 Organization Intelligence routes now resolve production-capable,
+fail-closed providers. Privacy uses an externally configured, approved minimum
+cohort of 5 for every P1-P7 class and retains the existing primary-then-
+complementary suppression engine. Commercial availability uses the registered
+`feature.organization_intelligence` key through the canonical entitlement and
+feature-registry path; route permissions remain a separate check. Breadth uses
+externally configured ceilings of 1000 matrix cells, 1000 relationship results,
+and 1000 Program-pair results and rejects excess work without truncation.
+
+Missing, malformed, mismatched, or exceptional configuration fails closed. A
+deterministic development path is enabled only when
+`auth.is_production_environment()` is false and `DATABASE_URL` resolves exactly
+to `.local_test_data/talent_local_test.db`; it cannot activate for `tis.db`, an
+in-memory database, another SQLite file, or any production environment name.
+No schema, migration, new permission, plan/pricing rule, production data, or
+HTTP response contract changed. F1 resolves only the provider implementation
+gate. As of 2026-09-09 (ADR 0028/ADR 0030), B11-E is CLOSED WITH ONE
+ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING and B11 overall is
+CLOSED on that same basis; B12 is CLOSED, and the system is
+not declared production ready.
+
+## Talent & Potential Phase C Results Experience
+
+The M11 Talent Results & Analytics workspace now presents all seven approved M10 projections through a visual, plain-language experience. Organization Overview combines governed headline metrics, Program progress cards, non-ranked Branch entry cards, and a completion Talent Map preview. Program Results and Branch Results use visible backend percentages for progress bars and preserve independent Candidate and Official Identification permission projection. Talent Map supports Program-by-Branch and Program-by-Grade views with keyboard-focusable cells, explicit zero/no-data/privacy categories, and Branch drill-down.
+
+Participation Overlap is presented to users as Students Across Programs, with an accessible symmetric matrix and a plain explanation of distinct shared participation. Student Drill is presented as Students, keeps frozen historical context, shows Candidate/Identification state only when returned, and links to the canonical Student Profile when the API supplies the capability hint. Longitudinal is presented as Progress Over Time, stays within one Program and Academic Year, and translates every governed comparability reason without calculating changes or making improvement claims.
+
+All magnitude visuals read only already-visible backend percentages. Protected results never influence text, width, height, intensity, opacity, tooltip, focus help, or accessible names. The backend, privacy closure, permission rules, tenant isolation, schema, migrations, production providers, and `tis.db` are unchanged. Focused UI and all seven M10 route regressions pass; the isolated persistent local dataset returned HTTP 200 for each route and page. Browser visual acceptance remains pending because no browser surface was available.
+
+
+## Talent & Potential Phase B Operational Workflow
+
+The M11 Talent workspace now operates the approved M2-M8 APIs instead of
+remaining a read-only stakeholder surface. Authorized users can create and
+configure Program-specific workspaces, eligible Grades, Framework versions,
+competencies, ordered rubric levels, achievement descriptors, optional bounded
+KPI settings, and deterministic Review Candidate rules. The Evaluation Plan
+view reuses M8 Plan/Period capabilities and M4 Cycle lifecycle to prepare and
+link an evaluation, freeze its Student population, and open real M5 assessment
+entry. Result saves remain one API request per competency and consume each
+returned Assessment revision before the next write; a stale response stops the
+sequence and preserves unsaved entries.
+
+Assessment, Candidate, and frozen-population projections add authorized display
+context (Student, Program, Academic Year, Cycle, exact version, and frozen
+Branch/Grade/Section labels) without changing authorization or using current
+Placement. Review remains distinct from append-only Official Identification,
+and Educator Input remains a separately permissioned append-only lineage that
+does not alter results, candidate evaluation, or identification. The existing
+Framework read addition exposes stable Framework-competency and rubric-level
+row IDs required by M5 writes; the public configuration projection also exposes
+descriptor IDs for the existing delete route. These IDs are explicitly excluded
+from the internal semantic-fingerprint projection.
+
+No schema, migration, new permission, commercial rule, AI behavior, analytics
+privacy behavior, or `tis.db` change was made. Real HTTP acceptance proves the
+qualitative Performing Arts path through Program, version/rubric/rules,
+Plan/Period/Cycle, frozen Student, assessment/evidence, stale conflict, review,
+one human identification decision, and Educator Input amendment. Browser
+acceptance remains pending because no browser connection was available. The
+Candidate read API does not expose its stored rule-by-rule evaluation snapshot,
+so the UI truthfully shows outcome/context without inventing detailed reasons.
+
+## Student Profile History Read Endpoint (Partial Phase A Core Students Slice)
+
+A delegated "Phase A - Core Students" slice added one small, additive backend
+read endpoint, `GET /api/students/{student_id}/audit`, exposing the existing
+append-only `StudentAudit` rows for the canonical Student Profile's future
+History section. No schema, migration, permission, or write behavior changed;
+see `docs/PROJECT_STATE.md` for full detail. The much larger requested UI
+scope (Students navigation area, list/add/edit, Academic Placement UI, the
+four-section Student Profile, and its read-only Talent & Potential summary)
+was NOT implemented in this task after a live concurrent-agent process was
+found mid-edit on the exact same new `routers/students_ui.py` file, already
+independently building that same surface; the remaining implementation was
+deferred pending reconciliation rather than risk a destructive overwrite race.
 
 ## B11-E Integrated Production Qualification
 
@@ -18,13 +97,15 @@ only structurally inferred. Suppression/reconstruction concurrency was
 tested live with the existing non-production `DeterministicSuppressionTestPolicy`
 (primary and complementary suppression); no suppressed value became
 reconstructable. Index Candidate B is finalized NO CHANGE; statistics
-freshness is finalized as operational/runbook guidance. The production
-privacy/availability/breadth providers remain unimplemented and fail-closed -
-explicit B11-E production-closure blockers for the Owner. **Independent review
-returned PASS WITH NON-BLOCKING OBSERVATIONS; B11-E implementation is PASSED
-and checkpointable, but B11-E production closure remains PENDING. B11 overall
-is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT
-achieved.**
+freshness is finalized as operational/runbook guidance. F1 subsequently
+implements the approved production privacy, availability, and breadth providers
+with fail-closed configuration and entitlement behavior. This resolves the
+provider-code blocker only. The earlier independent review returned PASS WITH
+NON-BLOCKING OBSERVATIONS. **As of 2026-09-09 (ADR 0028, ADR 0030), B11-E is
+CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING
+and B11 overall is CLOSED on that same basis; B12 is CLOSED.
+Production readiness is NOT achieved (no merge to `master` and no production
+deployment).**
 
 ## B11-D PostgreSQL Concurrency Qualification Closure
 
@@ -48,8 +129,9 @@ non-production `DeterministicSuppressionTestPolicy`.
 Tenant isolation remained clean. Candidate B now trends NO CHANGE; no index,
 schema, migration, permission, entitlement, privacy semantic, production
 threshold, breadth, SLO, or memory value was approved. B11-E implementation is
-PASSED and checkpointable, but production closure remains PENDING; B11 overall
-is NOT CLOSED, B12 is NOT IMPLEMENTED, and production readiness is NOT achieved.
+PASSED and checkpointable. As of 2026-09-09, B11-E is CLOSED WITH ONE
+ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028); B11
+overall is CLOSED on that same basis; B12 is CLOSED.
 
 ## B11-C PostgreSQL Qualification Closure
 
@@ -65,9 +147,9 @@ The memory measurements are directional local Windows development evidence
 only. No production privacy threshold, breadth limit, commercial mapping, SLO,
 or memory value was selected, and no permission, privacy, or entitlement
 semantics changed. B11-D subsequently completed and is CLOSED as recorded
-above. B11-E implementation subsequently PASSED, but production closure remains
-PENDING; B11 overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production
-readiness is NOT achieved.
+above. B11-E implementation subsequently PASSED. As of 2026-09-09, B11-E is
+CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING
+(ADR 0028); B11 overall is CLOSED on that same basis; B12 is CLOSED.
 
 ## B11 Production Qualification Governance
 
@@ -82,9 +164,10 @@ ceiling is approved. B11-D tests current READ COMMITTED under controlled
 concurrency before any stronger isolation or evidence-backed index ADR.
 
 B11-C and B11-D subsequently completed and are CLOSED as recorded above.
-B11-E implementation subsequently PASSED, but production closure remains PENDING.
-B11 overall remains NOT CLOSED; B12 is NOT IMPLEMENTED and production
-readiness is NOT achieved. See ADR 0028 for the complete entry criteria,
+B11-E implementation subsequently PASSED. As of 2026-09-09, B11-E is CLOSED
+WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING; B11
+overall is CLOSED on that same basis; B12 is CLOSED. See
+ADR 0028 for the complete entry criteria,
 release gate, required evidence, and explicitly deferred Owner decisions.
 
 ## Organization Intelligence M10 B0-B9
@@ -575,8 +658,9 @@ not exposed in any response.
 M9 is committed and pushed on `dev` at
 `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add deterministic
 talent analytics`); it is not deployed, not production-released, and not
-merged to `master`. No production privacy policy is approved (open gate, by
-design). PostgreSQL execution/performance has not been validated (open gate,
+merged to `master`. At the M9 checkpoint no production privacy policy was
+approved; F1 subsequently approves and implements the cohort-5 provider.
+PostgreSQL execution/performance had not been validated at M9 (open gate,
 consistent with every prior milestone) - only SQLite-backed pytest coverage
 exists, including a query-count regression baseline proving no route loops
 per-row/per-dimension. Focused coverage is in `tests/test_talent_analytics.py`.
@@ -836,6 +920,27 @@ excluding free-text evidence. Deferred: Review Candidate instances/evaluation,
 Official Identification, Educator Input, Learner Profile, analytics/Talent
 Map, AI, Development and Support, late population exceptions, assessor
 assignment, and corrections. Live PostgreSQL execution remains a follow-up.
+
+### M5/M3 Framework Read-Contract Addition (Additive, For A Future Assessment-Entry UI)
+
+The M3 Framework read routes previously never exposed the stable identifiers
+the M5 write route requires. `GET /api/talent/programs/{id}/frameworks/{id}`
+returned each competency only as `{competency_id, display_order, label,
+description}`, where `competency_id` is the parent `TalentCompetency` catalog
+FK (`FrameworkCompetency.talent_competency_id`) - not the row's own
+`FrameworkCompetency.id`. Separately, `get_framework_configuration`'s
+`levels[]` (used by `.../frameworks/{id}/configuration`) omitted
+`TalentRubricLevel.id` entirely. `PUT
+/api/talent/assessments/{id}/competency-results/{framework_competency_id}`
+(`talent_student_assessment_service.set_competency_result`) is FK-constrained
+on exactly those two real ids (`FrameworkCompetency.id`, `TalentRubricLevel.id`),
+so no UI could have been built purely from the existing read payloads. Both
+routes now additively include the row's own `id` alongside the pre-existing
+fields; no permission, schema, migration, or write-route contract changed.
+Regression coverage: `tests/test_talent_rubric_kpi_candidate_policy.py::test_rubric_level_order_is_the_semantic_rank_independent_of_numeric_value`
+and the new
+`tests/test_talent_student_assessment_competency_results.py::test_framework_read_ids_are_accepted_end_to_end_by_the_write_route`,
+which proves a write built purely from the new read `id` fields succeeds.
 
 ## Talent Assessment Cycle And Frozen Population Foundation
 

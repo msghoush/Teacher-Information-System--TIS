@@ -12,9 +12,9 @@ import models
 from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import (
-    StudentAcademicError, add_external_identifier, correct_placement, create_placement, create_student,
-    deactivate_external_identifier, end_placement, get_student, list_placements, list_students, placement_payload,
-    resolve_placement, transition_placement, update_student,
+    StudentAcademicError, add_external_identifier, audit_event_payload, correct_placement, create_placement,
+    create_student, deactivate_external_identifier, end_placement, get_student, list_audit_events, list_placements,
+    list_students, placement_payload, resolve_placement, transition_placement, update_student,
 )
 
 router = APIRouter(prefix="/api/students", tags=["Students"])
@@ -90,6 +90,27 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
         db.commit(); db.refresh(row); return _student_json(row)
     except StudentAcademicError as exc:
         db.rollback(); return _error(exc)
+
+
+@router.get("/{student_id}/audit")
+def student_audit(student_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Read-only history trail for the canonical Student Profile History section.
+
+    Reuses the existing append-only StudentAudit rows every mutation already
+    writes; no new persistence authority or resource_type is introduced.
+    """
+    _, group_id, denied = _authorize(request, db, current_user, "students.view")
+    if denied: return denied
+    try:
+        rows = list_audit_events(db, school_group_id=group_id, student_id=student_id)
+    except StudentAcademicError as exc:
+        return _error(exc)
+    actor_ids = {row.actor_user_id for row in rows if row.actor_user_id}
+    actors = {}
+    if actor_ids:
+        actors = {u.user_id: f"{u.first_name or ''} {u.last_name or ''}".strip() or u.username
+                  for u in db.query(models.User).filter(models.User.user_id.in_(actor_ids)).all()}
+    return [dict(audit_event_payload(row), actor_name=actors.get(row.actor_user_id)) for row in rows]
 
 
 @router.post("/{student_id}/external-identifiers")

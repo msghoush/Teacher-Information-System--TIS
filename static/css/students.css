@@ -1,0 +1,124 @@
+/* Canonical Students experience. Reuses core TIS design tokens (--app-*). */
+:root {
+    --stu-space-1: 4px; --stu-space-2: 8px; --stu-space-3: 12px;
+    --stu-space-4: 16px; --stu-space-5: 24px; --stu-space-6: 32px;
+    --stu-radius: 16px;
+}
+.stu { color: var(--app-ink); max-width: 1200px; margin: 0 auto; font-size: 15px; }
+.stu *, .stu *::before, .stu *::after { box-sizing: border-box; }
+.stu [hidden] { display: none !important; }
+.stu p { line-height: 1.6; margin: var(--stu-space-2) 0; overflow-wrap: anywhere; }
+
+/* Heading */
+.stu-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--stu-space-4); margin-bottom: var(--stu-space-5); }
+.stu-eyebrow { color: var(--app-brand); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .12em; margin: 0; }
+.stu-head h1 { margin: 4px 0 6px; font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; }
+.stu-head .stu-intro { color: var(--app-muted, #5d6b82); margin: 0; }
+
+/* Banner */
+.stu-banner { border-radius: 12px; padding: 12px 16px; margin: 0 0 var(--stu-space-4); font-weight: 600; font-size: 14px; }
+.stu-banner-success { background: #e8f6ee; color: #0b6b3a; border: 1px solid #b7e4c7; }
+.stu-banner-error { background: #fdecea; color: #a32418; border: 1px solid #f5c6c0; }
+
+/* Hero / toolbar */
+.stu-hero { background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--stu-radius); box-shadow: var(--app-shadow-sm); padding: var(--stu-space-4) var(--stu-space-5); margin-bottom: var(--stu-space-5); display: flex; flex-wrap: wrap; gap: var(--stu-space-4); align-items: center; justify-content: space-between; }
+.stu-search { display: flex; gap: var(--stu-space-2); flex: 1 1 320px; align-items: center; }
+.stu-search input[type="search"], .stu-search select { height: 44px; border: 1px solid var(--app-line); border-radius: 10px; padding: 0 12px; font: inherit; color: var(--app-ink); background: var(--app-surface-strong); }
+.stu-search input[type="search"] { flex: 1; min-width: 200px; }
+.stu-search select { min-width: 130px; }
+.stu-btn { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; border-radius: 10px; border: 1px solid var(--app-line); background: var(--app-surface); color: var(--app-brand-deep); font: inherit; font-weight: 700; text-decoration: none; cursor: pointer; transition: transform 140ms ease, background-color 140ms ease, box-shadow 140ms ease; }
+.stu-btn:hover { transform: translateY(-1px); background: var(--app-brand-soft); }
+.stu-btn:focus-visible { outline: 2px solid var(--app-brand); outline-offset: 2px; }
+.stu-btn-primary { background: var(--app-brand); border-color: var(--app-brand); color: #fff; }
+.stu-btn-primary:hover { background: var(--app-brand-deep); }
+.stu-btn-sm { height: 36px; padding: 0 12px; font-size: 13px; }
+.stu-btn svg { width: 16px; height: 16px; min-width: 16px; min-height: 16px; }
+.stu-count { color: var(--app-muted, #5d6b82); font-size: 13px; }
+
+/* Student cards */
+.stu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: var(--stu-space-4); }
+.stu-card { background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--stu-radius); box-shadow: var(--app-shadow-sm); padding: var(--stu-space-4); display: flex; flex-direction: column; gap: var(--stu-space-3); text-decoration: none; color: var(--app-ink); transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease; }
+a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12); border-color: var(--app-brand-soft); }
+.stu-card-top { display: flex; align-items: center; gap: var(--stu-space-3); }
+.stu-avatar { width: 48px; height: 48px; min-width: 48px; border-radius: 50%; background: var(--app-brand-deep); color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 16px; letter-spacing: .02em; }
+.stu-avatar-lg { width: 72px; height: 72px; min-width: 72px; font-size: 24px; }
+.stu-card h3, .stu-card h4 { margin: 0; letter-spacing: -.01em; }
+.stu-card .stu-sub { color: var(--app-muted, #5d6b82); font-size: 13px; margin: 0; }
+.stu-chip { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+.stu-chip-active { background: #e8f6ee; color: #0b6b3a; }
+.stu-chip-inactive { background: #f0f2f6; color: #5d6b82; }
+.stu-chip-placement { background: var(--app-brand-soft); color: var(--app-brand-deep); }
+.stu-place { border-top: 1px dashed var(--app-line); padding-top: var(--stu-space-3); font-size: 13px; color: var(--app-muted, #5d6b82); }
+.stu-place strong { color: var(--app-ink); }
+
+/* Empty state */
+.stu-empty { border: 1px dashed var(--app-line-strong); border-radius: var(--stu-radius); padding: var(--stu-space-6); text-align: center; color: var(--app-muted, #5d6b82); background: var(--app-surface); }
+.stu-empty svg { width: 40px; height: 40px; margin-bottom: var(--stu-space-3); color: var(--app-brand); }
+.stu-empty h3 { margin: 0 0 6px; color: var(--app-ink); }
+
+/* Profile */
+.stu-profile { display: flex; flex-wrap: wrap; gap: var(--stu-space-5); align-items: center; background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--stu-radius); box-shadow: var(--app-shadow-sm); padding: var(--stu-space-5); margin-bottom: var(--stu-space-5); }
+.stu-profile .stu-id { flex: 1 1 320px; }
+.stu-profile h1 { margin: 6px 0 2px; font-size: clamp(22px, 2.6vw, 30px); letter-spacing: -.02em; }
+.stu-profile .stu-actions { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); align-items: center; }
+.stu-fact { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); margin-top: var(--stu-space-3); }
+.stu-fact span { background: var(--app-surface-muted); border: 1px solid var(--app-line); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; }
+
+/* Tabs */
+.stu-tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px; background: var(--app-surface); border: 1px solid var(--app-line); border-radius: 14px; margin-bottom: var(--stu-space-5); box-shadow: var(--app-shadow-sm); }
+.stu-tabs a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 16px; border-radius: 10px; text-decoration: none; font-weight: 700; font-size: 14px; color: var(--app-brand-deep); transition: background-color 140ms ease, color 140ms ease; }
+.stu-tabs a:hover { background: var(--app-brand-soft); }
+.stu-tabs a.is-active { background: var(--app-brand); color: #fff; }
+.stu-tabs a svg { width: 16px; height: 16px; min-width: 16px; min-height: 16px; }
+
+/* Panels */
+.stu-panel { background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--stu-radius); box-shadow: var(--app-shadow-sm); padding: var(--stu-space-5); margin-bottom: var(--stu-space-4); }
+.stu-panel h2 { margin: 0 0 var(--stu-space-3); font-size: 18px; letter-spacing: -.01em; }
+.stu-panel h3 { margin: 0; font-size: 15px; }
+.stu-lede { display: flex; gap: 10px; align-items: flex-start; color: var(--app-muted, #5d6b82); font-size: 14px; margin: 0 0 var(--stu-space-4); }
+.stu-lede svg { width: 20px; height: 20px; min-width: 20px; color: var(--app-brand); }
+
+/* Placement cards */
+.stu-place-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: var(--stu-space-4); }
+.stu-placement { border: 1px solid var(--app-line); border-radius: 12px; padding: var(--stu-space-4); display: flex; flex-direction: column; gap: var(--stu-space-2); }
+.stu-placement.is-current { border-color: var(--app-brand); box-shadow: 0 0 0 3px var(--app-brand-soft); }
+.stu-placement .stu-line { display: flex; justify-content: space-between; gap: var(--stu-space-2); font-size: 14px; }
+.stu-placement .stu-line span:first-child { color: var(--app-muted, #5d6b82); }
+.stu-placement .stu-line span:last-child { font-weight: 600; text-align: right; }
+
+/* Tables (precise records) */
+.stu-table-wrap { overflow: auto; border: 1px solid var(--app-line); border-radius: 12px; background: var(--app-surface); }
+.stu-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.stu-table caption { text-align: left; padding: 12px 16px; font-weight: 700; }
+.stu-table th, .stu-table td { padding: 12px 16px; border-top: 1px solid var(--app-line); text-align: left; vertical-align: top; }
+.stu-table thead th { background: var(--app-surface-muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; position: sticky; top: 0; }
+
+/* Timeline */
+.stu-timeline { list-style: none; margin: 0; padding: 0; }
+.stu-timeline li { position: relative; padding: 0 0 var(--stu-space-4) 28px; border-left: 2px solid var(--app-line); margin-left: 8px; }
+.stu-timeline li:last-child { border-left-color: transparent; }
+.stu-timeline li::before { content: ""; position: absolute; left: -7px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--app-brand); box-shadow: 0 0 0 3px var(--app-brand-soft); }
+.stu-timeline .stu-t { font-weight: 700; }
+.stu-timeline .stu-d { color: var(--app-muted, #5d6b82); font-size: 12px; }
+
+/* Forms */
+.stu-form { display: grid; gap: var(--stu-space-4); }
+.stu-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: var(--stu-space-4); }
+.stu-field { display: flex; flex-direction: column; gap: 6px; }
+.stu-field label { font-size: 13px; font-weight: 700; color: var(--app-ink); }
+.stu-field input, .stu-field select { height: 44px; border: 1px solid var(--app-line); border-radius: 10px; padding: 0 12px; font: inherit; color: var(--app-ink); background: var(--app-surface-strong); }
+.stu-field input:focus-visible, .stu-field select:focus-visible { outline: 2px solid var(--app-brand); outline-offset: 1px; }
+.stu-field .stu-hint { font-size: 12px; color: var(--app-muted, #5d6b82); }
+.stu-form-actions { display: flex; gap: var(--stu-space-2); flex-wrap: wrap; }
+
+/* Responsive */
+@media (max-width: 680px) {
+    .stu-head { display: block; }
+    .stu-hero { display: block; }
+    .stu-search { flex-wrap: wrap; }
+    .stu-tabs a { flex: 1 1 42%; justify-content: center; }
+    .stu-profile { padding: var(--stu-space-4); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .stu * { transition: none !important; animation: none !important; }
+}

@@ -87,7 +87,15 @@ def _student_names(db, group_id, student_ids):
         models.Student.school_group_id == group_id,
         models.Student.id.in_(student_ids or [-1]),
     ).all()
-    return {row.id: {"first_name": row.first_name, "father_name": row.father_name, "last_name": row.last_name} for row in rows}
+    return {row.id: {"first_name": row.first_name, "father_name": row.father_name, "last_name": row.last_name,
+                     "student_name": " ".join(filter(None, (row.first_name, row.father_name, row.last_name)))} for row in rows}
+
+
+def _branch_names(db, group_id, branch_ids):
+    return {row.id: row.name for row in db.query(models.Branch).filter(
+        models.Branch.school_group_id == group_id,
+        models.Branch.id.in_(branch_ids or [-1]),
+    ).all()}
 
 
 @router.post("")
@@ -157,7 +165,8 @@ def cycles_preview(cycle_id: int, request: Request, db: Session = Depends(get_db
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
     names = _student_names(db, group_id, [row["student_id"] for row in population])
-    members = [{**row, **names.get(row["student_id"], {})} for row in population]
+    branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
+    members = [{**row, **names.get(row["student_id"], {}), "branch_name": branches.get(row["branch_id"])} for row in population]
     result = {"cycle_id": cycle.id, "population_state": "preview", "scope": "organization" if organization else "authorized_branches", "is_filtered": not organization, "count": len(members), "members": members}
     if organization:
         result["population_fingerprint"] = population_fingerprint(cycle, population)
@@ -202,7 +211,8 @@ def cycles_population(cycle_id: int, request: Request, db: Session = Depends(get
         visible = _visible_branch_ids(db, user)
         rows = [row for row in rows if row.branch_id in visible]
     names = _student_names(db, group_id, [row.student_id for row in rows])
-    members = [{**population_member_payload(row), **names.get(row.student_id, {})} for row in rows]
+    branches = _branch_names(db, group_id, [row.branch_id for row in rows])
+    members = [{**population_member_payload(row), **names.get(row.student_id, {}), "branch_name": branches.get(row.branch_id)} for row in rows]
     result = {"cycle_id": cycle.id, "population_state": "frozen", "scope": "organization" if organization else "authorized_branches", "is_filtered": not organization, "count": len(members), "members": members}
     if organization:
         result["population_count"] = cycle.population_count

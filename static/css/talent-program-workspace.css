@@ -1,0 +1,43 @@
+/* Scoped Program forms, using the existing TIS shell tokens. */
+.tp-program-workspace {--tp-form-gap:16px}
+.tp-program-workspace section {scroll-margin-top:24px;margin-block:28px}
+.tp-program-workspace .tp-tabs {display:flex;flex-wrap:wrap;gap:8px;padding:12px 0;margin-bottom:22px;border-bottom:1px solid var(--app-line)}
+.tp-program-workspace .tp-tabs a {padding:9px 14px;border-radius:10px;text-decoration:none;font-weight:650;background:var(--app-surface)}
+.tp-program-workspace .tp-tabs a:hover {background:var(--app-brand-soft)}
+.tp-program-workspace .tp-actions {display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-block:14px}
+.tp-program-workspace .tp-editor {display:grid;gap:var(--tp-form-gap);margin-block:18px;min-width:0;text-align:start}
+.tp-program-workspace .tp-editor h3 {font-size:17px;margin:0}
+.tp-program-workspace .tp-editor label {display:grid;gap:7px;font-size:14px;font-weight:600;min-width:0}
+.tp-program-workspace .tp-editor input:not([type=checkbox]),
+.tp-program-workspace .tp-editor select,
+.tp-program-workspace .tp-editor textarea {width:100%;min-width:0;min-height:44px;border:1px solid var(--app-line);border-radius:9px;padding:10px 12px;font:inherit;color:var(--app-ink);background:var(--app-surface)}
+.tp-program-workspace .tp-editor textarea {resize:vertical;line-height:1.5}
+.tp-program-workspace .tp-editor .tp-check {display:flex;align-items:center;gap:9px;min-height:40px;cursor:pointer}
+.tp-program-workspace .tp-check input {width:18px;height:18px;accent-color:var(--app-brand);flex-shrink:0}
+.tp-program-workspace fieldset {display:flex;flex-wrap:wrap;gap:5px 20px;border:1px solid var(--app-line);border-radius:10px;padding:12px 16px;min-width:0}
+.tp-program-workspace legend {padding-inline:6px;font-weight:650}
+.tp-program-workspace button {min-height:42px;padding:9px 15px;border:1px solid var(--app-line);border-radius:9px;font:inherit;font-size:14px;font-weight:650;background:var(--app-surface);color:var(--app-brand-deep);cursor:pointer}
+.tp-program-workspace button[type=submit] {background:var(--app-brand);color:white;border-color:var(--app-brand)}
+.tp-program-workspace button:hover:not(:disabled) {box-shadow:var(--app-shadow-sm);filter:brightness(.97)}
+.tp-program-workspace button:disabled {opacity:.5;cursor:not-allowed}
+.tp-program-workspace :focus-visible {outline:3px solid var(--app-brand);outline-offset:3px}
+.tp-program-workspace .tp-card .tp-editor {box-shadow:none;background:var(--app-surface);padding:16px}
+.tp-program-workspace .tp-editor[data-dirty=true] {border-color:var(--app-brand);box-shadow:inset 3px 0 var(--app-brand)}
+.tp-program-workspace [data-feedback]:empty {display:none}
+.tp-program-workspace [data-feedback]:not(:empty),
+.tp-program-workspace [data-status]:not(:empty) {padding:12px 15px;border-radius:9px;background:var(--app-brand-soft);border:1px solid var(--app-line);font-size:14px}
+.tp-program-workspace [data-feedback] button {display:block;margin-top:12px}
+.tp-program-workspace details {margin-block:18px}
+.tp-program-workspace summary {cursor:pointer;font-size:17px;font-weight:700;padding:6px 0;min-height:38px}
+.tp-program-workspace details[open] summary {margin-bottom:14px}
+.tp-program-workspace [aria-current=true] {outline:2px solid var(--app-brand);outline-offset:2px}
+.tp-program-workspace ol {padding-inline-start:24px;line-height:2}
+@media(max-width:640px) {
+  .tp-program-workspace .tp-grid {grid-template-columns:minmax(0,1fr)}
+  .tp-program-workspace .tp-editor {padding:16px}
+  .tp-program-workspace .tp-card .tp-editor {padding:12px}
+  .tp-program-workspace .tp-tabs {flex-wrap:nowrap;overflow-x:auto;padding-bottom:14px}
+  .tp-program-workspace .tp-tabs a {white-space:nowrap}
+  .tp-program-workspace .tp-actions button {flex:1 1 auto}
+  .tp-program-workspace fieldset {gap:4px 12px}
+}

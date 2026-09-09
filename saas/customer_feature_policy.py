@@ -17,6 +17,7 @@ NORMAL_CUSTOMER_FEATURE_KEYS = frozenset(
         "feature.advanced_reporting",
         "feature.export",
         "feature.cross_branch_reporting",
+        "feature.organization_intelligence",
     }
 )
 

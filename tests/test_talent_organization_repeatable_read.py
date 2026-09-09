@@ -45,6 +45,9 @@ import talent_org_intelligence_service as svc
 import talent_org_student_drill as student_drill
 from dependencies import get_db, get_m10_organization_analytics_db
 from routers import talent_organization_analytics as route
+from saas import entitlement_service as saas_entitlement_service
+from saas.models import EntitlementDefinition
+from talent_organization_analytics_providers import ORGANIZATION_INTELLIGENCE_FEATURE_KEY
 from talent_analytics_privacy import (
     AllowAllTestPolicy,
     DeterministicSuppressionTestPolicy,
@@ -393,6 +396,23 @@ def _client(db_factory, *, policy):
     return TestClient(app)
 
 
+def _client_with_real_availability(db_factory, *, policy):
+    """Like `_client`, but leaves the real F1
+    `EntitlementOrganizationAnalyticsAvailabilityProvider` wired (via
+    `svc.resolve_organization_analytics_availability_provider`) instead of
+    overriding it with the test-only `AllowAvailability()` stub. Used only by
+    the new entitlement-snapshot test below, which specifically qualifies
+    that provider's SQL path."""
+
+    app = FastAPI()
+    app.include_router(route.router)
+    app.dependency_overrides[get_m10_organization_analytics_db] = db_factory
+    app.dependency_overrides[route.get_current_user] = lambda: actor(scope="ORGANIZATION", branch=PRIMARY_BRANCH, group=PRIMARY_GROUP)
+    app.dependency_overrides[resolve_organization_analytics_breadth_policy] = lambda: AllowBreadth()
+    app.dependency_overrides[resolve_privacy_policy_provider] = lambda: policy
+    return TestClient(app)
+
+
 def _sum_values(node):
     """Recursively sum every JSON `"value"` leaf in a response body - a
     backend-agnostic way to detect ANY population-derived drift anywhere in
@@ -730,3 +750,137 @@ def test_tenant_isolation_holds_under_the_new_session_with_a_foreign_tenant_writ
     assert body["metrics"]["frozen_eligible_memberships"]["value"] == 14
     serialized = str(body)
     assert "9002" not in serialized and "Foreign2" not in serialized
+
+
+# ---------------------------------------------------------------------------
+# F1 entitlement path (`EntitlementOrganizationAnalyticsAvailabilityProvider`)
+# in the M10 REPEATABLE READ snapshot. Added for B11-E F2 qualification: the
+# tests above all override `resolve_organization_analytics_availability_provider`
+# with the test-only `AllowAvailability()` stub, so none of them exercise the
+# real F1 provider's SQL (`saas.entitlement_service.organization_feature_available`,
+# which itself issues several statements: `EntitlementDefinition`,
+# `SchoolGroup`, and `WorkspaceEntitlement`/promo/subscription reads via
+# `commercial_state_service.resolve_commercial_state` /
+# `workspace_entitlement_service.resolve_workspace_entitlement`). This test
+# uses `_client_with_real_availability` to leave that real provider wired.
+# ---------------------------------------------------------------------------
+
+def _writer_toggle_entitlement_and_add_member(engine, *, feature_key: str, member_id: int, student_id: int) -> None:
+    """A separate, already-committed writer Session that (1) deactivates the
+    commercial entitlement definition the F1 availability provider already
+    read as active, and (2) adds one brand-new frozen population member -
+    both in the same real, domain-valid commit, matching the "concurrent
+    writer commits a change to the underlying entitlement/commercial-state
+    table" scenario this test qualifies."""
+
+    Session = sessionmaker(bind=engine)
+    session = Session()
+    try:
+        definition = session.query(EntitlementDefinition).filter(
+            EntitlementDefinition.key == feature_key
+        ).one()
+        definition.active = False
+        session.add(models.Student(id=student_id, school_group_id=PRIMARY_GROUP, first_name="Late", last_name=f"S{student_id}", status="active"))
+        session.add(models.StudentAcademicPlacement(
+            id=student_id, school_group_id=PRIMARY_GROUP, student_id=student_id, academic_year_id=PRIMARY_AY,
+            branch_id=PRIMARY_BRANCH, grade_level="1", section_name="A", effective_from=NOW, status="active",
+        ))
+        session.add(models.TalentAssessmentCyclePopulationMember(
+            id=member_id, school_group_id=PRIMARY_GROUP, cycle_id=CYCLE_ALPHA_1, program_id=PROGRAM_ALPHA,
+            academic_year_id=PRIMARY_AY, framework_version_id=101, student_id=student_id,
+            academic_placement_id=student_id, branch_id=PRIMARY_BRANCH, grade_level="1", section_name="A",
+            population_effective_at=NOW,
+        ))
+        session.commit()
+    finally:
+        session.close()
+
+
+@requires_postgresql
+def test_entitlement_availability_check_shares_the_m10_repeatable_read_snapshot(monkeypatch, pg_dataset):
+    """The F1 `EntitlementOrganizationAnalyticsAvailabilityProvider.is_available()`
+    check is the request's very first database statement (context/access
+    resolution, per ADR 0029) - even earlier than the two originally-proven
+    B11-D statement pairs. This interleaves a writer immediately after that
+    check returns (but before any later M10 population statement executes)
+    that both flips the entitlement definition the check just read AND adds a
+    new frozen population member, proving:
+
+    1. The already-computed availability decision (True) is honored for the
+       rest of this request - it is not re-evaluated (matches the existing,
+       unchanged `resolve_access_context` contract: `is_available` is called
+       exactly once per request).
+    2. The later population read (`coverage_organization_total` /
+       `frozen_eligible_memberships`) does NOT observe the writer's new
+       member under REPEATABLE READ - proving the entitlement check and every
+       later M10 statement share ONE fixed snapshot, not two independent
+       connections/transactions.
+
+    Contrast: an identical interleave under plain READ COMMITTED DOES observe
+    the new member - reproducing the general mixed-snapshot risk for this
+    specific interleave point and confirming REPEATABLE READ is what closes
+    it here, not an unrelated property of the dataset.
+    """
+
+    engine = pg_dataset
+    admin_session = sessionmaker(bind=engine)()
+    admin_session.add(EntitlementDefinition(
+        key=ORGANIZATION_INTELLIGENCE_FEATURE_KEY, display_name="Organization Intelligence",
+        category="organization_analytics", active=True,
+    ))
+    admin_session.commit()
+    admin_session.close()
+
+    new_member_ids = iter(((5001, 5001), (5002, 5002)))
+    write_state = {"done": False}
+    original = saas_entitlement_service.organization_feature_available
+
+    def patched(db, school_group_id, feature_key):
+        result = original(db, school_group_id, feature_key)
+        if not write_state["done"]:
+            write_state["done"] = True
+            member_id, student_id = next(new_member_ids)
+            _writer_toggle_entitlement_and_add_member(
+                engine, feature_key=feature_key, member_id=member_id, student_id=student_id,
+            )
+        return result
+
+    monkeypatch.setattr(saas_entitlement_service, "organization_feature_available", patched)
+
+    rr_client = _client_with_real_availability(_session_factory(engine, "repeatable_read"), policy=AllowAllTestPolicy())
+    rr_response = rr_client.get(f"/api/talent/organization-analytics/overview?academic_year_id={PRIMARY_AY}")
+    assert rr_response.status_code == 200, (
+        "the availability decision computed before the writer's commit must still be honored"
+    )
+    rr_body = rr_response.json()
+    assert rr_body["metrics"]["frozen_eligible_memberships"]["value"] == 14, (
+        "REPEATABLE READ must not observe the population member committed after the "
+        "entitlement-availability check but before this statement, in the same request"
+    )
+    assert "5001" not in str(rr_body)
+
+    write_state["done"] = False
+    # Restore the definition for the READ COMMITTED contrast leg (the RR
+    # leg's writer already deactivated it as a real, permanent commit).
+    admin_session = sessionmaker(bind=engine)()
+    admin_session.query(EntitlementDefinition).filter(
+        EntitlementDefinition.key == ORGANIZATION_INTELLIGENCE_FEATURE_KEY
+    ).update({"active": True})
+    admin_session.commit()
+    admin_session.close()
+
+    rc_client = _client_with_real_availability(_session_factory(engine, "read_committed"), policy=AllowAllTestPolicy())
+    rc_response = rc_client.get(f"/api/talent/organization-analytics/overview?academic_year_id={PRIMARY_AY}")
+    assert rc_response.status_code == 200
+    rc_body = rc_response.json()
+    # Expected value is 16, not 15: the RR leg's writer commit above is a
+    # REAL, permanent commit (matching a real concurrent request), so by the
+    # time this second leg runs the dataset already has 14 (original) + 1
+    # (the RR leg's own committed member 5001) BEFORE this request even
+    # starts; this leg's own interleaved write then adds member 5002 as the
+    # 16th, and READ COMMITTED observes it within the same request (matching
+    # the identical reasoning already used above for the Candidate re-test).
+    assert rc_body["metrics"]["frozen_eligible_memberships"]["value"] == 16, (
+        "READ COMMITTED is expected to observe the interleaved write - confirms this interleave "
+        "point is a real mixed-snapshot risk this specific fix (not dataset shape) resolves"
+    )

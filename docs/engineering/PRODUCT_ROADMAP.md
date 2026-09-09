@@ -1,11 +1,38 @@
 ---
 title: TIS Product Roadmap
 documentation_version: 3.5
-last_updated: 2026-09-06
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## M10 B11-E F1 Provider Status
+
+The current dev checkpoint implements the approved production privacy,
+commercial-availability, and breadth providers. The decisions are minimum
+cohort 5 for P1-P7, `feature.organization_intelligence` through the canonical
+entitlement path, and ceilings of 1000 matrix cells, 1000 relationship results,
+and 1000 Program-pair results. Configuration and provider failure remains
+fail-closed, excess breadth is rejected without truncation, and a deterministic
+local path is restricted to non-production plus the exact isolated Talent test
+database. F1 is ready for independent review. As of 2026-09-09 (ADR 0028/ADR
+0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION
+ITEM REMAINING and B11 overall is CLOSED on that same basis; B12 is CLOSED,
+and production readiness is not declared.
+
+## Talent & Potential M11 Phase C Status
+
+The current dev checkpoint implements the presentation-only Results & Analytics experience over all seven approved M10 routes. Focused UI/privacy/accessibility checks, the seven M10 backend suites, and read-only HTTP verification against the isolated persistent local dataset pass. Actual desktop/mobile browser visual acceptance remains a follow-up. This UI phase does not implement M12 AI or alter commercial packaging.
+
+
+## Talent & Potential M11 Phase B Status
+
+The current dev checkpoint implements the operational Program,
+competency/rubric, evaluation-context, Assessment-entry, Candidate-review,
+Official-Identification, and Educator-Input workflow over the existing M2-M8
+contracts. Focused automated and real HTTP acceptance pass. Browser acceptance
+remains a follow-up. This does not implement M12 AI or alter commercial work.
 
 ## M10 B11 Qualification Sequence
 
@@ -16,10 +43,13 @@ B11-C is now CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
 re-review. B11-D is CLOSED after READ COMMITTED qualification proved mixed
 same-request snapshots and an isolated REPEATABLE READ experiment resolved the
 two reproduced cases. Permanent REPEATABLE READ remains proposed, governed,
-and not implemented. B11-E is the
-release gate. No numeric thresholds, packaging, breadth limits, SLOs, memory
-ceilings, isolation changes, or indexes are approved yet. B11-E is NOT COMPLETE, B11
-overall is NOT CLOSED, B12 is NOT IMPLEMENTED, and production is not ready.
+and implemented under ADR 0029. B11-E remains the release gate. F1 now approves
+and implements minimum cohort 5, `feature.organization_intelligence`, and the
+1000/1000/1000 breadth ceilings. Plan packaging, SLOs, memory ceilings, and any
+future index remain outside F1. As of 2026-09-09, B11-E is CLOSED WITH ONE
+ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028); B11
+overall is CLOSED on that same basis; B12 is CLOSED; and
+production is not ready.
 
 ## Talent & Potential M10 Status
 
@@ -90,8 +120,9 @@ metric per response, `comparable`/`not_comparable` states with no growth
 language, and no server-computed delta between points. B10-B is implemented,
 independently reviewed with PASS and non-blocking observations, and B10 is
 CLOSED. B11-B observability is implemented, independently reviewed with PASS
-and non-blocking observations, and CLOSED; B11 overall remains NOT CLOSED
-pending B11-C/D/E. B12 remains NOT IMPLEMENTED.
+and non-blocking observations, and CLOSED. As of 2026-09-09, B11-E is CLOSED
+WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR
+0028); B11 overall is CLOSED on that same basis. B12 is CLOSED.
 
 ## Talent & Potential M9 Status
 
@@ -104,8 +135,8 @@ Identification history. Every route enforces primary per-cell privacy
 evaluation followed by complementary (reconstruction-breaking) suppression
 before serialization; `coarsened` publishes only a policy-supplied safe
 replacement and fails closed to `suppressed` otherwise - there is no generic
-bucket-merge algorithm. No production privacy policy is approved yet (open
-governance gate: every route fails closed until one is), and live PostgreSQL
+bucket-merge algorithm. At the M9 checkpoint no production privacy policy was
+approved; F1 subsequently approves and implements the cohort-5 policy. Live PostgreSQL
 performance/concurrency has not been validated. M9 is committed and pushed
 on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add
 deterministic talent analytics`); it is not deployed, not production-released,

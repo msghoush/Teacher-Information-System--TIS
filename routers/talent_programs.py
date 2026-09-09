@@ -133,7 +133,7 @@ def frameworks_read(program_id: int, framework_id: int, request: Request, db: Se
     if denied: return denied
     row = db.query(models.TalentProgramFrameworkVersion).filter_by(id=framework_id, program_id=program_id, school_group_id=group_id).one_or_none()
     if row is None: return JSONResponse({"detail": "Framework Version was not found.", "code": "not_found"}, status_code=404)
-    result = framework_payload(row); result["competencies"] = [{"competency_id": m.talent_competency_id, "display_order": m.display_order, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
+    result = framework_payload(row); result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
     return result
 
 

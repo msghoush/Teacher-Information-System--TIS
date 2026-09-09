@@ -12,12 +12,14 @@ import json
 from dataclasses import dataclass
 from typing import Mapping, Optional
 
+from fastapi import Depends
 from sqlalchemy import case, func, or_
 from sqlalchemy.orm import Session
 
 import academic_grade
 import auth
 import models
+from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy_closure import (
     DerivedRateProjection,
     PrivacyClosureResult,
@@ -35,7 +37,7 @@ class OrganizationAnalyticsError(ValueError):
 
 
 class OrganizationAnalyticsAvailabilityProvider:
-    """Commercial availability adapter; no production mapping is approved."""
+    """Commercial availability adapter, independent from permission checks."""
 
     availability_version = "unconfigured"
 
@@ -44,7 +46,7 @@ class OrganizationAnalyticsAvailabilityProvider:
 
 
 class OrganizationAnalyticsBreadthPolicy:
-    """Matrix breadth policy interface with no built-in production ceiling."""
+    """Structural breadth policy interface used before result materialization."""
 
     breadth_policy_version = "unconfigured"
 
@@ -600,13 +602,17 @@ def required_period_execution_counts(
     )
 
 
-def resolve_organization_analytics_availability_provider():
-    """Production dependency hook; fail closed until commercial mapping is configured."""
+def resolve_organization_analytics_availability_provider(
+    db: Session = Depends(get_m10_organization_analytics_db),
+):
+    """Resolve availability inside the M10 request-owned database session."""
+    from talent_organization_analytics_providers import build_availability_provider
 
-    return None
+    return build_availability_provider(db)
 
 
 def resolve_organization_analytics_breadth_policy():
-    """Production dependency hook; fail closed until breadth policy is configured."""
+    """Resolve the governed production or sanctioned local breadth policy."""
+    from talent_organization_analytics_providers import build_breadth_provider
 
-    return None
+    return build_breadth_provider()

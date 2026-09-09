@@ -13,6 +13,7 @@ from auth import get_current_user
 from database import Base
 from dependencies import get_db
 from routers.talent_assessments import router
+from routers.talent_programs import router as programs_router
 from student_academic_service import create_placement, create_student, transition_placement
 from talent_assessment_cycle_service import create_cycle, open_cycle
 from talent_program_service import (
@@ -248,6 +249,51 @@ def test_branch_scope_uses_frozen_member_and_dedicated_permissions(db):
     app.dependency_overrides[get_current_user] = lambda: denied_user
     with TestClient(app) as client:
         assert client.get(f"/api/talent/assessments/{assessment.id}").status_code == 403
+
+
+def test_framework_read_ids_are_accepted_end_to_end_by_the_write_route(db):
+    """Regression for the M11 assessment-entry read/write contract gap: the framework
+    read routes must expose the exact `FrameworkCompetency.id` and `TalentRubricLevel.id`
+    values the write route requires, not the parent `talent_competency_id` catalog FK.
+    This proves a UI built purely from the read payloads can successfully write results."""
+    _, session = db
+    program, framework, cycle, member, _, _, competencies, levels = foundation(session)
+    assessment = start_assessment(session, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id)
+    session.commit()
+    admin = _user("1000000009", branch=None, scope="ORGANIZATION")
+    session.add(admin)
+    session.commit()
+    app = FastAPI()
+    app.include_router(router)
+    app.include_router(programs_router)
+    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_current_user] = lambda: admin
+    with TestClient(app) as client:
+        framework_read = client.get(f"/api/talent/programs/{program.id}/frameworks/{framework.id}")
+        assert framework_read.status_code == 200
+        read_competencies = framework_read.json()["competencies"]
+        # The read payload must expose the actual FrameworkCompetency.id (the value the
+        # write route is FK-constrained on) alongside the pre-existing competency_id
+        # (the parent talent_competency catalog FK). They are separate columns/tables
+        # (talent_framework_competencies.id vs talent_framework_competencies.talent_competency_id)
+        # and only coincidentally share numeric values in this small fixture.
+        assert {row["id"] for row in read_competencies} == {c.id for c in competencies}
+        assert {row["competency_id"] for row in read_competencies} == {c.talent_competency_id for c in competencies}
+
+        configuration = client.get(f"/api/talent/programs/{program.id}/frameworks/{framework.id}/configuration")
+        assert configuration.status_code == 200
+        read_levels = configuration.json()["levels"]
+        assert {row["id"] for row in read_levels} == {level.id for level in levels}
+
+        target_competency_id = read_competencies[0]["id"]
+        target_level_id = read_levels[0]["id"]
+        write = client.put(
+            f"/api/talent/assessments/{assessment.id}/competency-results/{target_competency_id}",
+            json={"rubric_level_id": target_level_id, "expected_revision": assessment.revision, "evidence": "from read ids"},
+        )
+        assert write.status_code == 200
+        assert write.json()["result"]["framework_competency_id"] == target_competency_id
+        assert write.json()["result"]["rubric_level_id"] == target_level_id
 
 
 def test_start_assessment_rejects_malformed_payload_without_500(db):

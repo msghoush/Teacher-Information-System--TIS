@@ -227,6 +227,12 @@ def build_user_avatar_payload(request, user_row) -> dict:
 
 
 PAGE_META = {
+    "talent": {
+        "eyebrow": "Learner Development",
+        "title": "Talent & Potential",
+        "intro": "Explore Programs, evaluation evidence, and deterministic insights in their historical context.",
+        "icon": "clipboard-check",
+    },
     "dashboard": {
         "eyebrow": "Command Center",
         "title": "Operations Dashboard",
@@ -244,6 +250,12 @@ PAGE_META = {
         "title": "Teachers",
         "intro": "Review assignments, workload capacity, and staffing decisions in one screen.",
         "icon": "teachers",
+    },
+    "students": {
+        "eyebrow": "Student Records",
+        "title": "Students",
+        "intro": "Every learner in one place, with current placement, history, and Talent evidence in context.",
+        "icon": "users",
     },
     "planning": {
         "eyebrow": "Section Planning",
@@ -342,6 +354,20 @@ def _build_nav_items(
             "icon": "subjects",
             "permission_keys": ("subjects.view",),
         },
+        {
+            "label": "Talent & Potential",
+            "href": "/talent",
+            "icon": "clipboard-check",
+            "permission_keys": ("talent_programs.view", "talent_evaluation_plans.view", "talent_assessments.view", "talent_review_candidates.view", "talent_learner_profiles.view", "talent_analytics.view"),
+            "permission_mode": "any",
+        },
+        {
+            "label": "Students",
+            "href": "/students/",
+            "icon": "users",
+            "permission_keys": ("students.view",),
+        },
+
         {
             "label": "Teachers",
             "href": "/teachers/",
