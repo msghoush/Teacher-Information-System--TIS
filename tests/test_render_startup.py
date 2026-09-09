@@ -48,7 +48,7 @@ def test_importing_main_does_not_run_migrations(tmp_path):
     assert not database_path.exists()
 
 
-def test_pre_migration_metadata_defers_planning_subject_demands():
+def test_pre_migration_metadata_defers_migration_owned_tables():
     table_names = {table.name for table in run_migrations._baseline_metadata_tables()}
     assert "planning_sections" in table_names
     assert "subjects" in table_names
@@ -56,6 +56,9 @@ def test_pre_migration_metadata_defers_planning_subject_demands():
     assert "teacher_scheduling_rules" not in table_names
     assert "teacher_scheduling_rule_slots" not in table_names
     assert "teacher_scheduling_rule_targets" not in table_names
+    assert "students" not in table_names
+    assert "student_academic_placements" not in table_names
+    assert not any(name.startswith("talent_") for name in table_names)
 
 
 def test_fastapi_startup_does_not_run_migrations(monkeypatch):
