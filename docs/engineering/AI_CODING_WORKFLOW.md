@@ -1,7 +1,7 @@
 ---
 title: TIS AI Coding Workflow
-documentation_version: 3.3
-last_updated: 2026-09-03
+documentation_version: 3.4
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
@@ -18,6 +18,40 @@ also reads root `CLAUDE.md`; its reusable project workflow lives at
 KMS rather than embedding a separate architectural source of truth. Configuration
 for another assistant must preserve the same KIA, safety, validation, and
 completion-report requirements.
+
+## Cline Setup And Use
+
+Cline uses `.clinerules/tis.md` as always-on project rules and
+`.cline/skills/tis-kms-developer/SKILL.md` as its reusable project skill.
+Both defer to AGENTS.md and KMS, including task-level KIA, focused validation,
+sync/check, worktree/database safety, and deployment reporting.
+
+Open TIS as the primary workspace folder. In Cline's Rules/Skills panel, ensure
+the TIS project rule and skill are enabled; enable Skills in Settings > Features
+if that option is present. Start a new task and select `/tis-kms-developer` from
+slash suggestions, or ask to use the named skill. If it is not listed, explicitly
+ask Cline to read the skill file; project rules still apply. The literal Codex
+`$tis-kms-developer` token is not a documented Cline invocation.
+
+Check for a global skill with the same name, because Cline gives it precedence.
+Cline can also discover `.claude/skills/tis-kms/`; it describes the same KMS
+workflow and is not a second authority. Prefer the explicit Cline skill for Cline
+tasks. No user-global settings, provider, account, or auto-approval defaults are
+changed by these repository files.
+
+Compatibility evidence (2026-09-05): installed VS Code Cline extension 4.1.17
+includes SKILL.md parsing and use_skill support. Current official documentation
+supports project rules, recommended .cline/skills storage, and slash invocation:
+- [Cline rules](https://docs.cline.bot/customization/cline-rules)
+- [Cline skills](https://docs.cline.bot/customization/skills)
+- [Current upstream skills documentation](https://github.com/cline/cline/blob/main/docs/customization/skills.mdx)
+
+Runtime discovery and toggles depend on the active Cline session; file validation
+does not prove that a UI session has activated the skill.
+
+Task allocation follows [Project Governance](PROJECT_GOVERNANCE.md): Codex,
+Claude Code, and Cline/ClinePass are three capable developers, balanced by
+complexity, specialization, risk, independent review, and current usage/load.
 
 ## Planning Before Coding
 

@@ -1,11 +1,224 @@
 ---
 title: TIS Product Roadmap
-documentation_version: 3.3
-last_updated: 2026-08-26
+documentation_version: 3.5
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS Product Roadmap
+
+## M10 B11-E F1 Provider Status
+
+The current dev checkpoint implements the approved production privacy,
+commercial-availability, and breadth providers. The decisions are minimum
+cohort 5 for P1-P7, `feature.organization_intelligence` through the canonical
+entitlement path, and ceilings of 1000 matrix cells, 1000 relationship results,
+and 1000 Program-pair results. Configuration and provider failure remains
+fail-closed, excess breadth is rejected without truncation, and a deterministic
+local path is restricted to non-production plus the exact isolated Talent test
+database. F1 is ready for independent review. As of 2026-09-09 (ADR 0028/ADR
+0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION
+ITEM REMAINING and B11 overall is CLOSED on that same basis; B12 is CLOSED,
+and production readiness is not declared.
+
+## Talent & Potential M11 Phase C Status
+
+The current dev checkpoint implements the presentation-only Results & Analytics experience over all seven approved M10 routes. Focused UI/privacy/accessibility checks, the seven M10 backend suites, and read-only HTTP verification against the isolated persistent local dataset pass. Actual desktop/mobile browser visual acceptance remains a follow-up. This UI phase does not implement M12 AI or alter commercial packaging.
+
+
+## Talent & Potential M11 Phase B Status
+
+The current dev checkpoint implements the operational Program,
+competency/rubric, evaluation-context, Assessment-entry, Candidate-review,
+Official-Identification, and Educator-Input workflow over the existing M2-M8
+contracts. Focused automated and real HTTP acceptance pass. Browser acceptance
+remains a follow-up. This does not implement M12 AI or alter commercial work.
+
+## M10 B11 Qualification Sequence
+
+ADR 0028 approves the B11 production-policy boundaries. B11-C used local
+non-production PostgreSQL, representative synthetic data, and test provider
+configuration to gather performance, memory, and EXPLAIN evidence.
+B11-C is now CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
+re-review. B11-D is CLOSED after READ COMMITTED qualification proved mixed
+same-request snapshots and an isolated REPEATABLE READ experiment resolved the
+two reproduced cases. Permanent REPEATABLE READ remains proposed, governed,
+and implemented under ADR 0029. B11-E remains the release gate. F1 now approves
+and implements minimum cohort 5, `feature.organization_intelligence`, and the
+1000/1000/1000 breadth ceilings. Plan packaging, SLOs, memory ceilings, and any
+future index remain outside F1. As of 2026-09-09, B11-E is CLOSED WITH ONE
+ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028); B11
+overall is CLOSED on that same basis; B12 is CLOSED; and
+production is not ready.
+
+## Talent & Potential M10 Status
+
+B0 Contract / Conformance Harness, B1 structural Privacy Relationship Graph,
+B2 Reconstruction Analyzer / Privacy Closure, B3/B4 internal access/query
+foundation and B5 Organization Overview are complete; B6 Talent Map is
+implemented, independently reviewed, and closed after its sparse-total blocker
+was remediated and the targeted re-review passed. They define and test the approved
+canonical Cell identity, `+1`/`-1` additive
+Relationship topology, inherited M9 privacy states, tenant separation,
+forbidden contract fields, explicit V01-V25 milestone ownership, canonical
+Cell/Relationship registration, adjacency, validation, shared coordinates,
+deterministic connected components, exact Fraction RREF, per-coordinate
+uniqueness, inconsistent-system handling, monotonic deterministic closure,
+component-local failure, exact-source derived rates, and sibling-leak guards.
+They add no production privacy threshold, entitlement, schema, migration, UI,
+or frontend behavior.
+The B3/B4 foundation resolves tenant/year/historical-Branch authorization and
+secondary permission projection, fails closed behind unconfigured commercial
+availability and breadth providers, performs only set-based frozen-population
+aggregation, skips Candidate/Identification SQL without their own permissions,
+keeps M8 execution at Program grain, and requires serialization to enter
+through B2-closed projections. B5 exposes only the bounded organization
+Overview route within the now-approved 14-metric/7-grain contract, including P1
+configured and active Program-configuration counts. B6 adds the bounded
+Program-by-Branch/Program-by-Grade Talent Map with a post-closure transpose
+alias, approved common factual metrics, backend totals, breadth enforcement,
+and shared B2 closure. It rejects required Period execution at Branch/Grade
+grain and adds no ranking or universal score. Sparse totals now derive values
+and graph terms from one authoritative populated-child set while preserving
+global `no_data` semantics. B6 is closed. B7 implements Program Portfolio and
+single-Branch Intelligence using common factual Program rows, historical frozen
+Branch scope, permission-projected sensitive fields, mandatory breadth, and the
+same privacy-closure stack. Required-Period execution is Portfolio-only at
+Program/AY grain. B8 adds Participation Overlap through one P2 canonical Cell
+per symmetric Program pair, using distinct Open/Closed frozen-population
+participants and historical Branch scope before a set-based intersection.
+Diagonals are distinct Program participants; no row/column sums or additive
+overlap equations exist. Candidate/Identification overlap, Grade breakdown,
+ranking, Talent Breadth/score, frontend, and longitudinal B10 remain
+unimplemented. B9 adds the first Student-identifiable M10 route, Student
+Drill, requiring `talent_analytics.view` AND `talent_analytics.view_students`
+(true AND composition); Student inclusion uses only frozen Cycle population
+context in authorized historical Branch/AY/Program scope, never current
+Placement. Every identifiable row is P7 through one gate-level
+`student_drill_population` count at `distinct_student` grain, fed by distinct
+authorized Student count and shared with the same B2 closure pipeline (no
+per-Student additive relationship). One top-level row per Student carries
+deterministic frozen Program/Cycle contexts; Candidate/Identification fields remain
+independently permissioned and query-skipped; Learner Profile access is an
+advisory capability hint only. Pagination is over distinct Students and has no
+total count; there is no Talent Score, ranking, AI field, or direct Student-ID
+filter. B9 remediation passed targeted independent re-review; B9 is CLOSED.
+B8 is also implemented, remediated, and CLOSED after its targeted independent
+re-review passed. Both committed/pushed implementations remain part of current
+dev; B10 is not implemented.
+The required pre-B2 hardening is complete: canonical metric/component/grain
+vocabularies are closed to the approved serialized strings, rate/percentage
+remain derived rather than Cell identity components, and RelationshipTerm
+accepts only a real Python integer `+1` or `-1`.
+
+ADR 0027 approves the B10-A Longitudinal Organization Intelligence
+architecture as a governance decision only (B10 itself is still not
+implemented; B9 status above is unchanged): one Program, one Academic Year,
+ordered M8 Period slots (Period = order authority, optional linked Cycle =
+evidence), exactly nine approved metrics of the existing fourteen, one
+metric per response, `comparable`/`not_comparable` states with no growth
+language, and no server-computed delta between points. B10-B is implemented,
+independently reviewed with PASS and non-blocking observations, and B10 is
+CLOSED. B11-B observability is implemented, independently reviewed with PASS
+and non-blocking observations, and CLOSED. As of 2026-09-09, B11-E is CLOSED
+WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR
+0028); B11 overall is CLOSED on that same basis. B12 is CLOSED.
+
+## Talent & Potential M9 Status
+
+Deterministic Talent analytics is implemented: a read-only, aggregate-only,
+privacy-gated `/api/talent/analytics` API (context, overview,
+rubric-distribution, kpi-distribution, competencies, branch/grade/section
+breakdowns, period-comparison, Student drill) over the existing frozen
+population, Assessment/Competency-Result, Review Candidate, and Official
+Identification history. Every route enforces primary per-cell privacy
+evaluation followed by complementary (reconstruction-breaking) suppression
+before serialization; `coarsened` publishes only a policy-supplied safe
+replacement and fails closed to `suppressed` otherwise - there is no generic
+bucket-merge algorithm. At the M9 checkpoint no production privacy policy was
+approved; F1 subsequently approves and implements the cohort-5 policy. Live PostgreSQL
+performance/concurrency has not been validated. M9 is committed and pushed
+on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat: add
+deterministic talent analytics`); it is not deployed, not production-released,
+and not merged to `master`. Talent Score/Index/
+Potential Rate, Talent Map, KPI numeric bins/percentiles, export, AI, and UI
+remain future/out-of-scope work. M10 B0-B5 exists, while further M10 aggregate
+execution and Learning Style remain future governed work.
+
+## Talent & Potential M8 Status
+
+Annual Evaluation Plan and Planned Evaluation Period configuration is
+implemented with lifecycle governance, deterministic ordering, advisory
+warnings, rollover, optional Draft Cycle linkage, link-aware Cycle Open
+validation, bounded audit, and zero-leakage permission composition. Existing
+Cycles remain ad-hoc. M9 Deterministic Talent Analytics is now implemented
+(see above); M10 B0-B5 now exists, while further M10 external execution,
+Learning Style, AI, and Student evidence remain future governed work.
+
+## Talent & Potential M7 Status
+
+Implemented: read-only longitudinal Learner Profile, dedicated profile read
+permission, historical record-level Branch authorization, Program/Year/Cycle/
+Framework history, Assessment/Competency/persisted-KPI history, Review Candidate
+and Official Identification history, permission-composed sensitive M6 sections,
+and a deterministic historical timeline. M8 is Annual Evaluation Plan & Periods and
+remains deferred; it will provide future period semantics without changing M7's
+multiple-Cycle model. Also deferred: Learning Style implementation, deterministic
+analytics, Organization Intelligence/Talent Map, Development and Support, AI/AI
+Suggested Review, exports, and identification revocation/re-identification.
+
+## Talent & Potential M6 Status (Complete)
+
+Independent review is complete: write-time historical-Branch authorization,
+exact Official Identification context binding, linear Educator Input amendment
+lineage, and non-enumerating direct access are enforced and regression-tested.
+
+Implemented, following 18 approved Product Owner governance decisions:
+deterministic `TalentReviewCandidate` evaluation/materialization from a
+Completed Assessment against its exact M3 Review Candidate Policy
+(`rubric_level_at_or_above` by `display_order`, `kpi_at_or_above` by
+persisted `kpi_result`, `all`/`any` composition), read-only against existing
+Assessment evidence, idempotent, with a deterministic fingerprint/snapshot; a
+non-qualifying evaluation is now structurally audited. The two-state
+`pending_review` -> `reviewed` Review workflow (one-way, no auto-
+identification). Append-only `TalentOfficialIdentification`
+(`identified`/`not_identified`, exactly one per Reviewed candidate,
+`talent_official_identifications.view/record` with `.record` requiring
+organization/global access scope in addition to the permission). Bounded
+qualitative `TalentEducatorInput` (`observation`/`context`/
+`supporting_evidence`, <=2000 characters, mandatory historical Placement/
+Branch resolution, append-only amendment/supersession lineage,
+`talent_educator_inputs.view/add/amend`). All frozen-Branch/historical-scope
+discipline matches M4/M5. See "M6 Governance Review: Decisions (Resolved)" in
+`docs/AI_PROJECT_CONTEXT.md` for the full decision record. Explicitly
+deferred: Official Identification revocation/supersession/second decision/
+re-identification, a generic review-note/case-management system, assessor
+assignment, Learner Profile, analytics/Talent Map, AI, Development and
+Support, and Educator Input analytics/export/AI/attachments.
+
+## Talent & Potential M5 Status
+
+Implemented: canonical frozen-member-bound Student Assessment, exact Framework
+Competency Results, explicit In Progress/Completed/Incomplete/Insufficient
+Evidence lifecycle, expected-revision mutation protection, frozen-Branch scope,
+bounded operational audit, and dedicated assessment permissions. Optional
+Framework KPI completion uses integer `weighted_level_average`, denominator
+10,000, ROUND_HALF_UP, and persisted Framework-specific provenance; qualitative
+no-KPI completion is first-class. Deferred: assessor assignment, correction,
+Review Candidate instances/evaluation, Official Identification, Educator Input,
+Learner Profile, analytics/Talent Map, AI, Development and Support, and late
+population exception workflow.
+
+## Talent & Potential M4 Status
+
+Implemented: SchoolGroup-wide Assessment Cycle Draft/Open/Closed lifecycle,
+explicit-time dynamic eligibility preview, atomic frozen Student population,
+historical placement snapshots, full population integrity fingerprint,
+dedicated permission boundaries, Branch-filtered identifiable reads, and
+operational audit. Deferred to later milestones: assessor assignment, Student
+Assessment, results, Review Candidate instances/evaluation, Official
+Identification, analytics, AI, development plans, and late-population
+exception workflow.
 
 ### Simplified Timetable Workflow And Published Visibility
 

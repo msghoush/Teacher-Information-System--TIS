@@ -1,7 +1,7 @@
 ---
 title: TIS Project Governance
-documentation_version: 3.0
-last_updated: 2026-06-26
+documentation_version: 3.1
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
@@ -22,6 +22,32 @@ Human developer, Codex, or ChatGPT-assisted coding session responsible for scope
 
 Reviewer:
 Reviews implementation, KMS updates, risk boundaries, and validation results.
+
+## Approved Development Agents And Master Orchestration
+
+The approved development-agent pool is Codex, Claude Code, and Cline/ClinePass.
+Cline is the coding agent; ClinePass is its provider/subscription choice, not a
+separate fourth agent. All three follow AGENTS.md and the same governing KMS,
+safety boundaries, KIA, validation, and explicit release authorization.
+
+The master TIS conversation allocates bounded tasks by complexity, specialization,
+risk, independent-review value, and current usage/load. Reassess allocation per
+task and rebalance so one or two agents are not unnecessarily overloaded. Avoid
+permanent module ownership or rigid agent assignments.
+
+Preferred tendencies, not hard walls:
+- Codex: primary implementation and broad repository changes.
+- Claude Code: deep investigation, architecture, complex business logic, and a
+  second implementation path.
+- ClinePass: independent implementation, verification, regression/safety review,
+  workflow consistency, and any suitable task as a third capable developer.
+
+Choose a different author/reviewer where independent review adds value. Handoffs
+state scope, acceptance criteria, forbidden files, current worktree ownership,
+test evidence, KMS impact, and deployment boundary. Avoid concurrent edits to
+shared files; integrate KMS declarations without erasing another pending task.
+This policy is human/master-conversation orchestration, not an automated scheduler,
+permission to spawn agents, or release authorization.
 
 ## Architectural Authority
 

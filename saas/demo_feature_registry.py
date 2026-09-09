@@ -20,6 +20,7 @@ _DISPLAY_NAMES = {
     "feature.advanced_reporting": "Advanced Reporting",
     "feature.export": "Customer Exports",
     "feature.cross_branch_reporting": "Cross-Branch Reporting",
+    "feature.organization_intelligence": "Organization Intelligence",
 }
 
 _FEATURES = tuple(

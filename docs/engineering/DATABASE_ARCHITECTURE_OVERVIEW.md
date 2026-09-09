@@ -1,11 +1,150 @@
 ---
 title: TIS Database Architecture Overview
-documentation_version: 3.3
-last_updated: 2026-08-26
+documentation_version: 3.5
+last_updated: 2026-09-05
 source_of_truth: true
 ---
 
 # TIS Database Architecture Overview
+
+## M10 B11 PostgreSQL Qualification Policy
+
+B11-C is CLOSED after PostgreSQL 16.15 profiling and independent re-review.
+All seven routes were profiled; query counts were bounded across tested scales
+with no N+1. Candidate A requires NO CHANGE and Candidate B requires MORE
+EVIDENCE, so no index, schema, or migration change is approved. Memory evidence
+is directional local Windows development evidence only.
+
+B11-D is CLOSED after PostgreSQL 16.15 READ COMMITTED qualification proved
+same-request mixed snapshots in Overview and Student Drill. A non-permanent
+REPEATABLE READ experiment resolved both, but permanent adoption remains
+PROPOSED - GOVERNANCE REQUIRED and NOT IMPLEMENTED. Any candidate transaction
+scope begins before the first statement and covers all M10 evidence inputs.
+No index, schema, migration, or isolation change is approved.
+
+B11-C must collect query count/execution time, route and privacy-closure time,
+peak/result memory, and rows/scans/buffers through EXPLAIN evidence against a
+representative non-production PostgreSQL dataset. B11-D qualifies the current
+READ COMMITTED behavior first with controlled concurrent writers and
+representative M10 reads. REPEATABLE READ is not pre-approved; any stronger
+isolation must be evidence-driven, governed by a new ADR, and span access
+context, aggregation, Candidate/Identification reads, and privacy inputs.
+
+No index is approved without EXPLAIN/ANALYZE evidence of material plan
+improvement, overlap/redundancy review, migration review, documented rollback,
+and a governing ADR. This governance checkpoint adds no schema, migration,
+index, isolation, or database behavior.
+
+## Deterministic Talent Analytics (M9, No Schema Change)
+
+M9 adds no table, column, or migration. It is a strictly read-only aggregate
+query layer over the existing M1-M8 schema (`talent_assessment_cycle_population_members`,
+`talent_student_assessments`, `talent_student_competency_results`,
+`talent_review_candidates`, `talent_official_identifications`,
+`talent_annual_evaluation_plans`/`talent_planned_evaluation_periods`) - every
+authorized-raw-aggregate query in `talent_analytics_service.py` filters
+directly against these existing tables' own tenant/Branch/historical-scope
+columns; no new persistence authority, cache table, or materialized
+projection exists.
+
+## Talent Annual Evaluation Plans And Periods (M8)
+
+`talent_annual_evaluation_plans` composite-binds one Plan to its exact Program
+Academic Year Configuration and enforces one Plan per configuration, bounded
+lifecycle, revision, and rollover source scope. `talent_planned_evaluation_periods`
+composite-binds each Period to its Plan and enforces positive unique sequence,
+normalized label/code uniqueness, date order, and cancellation consistency.
+`talent_assessment_cycles.planned_evaluation_period_id` is nullable for
+pre-M8/ad-hoc Cycles, unique, and composite-bound by SchoolGroup/Program/year.
+No historical rows or links are fabricated. `TalentConfigurationAudit` adds
+only bounded Plan and Period resource types.
+
+## Learner Profile Read Model (M7, Complete)
+
+M7 adds no profile table, migration, materialization, or denormalized state.
+`talent_learner_profile_service.py` reads one exact SchoolGroup/Student's M1-M6
+canonical rows with batched dependent queries. Historical Placement branch,
+frozen Cycle member branch, and persisted Educator Input branch remain the
+record-level authorization authorities. Profile base permission does not bypass
+the independent Review Candidate, Official Identification, or Educator Input
+view permissions. Future M8 Annual Evaluation Plan and
+Periods therefore can attach its own period semantics without reworking M7's
+multiple-Cycle history model.
+
+## Talent Review, Official Identification & Educator Input (M6, Complete)
+
+Independent review tightened the database boundary: Official Identification
+has an exact composite FK to its Review Candidate context, and Educator Input
+lineage has a unique successor plus same-scope composite self-FK. These make
+context drift and concurrent amendment forks invalid independently of service
+validation.
+
+Migration `20260904_006_talent_review_candidate_foundation` adds
+`talent_review_candidates` (one row per Assessment via
+`uq_talent_review_candidates_assessment`) with composite scoped foreign keys
+to `talent_student_assessments` (assessment scope), the frozen
+`talent_assessment_cycle_population_members` row (Branch authorization
+authority, matching M4/M5), and `talent_review_candidate_policies` (policy
+identity). It stores match mode, a SHA-256 evaluation fingerprint, a full
+JSON evaluation snapshot (per-rule threshold/actual/satisfied detail), and
+evaluator/timestamp provenance - no free text. The migration also widens
+`talent_assessment_audits.resource_type` to add `review_candidate`, reusing
+the exact M3 CHECK-widening pattern (PostgreSQL `NOT VALID`/`VALIDATE`,
+SQLite table rebuild). Only a qualifying (policy-satisfied) evaluation is
+ever persisted as a `TalentReviewCandidate` row; a non-qualifying evaluation
+is now structurally audited instead (Decision 1).
+
+Migration
+`20260904_007_talent_review_workflow_identification_educator_input_foundation`
+adds `status` (`pending_review`/`reviewed`, CHECK-constrained),
+`reviewed_by_user_id`, `reviewed_at` to `talent_review_candidates`; creates
+`talent_official_identifications` (composite scoped FKs mirroring
+`talent_review_candidates`' own upstream chain, plus a direct FK to the
+Review Candidate, `decision` CHECK `IN ('identified','not_identified')`,
+`UNIQUE(review_candidate_id)` - exactly one decision per candidate); creates
+`talent_educator_inputs` (required composite scoped FKs to Student/Program/
+AcademicYear/Branch plus the frozen Placement, optional simple FKs to Cycle/
+Cycle Population Member/Assessment/Review Candidate, `category` CHECK closed
+enum, bounded `content`, self-referential nullable
+`supersedes_educator_input_id` lineage); widens `resource_type` further
+(`review_candidate_review`, `official_identification`, `educator_input`);
+and relaxes `talent_assessment_audits.cycle_id`/`framework_version_id` to
+nullable, since an Educator Input audit row may have no Cycle/Framework
+context at all (the composite FK is simply unenforced whenever a referencing
+column is NULL - standard SQL MATCH SIMPLE semantics). Both migrations
+follow the same dialect-branched widening pattern.
+
+## Talent Student Assessment And Competency Results
+
+Migration `20260904_005_talent_student_assessment_competency_results` adds
+`talent_student_assessments` and `talent_student_competency_results` without a
+backfill. Assessment rows carry exact SchoolGroup, Cycle, frozen population
+member, Student, Program, Academic Year, and Framework Version context and are
+unique per Cycle/Student. Composite foreign keys bind the Assessment to the
+immutable frozen member and Results to their Assessment, exact Framework
+Competency, and exact Framework-owned Rubric Level. The migration also extends
+the existing `talent_assessment_audits` check and contextual columns; it does
+not create another audit subsystem.
+
+An optional completed KPI is stored directly on the Assessment as bounded
+historical provenance: method, integer result, configured scale bounds,
+weighted numerator, SHA-256 calculation fingerprint, and timestamp. It is NULL
+for qualitative/no-KPI and non-complete assessments. No universal score,
+cross-Program normalization, candidate, identification, or AI table exists.
+
+## Talent Assessment Cycle Frozen Population
+
+M4 adds `talent_assessment_cycles` as the SchoolGroup-wide Program + Academic
+Year + exact Framework authority, with explicit effective time, one-way
+Draft/Open/Closed lifecycle, revision, and organization-level population
+count/fingerprint. `talent_assessment_cycle_population_members` freezes exact
+Student + Academic Placement + Academic Year + Branch + grade + section
+context through composite scoped foreign keys; current Placement and nullable
+PlanningSection provenance are never historical rendering authority.
+`talent_assessment_audits` is the bounded append-only operational lifecycle
+audit. Migration `20260904_004_talent_assessment_cycle_frozen_population`
+creates all three tables and the exact Academic Placement composite unique
+target required by the member FK.
 
 ## Teacher Scheduling Rules
 

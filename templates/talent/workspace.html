@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+{% block title %}{{ talent_title }} · Talent & Potential | TIS{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-program-workspace.css') }}">{% endblock %}
+{% block content %}
+{% set nav_icons = {'overview':'dashboard','programs':'degree','evaluation-plans':'calendar','assessments':'exam','reviews':'clipboard-check','analytics':'insights','talent-map':'table','portfolio':'spreadsheet','branch':'branch','overlap':'activity','students':'users','longitudinal':'clock','learner-profile':'eye'} %}
+<section class="tp" id="talent-workspace" data-view="{{ talent_view }}">
+  <ol class="tp-breadcrumb" id="tp-breadcrumb" aria-label="Breadcrumb">
+    <li><a href="/talent/overview">{{ icon('dashboard', 'tp-crumb-icon') }}Talent &amp; Potential</a></li>
+    <li aria-current="page">{{ icon(nav_icons.get(talent_view, 'info'), 'tp-crumb-icon') }}<span id="tp-breadcrumb-current">{{ talent_title }}</span></li>
+  </ol>
+  <div class="tp-heading">
+    <div>
+      <p class="tp-eyebrow">Talent &amp; Potential</p>
+      <h2>{{ icon(nav_icons.get(talent_view, 'info'), 'tp-heading-icon') }}{{ talent_title }}</h2>
+      <p>From Program intent to learner evidence. Every insight stays in its original context.</p>
+    </div>
+    {% if request.state.talent_synthetic_preview|default(false) %}<span class="tp-badge">{{ icon('shield') }}Synthetic data · Read-only preview</span>{% endif %}
+  </div>
+  <nav class="tp-nav" aria-label="Talent & Potential">
+  {% for key in ['overview','programs','evaluation-plans','assessments','reviews','analytics','talent-map','portfolio','overlap','longitudinal'] %}
+    {% if key == 'overview' or talent_permissions[talent_views[key][1]] %}<a href="/talent/{{ key }}" {% if talent_view == key %}aria-current="page"{% endif %}>{{ icon(nav_icons.get(key,'info'), 'tp-nav-icon') }}<span>{{ talent_views[key][0] }}</span></a>{% endif %}
+  {% endfor %}
+  {% if talent_permissions['talent_analytics.view'] and talent_permissions['talent_analytics.view_students'] %}<a href="/talent/students" {% if talent_view == 'students' %}aria-current="page"{% endif %}>{{ icon('users', 'tp-nav-icon') }}<span>Students</span></a>{% endif %}
+  </nav>
+  {% if talent_view in ['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
+  <nav class="tp-results-nav" aria-label="Results and Analytics views">
+    <span class="tp-results-nav-label">Results &amp; Analytics</span>
+    {% for key in ['analytics','talent-map','portfolio','overlap','students','longitudinal'] %}
+      {% if key != 'students' or (talent_permissions['talent_analytics.view'] and talent_permissions['talent_analytics.view_students']) %}
+      <a href="/talent/{{ key }}" {% if talent_view == key or (talent_view == 'branch' and key == 'analytics') %}aria-current="page"{% endif %}>{{ talent_views[key][0] }}</a>
+      {% endif %}
+    {% endfor %}
+  </nav>
+  {% endif %}
+  <form class="tp-filters" id="tp-filters" aria-label="View context">
+    <label for="tp-year">Academic Year<select name="academic_year_id" id="tp-year">{% for year in talent_years %}<option value="{{ year.id }}" {% if year.id == shell.scoped_academic_year_id %}selected{% endif %}>{{ year.year_name }}</option>{% endfor %}</select></label>
+    <label for="tp-program" id="tp-program-field" hidden>Program<select name="program_id" id="tp-program"><option value="">Choose a Program</option></select></label>
+    <label for="tp-dimension" id="tp-dimension-field" hidden>Show by<select name="dimension" id="tp-dimension"><option value="program_branch">Branches</option><option value="program_grade">Grades</option></select></label>
+    <label for="tp-metric" id="tp-metric-field" hidden>Metric<select name="metric" id="tp-metric"></select></label>
+    <button type="submit" class="tp-primary">{{ icon('check-circle') }}Apply context</button>
+  </form>
+  <div id="tp-status" role="status" aria-live="polite" class="tp-sr-status"></div>
+  <div id="tp-content" aria-busy="true"><p class="tp-empty">Loading your authorized workspace…</p></div>
+  <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain their original Program, framework, and frozen placement. Results never combine Programs into one score.</p></aside>
+</section>
+<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
+<script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-program-workspace.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent.js') }}" defer></script>
+{% endblock %}

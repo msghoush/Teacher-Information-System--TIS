@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+{% block title %}{{ student.display_name }} | TIS{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
+{% block content %}
+<section class="stu">
+  <a class="stu-btn stu-btn-sm" href="/students/">{{ icon('chevron-right', 'shell-icon') }}All Students</a>
+
+  <div class="stu-profile" style="margin-top: 16px;">
+    <span class="stu-avatar stu-avatar-lg" aria-hidden="true">{{ student.initials }}</span>
+    <div class="stu-id">
+      <p class="stu-eyebrow">Student Profile</p>
+      <h1>{{ student.display_name }}</h1>
+      <div class="stu-fact">
+        {% if student.status == 'active' %}<span class="stu-chip stu-chip-active">Active</span>{% else %}<span class="stu-chip stu-chip-inactive">Inactive</span>{% endif %}
+        {% if student.gender %}<span>{{ student.gender }}</span>{% endif %}
+        {% if current_placement %}<span>Grade {{ current_placement.grade_level }} · {{ current_placement.section_name }}{% if current_placement.branch_name %} · {{ current_placement.branch_name }}{% endif %}</span>{% endif %}
+      </div>
+    </div>
+    <div class="stu-actions">
+      {% if can_manage_placements %}<a class="stu-btn" href="/students/{{ student.id }}?section=placement">{{ icon('add', 'shell-icon') }}Placement</a>{% endif %}
+      {% if can_activate_deactivate %}
+      <form method="post" action="/students/{{ student.id }}/status">
+        <input type="hidden" name="status" value="{{ 'inactive' if student.status == 'active' else 'active' }}">
+        <button class="stu-btn" type="submit">{{ 'Deactivate' if student.status == 'active' else 'Activate' }}</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if success %}<div class="stu-banner stu-banner-success" role="status">Saved successfully.</div>{% endif %}
+  {% if error %}<div class="stu-banner stu-banner-error" role="alert">{{ error }}</div>{% endif %}
+
+  <nav class="stu-tabs" aria-label="Student sections">
+    <a href="/students/{{ student.id }}?section=overview" class="{% if section == 'overview' %}is-active{% endif %}">{{ icon('info', 'shell-icon') }}Overview</a>
+    <a href="/students/{{ student.id }}?section=placement" class="{% if section == 'placement' %}is-active{% endif %}">{{ icon('branch', 'shell-icon') }}Academic Placement</a>
+    {% if talent_visible %}<a href="/students/{{ student.id }}?section=talent" class="{% if section == 'talent' %}is-active{% endif %}">{{ icon('sparkles', 'shell-icon') }}Talent &amp; Potential</a>{% endif %}
+    <a href="/students/{{ student.id }}?section=history" class="{% if section == 'history' %}is-active{% endif %}">{{ icon('clock', 'shell-icon') }}History</a>
+  </nav>
+
+  {% if section == 'overview' %}
+  <div class="stu-panel">
+    <h2>Overview</h2>
+    <p class="stu-lede">{{ icon('info', 'shell-icon') }}Core identity, current placement, and the actions available to you.</p>
+    <div class="stu-form-grid" style="max-width: 720px;">
+      <div class="stu-field"><label>First name</label><span>{{ student.first_name }}</span></div>
+      <div class="stu-field"><label>Last name</label><span>{{ student.last_name }}</span></div>
+      <div class="stu-field"><label>Father's name</label><span>{{ student.father_name or '—' }}</span></div>
+      <div class="stu-field"><label>Gender</label><span>{{ student.gender or '—' }}</span></div>
+    </div>
+    {% if can_edit %}
+    <details style="margin-top: 16px;">
+      <summary class="stu-btn stu-btn-sm">{{ icon('edit', 'shell-icon') }}Edit details</summary>
+      <form class="stu-form" method="post" action="/students/{{ student.id }}/edit" style="margin-top: 12px;">
+        <div class="stu-form-grid">
+          <div class="stu-field"><label for="first_name">First name</label><input id="first_name" name="first_name" required maxlength="100" value="{{ student.first_name }}"></div>
+          <div class="stu-field"><label for="last_name">Last name</label><input id="last_name" name="last_name" required maxlength="100" value="{{ student.last_name }}"></div>
+          <div class="stu-field"><label for="father_name">Father's name</label><input id="father_name" name="father_name" maxlength="100" value="{{ student.father_name or '' }}"></div>
+          <div class="stu-field"><label for="gender">Gender</label>
+            <select id="gender" name="gender">{% for option in gender_options %}<option value="{{ option }}" {% if student.gender == option %}selected{% endif %}>{{ option or '—' }}</option>{% endfor %}</select>
+          </div>
+        </div>
+        <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save</button></div>
+      </form>
+    </details>
+    {% endif %}
+  </div>
+  {% endif %}
+  {% if section == 'placement' %}
+  {% if can_manage_placements %}
+  <div class="stu-panel">
+    <h2>Add Academic Placement</h2>
+    <p class="stu-lede">{{ icon('branch', 'shell-icon') }}Set which Academic Year, Branch, Grade, and Section this student belongs to, and when it began. Ending a placement keeps it in history.</p>
+    <form class="stu-form" method="post" action="/students/{{ student.id }}/placements">
+      <div class="stu-form-grid">
+        <div class="stu-field">
+          <label for="academic_year_id">Academic Year</label>
+          <select id="academic_year_id" name="academic_year_id" required>
+            {% for y in years %}<option value="{{ y.id }}" {% if current_placement and current_placement.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="stu-field">
+          <label for="branch_id">Branch</label>
+          <select id="branch_id" name="branch_id" required>
+            {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="stu-field">
+          <label for="grade_level">Grade</label>
+          <select id="grade_level" name="grade_level" required>{% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}</select>
+        </div>
+        <div class="stu-field">
+          <label for="section_name">Section</label>
+          <input id="section_name" name="section_name" required maxlength="20" placeholder="A, B, C…">
+        </div>
+        <div class="stu-field">
+          <label for="effective_from">From</label>
+          <input id="effective_from" name="effective_from" type="date" required value="{{ today }}">
+        </div>
+        <div class="stu-field">
+          <label for="effective_to">Until <span class="stu-hint">(leave empty for current)</span></label>
+          <input id="effective_to" name="effective_to" type="date">
+        </div>
+        <div class="stu-field" style="grid-column: 1 / -1;">
+          <label for="reason">Reason <span class="stu-hint">(optional)</span></label>
+          <input id="reason" name="reason" maxlength="255" placeholder="e.g. New academic year">
+        </div>
+      </div>
+      <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save Placement</button></div>
+    </form>
+  </div>
+  {% endif %}
+
+  <div class="stu-panel">
+    <h2>Placement History</h2>
+    <p class="stu-lede">{{ icon('clock', 'shell-icon') }}Placements are kept as history. Changing a placement never rewrites a student's past Talent evidence.</p>
+    {% if placements %}
+    <div class="stu-place-list">
+      {% for p in placements %}
+      <div class="stu-placement {% if current_placement and current_placement.id == p.id %}is-current{% endif %}">
+        <div>
+          {% if current_placement and current_placement.id == p.id %}<span class="stu-chip stu-chip-placement">Current</span>{% elif p.status == 'ended' %}<span class="stu-chip stu-chip-inactive">Ended</span>{% else %}<span class="stu-chip stu-chip-active">Active</span>{% endif %}
+        </div>
+        <div class="stu-line"><span>Academic Year</span><span>{{ p.year_name or '—' }}</span></div>
+        <div class="stu-line"><span>Branch</span><span>{{ p.branch_name or '—' }}</span></div>
+        <div class="stu-line"><span>Grade / Section</span><span>Grade {{ p.grade_level }} · {{ p.section_name }}</span></div>
+        <div class="stu-line"><span>From</span><span>{{ p.effective_from_display or '—' }}</span></div>
+        <div class="stu-line"><span>Until</span><span>{{ p.effective_to_display or 'Present' }}</span></div>
+        {% if p.reason %}<div class="stu-line"><span>Reason</span><span>{{ p.reason }}</span></div>{% endif %}
+        {% if can_manage_placements and p.status == 'active' and p.effective_to == None %}
+        <details>
+          <summary class="stu-btn stu-btn-sm">{{ icon('edit', 'shell-icon') }}End / Change</summary>
+          <div style="display:grid; gap: 12px; margin-top: 12px;">
+            <form class="stu-form" method="post" action="/students/{{ student.id }}/placements/{{ p.id }}/end">
+              <div class="stu-form-grid">
+                <div class="stu-field"><label>End on</label><input name="effective_to" type="date" required value="{{ today }}"></div>
+                <div class="stu-field"><label>Reason <span class="stu-hint">(optional)</span></label><input name="reason" maxlength="255"></div>
+              </div>
+              <div class="stu-form-actions"><button class="stu-btn" type="submit">{{ icon('close', 'shell-icon') }}End this placement</button></div>
+            </form>
+            <form class="stu-form" method="post" action="/students/{{ student.id }}/placements/{{ p.id }}/transition">
+              <div class="stu-form-grid">
+                <div class="stu-field"><label>Move on</label><input name="transition_at" type="date" required value="{{ today }}"></div>
+                <div class="stu-field"><label>New Academic Year</label><select name="academic_year_id" required>{% for y in years %}<option value="{{ y.id }}" {% if p.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}</select></div>
+                <div class="stu-field"><label>New Branch</label><select name="branch_id" required>{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+                <div class="stu-field"><label>New Grade</label><select name="grade_level" required>{% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}</select></div>
+                <div class="stu-field"><label>New Section</label><input name="section_name" required maxlength="20"></div>
+              </div>
+              <div class="stu-form-actions"><button class="stu-btn" type="submit">{{ icon('open', 'shell-icon') }}Change placement</button></div>
+            </form>
+          </div>
+        </details>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="stu-empty">{{ icon('branch', 'shell-icon') }}<h3>No placements yet</h3><p>Add the student's first academic placement to set their Branch, Grade, and Section.</p></div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if section == 'talent' %}
+  <div class="stu-panel">
+    <h2>Talent &amp; Potential</h2>
+    <p class="stu-lede">{{ icon('sparkles', 'shell-icon') }}The student's evaluation history across Programs, shown in its original historical context. Nothing here is inferred or predicted.</p>
+    {% if talent_profile and talent_profile.programs %}
+      {% for prog in talent_profile.programs %}
+      <section class="stu-panel" style="box-shadow: none; border-color: var(--app-line);">
+        <h3>{{ prog.program.name }}</h3>
+        {% for yr in prog.academic_years %}
+        <h4 style="margin: 16px 0 8px;">{{ yr.academic_year.year_name }}</h4>
+        {% for c in yr.cycles %}
+        <details style="margin-bottom: 8px;">
+          <summary>{{ c.cycle.title }} · {{ c.assessment.status | replace('_', ' ') }}</summary>
+          <div style="padding: 8px 0 0 16px;">
+            <p><strong>Framework</strong> {{ c.framework_version.title }} · Version {{ c.framework_version.version_number }}</p>
+            {% if c.frozen_context %}
+              {% set fb = branches | selectattr('id', 'equalto', c.frozen_context.branch_id) | list | first %}
+              <p><strong>Historical context</strong> {{ fb.name if fb else 'Branch' }} · Grade {{ c.frozen_context.grade_level }} · {{ c.frozen_context.section_name }}</p>
+            {% endif %}
+            {% if c.assessment.kpi_result != None %}<p><strong>Result</strong> {{ c.assessment.kpi_result }}</p>{% endif %}
+            {% if c.review_candidate is defined and c.review_candidate %}<p><strong>Review Candidate</strong> {{ c.review_candidate.status | replace('_', ' ') }}</p>{% endif %}
+            {% if c.official_identification is defined and c.official_identification %}<p><strong>Identification</strong> {{ c.official_identification.decision | replace('_', ' ') }}</p>{% endif %}
+            {% if c.competency_results %}
+            <p><strong>Competency evidence</strong></p>
+            <ul>{% for r in c.competency_results %}<li>{{ r.evidence or 'Recorded evidence' }}</li>{% endfor %}</ul>
+            {% endif %}
+          </div>
+        </details>
+        {% endfor %}
+        {% endfor %}
+      </section>
+      {% endfor %}
+    {% else %}
+    <div class="stu-empty">{{ icon('sparkles', 'shell-icon') }}<h3>No Talent history yet</h3><p>Evaluation evidence will appear here once the student participates in a Talent Program.</p></div>
+    {% endif %}
+
+    {% if talent_profile and talent_profile.educator_inputs %}
+    <h3 style="margin-top: 16px;">Educator Input</h3>
+    <ul class="stu-timeline">
+      {% for ei in talent_profile.educator_inputs %}
+      <li><div class="stu-t">{{ ei.category | default('Input') }}</div><p>{{ ei.content }}</p><div class="stu-d">{{ ei.observed_at }}</div></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if section == 'history' %}
+  <div class="stu-panel">
+    <h2>History</h2>
+    <p class="stu-lede">{{ icon('clock', 'shell-icon') }}An immutable record of changes to this student's identity and placements.</p>
+    {% if audit_events %}
+    <ul class="stu-timeline">
+      {% for e in audit_events %}
+      <li>
+        <div class="stu-t">{{ e.action | replace('_', ' ') | capitalize }} — {{ e.resource_type | replace('_', ' ') }}</div>
+        <div class="stu-d">{{ e.created_at or '' }} · {{ e.actor_name or 'System' }}</div>
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <div class="stu-empty">{{ icon('clock', 'shell-icon') }}<h3>No history yet</h3><p>Changes to this student will be recorded here.</p></div>
+    {% endif %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

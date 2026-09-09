@@ -1,17 +1,49 @@
 knowledge_impact: yes
-summary: Allow deletion of an otherwise-empty Planning section by atomically cleaning only its inactive zero-period setup-only subject-demand suppressions with no Curriculum Adjustment history, while retaining all active, historical, scoped, and dependent-record blockers and updating customer wording.
+summary: This governed cumulative Phase I checkpoint includes the approved Talent & Potential operational and analytics UI, canonical Students UI/profile slice, M10 B11-E production providers and qualification evidence, B12/M10 closeout, and isolated local Talent test support. Phase H is PASS WITH BASELINE EXCLUSIONS. Pytest collected 1,748 parent test items and reported 1,618 passed, 78 failed, and 59 skipped, plus 87 passed subtests. The sometimes cited 1,755 is the arithmetic sum of headline outcome counters, not a second collection count. A clean pre-Talent baseline at 8ed2cc998b8f1c29b5f1d7b34c3b9532deff603e reproduced all 78 current failures in the bounded failure-file set, proving 78 baseline/environment failures and zero Talent-caused regressions. Live PostgreSQL REPEATABLE READ qualification remains 15/15 PASS and canonical migration qualification remains 62/62 PASS. The eight intended Talent migrations are 20260904_001 through 20260904_007 and 20260905_001; there is no uncommitted model or migration drift. No production data, timetable implementation, AI, new permission, schema, additional migration, plan/pricing rule, production deployment, or tis.db change is included. The Render worker/container memory-allocation ratio remains an environment-specific pre-deployment check until actual allocation and worker count are known.
 affected_areas:
-  - planning
-  - user-workflow
-  - tests
-  - business-rules
+  - talent-phase-b-operational-workflow
+  - m11-talent-ui
+  - talent-m3-m5-framework-read-contract
+  - talent-operational-display-context
+  - talent-phase-c-results-experience
+  - m10-analytics-presentation
+  - talent-privacy-visualization
+  - students-canonical-profile-slice
+  - local-talent-test-support
+  - b11e-f1-production-providers
+  - organization-intelligence-entitlement
+  - organization-analytics-breadth-policy
+  - sanctioned-local-analytics-provider-path
+  - b11e-f2-postgresql-qualification-bounded-reverification
+  - b11e-live-multiworker-performance-memory-qualification
+  - adr-0030-multiworker-qualification-minimum
+  - b12-m10-closeout-definition
+  - b11e-b12-status-cross-document-consistency-repair
+  - b12-m10-closeout-formal-closure
+  - phase-h-cumulative-release-qualification
+  - phase-h-clean-baseline-a-b
 kms_files_updated:
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
-  - docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md
-  - docs/history/workforce-planning/2026-09-03-planning-and-subject-delete-dependency-guards.md
+  - docs/PROJECT_STATE.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md
+  - docs/adr/0029-m10-organization-analytics-repeatable-read-boundary.md
+  - docs/adr/0028-b11-production-qualification-policy.md
+  - docs/adr/0030-m10-organization-analytics-multi-worker-qualification-minimum.md
+  - docs/adr/README.md
+  - docs/engineering/AI_CODING_WORKFLOW.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/engineering/PRODUCT_ROADMAP.md
+  - docs/engineering/PROJECT_GOVERNANCE.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/history/engineering-handbook/2026-09-05-cline-kms-configuration.md
+  - docs/history/engineering-handbook/2026-09-07-b11c-postgresql-profiling-evidence-remediation.md
+  - docs/history/engineering-handbook/2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md
+  - docs/history/engineering-handbook/2026-09-08-b11e-integrated-production-qualification.md
+  - docs/history/engineering-handbook/2026-09-09-b11e-f2-postgresql-qualification.md
+  - docs/history/engineering-handbook/2026-09-09-b11e-live-multiworker-qualification.md
+  - docs/history/engineering-handbook/README.md
 no_impact_reason:
 major_change_override: no
-

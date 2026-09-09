@@ -1,11 +1,725 @@
 ---
 title: TIS Project State
-documentation_version: 3.3
-last_updated: 2026-09-04
+documentation_version: 3.7
+last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Phase H Cumulative Release Qualification
+
+Phase H is PASS WITH BASELINE EXCLUSIONS. The current full-suite run collected
+1,748 parent test items and reported 1,618 passed, 78 failed, and 59 skipped,
+plus 87 passed subtests. The sometimes-cited 1,755 is the arithmetic sum of
+those headline outcome counters, not a separate collection count. A clean
+pre-Talent baseline at `8ed2cc998b8f1c29b5f1d7b34c3b9532deff603e`
+reproduced all 78 current failures in the bounded failure-file set; 78/78 are
+baseline/environment failures and zero are attributable to Talent changes.
+The production-deployment memory-allocation ratio remains environment-specific
+and unevaluated until the actual Render allocation and worker count are known.
+
+## M10 B11-E F1 Production Providers
+
+The current working tree implements production-capable provider resolution for
+all seven Organization Intelligence routes. `talent_organization_analytics_providers.py`
+owns the fail-closed implementations: an externally configured P1-P7 minimum
+cohort of 5, the `feature.organization_intelligence` commercial feature check,
+and externally configured ceilings of 1000 matrix cells, 1000 relationship
+results, and 1000 Program-pair results. The privacy provider keeps primary and
+complementary suppression; the breadth provider rejects rather than truncates;
+and availability is evaluated before, but independently from, the existing
+route permissions.
+
+The exact `.local_test_data/talent_local_test.db` URL activates deterministic
+providers only outside production, allowing all seven routes and pages through
+normal dependency resolution. `tis.db`, memory/other SQLite databases, and
+`prod`/`production`/`live` never activate that path. Missing, invalid, mismatched,
+or exceptional provider state remains unavailable. Focused provider, analytics,
+entitlement, and demo-registry tests pass, along with real local HTTP checks for
+all seven APIs/pages and a production-like fail-closed check. No schema,
+migration, new permission, plan/pricing logic, production data, or API response
+shape changed. As of 2026-09-09 (ADR 0028/ADR 0030), B11-E is CLOSED WITH ONE
+ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING and B11 overall is
+CLOSED on that same basis; B12 is CLOSED.
+
+## Talent Phase C Results & Analytics Experience
+
+The current integrated working tree adds a presentation-only Phase C layer over the seven existing M10 Organization Analytics routes. The Organization Overview is now an executive dashboard with Academic Year context, governed KPI cards, visual Program summaries, unranked Branch navigation, and a Talent Map preview. Dedicated Program Results, Branch Results, Talent Map, Students Across Programs, Students, and Progress Over Time views use the approved public vocabulary and provide contextual drill-downs.
+
+Visible backend percentages alone drive progress-bar and period-chart dimensions. Counts are displayed as facts without normalization; protected and unavailable results use categorical treatments that carry no magnitude. Student results retain the P7 gate, max-100 paging, frozen context, independent Candidate/Identification fields, and the canonical Profile path. Progress Over Time remains one Program plus one Academic Year and never calculates deltas, trends, or improvement. No analytics service, provider, privacy, permission, tenant, schema, migration, or data behavior changed.
+
+Automated Node presentation/privacy/accessibility checks and all seven focused M10 route suites pass. Read-only verification against `.local_test_data/talent_local_test.db` returned HTTP 200 for every analytics API and page. No connected browser was available, so desktop/mobile visual acceptance remains pending independent review.
+
+
+## Talent Phase B Full Operational Workflow
+
+The current working tree upgrades the M11 Talent & Potential workspace from its
+read-only draft into an operational M2-M8 workflow. `static/js/
+talent-program-workspace.js` provides Program creation/editing, annual eligible
+Grades, version history/cloning/governance, competency and rubric ordering,
+descriptor configuration/removal, optional Framework-specific KPI settings,
+and Review Candidate rule configuration. `static/js/
+talent-evaluation-workspace.js` reuses authoritative M8 action projections to
+create Plans and Periods and M4 APIs to prepare, link, and open Cycles.
+`static/js/talent-operations.js` starts assessments from authorized frozen
+population rows, edits exact competency/rubric results through the real M5
+write API, handles sequential revisions and stale conflicts, completes/finalizes
+assessments, evaluates/reviews Candidates, records the separate human Official
+Identification decision, and adds/amends separately governed Educator Input.
+
+Assessment/Candidate API responses now include a display-only `context` built
+after existing tenant and historical-Branch authorization. Population responses
+add Student and Branch names while retaining frozen Grade/Section authority.
+Framework and rubric read projections expose the stable row IDs required by
+writes; descriptor IDs are exposed for precise removal. Public IDs are kept out
+of the semantic-fingerprint projection, preserving the original M3 semantic
+identity contract.
+
+Focused frontend checks pass, the full Talent pytest selection passes, and a
+real-router temporary-SQLite HTTP test covers the complete qualitative workflow,
+including partial-save revision sequencing, stale rejection, no automatic
+identification, the mandatory review gate, one-decision enforcement, and
+Educator Input amendment history. The temporary acceptance harness never opens
+`tis.db`. Browser verification is still pending because computer-use reported
+no available browser. Detailed Candidate rule-result reasons remain unavailable
+because the current read payload does not expose the persisted evaluation
+snapshot. This is a Web Service-only change with no Workflow-worker
+or migration deployment requirement.
+
+## Student Profile History Read Endpoint (Partial Phase A Core Students Slice)
+
+A delegated "Phase A - Core Students" slice (canonical Students navigation area,
+list/add/edit, Academic Placement UI, and a four-section Student Profile with a
+read-only Talent & Potential summary) added exactly one backend piece before a
+live concurrent-agent collision was found and the remaining UI scope was
+deliberately stopped (see below): `GET /api/students/{student_id}/audit`
+(`routers/students.py`), backed by new `student_academic_service.
+list_audit_events`/`audit_event_payload`. It is a pure read-only projection of
+the existing append-only `StudentAudit` rows every Student/placement/identifier
+mutation already writes (create/update/status-change, external-identifier
+add/deactivate, and placement create/end/correction/transition) - no new
+persistence authority, `resource_type`, schema, migration, or permission was
+added. It requires the existing `students.view` permission and reuses the same
+tenant-scoped non-enumerating 404 discipline as every other direct
+Student-scoped read route; actor user ids are resolved to display names via a
+plain `models.User` lookup restricted to the returned event set. Regression:
+`tests/test_student_academic_foundation.py::test_audit_endpoint_reuses_existing_append_only_trail_and_resolves_actor_names`
+and `::test_audit_endpoint_requires_students_view_permission` (16/16 passing in
+that file; no regressions in the related `tests/test_talent_learner_profile.py`
+suite).
+
+The remainder of that delegated slice (Students list/add/edit screens,
+Academic Placement assignment UI, the canonical Student Profile page and its
+read-only Talent & Potential summary reusing the existing M7 Learner Profile
+read API, main-navigation registration, and replacing the M11 Student Drill
+"Open Learner Profile" links to point at the new profile) was NOT implemented:
+a separate, live, actively-writing concurrent agent process was found mid-edit
+on the exact same new file this task needed to create, `routers/students_ui.py`
+(observed twice with materially different content, the second time
+syntactically invalid/torn), already independently building the same
+list/add/profile/placement/Talent-integration surface under the identical
+route prefix and template names. Building competing templates/CSS/JS/nav
+wiring in parallel would have risked a destructive overwrite race on that file
+and on `ui_shell.py`/`main.py`'s Students navigation wiring, so the remaining
+UI implementation was deliberately deferred pending reconciliation. No file was
+reverted or repaired by this task.
+
+## M5/M3 Assessment Framework Read-Contract Addition
+
+Fixed a confirmed, independently re-verified read/write API contract gap
+blocking any future assessment-entry UI: `GET
+/api/talent/programs/{id}/frameworks/{id}` returned each competency keyed only
+by `competency_id` (`FrameworkCompetency.talent_competency_id`, the parent
+catalog FK), never the row's own `FrameworkCompetency.id`; no read route
+exposed `TalentRubricLevel.id` at all (`get_framework_configuration`'s
+`levels[]` returned only `code/label/description/order/numeric_value`). The
+write route `PUT
+/api/talent/assessments/{id}/competency-results/{framework_competency_id}`
+(`talent_student_assessment_service.set_competency_result`) is FK-constrained
+on exactly `FrameworkCompetency.id` and `TalentRubricLevel.id`. Both read
+routes now additively include each row's own `id` field; no migration was
+needed (both columns already exist), no permission/privacy semantic changed,
+and the write route's contract is untouched. New regression:
+`tests/test_talent_student_assessment_competency_results.py::test_framework_read_ids_are_accepted_end_to_end_by_the_write_route`
+proves a write built purely from the new read `id` fields succeeds end to end;
+`tests/test_talent_rubric_kpi_candidate_policy.py` gained a matching
+rubric-level `id` assertion. Full `-k talent` regression: 483 passed, 10
+skipped, no failures. This backend fix is included alongside the
+M11 Talent & Potential UI work
+(`routers/talent_ui.py`, `templates/talent/`, `static/css/talent.css`,
+`static/js/talent.js`) that this fix is intended to unblock; no UI work
+consuming these new fields was implemented in this pass.
+
+## M10 B11-E Integrated Production Qualification
+
+ADR 0029 governs and implements a dedicated M10-only REPEATABLE READ session/
+dependency (`database.M10OrganizationAnalyticsSessionLocal`,
+`dependencies.get_m10_organization_analytics_db`) for all seven Organization
+Intelligence routes, backend-conditional (PostgreSQL only), with no
+server-wide or other-route isolation change. All seven routes were
+live-re-tested under the permanent implementation and confirmed consistent;
+the two B11-D-proven mismatches (Overview Candidate, Student Drill gate/page)
+no longer occur, and the five previously structurally-inferred routes
+(talent-map, program-portfolio, branch intelligence, participation-overlap,
+longitudinal) were independently reproduced live for the first time and
+confirmed resolved.
+
+Suppression/reconstruction concurrency was tested live with the existing
+non-production `DeterministicSuppressionTestPolicy` (primary and
+complementary suppression); no suppressed value became reconstructable.
+Index Candidate B is finalized as NO CHANGE; statistics freshness is
+finalized as an operational/runbook disposition (no code/migration change).
+F1 subsequently implements the approved fail-closed production privacy,
+availability, and breadth providers. That resolves the provider-code blocker,
+while all other B11 release gates remain open. 14 earlier committed regression
+tests were added; the full 226-test regression passed;
+`tis.db` was confirmed unchanged. Independent review returned PASS WITH
+NON-BLOCKING OBSERVATIONS; B11-E implementation is PASSED and checkpointable.
+**As of 2026-09-09 (`docs/history/engineering-handbook/2026-09-09-b11e-live-multiworker-qualification.md`,
+ADR 0028, ADR 0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
+VERIFICATION ITEM REMAINING and B11 overall is CLOSED on that same basis; B12
+is CLOSED. Production deployment has not occurred.**
+
+## M10 B11-D PostgreSQL Concurrency Qualification Closure
+
+B11-D is CLOSED after a PASS WITH NON-BLOCKING OBSERVATIONS independent
+review. READ COMMITTED mixed snapshots were reproduced within one request:
+Overview Candidate count 314 to 315 and Student Drill gate/page population
+705 to 706. A non-permanent REPEATABLE READ experiment resolved both cases,
+but permanent adoption was then PROPOSED - GOVERNANCE REQUIRED and NOT
+IMPLEMENTED. B11-E subsequently governed and implemented a scope beginning
+before the first database statement and spanning every M10 evidence input
+through privacy/reconstruction.
+
+B11-E subsequently live-qualified all other multi-statement routes and
+suppression under concurrency. Candidate B is NO CHANGE with no index approved;
+statistics freshness/ANALYZE is operational guidance. Tenant isolation remained
+clean. B11-E implementation is PASSED. As of 2026-09-09, B11-E is CLOSED WITH
+ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028);
+B11 overall is CLOSED on that same basis; B12 is CLOSED.
+
+## M10 B11-C PostgreSQL Qualification Closure
+
+B11-C is CLOSED. PostgreSQL 16.15 profiling of all seven M10 routes produced
+durable evidence, bounded query counts across tested scales, no N+1 finding,
+Index Candidate A = NO CHANGE, and Candidate B = MORE EVIDENCE REQUIRED. No
+index, schema, migration, permission, privacy, or entitlement semantic change
+was made. The 209-test regression passed. Memory evidence is directional local
+Windows development evidence only; no production threshold, breadth limit,
+commercial mapping, SLO, or memory value was selected.
+
+B11-D subsequently completed and is CLOSED. B11-E implementation subsequently
+PASSED. As of 2026-09-09, B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC
+DEPLOYMENT VERIFICATION ITEM REMAINING (ADR 0028); B11 overall is CLOSED on
+that same basis; B12 is CLOSED. Performance SLO, memory
+ceiling, and multi-process/multi-worker qualification were subsequently
+gathered and adopted per ADR 0028/ADR 0030.
+
+## M10 B11 Production Qualification Governance
+
+ADR 0028 records the approved B11 production-policy boundaries and now records
+the F1 Owner decisions: minimum cohort 5 for P1-P7, semantic feature key
+`feature.organization_intelligence`, and breadth ceilings of 1000 matrix cells,
+1000 relationship results, and 1000 Program-pair results. F1 implements those
+decisions through external configuration and the existing entitlement/feature-
+registry architecture. Missing/false/reject/exception paths fail closed.
+Plan packaging, performance SLOs, memory ceilings, and any future index remain
+outside F1 and unresolved where the governing qualification still requires it.
+
+B11-C and B11-D subsequently completed and are CLOSED as recorded above.
+The F1 provider implementation is complete; B11-E is PASSED. As of 2026-09-09,
+B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM
+REMAINING (ADR 0028); B11 overall is CLOSED on that same basis; B12 is
+CLOSED. Master merge and deployment remain blocked pending cumulative
+production release qualification and a separate `dev`->`master` approval.
+
+## M10 B0-B9 Organization Intelligence
+
+M10 B0-B2 is implemented without an Organization Intelligence route, aggregate
+query, privacy threshold, entitlement rule, schema, or migration.
+`talent_org_intelligence_contract.py` provides immutable canonical Cell
+identity, exact `+1`/`-1` additive Relationships, inherited M9 privacy-state
+projection semantics, tenant validation, and the V01-V25 ledger.
+`talent_analytics_relationship_graph.py` adds the tenant-bound canonical Cell
+registry, Relationship identity/deduplication, Cell-to-Relationship adjacency,
+fail-closed structural validation, and deterministic connected components.
+`talent_analytics_privacy_closure.py` adds exact Fraction-based RREF,
+per-coordinate uniqueness, inconsistent-system detection, monotonic bounded
+component-local closure, magnitude-independent victim choice, fail-closed
+analyzer handling, exact-source-only derived rates, and all-or-nothing sibling
+projection. V01-V25 are executable. No real M10 Organization Intelligence or
+Talent Map data can be exposed.
+
+B3/B4 adds `talent_org_intelligence_service.py`: immutable tenant/year/
+historical-Branch access context using existing permissions; fail-closed
+unconfigured commercial-availability and breadth providers; normalized context
+fingerprinting; enabled annual Program universe; frozen-population-only filters;
+set-based Program×Branch, Program×Grade, Program/Branch/Organization totals;
+permission-skipped Candidate and Identification queries; and Program-grain M8
+required-period execution. All primitives share the caller's Session and never
+query current Student Placement. Future serialization must accept a B2 closure
+result through `PrivacyClosedProjectionSet`.
+
+B5 adds only `GET /api/talent/organization-analytics/overview`. The closed
+contract now has 14 MetricCodes and 7 MembershipGrains: B5 added
+`programs_configured`, `active_programs`, and `program_configuration`, both
+metrics mapped to `count`/`program_configuration` and P1. Configured means an
+enabled Program annual configuration; active is exactly its subset whose
+durable Program lifecycle status is `active`. The route preserves historical
+Branch filtering, skips Candidate/Identification SQL without their independent
+permissions, counts only `decision == identified`, and serializes exclusively
+after M9 primary privacy and B2 closure.
+
+B6 is implemented, independently reviewed, and closed after the targeted
+sparse-matrix re-review passed. It adds only
+`GET /api/talent/organization-analytics/talent-map`, supporting
+Program-by-Branch and Program-by-Grade. `branch_program` reuses the same
+canonical topology and transposes presentation only after closure. Backend
+row/column/authorized-scope totals participate in the graph. It supports the
+approved frozen/completed/started/Candidate/identified counts and eligible
+rates, rejects Program-level required Period execution, and adds no ranking,
+universal score, schema, migration, UI, or B7+ route. Production privacy,
+commercial availability, and breadth providers remain fail-closed.
+The sparse-total fix uses the exact same authoritative numeric child set for
+total arithmetic and graph terms, excluding rectangular `no_data` display
+coordinates without treating them as zero. Empty totals stay `no_data`; one-
+child totals keep an explicit two-term equality. B2 itself is unchanged.
+
+B7 implements Program Portfolio and one-Branch Intelligence. Portfolio uses
+Program/Academic-Year common facts and required-Period execution only at that
+grain. Branch Intelligence filters frozen Branch before grouping, shares B6
+Program/Branch identities, and excludes execution. Candidate/identified fields
+are permission-omitted. Both routes use breadth and closed projections. Grade
+breakdown, ranking, and scores remain unimplemented.
+
+B8 implements Participation Overlap as distinct Student intersections across
+Open/Closed frozen Cycle participation. It adds the sole governed
+`participation_overlap` P2 count metric at `program_participation` grain,
+deduplicates Program/Student participation before one set-based self-join,
+applies historical Branch scope before intersection, and uses one symmetric
+canonical Cell per normalized Program pair. Diagonals are distinct Program
+participants; absent participation basis is `no_data`, while an authoritative
+empty intersection is factual zero subject to privacy. No overlap sums,
+Candidate/Identification overlap, ranking, Talent Breadth/score, Student data,
+schema, migration, UI, AI, or B9+ route is implemented.
+Its initial independent review identified a canonical pair-index mismatch when
+Program name order differed from numeric ID order. Construction and every
+lookup now use one explicit numeric canonical-pair helper, preserving name/id
+presentation order while sharing one Cell/privacy decision across both matrix
+orientations. Targeted independent re-review passed; B8 is CLOSED.
+Its committed/pushed implementation remains part of current dev.
+
+B9 adds only `GET /api/talent/organization-analytics/students`, the first
+M10 Student-identifiable route. It requires `talent_analytics.view` AND
+`talent_analytics.view_students` (true AND composition), derives Student
+inclusion only from frozen Cycle population context in the authorized
+tenant/AY/historical-Branch/Program scope (never current Placement), and
+treats every identifiable row as P7 through one gate-level
+`student_drill_population`/`count`/`distinct_student` Cell fed by
+`COUNT(DISTINCT student_id)` and run through the same B2 closure pipeline (no
+per-Student additive relationship graph). Candidate/Identification fields
+are independently permissioned and query-skipped, not response-filtered;
+Learner Profile access exposes only an advisory `can_view_learner_profile`
+hint. One top-level row exists per Student with deterministic frozen
+Program/Cycle contexts; pagination is over distinct Students (limit 25/max
+100, `has_more`, no `total_count`) and breadth precedes identifiable queries. No
+direct Student-ID filter is exposed. No schema, migration, permission,
+entitlement, longitudinal/B10, UI, or AI capability was added.
+The remediation passed targeted independent re-review; B9 is CLOSED.
+Its committed/pushed implementation remains part of current dev.
+
+ADR 0027 records the B10-A "Longitudinal Organization Intelligence"
+architecture as an approved governance decision only, following independent
+governance review ("approve with required amendments"). B10 itself remains
+NOT IMPLEMENTED - no route, query, schema, migration, permission, or
+entitlement was added by this decision, and B9's status above is unchanged.
+The approved contract: one Program, one Academic Year (`AcademicYear.
+year_name` stays descriptive only, never chronology authority), ordered M8
+`TalentPlannedEvaluationPeriod` slots as the sole ordering authority (Period
+= presentation/order, optional linked Open/Closed Cycle = evidence,
+consistent with the existing `uq_talent_assessment_cycles_period`
+constraint), exactly nine of the fourteen existing `MetricCode` values
+(`frozen_eligible`, `completed`, `completion_coverage`,
+`assessment_started`, `started_coverage`, `candidate_count`,
+`candidate_of_eligible`, `identified_count`, `identified_of_eligible`), one
+metric per response, `comparable`/`not_comparable` states with no growth
+language, and no server-computed delta/percent-change between points. See
+`docs/adr/0027-b10-longitudinal-organization-intelligence-contract.md`.
+
+B10-B implements the ADR 0027 contract as
+`GET /api/talent/organization-analytics/programs/{program_id}/longitudinal`
+in `talent_org_longitudinal.py` (the seventh Organization Intelligence
+route). It reuses `resolve_access_context`/`authorized_program_universe`/
+`resolve_filters`/`frozen_membership_query` unchanged, fetches the single
+governed M8 Plan (`uq_talent_annual_evaluation_plans_config` guarantees at
+most one Plan per Program/Academic-Year) and its ordered Periods left-joined
+to their linked Cycle in one bounded query, and aggregates population/
+completed/started/Candidate/identified counts grouped by Cycle id in one
+additional bounded query each (never one query per Period). Point status
+uses the exact verified lifecycle values: a cancelled Period is
+`no_data`/`cancelled_period`; a missing linked Cycle is
+`no_data`/`missing_cycle`; a linked Draft Cycle is
+`no_data`/`cycle_not_authoritative`; an authoritative (Open/Closed) Cycle
+with zero frozen population is `no_data`/`no_frozen_population`; a Program
+with no Plan yields an empty, non-fabricated `points`/`comparisons` series.
+An unlinked/ad-hoc Cycle is structurally excluded because it is only ever
+looked up by Period-linked `cycle_id`. Every Cell/component uses
+`relationships=()` - there is no same-point or cross-time additive
+Relationship anywhere in this module, so no `delta`/`change`/
+`percent_change` field is computed or exposed; rates reuse
+`derive_exact_rate`/`project_safe_derived_payload` unchanged. Adjacent-Period
+comparisons are `comparable`/`not_comparable` only, evaluated in the ADR's
+governed precedence (missing/cancelled/no-population reason, then
+`privacy_protected`, then `framework_changed`, then `comparable`); the five
+Framework-independent metrics stay comparable across a Framework change,
+while the four Candidate/Identification metrics become
+`not_comparable`/`framework_changed`. Candidate/Identification SQL is
+skipped entirely unless both the selected metric requires it and the actor
+holds the corresponding secondary permission. Breadth is enforced (Period
+count, 1/2 components, `prospective_pair_count = periods-1`,
+`relationship_estimate=0`) before the aggregate queries run. B10-B is
+implemented and unit/integration tested. Independent security/privacy review
+passed with non-blocking observations; B10 is CLOSED. B11, B12 (closeout),
+and every ADR 0027 "Deferred
+capabilities"/"Production gates" item remain unimplemented/open.
+
+B11-A (read-only qualification) is completed: it confirmed the privacy,
+commercial-availability, and breadth-policy provider seams used by all 7
+M10 routes existed with no production implementation and correctly failed
+closed at that checkpoint. F1 subsequently implements the governed providers.
+B11-B adds safe, non-sensitive operational observability around
+all 7 existing routes via a new dedicated logger in
+`talent_organization_analytics_observability.py` (separate from the
+immutable business/security audit trail in `audit.py`) plus telemetry
+wiring in `routers/talent_organization_analytics.py`. Recorded signals are
+a bounded allowlist only - `projection_family`, `outcome`, route latency,
+safe structural counts reused from each route's own existing breadth-policy
+inputs, and each provider's coarse outcome (missing/available/unavailable/
+exception for availability; missing/evaluated/exception for privacy;
+missing/allowed/rejected/exception for breadth) - never a Student
+identifier, raw analytical value, privacy threshold, suppressed value,
+Candidate/Identification decision, or `delta`/`change`/`percent_change`/
+`total_count`. Every existing fail-closed HTTP outcome is unchanged
+byte-for-byte, and a telemetry emission failure is swallowed internally and
+can never affect the HTTP response. Query-count instrumentation is
+explicitly deferred to a future "B11-C profiling" phase. B11-B is
+implemented and unit-tested (`tests/test_talent_organization_observability.py`,
+22 tests, full existing B5-B10 regression suites green). Independent
+security/privacy review passed with non-blocking observations; B11-B is
+CLOSED. No schema, migration, permission, entitlement, privacy threshold,
+or production breadth limit was added by B11-B; F1 later adds the governed
+provider decisions without schema or permission changes. PostgreSQL performance/concurrency/
+memory qualification was subsequently gathered. As of 2026-09-09, B11-E is
+CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT VERIFICATION ITEM REMAINING
+(ADR 0028); B11 overall is CLOSED on that same basis; B12 is CLOSED.
+
+The pre-B2 hardening gate is implemented: `metric`, `measure_component`, and
+`membership_grain` use the approved closed string-backed enum vocabularies and
+serialize to their exact governed strings; unknown values are rejected.
+`rate`/`percentage` remain derived disclosures, not identity components.
+Relationship coefficients require an actual Python `int` and exactly
+`+1`/`-1`, so bool, float, `Fraction`, `Decimal`, null, and strings fail.
+
+## M9 Deterministic Talent Analytics Implemented (Committed/Pushed On dev)
+
+M9 adds a read-only, privacy-gated `/api/talent/analytics` aggregate API
+(context/overview/rubric-distribution/kpi-distribution/competencies/
+breakdowns per branch-grade-section/period-comparison/students) strictly
+inside one Program + one Academic Year, over the existing frozen
+`TalentAssessmentCyclePopulationMember` historical scope. See "Deterministic
+Talent Analytics (M9, Committed/Pushed On dev)" in
+`docs/AI_PROJECT_CONTEXT.md` for full architecture: the `Cell`/`Group`
+privacy-pipeline model, the mandatory `apply_primary_privacy` ->
+`run_complementary_suppression` ordering (now statically regression-guarded),
+the Product-Owner-approved fail-closed `coarsened` contract, the enforced
+`competency_id` filter, the documented dead/unreachable
+`candidate_policy_changed` comparability branch, and the coverage-bundle
+privacy fix below.
+
+A second remediation pass fixed a HIGH-severity defect of the same
+reconstruction-risk bug class, relocated past the call-ordering guard:
+`/rubric-distribution` and `/period-comparison` each privacy-evaluated only
+one headline `frozen_eligible` `Cell` and then serialized the entire raw
+per-status coverage bundle unconditionally once that one Cell passed -
+`/rubric-distribution` did not evaluate the coverage bundle at all, and
+`/period-comparison`'s per-side bundle only gated on the total. Both now call
+one shared, `/overview`-pattern-derived authority,
+`talent_analytics_service.build_privacy_safe_coverage_bundle`, which
+independently privacy-evaluates `frozen_eligible` and all 5 per-status
+counts as one `Group`, runs complementary suppression across them, and only
+publishes the full per-status breakdown (with derived `assessment_started`
+and percentages) when every cell in the group is independently visible -
+otherwise the whole bundle collapses to a compact state-only projection with
+no raw sibling field. A recursive runtime regression test proves no
+non-visible-state dict anywhere in the serialized response carries a raw
+coverage-shaped sibling field, in addition to the existing static ordering
+guard.
+
+New Administrator-only default permissions are `talent_analytics.view` and
+`talent_analytics.view_students`. No production `TalentAnalyticsPrivacyPolicy`
+is approved - `resolve_privacy_policy_provider()` returns `None` in
+production, so every route fails closed until a governed policy is approved
+and wired in (open gate, by design, not a defect). Live PostgreSQL
+performance/concurrency validation has not been run (open gate, consistent
+with every prior milestone) - only SQLite-backed pytest coverage exists.
+Focused coverage is `tests/test_talent_analytics.py`. M9 is committed and
+pushed on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat:
+add deterministic talent analytics`). It is not deployed, not production-
+released, and not merged to `master`. No Talent Score/Index/Potential Rate,
+Talent Map, export, AI, or UI
+exists. M10 B0-B5 exists as described above, while other M10 aggregate routes,
+Learning Style, and Student evidence remain out of scope.
+
+## M8 Annual Evaluation Plan And Periods Implemented
+
+Migration `20260905_001_talent_annual_evaluation_plan_period_foundation` adds
+annual Plan and ordered Period tables, the scoped Program/year/config keys,
+and nullable unique Period linkage on Assessment Cycle. Existing Cycles remain
+ad-hoc with NULL linkage; no history is inferred. Services and `/api/talent`
+routes implement create/read, Period planning, activation, cancellation,
+closure preflight/close, rollover, eligible Period selection, and atomic
+link/unlink. Plan revision and Cycle revision protect stale writes.
+
+New Administrator-only default permissions are
+`talent_evaluation_plans.view/manage/govern`. Every mutation is organization/
+global only. Link/unlink and rollover use true AND permission composition.
+Branch reads never receive Cycle projection or derived relationship/action/
+warning leakage without the separate Cycle-view permission. Linked Cycle Open
+revalidation follows Plan -> Period -> Cycle lock order without adding an M8
+govern requirement. M9 Deterministic Talent Analytics is now implemented (see
+above); M10 B0-B5 exists, while further external execution, Learning
+Style, AI, and Student data remain out of scope. Live
+PostgreSQL concurrency validation remains a deployment gate.
+
+## M7 Longitudinal Learner Profile Implemented
+
+M7 implements a read-only, no-migration Learner Profile aggregation over M1-M6
+canonical history. The profile groups exact historical Assessments, Framework
+Versions, Competency Results, optional persisted KPI results, Review Candidates,
+and Official Identifications by stable Program and Academic Year while retaining
+multiple Cycles. It uses current Student identity only for the header and never
+reinterprets historical Talent semantics from current Placement or configuration.
+`talent_learner_profiles.view` is a new Administrator-only-by-default base
+permission. Review Candidate, Official Identification, and Educator Input each
+remain absent, including their timeline events and metadata, without their own
+respective view permission.
+Branch scope filters each Placement by stored historical Branch and each Talent
+record by frozen/persisted Branch; organization/global scope can see complete
+same-tenant history. The related M1 direct placement read routes now enforce
+the same historical Branch policy. M8 Annual Evaluation Plan & Periods,
+Learning Style, analytics, Talent Map, AI, and profile materialization remain
+deferred. Live PostgreSQL validation remains outstanding.
+
+## M6 Review, Official Identification & Educator Input Implemented
+
+M6 is complete following 18 approved Product Owner governance decisions that
+resolved the 9 previously open questions (see "M6 Governance Review:
+Decisions" in `docs/AI_PROJECT_CONTEXT.md`). Migration
+`20260904_006_talent_review_candidate_foundation` adds `talent_review_candidates`
+(one row per Assessment) and widens `TalentAssessmentAudit.resource_type` to
+add `review_candidate`. Migration
+`20260904_007_talent_review_workflow_identification_educator_input_foundation`
+adds the two-state Review workflow columns to `talent_review_candidates`,
+creates `talent_official_identifications` and `talent_educator_inputs`,
+widens `resource_type` further to add `review_candidate_review`,
+`official_identification`, and `educator_input`, and relaxes
+`talent_assessment_audits.cycle_id`/`framework_version_id` to nullable so an
+Educator Input audit row (whose Cycle binding is optional) can exist without a
+Cycle context.
+
+`talent_review_candidate_service.py` deterministically evaluates the exact M3
+Review Candidate Policy/rules attached to a Completed Assessment's exact
+Framework Version - `rubric_level_at_or_above` by `TalentRubricLevel.display_order`
+(never `numeric_value`), `kpi_at_or_above` by the Assessment's persisted
+`kpi_result` (never recomputed) - with `all`/`any` composition. No policy
+means no candidate is inferred. Evaluation only reads existing Assessment/
+Result/frozen-population data; it never writes to them. A qualifying
+evaluation persists one candidate row (starting `pending_review`) with policy
+identity, match mode, a deterministic SHA-256 fingerprint, and a full
+evaluation snapshot; re-evaluation is idempotent and returns the existing row
+unchanged. A non-qualifying evaluation still persists no `TalentReviewCandidate`
+row, but is now structurally audited (assessment identity, Framework/Policy
+context, `outcome=false`, fingerprint - no free text, no durable negative
+entity).
+
+The Review workflow is exactly two states, `pending_review` -> `reviewed`,
+one-way, via `talent_review_candidates.manage`; it never alters assessment
+evidence and never auto-identifies. `TalentOfficialIdentification` is a new
+append-only decision record (`identified`/`not_identified` only - no
+`deferred`/`revoked`/`superseded`/`re-identified`) that may be recorded only
+once its Review Candidate is `reviewed`, exactly one per candidate
+(unique-constraint- and service-enforced), via the dedicated
+`talent_official_identifications.record` permission which additionally
+requires organization/global access scope - a Branch-scoped actor is denied
+even if granted the permission. `not_identified` is exactly as durable as
+`identified`; there is no mutation/revocation/second-decision/re-identification
+path anywhere. `TalentEducatorInput` is bounded qualitative Student
+evidence/context (`observation`/`context`/`supporting_evidence`, <=2000
+characters, non-empty) bound to SchoolGroup/Student/Program/AcademicYear/
+`observed_at` plus a historical Placement/Branch snapshot - resolved from a
+supplied frozen Cycle Population Member when given, otherwise from the
+Student's canonical `StudentAcademicPlacement` effective at `observed_at`
+(rejecting cleanly with no valid historical Placement, never falling back to
+current Placement). It is append-only with `supersedes_educator_input_id`
+lineage (cycle-prevention mirrors M3's Framework Version `_validate_supersedes`
+walk); default reads return only the current/latest version, an explicit
+history read returns the full chain, and the free-text body is stripped from
+audit `before_json`/`after_json`. New dedicated Administrator-only-by-default
+permission groups: `talent_official_identifications.view/record` and
+`talent_educator_inputs.view/add/amend`, each independent of every other
+Talent permission family. All new/changed reads use the same frozen historical
+Branch discipline as M4/M5 - a current Student transfer never reinterprets
+Review Candidate, Official Identification, or Educator Input access.
+
+Deferred (explicit, not implemented): Official Identification revocation/
+supersession/second decision/re-identification, a generic review-note/case-
+management system, assessor assignment, Learner Profile, Development and
+Support, analytics/Talent Map, AI/AI Suggested Review, and Educator Input
+analytics/export/AI/attachments. Focused coverage is in
+`tests/test_talent_review_candidate_foundation.py` and
+`tests/test_talent_review_official_identification_educator_input.py`. Live
+PostgreSQL execution remains a follow-up.
+
+Independent review additionally closed four boundary defects: historical
+Branch authorization is enforced during Educator Input create/amend;
+out-of-scope direct IDs are uniformly non-enumerating; Official Identification
+is composite-bound to the Review Candidate's exact historical context; and a
+database uniqueness constraint prevents concurrent amendment forks. Focused
+M6 coverage is 42 passing tests, and the combined M1-M6/permission/tenant/
+migration/startup selection is 137 passed and 3 PostgreSQL-only skips.
+
+## M5 Talent Student Assessment And Competency Results Implemented
+
+Migration `20260904_005_talent_student_assessment_competency_results` adds
+canonical Student Assessment and exact Framework Competency Result rows,
+extends the existing operational audit, and preserves the scoped composite keys
+needed for frozen-member, assessment, competency, and rubric-level integrity.
+Only an Open Cycle's frozen members can receive one In Progress assessment;
+all mutations use expected-revision protection. Completed requires every exact
+Framework Competency result and becomes read-only. Incomplete and Insufficient
+Evidence are distinct read-only terminal outcomes and do not represent low
+performance or zero results.
+
+The optional enabled Framework KPI is calculated only at successful completion
+using exact integer weighted-level arithmetic: numeric rubric value times
+basis-point component weight, summed over denominator 10,000 and rounded to
+the nearest Framework-scale integer with ROUND_HALF_UP. The persisted result
+includes method, scale bounds, numerator, canonical SHA-256 input fingerprint,
+and calculation timestamp. Qualitative no-KPI Programs complete without any
+numeric score. This is never a universal Talent Score or cross-Program
+normalization. M5 adds Administrator-only-by-default
+`talent_assessments.view/manage/complete`, frozen-Branch scope enforcement,
+the `/api/talent/assessments` API, and focused SQLite coverage. Assessor
+assignment, correction/reopen, Review Candidate workflow, Official
+Identification, Educator Input, Learner Profile, analytics/Talent Map, AI, and
+Development and Support remain deferred. Live PostgreSQL validation remains
+outstanding.
+
+## M4 Talent Assessment Cycle And Frozen Population Implemented
+
+Migration `20260904_004_talent_assessment_cycle_frozen_population` adds the
+SchoolGroup-wide `TalentAssessmentCycle` (`draft -> open -> closed`, no
+`branch_id`), frozen population members, and bounded append-only operational
+audit. Draft preview and Open resolve canonical Academic Placement at the
+explicit `population_effective_at` against the Program Academic Year
+configuration's eligible grades. Open atomically freezes the full organization
+population with exact Placement/Academic Year/Branch/grade/section context and
+stores a deterministic full count and fingerprint. No reopen, post-Open
+mutation, late-entry exception, or assessor assignment exists.
+
+Dedicated `talent_assessment_cycles.view/manage/view_population/govern`
+permissions are Administrator-only by default. Branch authors may manage
+Draft metadata but cannot Open/Close. Governance additionally requires
+organization/global scope. Population reads are separately permissioned:
+Branch actors see only authorized preview/frozen Branch members and subset
+counts, never the full count/fingerprint; organization/global population
+readers see the canonical whole. Frozen visibility uses the member's historical
+Branch, not current Student Placement. Focused coverage is in
+`tests/test_talent_assessment_cycle_frozen_population.py`.
+
+Student Assessment, assessor assignment, results, Review Candidate instances,
+Official Identification, analytics, AI, late population exceptions, and UI
+remain deferred. Live PostgreSQL execution remains outstanding.
+
+## M3 Governance Closure: KPI Approval, Rubric Ordering, And Audit Granularity
+
+`weighted_level_average` is now Product-Owner-approved as one bounded,
+optional, Framework-specific KPI calculation primitive - never a universal or
+cross-Program score, enabled only through explicit Framework configuration,
+and requiring numeric rubric values only while enabled. Qualitative
+no-KPI Programs remain first-class. `rubric_level_at_or_above` candidate
+rule semantics are defined by the configured Rubric Level order
+(`display_order`, lowest proficiency first), independent of `numeric_value`;
+`display_order` was confirmed to safely carry both presentation order and
+semantic proficiency rank with no divergence risk, so no new field was added.
+`TalentConfigurationAudit.resource_type` was widened (model CHECK plus a
+widening step inside the M3 migration, since the audit table itself was
+created by the separate already-applied M2 migration) to add `rubric`,
+`rubric_level`, `rubric_descriptor`, `kpi_configuration`, `kpi_component`,
+`review_candidate_policy`, and `review_candidate_rule`; every M3 mutation now
+audits its specific child resource instead of only `framework_version`,
+matching the M2 `framework_competency` precedent. Candidate-policy rule
+evaluation remains deferred to a later assessment milestone. PostgreSQL live validation remains
+outstanding.
+
+## Talent Program Deterministic Framework Configuration Implemented Through M3
+
+Migration `20260904_003_talent_rubric_kpi_candidate_policy_foundation` adds
+Framework-versioned configurable rubric levels, exact competency/level
+descriptors, optional bounded weighted-level KPI configuration, and a bounded
+declarative Review Candidate Policy. All configuration is Draft-only,
+expected-revision protected, included in the Framework semantic fingerprint,
+independently cloned, tenant-scoped by composite foreign keys, and recorded
+through the existing append-only Talent configuration audit. Active/Retired
+configuration is immutable. Qualitative Programs can omit KPI and numeric
+levels entirely. Existing `talent_programs.view/manage/govern` permissions are
+reused; governance scope for activation/retirement is unchanged.
+
+No Student Assessment, evidence/result, candidate instance,
+Official Identification, analytics, AI, entitlement, or UI capability is part
+of M3. Focused M3 coverage is in
+`tests/test_talent_rubric_kpi_candidate_policy.py`.
+
+## Student & Academic Placement Foundation And Talent Program & Framework Foundation Implemented
+
+Migration `20260904_001_student_academic_placement_foundation` adds `Student`
+as a canonical SchoolGroup-owned identity distinct from `User`, external
+identifiers, an effective-dated Academic Placement authority (no separate
+Enrollment entity), and append-only audit. Migration
+`20260904_002_talent_program_framework_foundation` adds `TalentProgram` as a
+durable organization-owned identity distinct from Subject, annual
+configuration, an immutable-once-active Framework Version lifecycle with
+deterministic version allocation and one-Active-Framework-per-Program
+supersession, competency lineage with version-specific framework
+membership snapshots, and append-only configuration audit. Full architecture
+and business-rule detail is recorded in `docs/AI_PROJECT_CONTEXT.md` under
+"Student & Academic Placement Foundation" and "Talent Program & Framework
+Foundation". `tests/test_student_academic_foundation.py` (13 tests) and
+`tests/test_talent_program_framework_foundation.py` (15 tests) cover both
+foundations, including tenant/branch isolation and permission-boundary cases.
+
+Checkpoint A closed the permission-governance gap in both interim
+implementations. `permission_registry.py` adds dedicated `students` (`.view`,
+`.create`, `.edit`, `.activate_deactivate`, `.manage_identifiers`,
+`.manage_placements`) and `talent_programs` (`.view`, `.manage`, `.govern`)
+permission groups, replacing the temporary reuse of the `users.*` keys (for
+Student) and the bare, broadly-granted `planning.edit_section` permission
+(for both Student Academic Placement mutation and Talent Program/Framework
+Draft authorship - the latter previously let any Branch-scoped Editor/User
+actor author organization-wide Talent configuration with no Branch-relation
+constraint). Both new groups are Administrator-only by default, matching the
+existing `users.*` precedent; the M2 organization/global-scope gate on
+Framework activate/retire and Program lifecycle transitions was already
+correct and is unchanged. `routers/students.py` and `routers/talent_programs.py`
+now check the dedicated keys; branch-scope-after-permission-check ordering
+and non-enumerating 404/403 discipline are preserved on every route.
+
+PostgreSQL validation (constraints, concurrent placement/framework writes)
+has not been executed against live PostgreSQL for these foundations; only
+SQLite-backed pytest coverage exists. No Student UI, import/merge,
+Assessment, Review/Identification, Learner Profile, analytics/Talent
+Map, or AI code exists yet.
 
 ## Planning Subject Requirement Removal (Single And Bulk) Implemented
 
@@ -42,6 +756,20 @@ Curriculum Adjustment history no longer blocks an otherwise-empty section:
 deletion removes that exact scoped artifact and the section atomically. Active
 demands, permanent demand history, assignments, timetable/calendar/rule
 dependencies, and all other existing guards still block.
+
+## Cline And Three-Agent Development Pool
+
+Codex, Claude Code, and Cline/ClinePass are approved TIS development agents.
+Cline's repository entry points are `.clinerules/tis.md` and
+`.cline/skills/tis-kms-developer/SKILL.md`. They require governing KMS onboarding,
+implementation inspection, isolation/RBAC and database safety, minimal diffs,
+proportional tests, task-level KIA, KMS sync/check, and deployment reporting.
+
+The master conversation balances tasks by complexity, specialization, risk,
+independent-review value, and current usage/load, without permanent assignments.
+See [Project Governance](engineering/PROJECT_GOVERNANCE.md) for the allocation policy and
+[AI Coding Workflow](engineering/AI_CODING_WORKFLOW.md) for Cline setup/invocation.
+This configuration changes no application, schema, or production behavior.
 
 ## Claude Code KMS Integration
 
@@ -1064,6 +1792,11 @@ remain locked against silent replacement.
 
 Known issues and watch points:
 
+- Student & Academic Placement Foundation and Talent Program & Framework
+  Foundation have no PostgreSQL validation yet (constraints, concurrent
+  placement/framework writes); only SQLite-backed pytest coverage exists.
+  Neither has a UI, import/merge, or any Rubric/KPI/Assessment/Review/
+  Learner-Profile/analytics/AI code, which remain future milestones.
 - KMS policy depends on future developers and AI agents consistently completing the Knowledge Impact Assessment.
 - Generated PDF can become stale during local work, but CI now blocks stale artifacts from integration/deployment.
 - The owner-only Knowledge Center is implemented as read-only; there is no regenerate button yet.

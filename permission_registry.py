@@ -103,6 +103,95 @@ PERMISSION_GROUPS = (
         ),
     },
     {
+        "key": "students",
+        "label": "Students",
+        "permissions": (
+            ("students.view", "View students and academic placement history"),
+            ("students.create", "Create students"),
+            ("students.edit", "Edit student identity details"),
+            ("students.activate_deactivate", "Activate/deactivate students"),
+            ("students.manage_identifiers", "Manage student external identifiers"),
+            ("students.manage_placements", "Manage student academic placements"),
+        ),
+    },
+    {
+        "key": "talent_programs",
+        "label": "Talent Programs",
+        "permissions": (
+            ("talent_programs.view", "View talent programs, frameworks, and competencies"),
+            ("talent_programs.manage", "Author talent programs, framework drafts, and competencies"),
+            ("talent_programs.govern", "Activate, retire, and transition talent program/framework lifecycle"),
+        ),
+    },
+    {
+        "key": "talent_assessment_cycles",
+        "label": "Talent Assessment Cycles",
+        "permissions": (
+            ("talent_assessment_cycles.view", "View Talent Assessment Cycle metadata"),
+            ("talent_assessment_cycles.manage", "Create and edit Draft Talent Assessment Cycles"),
+            ("talent_assessment_cycles.view_population", "Preview and read authorized Talent Cycle Student populations"),
+            ("talent_assessment_cycles.govern", "Open and close canonical Talent Assessment Cycles"),
+        ),
+    },
+    {
+        "key": "talent_evaluation_plans",
+        "label": "Talent Annual Evaluation Plans",
+        "permissions": (
+            ("talent_evaluation_plans.view", "View annual Talent evaluation plans and periods"),
+            ("talent_evaluation_plans.manage", "Create and manage annual Talent evaluation plans and periods"),
+            ("talent_evaluation_plans.govern", "Activate, cancel periods in, and close annual Talent evaluation plans"),
+        ),
+    },
+    {
+        "key": "talent_assessments",
+        "label": "Talent Student Assessments",
+        "permissions": (
+            ("talent_assessments.view", "View Talent Student Assessments and results"),
+            ("talent_assessments.manage", "Start and edit Talent Student Assessments and competency results"),
+            ("talent_assessments.complete", "Complete or record non-complete Talent Student Assessment outcomes"),
+        ),
+    },
+    {
+        "key": "talent_review_candidates",
+        "label": "Talent Review Candidates",
+        "permissions": (
+            ("talent_review_candidates.view", "View deterministic Talent Review Candidate evaluations"),
+            ("talent_review_candidates.manage", "Evaluate and materialize Talent Review Candidates, and mark them Reviewed"),
+        ),
+    },
+    {
+        "key": "talent_official_identifications",
+        "label": "Talent Official Identification",
+        "permissions": (
+            ("talent_official_identifications.view", "View Talent Official Identification decisions within authorized scope"),
+            ("talent_official_identifications.record", "Record a Talent Official Identification decision (requires organization/global access scope)"),
+        ),
+    },
+    {
+        "key": "talent_educator_inputs",
+        "label": "Talent Educator Input",
+        "permissions": (
+            ("talent_educator_inputs.view", "View Talent Educator Input"),
+            ("talent_educator_inputs.add", "Add Talent Educator Input"),
+            ("talent_educator_inputs.amend", "Amend (supersede) Talent Educator Input"),
+        ),
+    },
+    {
+        "key": "talent_learner_profiles",
+        "label": "Talent Learner Profiles",
+        "permissions": (
+            ("talent_learner_profiles.view", "View longitudinal Talent Learner Profiles"),
+        ),
+    },
+    {
+        "key": "talent_analytics",
+        "label": "Talent Analytics",
+        "permissions": (
+            ("talent_analytics.view", "View deterministic Talent analytics"),
+            ("talent_analytics.view_students", "View Student-level Talent analytics drill rows"),
+        ),
+    },
+    {
         "key": "timetable",
         "label": "Timetable",
         "permissions": (

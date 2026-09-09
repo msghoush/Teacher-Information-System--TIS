@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+{% block title %}Students | TIS{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
+{% block content %}
+<section class="stu">
+  <header class="stu-head">
+    <div>
+      <p class="stu-eyebrow">Student Records</p>
+      <h1>Students</h1>
+      <p class="stu-intro">Every learner in one place, with their current placement and history kept in context.</p>
+    </div>
+    {% if can_create %}
+    <div class="stu-actions">
+      <a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>
+    </div>
+    {% endif %}
+  </header>
+
+  {% if success %}
+  <div class="stu-banner stu-banner-success" role="status">Saved successfully.</div>
+  {% endif %}
+  {% if error %}
+  <div class="stu-banner stu-banner-error" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <div class="stu-hero">
+    <form class="stu-search" method="get" action="/students/">
+      <input type="search" name="search" value="{{ search }}" placeholder="Search by name" aria-label="Search students">
+      <select name="status" aria-label="Status filter">
+        <option value="">All statuses</option>
+        <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
+      </select>
+      <button class="stu-btn" type="submit">{{ icon('search', 'shell-icon') }}Filter</button>
+      {% if search or status %}<a class="stu-btn stu-btn-sm" href="/students/">Clear</a>{% endif %}
+    </form>
+    <span class="stu-count">{{ students|length }} student{{ 's' if students|length != 1 else '' }}</span>
+  </div>
+
+  {% if not students %}
+  <div class="stu-empty">
+    {{ icon('users', 'shell-icon') }}
+    <h3>{{ 'No students match your search' if search or status else 'No students yet' }}</h3>
+    <p>{{ 'Try a different name or clear the filters.' if search or status else 'Add your first student to begin building their record.' }}</p>
+    {% if can_create and not search and not status %}<a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>{% endif %}
+  </div>
+  {% else %}
+  <div class="stu-grid">
+    {% for s in students %}
+    <a class="stu-card" href="/students/{{ s.id }}">
+      <div class="stu-card-top">
+        <span class="stu-avatar" aria-hidden="true">{{ s.initials }}</span>
+        <div>
+          <h3>{{ s.display_name }}</h3>
+          {% if s.gender %}<p class="stu-sub">{{ s.gender }}</p>{% endif %}
+        </div>
+      </div>
+      <div>
+        {% if s.status == 'active' %}<span class="stu-chip stu-chip-active">Active</span>{% else %}<span class="stu-chip stu-chip-inactive">Inactive</span>{% endif %}
+      </div>
+      <div class="stu-place">
+        {% if s.current_placement %}
+        <span class="stu-chip stu-chip-placement">Grade {{ s.current_placement.grade_level }} · {{ s.current_placement.section_name }}</span>
+        <p>{% if s.current_placement.branch_name %}<strong>{{ s.current_placement.branch_name }}</strong>{% endif %}{% if s.current_placement.year_name %} · {{ s.current_placement.year_name }}{% endif %}</p>
+        {% else %}
+        <p>No current placement.</p>
+        {% endif %}
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

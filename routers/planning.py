@@ -42,11 +42,12 @@ from ui_shell import build_shell_context
 from year_copy import get_copy_year_choices, get_academic_year
 from subject_colors import build_subject_theme, resolve_subject_color
 from redirect_utils import safe_redirect_path
+from academic_grade import GRADE_LEVELS, normalize_grade_level
 
 router = APIRouter(prefix="/planning", tags=["Planning"])
 templates = Jinja2Templates(directory="templates")
 
-GRADE_OPTIONS = ["KG"] + [str(value) for value in range(1, 13)]
+GRADE_OPTIONS = list(GRADE_LEVELS)
 SECTION_OPTIONS = [chr(code) for code in range(ord("A"), ord("L") + 1)]
 STATUS_OPTIONS = ["Current", "New"]
 
@@ -78,15 +79,7 @@ def _parse_int(value):
 
 
 def _normalize_grade_level(value) -> str:
-    cleaned = str(value).strip().upper()
-    if cleaned in {"K", "KG", "KINDERGARTEN"}:
-        return "KG"
-    parsed_value = _parse_int(cleaned)
-    if parsed_value is None:
-        return ""
-    if 1 <= parsed_value <= 12:
-        return str(parsed_value)
-    return ""
+    return normalize_grade_level(value)
 
 
 def _normalize_section_name(value) -> str:

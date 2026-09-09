@@ -486,6 +486,53 @@ def has_entitlement(
     return bool(value and value.granted)
 
 
+def organization_feature_available(
+    db: Session,
+    school_group_id: int,
+    feature_key: str,
+) -> bool:
+    """Resolve organization-level commercial feature availability only.
+
+    Permission and Branch/Academic-Year scope are intentionally outside this
+    function. Callers must apply those independent authorization decisions.
+    """
+    from saas import commercial_state_service
+    from saas.customer_feature_policy import (
+        is_internal_feature,
+        is_normal_customer_feature,
+        normalize_feature_key,
+    )
+
+    try:
+        group_id = int(school_group_id)
+    except (TypeError, ValueError):
+        return False
+    key = normalize_feature_key(feature_key)
+    if group_id <= 0 or not key or is_internal_feature(key):
+        return False
+    definition = db.query(models.EntitlementDefinition).filter(
+        models.EntitlementDefinition.key == key,
+        models.EntitlementDefinition.active.is_(True),
+    ).one_or_none()
+    if definition is None:
+        return False
+    commercial = commercial_state_service.resolve_commercial_state(db, group_id)
+    if not commercial.resolved or commercial.commercial_state not in {
+        "internal_sandbox_active",
+        "customer_demo_active",
+        "customer_paid_active",
+        "customer_active",
+    }:
+        return False
+    workspace = commercial.workspace_entitlement
+    if workspace is None or not workspace.active:
+        return False
+    if is_normal_customer_feature(key):
+        return True
+    value = workspace.entitlements.get(key)
+    return bool(value and value.granted)
+
+
 def require_entitlement(
     db: Session,
     school_group_id: int,
