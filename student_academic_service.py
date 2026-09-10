@@ -282,7 +282,11 @@ def create_placement(db: Session, *, school_group_id: int, student_id: int, acad
         branch_id=branch_id, academic_year_id=academic_year_id, planning_section_id=planning_section_id)
     if _overlap_query(db, school_group_id=school_group_id, student_id=student_id,
                       effective_from=effective_from, effective_to=effective_to).first():
-        raise StudentAcademicError("placement_overlap", "Student already has an effective academic placement in this interval.")
+        raise StudentAcademicError(
+            "placement_overlap",
+            "This Student already has an effective Academic Placement covering that period. "
+            "End or Change the existing placement first, then add the new one.",
+        )
     if section is not None:
         normalized_grade, snapshot_section = normalize_grade_level(section.grade_level), str(section.section_name or "").strip()
     else:

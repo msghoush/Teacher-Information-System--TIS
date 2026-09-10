@@ -168,7 +168,7 @@
       }
       return `<tr><th scope="row">${studentName}</th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td>${esc(statusLabel)}</td><td>${action}</td></tr>`;
     }).join(''):'';
-    const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})}</td></tr>`).join('');
+    const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
     const cardsHtml=cycles.length
       ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)} ${badge(c.status)}</h3><p>Student list date: ${esc(c.population_effective_at || 'Not set')}</p>${link('assessments','Open evaluation students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
       :(noOpenEvaluation?note('No Evaluation Period is open for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
@@ -182,6 +182,17 @@
     // selector to "Choose a Program" while the opened assessment itself
     // still belongs to Program pid, an internal context mismatch.
     on('start',async el=>{const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,cycle_population_member_id:Number(el.dataset.member)}});navigate('assessments',{assessment_id:result.id,academic_year_id:result.academic_year_id,program_id:pid});});
+    // ADR 0034: "delete" only ever appears in an Assessment row's own backend
+    // actions array (zero dependent evidence AND the actor holds
+    // talent_assessments.delete) - never a client-side guess. Same
+    // window.confirm + exact-backend-error-surfacing pattern already used for
+    // Draft Program delete (static/js/talent-program-workspace.js).
+    on('delete-assessment',async el=>{
+      if(!window.confirm('Permanently delete this Assessment? This cannot be undone.'))return;
+      await api(`/api/talent/assessments/${el.dataset.id}`,{method:'DELETE'});
+      await reload();
+      notify('Assessment deleted.');
+    });
   }
   function localDate(value) {const d=new Date(value.endsWith('Z')||/[+-]\d\d:\d\d$/.test(value)?value:`${value}Z`);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
   if(typeof module!=='undefined')module.exports={saveResults,esc,context,localDate,render};

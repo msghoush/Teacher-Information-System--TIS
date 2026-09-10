@@ -1,11 +1,26 @@
 ---
 title: TIS Project State
-documentation_version: 4.0
-last_updated: 2026-09-10
+documentation_version: 4.1
+last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Assessment Delete — Zero-Evidence Governance Exception Recorded
+
+Per direct Owner instruction on 2026-09-11, a narrow Administrator-only
+Delete Assessment capability is now approved: see
+`docs/adr/0034-assessment-delete-zero-evidence-exception.md`. A
+`TalentStudentAssessment` may be permanently deleted only when it has zero
+competency results, zero Educator Input, zero Review Candidate membership,
+and zero Official Identification decision (the exact dependent-table list is
+re-verified against the schema at implementation time). Any Assessment with
+any such evidence remains permanent history and is never deletable, exactly
+like every other terminal Talent record. This does not authorize deleting
+Student placement history, Cycle population records, or any Student/Program
+delete capability beyond what ADR 0032 already governs. This entry and the
+referenced ADR are the authorization record, not a completion record.
 
 ## Talent Corrective Reconstruction Batch 2 — Permissions, Draft Program Delete, Evaluation Timeline
 

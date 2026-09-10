@@ -150,10 +150,26 @@
           return {program,current,type};
         }));
         if (token !== renderToken) return;
-        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Open</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit</a>`:''}</div></td></tr>`).join('');
-        root.innerHTML=`<div class="tp-section-lede"><div><h2>Programs</h2><p>Open a Program to set its grades, assessment rubric, and evaluation schedule.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',field('name','Program name','', 'text',true)+area('description','What does this Program evaluate?'))}</div>`:''}`;
+        // ADR 0032: "delete" only ever appears in a Program row's own
+        // backend-computed `actions` array (talent_programs.py's
+        // `_with_actions`) when it is actually Draft with zero related rows
+        // AND the actor holds talent_programs.delete plus organization
+        // scope - never a client-side status-only guess. Reusing the same
+        // window.confirm + mutate() pattern already used by every other
+        // destructive action in this module (remove-logo, remove-member,
+        // remove-level, remove-descriptor, remove-kpi, remove-policy) so
+        // confirmation and error-feedback behavior stay consistent.
+        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Open</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit</a>`:''}${(program.actions||[]).includes('delete')?button('delete-program','Delete',`data-id="${program.id}"`,'trash'):''}</div></td></tr>`).join('');
+        root.innerHTML=`<div data-status role="status" aria-live="polite"></div><div class="tp-section-lede"><div><h2>Programs</h2><p>Open a Program to set its grades, assessment rubric, and evaluation schedule.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',field('name','Program name','', 'text',true)+area('description','What does this Program evaluate?'))}</div>`:''}`;
         root.oninput=event=>{if(event.target.matches('[data-program-search]')){const term=event.target.value.trim().toLowerCase();root.querySelectorAll('[data-program-row]').forEach(row=>{row.hidden=!row.dataset.search.includes(term);});return;}const edited=event.target.closest('form');if(edited){dirtyForms.add(edited);edited.dataset.dirty='true';showDirty();}};
-        root.onclick=event=>{if(event.target.closest('[data-action="new-program"]'))root.querySelector('[data-new-program]').hidden=false;};
+        root.onclick=async event=>{
+          if(event.target.closest('[data-action="new-program"]')){root.querySelector('[data-new-program]').hidden=false;return;}
+          const del=event.target.closest('[data-action="delete-program"]');
+          if(del){
+            if(!window.confirm('Permanently delete this Draft Program? This cannot be undone.'))return;
+            await mutate(`/api/talent/programs/${del.dataset.id}`,'DELETE',undefined);
+          }
+        };
         root.querySelector('form')?.addEventListener('submit',async event=>{event.preventDefault();const d=new FormData(event.target);await mutate('/api/talent/programs','POST',{name:d.get('name'),description:d.get('description')},event.target);});
         return;
       }
