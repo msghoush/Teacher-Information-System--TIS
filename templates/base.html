@@ -367,15 +367,6 @@
         });
 
         (() => {
-            const sameTabPaths = new Set(["/logout"]);
-            const destructivePathPattern = /\/delete(?:\/|$)/i;
-            const spreadsheetDownloadPattern = /\.(?:csv|xlsx?|zip)(?:$|\?)/i;
-
-            const normalizePath = (path) => {
-                const normalized = `/${String(path || "").replace(/^\/+/, "")}`;
-                return normalized.length > 1 ? normalized.replace(/\/+$/, "") : "/";
-            };
-
             const hasNavigationOverride = (link) => {
                 if (link.hasAttribute("data-tis-same-tab")) {
                     return true;
@@ -389,17 +380,6 @@
 
             const isWorkspaceActionLink = (link) => {
                 return Boolean(link.closest(".page-stage, .header-actions"));
-            };
-
-            const isDownloadStyleLink = (link, url) => {
-                const path = url.pathname.toLowerCase();
-                if (link.hasAttribute("download") || spreadsheetDownloadPattern.test(path)) {
-                    return true;
-                }
-                if (path.includes("/template")) {
-                    return true;
-                }
-                return path.includes("/export") && !path.endsWith(".pdf");
             };
 
             const shouldOpenInNewTab = (link) => {
@@ -427,19 +407,14 @@
                 if (!["http:", "https:"].includes(url.protocol)) {
                     return false;
                 }
-                if (url.origin !== window.location.origin) {
-                    return true;
-                }
 
-                const targetPath = normalizePath(url.pathname);
-                const currentPath = normalizePath(window.location.pathname);
-                if (targetPath === currentPath || sameTabPaths.has(targetPath)) {
-                    return false;
-                }
-                if (destructivePathPattern.test(targetPath) || isDownloadStyleLink(link, url)) {
-                    return false;
-                }
-                return true;
+                // Only a genuinely external (different-origin) destination opens
+                // in a new tab. Ordinary same-origin TIS navigation - even to a
+                // different in-app path - always stays in the current tab; a
+                // link's own explicit target="_blank" (handled above) remains
+                // the only same-origin opt-in, so no per-link markup needs to
+                // change for a developer to keep that intent.
+                return url.origin !== window.location.origin;
             };
 
             const markForNewTab = (link) => {

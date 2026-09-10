@@ -17,6 +17,22 @@
     const SELECT_FIRST_TEXT = "Select academic year, branch, and grade first";
     const LOADING_TEXT = "Loading sections…";
 
+    const setGradeState = (gradeSelect, { loading = false, grades = null } = {}) => {
+        gradeSelect.replaceChildren();
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = loading ? "Loading configured Grades…" :
+            (grades && grades.length === 0 ? "No configured Grades" : "Select grade");
+        gradeSelect.appendChild(placeholder);
+        (grades || []).forEach((grade) => {
+            const option = document.createElement("option");
+            option.value = String(grade);
+            option.textContent = grade === "KG" ? "KG" : `Grade ${grade}`;
+            gradeSelect.appendChild(option);
+        });
+        gradeSelect.disabled = loading || !grades || grades.length === 0;
+    };
+
     const setSectionState = (sectionSelect, hint, submitButton, { loading = false, items = null, error = false } = {}) => {
         sectionSelect.replaceChildren();
         const placeholder = document.createElement("option");
@@ -83,7 +99,7 @@
 
         let requestVersion = 0;
 
-        const refresh = async () => {
+        const refreshSections = async () => {
             const academicYearId = yearSelect.value;
             const branchId = branchSelect.value;
             const gradeLevel = gradeSelect.value;
@@ -115,9 +131,41 @@
             }
         };
 
-        [yearSelect, branchSelect, gradeSelect].forEach((select) => {
-            select.addEventListener("change", refresh);
-        });
+        const refreshGrades = async () => {
+            const academicYearId = yearSelect.value;
+            const branchId = branchSelect.value;
+            setSectionState(sectionSelect, hint, submitButton, {});
+            if (!academicYearId || !branchId) {
+                setGradeState(gradeSelect, {});
+                return;
+            }
+            const version = ++requestVersion;
+            setGradeState(gradeSelect, { loading: true });
+            if (submitButton) submitButton.disabled = true;
+            try {
+                const url = `${apiBase}?branch_id=${encodeURIComponent(branchId)}&academic_year_id=${encodeURIComponent(academicYearId)}`;
+                const response = await fetch(url, { credentials: "same-origin", headers: { Accept: "application/json" } });
+                if (version !== requestVersion) return;
+                if (!response.ok) {
+                    setGradeState(gradeSelect, { grades: [] });
+                    setSectionState(sectionSelect, hint, submitButton, { items: [], error: true });
+                    return;
+                }
+                const payload = await response.json();
+                setGradeState(gradeSelect, { grades: payload.grades || [] });
+                if (!payload.grades || payload.grades.length === 0) {
+                    setSectionState(sectionSelect, hint, submitButton, { items: [] });
+                }
+            } catch (error) {
+                if (version === requestVersion) {
+                    setGradeState(gradeSelect, { grades: [] });
+                    setSectionState(sectionSelect, hint, submitButton, { items: [], error: true });
+                }
+            }
+        };
+
+        [yearSelect, branchSelect].forEach((select) => select.addEventListener("change", refreshGrades));
+        gradeSelect.addEventListener("change", refreshSections);
         form.addEventListener("submit", (event) => {
             if (!form.checkValidity() || !sectionSelect.value) {
                 event.preventDefault();
@@ -134,7 +182,7 @@
                 submitButton.textContent = "Saving placement…";
             }
         });
-        setSectionState(sectionSelect, hint, submitButton, {});
+        refreshGrades();
     };
 
     document.querySelectorAll("[data-stu-cascade-group]").forEach((form) => {
