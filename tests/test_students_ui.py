@@ -195,6 +195,39 @@ def test_current_placement_uses_change_flow_instead_of_overlapping_add_form(db, 
     assert "Save Placement" not in response.text
 
 
+def test_change_placement_preserves_history_and_reload_shows_new_current(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    db.query(models.StudentAcademicPlacement).filter_by(student_id=1001, school_group_id=1).delete()
+    old = models.StudentAcademicPlacement(
+        id=778, school_group_id=1, student_id=1001, academic_year_id=100,
+        branch_id=10, grade_level="1", section_name="A",
+        effective_from=datetime(2026, 9, 1), status="active",
+    )
+    db.add(old)
+    db.add(models.PlanningSection(
+        id=9010, grade_level="3", section_name="C", class_status="Current",
+        branch_id=10, academic_year_id=100,
+    ))
+    db.commit()
+
+    response = client.post("/students/1001/placements/778/transition", data={
+        "academic_year_id": "100", "branch_id": "10", "planning_section_id": "9010",
+        "transition_at": "2027-01-01", "reason": "Academic move",
+    })
+    assert response.status_code in (200, 302)
+    rows = db.query(models.StudentAcademicPlacement).filter_by(
+        student_id=1001, school_group_id=1
+    ).order_by(models.StudentAcademicPlacement.effective_from).all()
+    assert len(rows) == 2
+    assert rows[0].effective_to == datetime(2027, 1, 1)
+    assert rows[0].status == "ended"
+    assert (rows[1].planning_section_id, rows[1].grade_level, rows[1].section_name) == (9010, "3", "C")
+    assert rows[1].effective_to is None and rows[1].status == "active"
+    reloaded = client.get("/students/1001?section=placement")
+    assert reloaded.status_code == 200
+    assert "Grade 3" in reloaded.text and "Academic move" in reloaded.text
+
+
 def test_placement_form_has_validation_pending_and_network_error_feedback():
     source = Path("static/js/students.js").read_text(encoding="utf-8")
     assert 'form.addEventListener("submit"' in source
@@ -227,7 +260,8 @@ def test_placement_grade_selector_excludes_kg(db, client):
     assert response.status_code == 200
     text = response.text
     assert 'value="KG"' not in text
-    assert 'value="1"' in text and 'value="12"' in text
+    assert 'value="1"' not in text and 'value="12"' not in text
+    assert "Select academic year and branch first" in text
 
 
 def test_sections_endpoint_reuses_planning_scope_authority_and_disabled_state(db, client):
@@ -241,6 +275,10 @@ def test_sections_endpoint_reuses_planning_scope_authority_and_disabled_state(db
     configured = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100, "grade_level": "1"})
     assert configured.status_code == 200
     assert configured.json() == {"items": [{"id": 9001, "section_name": "A"}]}
+
+    configured_grades = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100})
+    assert configured_grades.status_code == 200
+    assert configured_grades.json() == {"grades": ["1"]}
 
     # No PlanningSection exists for Grade 2 at this Branch/Year - the real
     # "no Sections configured" signal the UI renders as disabled+explanation.
@@ -276,6 +314,20 @@ def test_create_placement_with_configured_planning_section_id(db, client):
     assert placement.planning_section_id == 9002
     assert placement.grade_level == "3"
     assert placement.section_name == "C"
+
+    # The redirect reload shows the exact persisted canonical placement.
+    reloaded = client.get("/students/1002?section=placement")
+    assert reloaded.status_code == 200
+    assert "Grade 3" in reloaded.text and "C" in reloaded.text
+
+
+def test_placement_cascade_loads_grades_from_the_same_planning_endpoint():
+    source = Path("static/js/students.js").read_text(encoding="utf-8")
+    assert "const refreshGrades = async () =>" in source
+    assert "payload.grades || []" in source
+    assert 'gradeSelect.addEventListener("change", refreshSections)' in source
+    assert "Loading configured Grades…" in source
+    assert 'submitButton.textContent = "Saving placement…"' in source
 
 
 def test_list_filters_branch_grade_section_use_real_current_placement_query(db, client):

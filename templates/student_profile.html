@@ -97,8 +97,7 @@
         <div class="stu-field">
           <label for="grade_level">Grade</label>
           <select id="grade_level" name="grade_level" required data-stu-cascade="grade">
-            <option value="">Select grade</option>
-            {% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}
+            <option value="">Select academic year and branch first</option>
           </select>
         </div>
         <div class="stu-field">
@@ -159,7 +158,7 @@
                 <div class="stu-field"><label>Move on</label><input name="transition_at" type="date" required value="{{ today }}"></div>
                 <div class="stu-field"><label>New Academic Year</label><select name="academic_year_id" required data-stu-cascade="year">{% for y in years %}<option value="{{ y.id }}" {% if p.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}</select></div>
                 <div class="stu-field"><label>New Branch</label><select name="branch_id" required data-stu-cascade="branch">{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
-                <div class="stu-field"><label>New Grade</label><select name="grade_level" required data-stu-cascade="grade"><option value="">Select grade</option>{% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}</select></div>
+                <div class="stu-field"><label>New Grade</label><select name="grade_level" required data-stu-cascade="grade"><option value="">Select academic year and branch first</option></select></div>
                 <div class="stu-field">
                   <label>New Section</label>
                   <select name="planning_section_id" required disabled data-stu-cascade="section">

@@ -25,7 +25,7 @@ from academic_grade import normalize_grade_level
 from auth import get_current_user
 from dependencies import get_db
 from homeroom_defaults import normalize_grade_label
-from planning_scope_service import list_operational_planning_sections
+from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
 from student_academic_service import (
     LEARNING_STYLES,
     StudentAcademicError,
@@ -394,7 +394,7 @@ def students_sections_for_grade(
     user, group_id, denied = _authorize(request, db, current_user, "students.manage_placements")
     if denied:
         return denied
-    if not branch_id or not academic_year_id or not grade_level:
+    if not branch_id or not academic_year_id:
         return {"items": []}
     if not auth.can_access_branch(db, user, branch_id):
         return JSONResponse({"detail": "Branch is outside your authorized scope."}, status_code=403)
@@ -402,6 +402,8 @@ def students_sections_for_grade(
     year = db.query(models.AcademicYear).filter_by(id=academic_year_id, school_group_id=group_id).one_or_none()
     if branch is None or year is None:
         return JSONResponse({"detail": "Branch or academic year is outside the organization."}, status_code=400)
+    if not grade_level:
+        return {"grades": list_operational_planning_grades(db, branch_id, academic_year_id)}
     return {"items": _sections_for(db, branch_id, academic_year_id, grade_level)}
 
 
