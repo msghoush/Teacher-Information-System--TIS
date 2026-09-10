@@ -37,18 +37,32 @@
   }
   const logoBadge = (program, sizeClass) => `<span class="tp-logo-badge ${sizeClass}">${program.logo_url ? `<img src="${esc(program.logo_url)}" alt="${esc(program.name)} logo">` : `<span class="tp-logo-initials" aria-hidden="true">${esc(logoInitials(program.name))}</span>`}</span>`;
   let unloadGuard, hashGuard;
+  // Bounded, same-Program-context cache for the wizard data fetch chain
+  // (Program record, annual config, framework versions, competency bank,
+  // active/draft framework+configuration, Evaluation Plans). Keyed on
+  // exactly the inputs that select which data to show (Program, Academic
+  // Year, requested framework version) - never on the wizard step hash,
+  // which only changes which already-fetched panel is displayed. Only a
+  // same-page wizard-step (hash-only) navigation may reuse it; every real
+  // navigation/context change/explicit Refresh/post-save reload always
+  // fetches fresh data and refreshes the cache. renderToken guards the
+  // fetch path itself so a superseded in-flight render can never overwrite
+  // the screen with a stale response.
+  let bundleCache = null, renderToken = 0;
   function kpiComponents(data, members) {
     return members.map(m=>({framework_competency_id:m.id,weight_basis_points:Math.round(Number(data.get(`weight_${m.id}`))*100)})).filter(c=>c.weight_basis_points>0);
   }
-  async function render(ctx) {
+  async function render(ctx, options = {}) {
+    const viaHash = options.viaHash === true;
     const {root,api,can} = ctx, params=ctx.params || new URLSearchParams();
     root.oninput=null; root.onsubmit=null; root.onclick=null; root.onreset=null;
     root.classList?.add('tp-program-workspace');
     if(typeof window!=='undefined' && unloadGuard)window.removeEventListener('beforeunload',unloadGuard);
     if(typeof window!=='undefined' && hashGuard)window.removeEventListener('hashchange',hashGuard);
     const year = ctx.year?.value ?? ctx.year, yearLabel=ctx.yearLabel||ctx.year?.options?.[ctx.year.selectedIndex]?.textContent||String(year||''), pid=params.get('program_id');
+    const bundleKey = pid?`${pid}::${year||''}::${params.get('framework_id')||''}`:'';
     const manage=can('talent_programs.manage'), govern=can('talent_programs.govern');
-    if (!can('talent_programs.view')) { root.innerHTML='<p class="tp-empty">You do not have permission to view Programs.</p>'; return; }
+    if (!can('talent_programs.view')) { bundleCache=null; root.innerHTML='<p class="tp-empty">You do not have permission to view Programs.</p>'; return; }
     let busy=false, dirty=false, framework=null, config=null, members=[];
     const dirtyForms=new Set();
     const showDirty=()=>{dirty=dirtyForms.size>0;const status=root.querySelector('[data-status]');if(status)status.textContent=dirty?'Unsaved changes':'';};
@@ -107,38 +121,64 @@
         if(feedback) { feedback.textContent=error.message||'Unable to upload this logo.'; feedback.setAttribute('role','alert'); }
       } finally {busy=false;controls.filter(el=>el.isConnected).forEach((el,i)=>el.disabled=previous[i]);}
     };
-    root.innerHTML='<p role="status">Loading Programs…</p>';
-    const programs=await api('/api/talent/programs');
-    if(!pid) {
-      const summaries=await Promise.all(programs.map(async program=>{
-        const programBase=`/api/talent/programs/${program.id}`;
-        const [years,frameworks]=await Promise.all([api(`${programBase}/academic-years`),api(`${programBase}/frameworks`)]);
-        const current=years.find(item=>String(item.academic_year_id)===String(year));
-        const active=frameworks.find(item=>item.status==='active');
-        let type='Not set';
-        if(active){const configuration=await api(`${programBase}/frameworks/${active.id}/configuration`);type=configuration.kpi?.enabled?'Numeric + rubric':'Rubric';}
-        return {program,current,type};
-      }));
-      const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Open</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit</a>`:''}</div></td></tr>`).join('');
-      root.innerHTML=`<div class="tp-section-lede"><div><h2>Programs</h2><p>Open a Program to set its grades, assessment rubric, and evaluation schedule.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',field('name','Program name','', 'text',true)+area('description','What does this Program evaluate?'))}</div>`:''}`;
-      root.oninput=event=>{if(event.target.matches('[data-program-search]')){const term=event.target.value.trim().toLowerCase();root.querySelectorAll('[data-program-row]').forEach(row=>{row.hidden=!row.dataset.search.includes(term);});return;}const edited=event.target.closest('form');if(edited){dirtyForms.add(edited);edited.dataset.dirty='true';showDirty();}};
-      root.onclick=event=>{if(event.target.closest('[data-action="new-program"]'))root.querySelector('[data-new-program]').hidden=false;};
-      root.querySelector('form')?.addEventListener('submit',async event=>{event.preventDefault();const d=new FormData(event.target);await mutate('/api/talent/programs','POST',{name:d.get('name'),description:d.get('description')},event.target);});
-      return;
-    }
-    const program=programs.find(p=>String(p.id)===pid);
-    if(!program) {root.innerHTML='<p class="tp-empty">Program unavailable in your organization.</p>';return;}
-    const base=`/api/talent/programs/${program.id}`;
-    // Real Grades configured in Planning anywhere in the organization for this
-    // Academic Year (Program eligibility has no Branch selection) - never a
-    // fabricated/blanket KG-12 catalog.
-    const configuredGrades=year?await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):[];
-    const [annual,versions,bank]=await Promise.all([api(`${base}/academic-years`),api(`${base}/frameworks`),api(`${base}/competencies`)]);
-    const setupRequested=typeof window!=='undefined'?window.location.hash:(ctx.hash||'');
-    const chosen=versions.find(f=>String(f.id)===params.get('framework_id')) || (setupRequested?versions.find(f=>f.status==='draft'):versions.find(f=>f.status==='active')) || versions.find(f=>f.status==='draft') || versions.at(-1);
-    if(chosen) [framework,config]=await Promise.all([api(`${base}/frameworks/${chosen.id}`),api(`${base}/frameworks/${chosen.id}/configuration`)]);
-    if(framework && config.revision != null && (framework.revision!==config.revision || framework.semantic_fingerprint!==config.semantic_fingerprint)) {
-      root.innerHTML='<p role="alert">This version changed while it was loading. Reload the page to open the latest saved version.</p>';return;
+    let program, base, configuredGrades, annual, versions, bank, plans;
+    // Only a same-page wizard-step (hash-only) navigation - the exact
+    // trigger behind the Owner-confirmed repeated "Loading Programs..."
+    // defect - may reuse an already-fetched, still-current bundle instead
+    // of blanking the workspace and re-fetching the entire Program list
+    // and this Program's full setup graph just to switch which already-
+    // loaded step panel is shown. Every other caller (initial load, the
+    // shared "Refresh" control, an Academic Year/Program context change,
+    // and every post-save reload through refresh()) always fetches fresh
+    // data and refreshes the cache below.
+    if (viaHash && pid && bundleCache && bundleCache.key === bundleKey) {
+      ({program, base, configuredGrades, annual, versions, bank, plans} = bundleCache.data);
+      framework = bundleCache.data.framework; config = bundleCache.data.config;
+    } else {
+      const token = ++renderToken;
+      root.innerHTML='<p role="status">Loading Programs…</p>';
+      const programs=await api('/api/talent/programs');
+      if (token !== renderToken) return;
+      if(!pid) {
+        const summaries=await Promise.all(programs.map(async program=>{
+          const programBase=`/api/talent/programs/${program.id}`;
+          const [years,frameworks]=await Promise.all([api(`${programBase}/academic-years`),api(`${programBase}/frameworks`)]);
+          const current=years.find(item=>String(item.academic_year_id)===String(year));
+          const active=frameworks.find(item=>item.status==='active');
+          let type='Not set';
+          if(active){const configuration=await api(`${programBase}/frameworks/${active.id}/configuration`);type=configuration.kpi?.enabled?'Numeric + rubric':'Rubric';}
+          return {program,current,type};
+        }));
+        if (token !== renderToken) return;
+        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Open</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit</a>`:''}</div></td></tr>`).join('');
+        root.innerHTML=`<div class="tp-section-lede"><div><h2>Programs</h2><p>Open a Program to set its grades, assessment rubric, and evaluation schedule.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',field('name','Program name','', 'text',true)+area('description','What does this Program evaluate?'))}</div>`:''}`;
+        root.oninput=event=>{if(event.target.matches('[data-program-search]')){const term=event.target.value.trim().toLowerCase();root.querySelectorAll('[data-program-row]').forEach(row=>{row.hidden=!row.dataset.search.includes(term);});return;}const edited=event.target.closest('form');if(edited){dirtyForms.add(edited);edited.dataset.dirty='true';showDirty();}};
+        root.onclick=event=>{if(event.target.closest('[data-action="new-program"]'))root.querySelector('[data-new-program]').hidden=false;};
+        root.querySelector('form')?.addEventListener('submit',async event=>{event.preventDefault();const d=new FormData(event.target);await mutate('/api/talent/programs','POST',{name:d.get('name'),description:d.get('description')},event.target);});
+        return;
+      }
+      program=programs.find(p=>String(p.id)===pid);
+      if(!program) {if(token===renderToken){bundleCache=null;root.innerHTML='<p class="tp-empty">Program unavailable in your organization.</p>';}return;}
+      base=`/api/talent/programs/${program.id}`;
+      // Real Grades configured in Planning anywhere in the organization for this
+      // Academic Year (Program eligibility has no Branch selection) - never a
+      // fabricated/blanket KG-12 catalog.
+      configuredGrades=year?await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):[];
+      if (token !== renderToken) return;
+      [annual,versions,bank]=await Promise.all([api(`${base}/academic-years`),api(`${base}/frameworks`),api(`${base}/competencies`)]);
+      if (token !== renderToken) return;
+      const setupRequested=typeof window!=='undefined'?window.location.hash:(ctx.hash||'');
+      const chosen=versions.find(f=>String(f.id)===params.get('framework_id')) || (setupRequested?versions.find(f=>f.status==='draft'):versions.find(f=>f.status==='active')) || versions.find(f=>f.status==='draft') || versions.at(-1);
+      framework=null; config=null;
+      if(chosen) [framework,config]=await Promise.all([api(`${base}/frameworks/${chosen.id}`),api(`${base}/frameworks/${chosen.id}/configuration`)]);
+      if (token !== renderToken) return;
+      if(framework && config.revision != null && (framework.revision!==config.revision || framework.semantic_fingerprint!==config.semantic_fingerprint)) {
+        bundleCache=null; root.innerHTML='<p role="alert">This version changed while it was loading. Reload the page to open the latest saved version.</p>';return;
+      }
+      plans=[];
+      if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
+      if (token !== renderToken) return;
+      bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
     }
     members=framework?.competencies || [];
     const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft';
@@ -149,8 +189,6 @@
     const basicsComplete=Boolean(annualYear?.is_enabled&&annualYear.eligible_grade_levels?.length);
     const assessRemaining=(members.length?0:1)+(levels.length?0:1)+Math.max(0,descriptorTotal-descriptorSaved);
     const assessComplete=Boolean(members.length&&levels.length&&descriptorTotal===descriptorSaved);
-    let plans=[];
-    if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
     const scheduleComplete=plans.some(item=>item.periods?.length);
     const hashes={basics:'#tp-basics',assess:'#tp-builder',schedule:'#tp-schedule',ready:'#tp-ready'};
     const requested=typeof window!=='undefined'?window.location.hash:(ctx.hash||(params.get('step')?hashes[params.get('step')]:''));
@@ -167,7 +205,7 @@
     }
     const stepReason={assess:assessRemaining?`${assessRemaining} item${assessRemaining===1?'':'s'} remaining`:''};
     const nav=[['basics','Basics'],['assess','What we assess'],['schedule','Evaluation Plan'],['ready','Ready']].map(([key,label],index)=>`<a href="${hashes[key]}" data-step="${key}" class="tp-step ${key===activeStep?'tp-step-current':stepState[key]?'tp-step-complete':'tp-step-pending'}" ${key===activeStep?'aria-current="step"':''}><span>${stepState[key]?icon('check'):index+1}</span><b>${label}</b>${stepReason[key]?`<small>${esc(stepReason[key])}</small>`:''}</a>`).join('');
-    if(typeof window!=='undefined') { hashGuard=()=>render(ctx); window.addEventListener('hashchange',hashGuard); }
+    if(typeof window!=='undefined') { hashGuard=()=>render(ctx,{viaHash:true}); window.addEventListener('hashchange',hashGuard); }
     const substeps={competencies:'#tp-builder-competencies',rubric:'#tp-builder-rubric',descriptions:'#tp-builder-descriptions',review:'#tp-builder-review'};
     const activeSub=Object.entries(substeps).find(([,hash])=>hash===requested)?.[0]||'competencies';
     const subState={competencies:Boolean(members.length),rubric:Boolean(levels.length),descriptions:Boolean(descriptorTotal&&descriptorTotal===descriptorSaved),review:assessComplete};
@@ -227,7 +265,15 @@
       }
       const b=event.target.closest('[data-action]');if(!b||busy)return;const a=b.dataset.action;
       if(a==='finish-setup'){
-        if(typeof window!=='undefined'){window.history.replaceState(null,'',window.location.pathname+window.location.search);await render(ctx);}
+        // Exit the wizard to the canonical Programs list - not a re-render
+        // of this same ctx (which still carries the current program_id and
+        // would just redraw the operational summary/wizard again). Reuses
+        // the same ctx.navigate(...) full-navigation helper every other
+        // "return to list"/cross-view action in this workspace family uses
+        // (e.g. talent-operations.js's post-start navigate('assessments',...)),
+        // rather than a bespoke history.replaceState that only edits the
+        // visible URL without changing what gets rendered.
+        ctx.navigate('programs');
         return;
       }
       if(dirty&&!window.confirm('This action reloads the workspace. Discard unsaved edits?'))return;

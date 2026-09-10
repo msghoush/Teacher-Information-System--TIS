@@ -86,7 +86,7 @@
     }).join('');
     return `<div class="tp-grade-chart" role="group" aria-label="${esc(metricLabel || 'Result')} by grade">${body}</div>`;
   }
-  // A compact row of radial gauges, one per grade â€” the Owner's "Grade indicator"
+  // A compact row of radial gauges, one per grade — the Owner's "Grade indicator"
   // concept. Each arc is drawn only from a visible backend percentage; protected
   // grades stay categorical.
   function gradeGauges(items) {
@@ -120,6 +120,20 @@
   const friendlyReason = reason => ({missing_cycle:'An evaluation cycle has not been linked',cycle_not_authoritative:'The linked cycle is not open or closed',cancelled_period:'This evaluation period was cancelled',no_frozen_population:'No frozen Student group is available',metric_unavailable:'This result is not available for the selected measure',framework_changed:'The Program framework changed between these periods',privacy_protected:'One or both results are protected for privacy'}[reason] || 'These periods cannot be compared');
   const errorPanel = error => `<div class="tp-error"><h3>${error.status===403?'Permission denied':error.status===503?'Analytics unavailable':'Unable to load view'}</h3><p>${esc(error.message)}</p><button type="button" id="tp-retry">Retry</button></div>`;
   const lede = (title, text, tone='') => `<div class="tp-section-lede${tone?` tp-tone-${tone}`:''}"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg><div><h3>${esc(title)}</h3><p>${esc(text)}</p></div></div>`;
+  // Canonical Program-selection resolver shared by the ribbon/context selector
+  // and its regression tests. Selection is by program_id ONLY (never by
+  // Program name - two Programs could share a name) and NEVER defaults to the
+  // first item in an async-loaded list: an absent or unmatched id always
+  // resolves to the neutral "" (no Program selected) state, the same state a
+  // fresh page load with no program_id shows. This removes any reliance on
+  // an unmatched <select>.value assignment silently falling back to the
+  // browser's default (first-option) selection.
+  function resolveProgramSelection(items, requestedId) {
+    const list = Array.isArray(items) ? items : [];
+    if (requestedId == null || requestedId === '') return '';
+    const match = list.find(item => String(item.id) === String(requestedId));
+    return match ? String(match.id) : '';
+  }
   const initials = name => esc(String(name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '?');
   const programLogo = (program, size='tp-logo-sm') => program ? (typeof window!=='undefined'&&window.TalentProgramIdentity ? window.TalentProgramIdentity.logoBadge(program,size) : `<span class="tp-logo-badge ${size}"><span class="tp-logo-initials" aria-hidden="true">${initials(program.name)}</span></span>`) : '';
   const appIcon = name => typeof window!=='undefined'&&window.TalentProgramWorkspace?.icon ? window.TalentProgramWorkspace.icon(name) : '';
@@ -171,7 +185,7 @@
     return `<div class="tp-matrix-wrap"><div class="tp-matrix" role="grid" aria-label="Students participating across Programs" style="grid-template-columns:190px repeat(${count-1},minmax(150px,1fr))">${header}${rows}</div></div>`;
   }
   function periodVisual(data) {
-    const path=data.points?.length?`<div class="tp-period-path" role="list" aria-label="Evaluation sequence">${data.points.map((point,index)=>`${index?'<span aria-hidden="true">â†’</span>':''}<strong role="listitem">${esc(point.evaluation_period.label)}</strong>`).join('')}</div>`:'';
+    const path=data.points?.length?`<div class="tp-period-path" role="list" aria-label="Evaluation sequence">${data.points.map((point,index)=>`${index?'<span aria-hidden="true">→</span>':''}<strong role="listitem">${esc(point.evaluation_period.label)}</strong>`).join('')}</div>`:'';
     const ratePoints=data.points.filter(p=>p.metric_result?.state==='visible'&&typeof p.metric_result.percentage==='number');
     const plot=ratePoints.length ? `<div class="tp-period-chart" role="img" aria-label="${esc(labels[data.metric])} across visible evaluation periods">${data.points.map(p=>{
       const cell=p.metric_result;
@@ -182,7 +196,7 @@
     return path+plot+`<ol class="tp-sequence tp-period-grid">${data.points.map(p=>`<li class="tp-period"><span class="tp-seq">${esc(p.evaluation_period.sequence)}</span><div><h3>${esc(p.evaluation_period.label)}</h3>${badge(p.evaluation_period.status)}<p>${esc(labels[data.metric])}</p>${metric(p.metric_result)}${p.no_data_reason?`<p class="tp-state-explanation">${esc(friendlyReason(p.no_data_reason))}</p>`:''}</div></li>`).join('')}</ol>`;
   }
   // Small pure boundary exported for privacy and injection regression tests.
-  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection};
   if (typeof document === 'undefined') return;
   const configNode = document.getElementById('tp-config');
   if (!configNode) return;
@@ -194,7 +208,7 @@
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map();
   const can = key => permissions[key] === true;
   const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
-  const link = (view, text, extra={}) => `<a target="_self" href="/talent/${view}?${esc(qs({academic_year_id:year.value,...extra}))}">${esc(text)} â†’</a>`;
+  const link = (view, text, extra={}) => `<a target="_self" href="/talent/${view}?${esc(qs({academic_year_id:year.value,...extra}))}">${esc(text)} →</a>`;
   function syncNavigation() {
     document.querySelectorAll('.tp-nav a, .tp-results-nav a').forEach(a=>{
       const next=new URL(a.href); next.search=qs({academic_year_id:year.value,program_id:params.get('program_id'),branch_id:params.get('branch_id'),grade_level:params.get('grade_level'),planning_section_id:params.get('planning_section_id'),metric:params.get('metric'),dimension:params.get('dimension')});a.href=next.href;a.target='_self';
@@ -219,7 +233,7 @@
   }
   function periods(plans) {
     if (!plans.length) return empty('No annual evaluation plan is available for this context.');
-    return plans.map(p=>`<article class="tp-card"><h3>Annual Evaluation Plan ${badge(p.status)}</h3><p>${p.period_count} Periods Â· ${p.required_period_count} required</p>${p.status==='closed'?note('Closing the Plan does not mean every Student assessment is complete.'):''}<ol class="tp-sequence">${p.periods.map(item=>`<li class="tp-period"><span class="tp-seq">${esc(item.sequence)}</span><div><h3>${esc(item.label)}</h3>${badge(item.is_required?'Required':'Optional')} ${badge(item.status)}<p>${esc(item.planned_start_date || 'Start not set')} â€” ${esc(item.planned_end_date || 'End not set')}</p>${item.cancellation_reason?`<p>Cancellation reason: ${esc(item.cancellation_reason)}</p>`:''}${item.notes?`<p>${esc(item.notes)}</p>`:''}${Object.hasOwn(item,'cycle')?`<p>Execution: ${esc(item.cycle.title)} Â· ${badge(item.cycle.status)}</p>${can('talent_assessments.view')?link('assessments','Open assessments',{cycle_id:item.cycle.id}):''}`:''}</div></li>`).join('')}</ol>${!p.periods.length?empty('No Planned Evaluation Periods yet.'):''}</article>`).join('');
+    return plans.map(p=>`<article class="tp-card"><h3>Annual Evaluation Plan ${badge(p.status)}</h3><p>${p.period_count} Periods · ${p.required_period_count} required</p>${p.status==='closed'?note('Closing the Plan does not mean every Student assessment is complete.'):''}<ol class="tp-sequence">${p.periods.map(item=>`<li class="tp-period"><span class="tp-seq">${esc(item.sequence)}</span><div><h3>${esc(item.label)}</h3>${badge(item.is_required?'Required':'Optional')} ${badge(item.status)}<p>${esc(item.planned_start_date || 'Start not set')} — ${esc(item.planned_end_date || 'End not set')}</p>${item.cancellation_reason?`<p>Cancellation reason: ${esc(item.cancellation_reason)}</p>`:''}${item.notes?`<p>${esc(item.notes)}</p>`:''}${Object.hasOwn(item,'cycle')?`<p>Execution: ${esc(item.cycle.title)} · ${badge(item.cycle.status)}</p>${can('talent_assessments.view')?link('assessments','Open assessments',{cycle_id:item.cycle.id}):''}`:''}</div></li>`).join('')}</ol>${!p.periods.length?empty('No Planned Evaluation Periods yet.'):''}</article>`).join('');
   }
   async function render(signal) {
     const view=config.view, pid=params.get('program_id'), ay=year.value;
@@ -243,17 +257,17 @@
     if (view==='overview') {
       const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['evaluation-plans','Evaluation Plans','Plan and start this year’s evaluations.','talent_evaluation_plans.view','start'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['reviews','Talent Review','Review Students who meet Program Criteria.','talent_review_candidates.view','eye'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
       const yearLabel=esc(year.options[year.selectedIndex]?.textContent || '');
-      let hero=`<div class="tp-hero"><p class="tp-eyebrow">Academic Year ${yearLabel}</p><h3>Where Talent &amp; Potential stands right now</h3><p>A privacy-safe, factual snapshot of configured Programs and authorized analytics for this Academic Year. Every figure below is exactly what the backend returns - nothing is inferred or estimated here.</p><div class="tp-hero-stats" id="tp-hero-stats"><p class="tp-empty">Loading headline figuresâ€¦</p></div></div>`;
+      let hero=`<div class="tp-hero"><p class="tp-eyebrow">Academic Year ${yearLabel}</p><h3>Where Talent &amp; Potential stands right now</h3><p>A privacy-safe, factual snapshot of configured Programs and authorized analytics for this Academic Year. Every figure below is exactly what the backend returns - nothing is inferred or estimated here.</p><div class="tp-hero-stats" id="tp-hero-stats"><p class="tp-empty">Loading headline figures…</p></div></div>`;
       if (can('talent_analytics.view')) {
         try {
           const overview=await api(`organization-analytics/overview?${qs({academic_year_id:ay})}`,signal);
           const headline=['programs_configured','active_programs','frozen_eligible_memberships','completion_coverage'].filter(k=>overview.metrics && Object.hasOwn(overview.metrics,k));
-          hero=hero.replace('<p class="tp-empty">Loading headline figuresâ€¦</p>', headline.length ? headline.map(k=>`<div class="tp-hero-stat"><span class="tp-stat-label">${esc(labels[k]||human(k))}</span><span class="tp-stat-value">${metric(overview.metrics[k])}</span></div>`).join('') : '<p class="tp-empty">No headline figures are available for this Academic Year yet.</p>');
+          hero=hero.replace('<p class="tp-empty">Loading headline figures…</p>', headline.length ? headline.map(k=>`<div class="tp-hero-stat"><span class="tp-stat-label">${esc(labels[k]||human(k))}</span><span class="tp-stat-value">${metric(overview.metrics[k])}</span></div>`).join('') : '<p class="tp-empty">No headline figures are available for this Academic Year yet.</p>');
         } catch (error) {
-          hero=hero.replace('<p class="tp-empty">Loading headline figuresâ€¦</p>', `<p class="tp-empty">Organization analytics is not available right now (${esc(error.message)}).</p>`);
+          hero=hero.replace('<p class="tp-empty">Loading headline figures…</p>', `<p class="tp-empty">Organization analytics is not available right now (${esc(error.message)}).</p>`);
         }
       } else {
-        hero=hero.replace('<p class="tp-empty">Loading headline figuresâ€¦</p>', '<p class="tp-empty">Headline analytics require the Organization Analytics permission.</p>');
+        hero=hero.replace('<p class="tp-empty">Loading headline figures…</p>', '<p class="tp-empty">Headline analytics require the Organization Analytics permission.</p>');
       }
       return hero+`<div class="tp-grid tp-overview-actions">${routes.filter(r=>can(r[3])).map(r=>`<article class="tp-card tp-action-card"><div class="tp-action-card-icon">${appIcon(r[4])}</div><h3>${esc(r[1])}</h3><p>${esc(r[2])}</p>${link(r[0],`Open ${r[1]}`)}</article>`).join('')}</div>`;
     }
@@ -269,7 +283,7 @@
         const aid=encodeURIComponent(params.get('assessment_id'));
         const assessment=await api(`assessments/${aid}`,signal);
         const results=await api(`assessments/${aid}/competency-results`,signal);
-        return `<article class="tp-card"><h3>Assessment evidence ${badge(assessment.status)}</h3><p>Student ${esc(assessment.student_id)} Â· Cycle ${esc(assessment.cycle_id)} Â· Framework ${esc(assessment.framework_version_id)}</p>${assessment.kpi_result!=null?`<p>Program result: ${esc(assessment.kpi_result)}</p>`:''}${can('talent_learner_profiles.view')?link('learner-profile','Open Learner Profile',{student_id:assessment.student_id}):''}</article>`+table('Recorded competency evidence',['Competency','Rubric level','Evidence'],results.map(r=>`<tr><th scope="row">Recorded competency evidence</th><td>Rubric level recorded</td><td>${esc(r.evidence || 'No evidence text recorded')}</td></tr>`))+note('Assessment editing is not available in this stakeholder slice. Existing results and their historical references remain read-only.');
+        return `<article class="tp-card"><h3>Assessment evidence ${badge(assessment.status)}</h3><p>Student ${esc(assessment.student_id)} · Cycle ${esc(assessment.cycle_id)} · Framework ${esc(assessment.framework_version_id)}</p>${assessment.kpi_result!=null?`<p>Program result: ${esc(assessment.kpi_result)}</p>`:''}${can('talent_learner_profiles.view')?link('learner-profile','Open Learner Profile',{student_id:assessment.student_id}):''}</article>`+table('Recorded competency evidence',['Competency','Rubric level','Evidence'],results.map(r=>`<tr><th scope="row">Recorded competency evidence</th><td>Rubric level recorded</td><td>${esc(r.evidence || 'No evidence text recorded')}</td></tr>`))+note('Assessment editing is not available in this stakeholder slice. Existing results and their historical references remain read-only.');
       }
       const endpoint=view==='assessments'?'assessments':'review-candidates';
       const rows=await api(`${endpoint}?${qs({cycle_id:params.get('cycle_id')})}`,signal);
@@ -283,7 +297,7 @@
       if (!sid) return empty('Open a Student Profile from an authorized assessment or the Students view.');
       const data=await api(`learner-profiles/${encodeURIComponent(sid)}`,signal);
       const name=[data.student.first_name,data.student.father_name,data.student.last_name].filter(Boolean).join(' ');
-      return `<article class="tp-card"><p class="tp-eyebrow">Learner Profile</p><h3>${esc(name)}</h3><p>Program-specific evidence Â· Historical context preserved</p></article>`+data.programs.map(p=>`<section class="tp-card"><h3>${programLogo(programCatalog.get(String(p.program.id))||p.program)} ${esc(p.program.name)}</h3>${p.academic_years.map(y=>`<h4>${esc(y.academic_year.year_name)}</h4>${y.cycles.map(c=>`<details><summary>${esc(c.cycle.title)} Â· ${esc(human(c.assessment.status))}</summary><p>Assessment setup: ${esc(c.framework_version.title)} Â· Version ${esc(c.framework_version.version_number)}</p>${c.frozen_context?`<p>Historical Branch context recorded Â· Grade ${esc(c.frozen_context.grade_level)} Â· ${esc(c.frozen_context.section_name)}</p>`:''}${c.assessment.kpi_result!=null?`<p>Program result: ${esc(c.assessment.kpi_result)}</p>`:''}${Object.hasOwn(c,'review_candidate')?`<p>Meets Program Criteria: ${esc(c.review_candidate?human(c.review_candidate.status):'No recorded result')}</p>`:''}${Object.hasOwn(c,'official_identification')?`<p>Official Identification: ${esc(c.official_identification?human(c.official_identification.decision):'No recorded decision')}</p>`:''}${(c.competency_results||[]).map(r=>`<div><strong>${esc(r.competency_label||'Competency')}</strong> ${rubricVisual.badge(r.rubric_level)}<p>${esc(r.evidence||'Recorded evidence')}</p></div>`).join('')}</details>`).join('')}`).join('')}</section>`).join('')+(!data.programs.length?empty('No authorized Talent assessment history is available.'):'' )+(data.timeline?.length?`<h3>Historical timeline</h3><ol class="tp-sequence">${data.timeline.map(e=>`<li class="tp-period"><span aria-hidden="true">â€¢</span><div><strong>${esc(human(e.event_type))}</strong><p>${esc(e.occurred_at)}</p></div></li>`).join('')}</ol>`:'');
+      return `<article class="tp-card"><p class="tp-eyebrow">Learner Profile</p><h3>${esc(name)}</h3><p>Program-specific evidence · Historical context preserved</p></article>`+data.programs.map(p=>`<section class="tp-card"><h3>${programLogo(programCatalog.get(String(p.program.id))||p.program)} ${esc(p.program.name)}</h3>${p.academic_years.map(y=>`<h4>${esc(y.academic_year.year_name)}</h4>${y.cycles.map(c=>`<details><summary>${esc(c.cycle.title)} · ${esc(human(c.assessment.status))}</summary><p>Assessment setup: ${esc(c.framework_version.title)} · Version ${esc(c.framework_version.version_number)}</p>${c.frozen_context?`<p>Historical Branch context recorded · Grade ${esc(c.frozen_context.grade_level)} · ${esc(c.frozen_context.section_name)}</p>`:''}${c.assessment.kpi_result!=null?`<p>Program result: ${esc(c.assessment.kpi_result)}</p>`:''}${Object.hasOwn(c,'review_candidate')?`<p>Meets Program Criteria: ${esc(c.review_candidate?human(c.review_candidate.status):'No recorded result')}</p>`:''}${Object.hasOwn(c,'official_identification')?`<p>Official Identification: ${esc(c.official_identification?human(c.official_identification.decision):'No recorded decision')}</p>`:''}${(c.competency_results||[]).map(r=>`<div><strong>${esc(r.competency_label||'Competency')}</strong> ${rubricVisual.badge(r.rubric_level)}<p>${esc(r.evidence||'Recorded evidence')}</p></div>`).join('')}</details>`).join('')}`).join('')}</section>`).join('')+(!data.programs.length?empty('No authorized Talent assessment history is available.'):'' )+(data.timeline?.length?`<h3>Historical timeline</h3><ol class="tp-sequence">${data.timeline.map(e=>`<li class="tp-period"><span aria-hidden="true">•</span><div><strong>${esc(human(e.event_type))}</strong><p>${esc(e.occurred_at)}</p></div></li>`).join('')}</ol>`:'');
     }
     if (!ay) return empty('Select an Academic Year to explore analytics.');
     const base='organization-analytics/', common={academic_year_id:ay};
@@ -388,14 +402,14 @@
   const breadcrumbCurrent = document.getElementById('tp-breadcrumb-current');
   function updateBreadcrumb() {
     if (!breadcrumbCurrent) return;
-    const base = document.title.split(' Â· ')[0] || config.view;
+    const base = document.title.split(' · ')[0] || config.view;
     const chosenProgram = !program.parentElement.hidden && program.value ? program.options[program.selectedIndex]?.textContent : '';
-    breadcrumbCurrent.textContent = chosenProgram ? `${base} Â· ${chosenProgram}` : base;
+    breadcrumbCurrent.textContent = chosenProgram ? `${base} · ${chosenProgram}` : base;
   }
   async function load() {
     const run=++generation; controller?.abort(); controller=new AbortController();
     updateBreadcrumb();
-    root.innerHTML=empty('Loading this viewâ€¦'); root.setAttribute('aria-busy','true'); status.textContent='';
+    root.innerHTML=empty('Loading this view…'); root.setAttribute('aria-busy','true'); status.textContent='';
     try {const html=await render(controller.signal);if(run===generation){if(html!==null)root.innerHTML=html;status.textContent='View loaded.';}}
     catch(error){if(error.name!=='AbortError'&&run===generation){root.innerHTML=errorPanel(error);document.getElementById('tp-retry').addEventListener('click',load);status.textContent='View could not be loaded.';}}
     finally {if(run===generation)root.setAttribute('aria-busy','false');}
@@ -492,7 +506,7 @@
       // selector must stay visible regardless of selection state.
       const showProgramField = config.view!=='programs' || Boolean(params.get('program_id'));
       document.getElementById('tp-program-field').hidden=!showProgramField;
-      try {const items=await api('programs');programCatalog=new Map(items.map(item=>[String(item.id),item]));program.innerHTML='<option value="">Choose a Program</option>'+items.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');if(params.has('program_id'))program.value=params.get('program_id');}
+      try {const items=await api('programs');programCatalog=new Map(items.map(item=>[String(item.id),item]));program.innerHTML='<option value="">Choose a Program</option>'+items.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');program.value=resolveProgramSelection(items,params.get('program_id'));}
       catch {document.getElementById('tp-program-field').hidden=true;}
     }
     syncNavigation();

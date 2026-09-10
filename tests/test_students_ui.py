@@ -136,7 +136,7 @@ def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
     text = response.text
     # Real <table> structure with the required columns, not a card-only layout.
     assert "stu-list-table" in text and "stu-list-cards" in text
-    for column in ("Student", "Grade", "Section", "Branch", "Status", "Actions"):
+    for column in ("Student", "Grade", "Section", "Branch", "Learning Style", "Status", "Actions"):
         assert column in text
     css = Path("static/css/students.css").read_text(encoding="utf-8")
     assert ".stu-list-table { display: block; }" in css
@@ -144,6 +144,64 @@ def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
     assert "@media (max-width: 680px)" in css
     assert ".stu-list-table { display: none; }" in css
     assert ".stu-list-cards { display: grid !important; }" in css
+
+
+def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mobile(db, client):
+    permissions(db, "students.view", "students.edit")
+    saved = db.get(models.Student, 1001)
+    saved.learning_style = "Read/Write"
+    db.commit()
+
+    response = client.get("/students/")
+    assert response.status_code == 200
+    assert response.text.count("Read/Write") >= 2  # desktop row and mobile card
+    assert response.text.count("Not specified") >= 2
+    assert "Talent score" not in response.text
+    assert "Talent status" not in response.text
+
+    # Persist through the real edit route, reload the list, then clear through
+    # the same route and verify the neutral fallback.
+    edited = client.post("/students/1001/edit", data={
+        "first_name": "Alya", "last_name": "Learner", "father_name": "",
+        "gender": "", "learning_style": "Kinesthetic",
+    })
+    assert edited.status_code in (200, 302)
+    assert db.get(models.Student, 1001).learning_style == "Kinesthetic"
+    assert "Kinesthetic" in client.get("/students/").text
+    cleared = client.post("/students/1001/edit", data={
+        "first_name": "Alya", "last_name": "Learner", "father_name": "",
+        "gender": "", "learning_style": "",
+    })
+    assert cleared.status_code in (200, 302)
+    assert db.get(models.Student, 1001).learning_style is None
+    profile = client.get("/students/1001?section=overview")
+    assert 'value="" checked' in profile.text
+    assert "Not specified" in client.get("/students/").text
+
+
+def test_current_placement_uses_change_flow_instead_of_overlapping_add_form(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    db.query(models.StudentAcademicPlacement).filter_by(student_id=1001, school_group_id=1).delete()
+    db.add(models.StudentAcademicPlacement(
+        id=777, school_group_id=1, student_id=1001, academic_year_id=100,
+        branch_id=10, grade_level="1", section_name="A",
+        effective_from=datetime(2026, 9, 1), status="active",
+    ))
+    db.commit()
+    response = client.get("/students/1001?section=placement")
+    assert response.status_code == 200
+    assert "already has a current placement" in response.text
+    assert "End / Change" in response.text
+    assert "Save Placement" not in response.text
+
+
+def test_placement_form_has_validation_pending_and_network_error_feedback():
+    source = Path("static/js/students.js").read_text(encoding="utf-8")
+    assert 'form.addEventListener("submit"' in source
+    assert 'submitButton.setAttribute("aria-busy", "true")' in source
+    assert 'submitButton.textContent = "Saving placement…"' in source
+    assert "Choose a configured Section before saving." in source
+    assert "Sections could not be loaded. Check your connection" in source
 
 
 def test_active_status_is_deemphasized_but_inactive_stays_a_visible_exception(db, client):

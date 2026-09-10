@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
+{% from "_learning_style.html" import learning_style_badge %}
 {% block title %}Students | TIS{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
 {% block content %}
@@ -59,6 +60,13 @@
     {% if learning_style_distribution.state == 'restricted' %}
     <p class="stu-protected">Protected for privacy; this distribution is not shown for the current selection.</p>
     {% elif learning_style_distribution.levels %}
+    {% set visible_level_count = learning_style_distribution.levels | selectattr('state', 'equalto', 'visible') | list | length %}
+    {% if visible_level_count == 0 %}
+    <div class="stu-protected stu-protected-panel" role="status">
+      {{ icon('shield', 'shell-icon') }}
+      <div><strong>Distribution protected for privacy</strong><p>Too few Students match this selection to show Learning Style values safely.</p></div>
+    </div>
+    {% else %}
     <div class="stu-ls-chart" role="group" aria-label="Learning Style distribution">
       {% for level in learning_style_distribution.levels %}
       <div class="stu-ls-row" style="--stu-ls-accent: {{ ls_accent_map.get(level.label, 'var(--app-muted, #5d6b82)') }};">
@@ -68,11 +76,12 @@
         <strong>{{ level.percentage }}%</strong><small>{{ level.count }}</small>
         {% else %}
         <div class="stu-ls-track stu-ls-track-state" role="img" aria-label="{{ level.label }}: protected for privacy"></div>
-        <span class="stu-protected">Protected for privacy</span>
+        {% if visible_level_count > 0 %}<span class="stu-protected">Protected for privacy</span>{% endif %}
         {% endif %}
       </div>
       {% endfor %}
     </div>
+    {% endif %}
     {% else %}
     <p class="stu-count">No data yet for the current selection.</p>
     {% endif %}
@@ -98,6 +107,7 @@
           <th scope="col">Grade</th>
           <th scope="col">Section</th>
           <th scope="col">Branch</th>
+          <th scope="col">Learning Style</th>
           <th scope="col">Status</th>
           <th scope="col">Actions</th>
         </tr>
@@ -114,6 +124,7 @@
           <td>{{ s.current_placement.grade_level if s.current_placement else '—' }}</td>
           <td>{{ s.current_placement.section_name if s.current_placement else '—' }}</td>
           <td>{{ s.current_placement.branch_name if s.current_placement and s.current_placement.branch_name else '—' }}</td>
+          <td>{{ learning_style_badge(s.learning_style) }}</td>
           <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
           <td><a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a></td>
         </tr>
@@ -134,6 +145,7 @@
         </div>
       </div>
       <div>
+        <p class="stu-card-fact"><span>Learning Style</span>{{ learning_style_badge(s.learning_style) }}</p>
         {% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}
       </div>
       <div class="stu-place">

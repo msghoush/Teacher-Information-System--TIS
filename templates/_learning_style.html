@@ -20,6 +20,7 @@
 {% set ls_accent = {'Visual': 'var(--app-brand)', 'Auditory': 'var(--app-accent)', 'Read/Write': 'var(--app-success)', 'Kinesthetic': 'var(--app-warning)'} %}
 
 {% macro learning_style_field(options, selected) %}
+{% set selected = selected or '' %}
 <div class="stu-ls-options" role="radiogroup" aria-label="Learning Style">
   {% for option in options %}
   <label class="stu-ls-option{% if selected == option %} is-selected{% endif %}" style="{% if option %}--stu-ls-accent:{{ ls_accent[option] }};{% endif %}">

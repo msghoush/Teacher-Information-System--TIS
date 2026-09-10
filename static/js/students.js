@@ -17,7 +17,7 @@
     const SELECT_FIRST_TEXT = "Select academic year, branch, and grade first";
     const LOADING_TEXT = "Loading sections…";
 
-    const setSectionState = (sectionSelect, hint, submitButton, { loading = false, items = null } = {}) => {
+    const setSectionState = (sectionSelect, hint, submitButton, { loading = false, items = null, error = false } = {}) => {
         sectionSelect.replaceChildren();
         const placeholder = document.createElement("option");
         placeholder.value = "";
@@ -43,13 +43,13 @@
         }
 
         if (items.length === 0) {
-            placeholder.textContent = "No Sections available";
+            placeholder.textContent = error ? "Sections could not be loaded" : "No Sections available";
             sectionSelect.appendChild(placeholder);
             sectionSelect.disabled = true;
             sectionSelect.required = false;
             if (hint) {
                 hint.hidden = false;
-                hint.textContent = NO_SECTIONS_TEXT;
+                hint.textContent = error ? "Sections could not be loaded. Check your connection and try changing the selection again." : NO_SECTIONS_TEXT;
             }
             if (submitButton) submitButton.disabled = true;
             return;
@@ -103,20 +103,36 @@
                     return;
                 }
                 if (!response.ok) {
-                    setSectionState(sectionSelect, hint, submitButton, { items: [] });
+                    setSectionState(sectionSelect, hint, submitButton, { items: [], error: true });
                     return;
                 }
                 const payload = await response.json();
                 setSectionState(sectionSelect, hint, submitButton, { items: payload.items || [] });
             } catch (error) {
                 if (version === requestVersion) {
-                    setSectionState(sectionSelect, hint, submitButton, { items: [] });
+                    setSectionState(sectionSelect, hint, submitButton, { items: [], error: true });
                 }
             }
         };
 
         [yearSelect, branchSelect, gradeSelect].forEach((select) => {
             select.addEventListener("change", refresh);
+        });
+        form.addEventListener("submit", (event) => {
+            if (!form.checkValidity() || !sectionSelect.value) {
+                event.preventDefault();
+                form.reportValidity();
+                if (hint) {
+                    hint.hidden = false;
+                    hint.textContent = "Choose a configured Section before saving.";
+                }
+                return;
+            }
+            if (submitButton) {
+                submitButton.disabled = true;
+                submitButton.setAttribute("aria-busy", "true");
+                submitButton.textContent = "Saving placement…";
+            }
         });
         setSectionState(sectionSelect, hint, submitButton, {});
     };
