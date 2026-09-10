@@ -20,6 +20,7 @@ from sqlalchemy.orm import sessionmaker
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import models
+import auth
 from database import Base
 from talent_local_test_data import LOCAL_TEST_PASSWORD, LOCAL_TEST_USERNAME, build_dataset
 
@@ -96,6 +97,8 @@ def test_build_dataset_produces_a_relationship_valid_seed():
 
         admin = session.query(models.User).filter_by(username=LOCAL_TEST_USERNAME).one()
         assert admin.is_internal_test_identity is True
+        assert admin.access_scope == auth.ACCESS_SCOPE_ORGANIZATION
+        assert admin.branch_id is not None  # North Campus remains the visible working Branch.
     finally:
         session.close()
 

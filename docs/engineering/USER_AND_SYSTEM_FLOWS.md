@@ -7,6 +7,73 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Evaluation Plan Authority And Local Retest Flow
+
+1. The server requires `talent_evaluation_plans.manage` or `.govern`, as applicable, plus durable organization/global access scope for Evaluation Plan and Evaluation Period mutations.
+2. An organization-scoped Program manager may keep a Branch selected as working context; that selection does not suppress its projected Plan actions or backend authority.
+3. A truly Branch-scoped user may view the Plan when permitted, but sees a read-only explanation and no add/change controls. Direct mutation calls remain denied.
+4. The sanctioned Local Test Admin is seeded with organization scope and North Campus as its working Branch. If the disposable local database predates that seed contract, run `python scripts/manage_local_talent_test_db.py reseed --confirm`; never repair this condition with raw SQL or an authorization bypass.
+
+## Completed Program Operational And Edit Flow
+
+1. Opening an active Program with enabled annual Grades, an active complete assessment setup, and at least one Evaluation Period shows its operational summary without the setup stepper.
+2. Edit Program opens `#tp-basics`; Edit What we assess opens the assessment subflow; Manage Evaluation Plan opens `#tp-schedule`. Program and Academic Year query context remain unchanged.
+3. The setup stepper labels Step 3 Evaluation Plan. Its embedded table labels each row an Evaluation Period and supports the existing authorized edit, remove, and Start Evaluation actions.
+4. Ready confirms each prerequisite. Finish Setup clears the setup hash and rerenders the operational summary when the Program is complete.
+5. The renderer obtains the Academic Year display label from the selected shell option and never presents its internal ID as the normal label.
+
+## Talent Guided Program Configuration
+
+1. Open or Edit Program enters the same `/talent/programs` wizard and selects Basics by default.
+2. Basics saves draft Program details and the selected Academic Year's enablement/Planning Grades, while logo upload/removal continues through its Program-scoped route.
+3. What we assess selects exactly one Competencies, Rubric Levels, Achievement Descriptions, or Review substep from the URL hash. Add/Edit opens only the requested inline editor; supported removals remain draft-only and revision guarded.
+4. Evaluation Schedule renders inside the Program panel. Adding, renaming, removing, preparing, previewing, and starting evaluations use the existing Evaluation Plan, Period, and Cycle services without a setup-route change.
+5. Ready presents compact completion counts and sends the user back to the embedded schedule to finish or start an evaluation.
+6. The Students collection displays a table on desktop and cards on mobile through mutually exclusive CSS. Talent Review and an opened Evaluation use compact tables for their Student collections.
+
+## Talent Program Guided Setup
+
+1. The user opens a Program and sees its identity header and the Basics, What we assess, Evaluation Schedule, and Ready progress steps.
+2. The browser reads the URL hash and renders only that step's panel; changing the hash updates the active panel and refresh returns to it.
+3. Basics saves Program identity/configuration through existing Program and academic-year routes. What we assess edits the selected draft framework through existing revision-guarded competency, rubric, level, and descriptor routes.
+4. Evaluation Schedule hands off to the existing guided Plan/Period/Cycle workspace, which previews eligible Students before opening and freezing the population. Ready links to that operational workspace after the prerequisite steps are complete.
+5. The UI shows edit/remove actions only when the permission payload and entity lifecycle support them. Program lifecycle uses activate/retire; historical versions and terminal assessment results stay read-only.
+
+## Talent Program Identity, Planning Scope, And Result Clearing
+
+1. Program logos are uploaded, replaced, or removed through organization-scoped Program routes using `talent_programs.manage`; all displays use the same compact logo/initials identity.
+2. Talent Grade choices come from operational Planning sections for the selected Academic Year and authorized Branch. Grade changes load matching Planning Sections; no matches disable Section with "No Sections configured for this Grade."
+3. Annual Program configuration rejects Grades absent from Planning, including when Planning has no configured Grades.
+4. An authorized user may clear one saved competency result only while its assessment remains In Progress, using the existing expected-revision delete action. The UI updates that competency locally and preserves context and scroll.
+
+
+## Simplified Talent Program And Evaluation Flow
+
+1. A user searches the compact Program list and opens or edits a Program.
+2. Basics sets Program information and eligible Grades for the selected year.
+3. What we assess shows each competency with every rubric level and achievement
+   description. Edit uses the existing draft-version and revision contracts;
+   after save, the joined view is shown again.
+4. Evaluation schedule accepts a free-text, user-defined evaluation name (for
+   example Term 1, Audition, or Spring Review). Adding an evaluation creates
+   missing Plan/Period state and activates it when the actor has the existing
+   govern permission; none of that Plan/Period/Cycle vocabulary is shown to
+   the user.
+5. The UI translates saved execution state to Setup, Ready to start, In
+   progress, or Complete.
+5a. The shared Academic Year/Program/Branch/Grade/Metric/Dimension context
+    selector used by this flow and by Organization Overview applies a change
+    automatically (debounced); no separate confirm click is required. The
+    primary Talent navigation shows one "Results & Analytics" entry rather
+    than repeating the sticky analytics sub-nav's individual page links.
+6. Start Evaluation prepares a draft Cycle when needed, links it with both
+   expected revisions, and requests the authorized population preview.
+7. The user sees "X eligible Students will be included based on Academic
+   Placement as of DATE" before confirming start.
+8. The existing organization-governed open action revalidates Program,
+   Framework, Plan, Period, linkage, and revisions, then freezes the historical
+   Student population. Assessment entry continues through the existing M5 flow.
+
 ## Student/Talent Pre-Deploy Migration Flow
 
 1. The dedicated pre-deploy command creates only baseline metadata; all
@@ -252,6 +319,19 @@ that same persisted historical Branch rather than current Placement.
    Official Identification, and neither carries the other's state in a
    shared mutable field.
 
+Presentation note: the steps above describe the backend `ReviewCandidate`
+model, its `/api/talent/review-candidates` routes, and the
+`talent_review_candidates.*`/`talent_official_identifications.*` permission
+keys, which are unchanged deterministic/audit identifiers. The normal
+user-facing Talent UI labels this surface "Talent Review" (nav entry,
+breadcrumb, Student Profile Talent tab, and in-page notifications) and no
+longer prints "Review Candidate(s)" or "Candidate" in that normal path. The
+Talent Review list itself now renders as one compact table (Student, Program,
+Grade, Section, Evaluation, Result, Review status, Identification status,
+Action) instead of one large card per Student; opening a row (`review_id`)
+shows that one Student's full detail, including the Official Identification
+decision form, rather than showing every Student's full detail inline.
+
 ## Talent Student Assessment Flow
 
 1. An authorized assessor with canonical Branch/organization scope starts one
@@ -267,6 +347,15 @@ that same persisted historical Branch rather than current Placement.
    finalize Incomplete or Insufficient Evidence, each read-only and without a
    KPI result. Candidate selection, correction/reopen, and assessor assignment
    are not available.
+
+Presentation note: an opened Evaluation's Student list is one compact table
+(Student, Grade, Section, Assessment status, Action) rather than one large
+card per Student. The Action label is state-driven from the same real
+assessment status above, not a separate UI status: no assessment yet shows
+"Start Assessment" (only offered while the Cycle is Open and the actor can
+manage), an `in_progress` Assessment shows "Continue Assessment", and any
+other recorded status (Completed, Incomplete, or Insufficient Evidence) shows
+"View Assessment". No new assessment state was introduced.
 
 ## Talent Assessment Cycle Population Flow
 

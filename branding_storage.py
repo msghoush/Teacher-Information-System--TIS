@@ -195,6 +195,17 @@ def ensure_branch_logo_dir(school_group_id: int, branch_id: int) -> Path:
     return target
 
 
+def program_logo_dir(school_group_id: int, program_id: int) -> Path:
+    resolved_program_id = _positive_id(program_id, "Program ID")
+    return organization_root(school_group_id) / "programs" / str(resolved_program_id) / "logo"
+
+
+def ensure_program_logo_dir(school_group_id: int, program_id: int) -> Path:
+    target = program_logo_dir(school_group_id, program_id)
+    target.mkdir(parents=True, exist_ok=True)
+    return target
+
+
 def organization_logo_relative_path(school_group_id: int, filename: str) -> str:
     return _relative_static_path(
         organization_logo_dir(school_group_id) / _safe_filename(filename)
@@ -206,6 +217,14 @@ def branch_logo_relative_path(
 ) -> str:
     return _relative_static_path(
         branch_logo_dir(school_group_id, branch_id) / _safe_filename(filename)
+    )
+
+
+def program_logo_relative_path(
+    school_group_id: int, program_id: int, filename: str
+) -> str:
+    return _relative_static_path(
+        program_logo_dir(school_group_id, program_id) / _safe_filename(filename)
     )
 
 
@@ -232,7 +251,14 @@ def resolve_organization_asset_path(
         and str(parts[1]).isdigit()
         and int(parts[1]) > 0
     )
-    if not (is_group_logo or is_branch_logo):
+    is_program_logo = (
+        len(parts) == 4
+        and parts[0] == "programs"
+        and parts[2] == "logo"
+        and str(parts[1]).isdigit()
+        and int(parts[1]) > 0
+    )
+    if not (is_group_logo or is_branch_logo or is_program_logo):
         raise BrandingStorageError("Organization asset path is not an approved logo path.")
     _safe_filename(parts[-1])
     root = organization_root(group_id).resolve()
@@ -314,6 +340,78 @@ def resolve_owned_logo_path(
     if require_file and not candidate.is_file():
         raise FileNotFoundError(str(candidate))
     return candidate
+
+
+def resolve_owned_program_logo_path(
+    image_path: str,
+    *,
+    school_group_id: int,
+    program_id: int,
+    require_file: bool = True,
+) -> Path:
+    group_id = _positive_id(school_group_id, "School group ID")
+    resolved_program_id = _positive_id(program_id, "Program ID")
+    parts = _normalized_relative_parts(image_path)
+    expected_prefix = (
+        "branding", "organizations", str(group_id), "programs", str(resolved_program_id), "logo",
+    )
+    if parts[:-1] != expected_prefix:
+        raise BrandingStorageError(
+            "Logo path does not belong to the requested Program."
+        )
+    _safe_filename(parts[-1])
+    candidate = (STATIC_ROOT / Path(*parts)).resolve()
+    try:
+        candidate.relative_to(STATIC_ROOT.resolve())
+    except ValueError as exc:
+        raise BrandingStorageError("Logo path escapes the static root.") from exc
+    if require_file and not candidate.is_file():
+        raise FileNotFoundError(str(candidate))
+    return candidate
+
+
+def write_program_logo_file(
+    file_bytes: bytes,
+    *,
+    school_group_id: int,
+    program_id: int,
+    extension: str,
+) -> str:
+    normalized_extension = str(extension or "").strip().lower()
+    if normalized_extension not in ALLOWED_LOGO_EXTENSIONS:
+        raise BrandingStorageError("Logo extension is invalid.")
+    filename = f"program_{time.time_ns()}{normalized_extension}"
+    target_dir = ensure_program_logo_dir(school_group_id, program_id)
+    relative_path = program_logo_relative_path(school_group_id, program_id, filename)
+    target = target_dir / filename
+    temporary = target.with_name(f".{target.name}.tmp")
+    temporary.write_bytes(file_bytes)
+    os.replace(temporary, target)
+    return relative_path
+
+
+def delete_program_logo_file(
+    image_path: str,
+    *,
+    school_group_id: int,
+    program_id: int,
+) -> bool:
+    try:
+        target = resolve_owned_program_logo_path(
+            image_path,
+            school_group_id=school_group_id,
+            program_id=program_id,
+            require_file=False,
+        )
+    except BrandingStorageError:
+        return False
+    if not target.exists():
+        return False
+    try:
+        target.unlink()
+    except OSError:
+        return False
+    return True
 
 
 def write_logo_file(
@@ -522,14 +620,14 @@ def _validate_minimum_dimensions(slot_key: str, width: int, height: int):
         raise BrandingStorageError("Logos must be at least 128x48px.")
 
 
-def validate_logo_upload(
-    file_bytes: bytes,
-    filename: str,
-    *,
-    slot_key: str,
-) -> LogoUploadInfo:
-    if slot_key not in ORGANIZATION_LOGO_SLOT_MAP:
-        raise BrandingStorageError("Logo slot is invalid.")
+def _detect_logo_image(file_bytes: bytes, filename: str) -> LogoUploadInfo:
+    """Format/byte-safety detection shared by every logo owner type.
+
+    Real-image-bytes verification (Pillow) or safe-SVG sanitization, the 4MB
+    size limit, and the allowed PNG/JPG/WEBP/SVG format set are identical for
+    every owner; only the minimum-dimension rule varies by slot/owner and is
+    applied by the caller.
+    """
     if not file_bytes:
         raise BrandingStorageError("Choose a logo file to upload.")
     if len(file_bytes) > LOGO_MAX_BYTES:
@@ -564,10 +662,36 @@ def validate_logo_upload(
             )
         extension, content_type = format_map[image_format]
 
-    _validate_minimum_dimensions(slot_key, int(width), int(height))
     return LogoUploadInfo(
         extension=extension,
         content_type=content_type,
         width=int(width),
         height=int(height),
     )
+
+
+def validate_logo_upload(
+    file_bytes: bytes,
+    filename: str,
+    *,
+    slot_key: str,
+) -> LogoUploadInfo:
+    if slot_key not in ORGANIZATION_LOGO_SLOT_MAP:
+        raise BrandingStorageError("Logo slot is invalid.")
+    info = _detect_logo_image(file_bytes, filename)
+    _validate_minimum_dimensions(slot_key, info.width, info.height)
+    return info
+
+
+def validate_program_logo_upload(file_bytes: bytes, filename: str) -> LogoUploadInfo:
+    """Talent Program Identity logo validation.
+
+    Reuses the exact same byte-safety/format detection and minimum-dimension
+    rule (128x48px, the default branch of ``_validate_minimum_dimensions``)
+    as an organization/branch logo - Programs are not one of the fixed
+    ``ORGANIZATION_LOGO_SLOTS`` slots, so this bypasses only the slot-map
+    membership gate, not any validation rule itself.
+    """
+    info = _detect_logo_image(file_bytes, filename)
+    _validate_minimum_dimensions("program", info.width, info.height)
+    return info

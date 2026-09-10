@@ -17,13 +17,14 @@
     </div>
     {% if request.state.talent_synthetic_preview|default(false) %}<span class="tp-badge">{{ icon('shield') }}Synthetic data · Read-only preview</span>{% endif %}
   </div>
+  {% set analytics_family = ['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
   <nav class="tp-nav" aria-label="Talent & Potential">
-  {% for key in ['overview','programs','evaluation-plans','assessments','reviews','analytics','talent-map','portfolio','overlap','longitudinal'] %}
+  {% for key in ['overview','programs','evaluation-plans','assessments','reviews'] %}
     {% if key == 'overview' or talent_permissions[talent_views[key][1]] %}<a href="/talent/{{ key }}" {% if talent_view == key %}aria-current="page"{% endif %}>{{ icon(nav_icons.get(key,'info'), 'tp-nav-icon') }}<span>{{ talent_views[key][0] }}</span></a>{% endif %}
   {% endfor %}
-  {% if talent_permissions['talent_analytics.view'] and talent_permissions['talent_analytics.view_students'] %}<a href="/talent/students" {% if talent_view == 'students' %}aria-current="page"{% endif %}>{{ icon('users', 'tp-nav-icon') }}<span>Students</span></a>{% endif %}
+  {% if talent_permissions['talent_analytics.view'] %}<a href="/talent/analytics" {% if talent_view in analytics_family %}aria-current="page"{% endif %}>{{ icon('insights', 'tp-nav-icon') }}<span>Results &amp; Analytics</span></a>{% endif %}
   </nav>
-  {% if talent_view in ['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
+  {% if talent_view in analytics_family %}
   <nav class="tp-results-nav" aria-label="Results and Analytics views">
     <span class="tp-results-nav-label">Results &amp; Analytics</span>
     {% for key in ['analytics','talent-map','portfolio','overlap','students','longitudinal'] %}
@@ -36,13 +37,16 @@
   <form class="tp-filters" id="tp-filters" aria-label="View context">
     <label for="tp-year">Academic Year<select name="academic_year_id" id="tp-year">{% for year in talent_years %}<option value="{{ year.id }}" {% if year.id == shell.scoped_academic_year_id %}selected{% endif %}>{{ year.year_name }}</option>{% endfor %}</select></label>
     <label for="tp-program" id="tp-program-field" hidden>Program<select name="program_id" id="tp-program"><option value="">Choose a Program</option></select></label>
+    <label for="tp-branch" id="tp-branch-field" hidden>Branch<select name="branch_id" id="tp-branch"><option value="">All Branches</option></select></label>
+    <label for="tp-grade" id="tp-grade-field" hidden>Grade<select name="grade_level" id="tp-grade"><option value="">All Grades</option></select></label>
+    <label for="tp-section" id="tp-section-field" hidden>Section<select name="planning_section_id" id="tp-section" disabled><option value="">Choose a Branch and Grade first</option></select></label>
     <label for="tp-dimension" id="tp-dimension-field" hidden>Show by<select name="dimension" id="tp-dimension"><option value="program_branch">Branches</option><option value="program_grade">Grades</option></select></label>
     <label for="tp-metric" id="tp-metric-field" hidden>Metric<select name="metric" id="tp-metric"></select></label>
-    <button type="submit" class="tp-primary">{{ icon('check-circle') }}Apply context</button>
+    <button type="submit" title="Selections apply automatically. Use Refresh only if a view does not update on its own." aria-label="Refresh now (selections apply automatically)">{{ icon('check-circle') }}Refresh</button>
   </form>
   <div id="tp-status" role="status" aria-live="polite" class="tp-sr-status"></div>
   <div id="tp-content" aria-busy="true"><p class="tp-empty">Loading your authorized workspace…</p></div>
-  <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain their original Program, framework, and frozen placement. Results never combine Programs into one score.</p></aside>
+  <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
 <script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
 <script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>

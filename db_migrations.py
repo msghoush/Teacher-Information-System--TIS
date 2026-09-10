@@ -6766,6 +6766,52 @@ def _talent_annual_evaluation_plan_period_foundation(engine, connection):
         )
 
 
+def _talent_program_logo_foundation(engine, connection):
+    """Add an optional Program Identity logo path/content-type to Talent Programs.
+
+    Purely additive: two nullable columns on the existing ``talent_programs``
+    table, no data rewrite, no new table, no lock-heavy operation. Storage and
+    validation reuse ``branding_storage.py``'s existing organization/branch
+    logo pattern (4MB limit, Pillow real-image-bytes check, sanitized SVG,
+    atomic temp-then-rename writes, opaque filenames) at a new Program-scoped
+    directory; this migration only persists the resulting relative path.
+    """
+    if not _table_exists(connection, "talent_programs"):
+        return
+    _add_column_if_missing(connection, connection, "talent_programs", "logo_path", "logo_path VARCHAR(255)")
+    _add_column_if_missing(connection, connection, "talent_programs", "logo_content_type", "logo_content_type VARCHAR(80)")
+
+
+def _student_learning_style_v1(engine, connection):
+    """Add an optional single-select primary Learning Style to Student.
+
+    Purely additive: one nullable column on the existing ``students`` table,
+    no data rewrite, no new table, no lock-heavy operation. Per ADR 0031,
+    Learning Style is Student-domain learner-profile context only (never a
+    Talent score/eligibility input) with exactly four approved values
+    (Visual, Auditory, Read/Write, Kinesthetic); server-side validation
+    (student_academic_service.py) rejects any other value on every dialect
+    regardless of this migration's DB-level guard coverage. A non-locking
+    ``NOT VALID`` + ``VALIDATE CONSTRAINT`` CHECK is added on PostgreSQL for
+    defense in depth (mirrors ``ck_talent_review_candidates_status``); SQLite
+    intentionally relies on the service-layer guard here rather than the
+    heavier full-table-rebuild path used elsewhere in this module, since the
+    task only calls for a purely additive, non-lock-heavy change.
+    """
+    if not _table_exists(connection, "students"):
+        return
+    _add_column_if_missing(connection, connection, "students", "learning_style", "learning_style VARCHAR(20)")
+    if engine.dialect.name == "postgresql":
+        if not _check_constraint_exists(connection, "students", "ck_students_learning_style"):
+            _execute(
+                connection,
+                "ALTER TABLE students ADD CONSTRAINT ck_students_learning_style "
+                "CHECK (learning_style IS NULL OR learning_style IN "
+                "('Visual','Auditory','Read/Write','Kinesthetic')) NOT VALID",
+            )
+            _execute(connection, "ALTER TABLE students VALIDATE CONSTRAINT ck_students_learning_style")
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -7081,6 +7127,16 @@ MIGRATIONS = (
         migration_id="20260905_001_talent_annual_evaluation_plan_period_foundation",
         description="Add annual Talent evaluation plans, ordered periods, and optional Cycle linkage",
         apply=_talent_annual_evaluation_plan_period_foundation,
+    ),
+    Migration(
+        migration_id="20260910_001_talent_program_logo_foundation",
+        description="Add an optional Program Identity logo path/content-type to Talent Programs",
+        apply=_talent_program_logo_foundation,
+    ),
+    Migration(
+        migration_id="20260910_002_student_learning_style_v1",
+        description="Add an optional single-select primary Learning Style to Student (ADR 0031)",
+        apply=_student_learning_style_v1,
     ),
 )
 

@@ -182,6 +182,17 @@ class Student(Base):
     __tablename__ = "students"
     __table_args__ = (
         CheckConstraint("status IN ('active','inactive')", name="ck_students_status"),
+        # Learning Style V1 (ADR 0031): optional, single-select Student-domain
+        # learner-profile context, never a Talent score. Exactly four approved
+        # values or NULL ("not specified") - mirrors the ``status`` enum
+        # convention above. This constraint is enforced on fresh schema
+        # creation; existing databases additionally enforce the same value
+        # set at the service layer (student_academic_service.py) regardless
+        # of dialect-level DDL coverage for an already-migrated table.
+        CheckConstraint(
+            "learning_style IS NULL OR learning_style IN ('Visual','Auditory','Read/Write','Kinesthetic')",
+            name="ck_students_learning_style",
+        ),
         UniqueConstraint("id", "school_group_id", name="uq_students_id_school_group"),
         Index("ix_students_group_name", "school_group_id", "last_name", "first_name"),
     )
@@ -193,6 +204,10 @@ class Student(Base):
     last_name = Column(String(100), nullable=False)
     gender = Column(String(24), nullable=True)
     status = Column(String(16), nullable=False, default="active")
+    # Learning Style V1 (ADR 0031): optional single primary Learning Style.
+    # Student-domain learner-profile context only - never read by any Talent
+    # scoring/eligibility/Official Identification computation.
+    learning_style = Column(String(20), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
@@ -290,6 +305,11 @@ class TalentProgram(Base):
     name = Column(String(160), nullable=False)
     description = Column(Text, nullable=True)
     status = Column(String(16), nullable=False, default="draft")
+    # Program Identity logo (optional). Nullable/additive; storage/validation
+    # reuse branding_storage.py's existing logo pattern at a Program-scoped
+    # path. No logo falls back to programmatic initials in the UI.
+    logo_path = Column(String(255), nullable=True)
+    logo_content_type = Column(String(80), nullable=True)
     created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
     updated_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)

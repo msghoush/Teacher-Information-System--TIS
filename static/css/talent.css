@@ -232,3 +232,95 @@
 @media (prefers-reduced-motion: reduce) {
   .tp * {scroll-behavior: auto !important; animation: none !important; transition: none !important}
 }
+
+/* ---- Visual analytics: radial gauges, grade bars, sticky filters, trend ---- */
+.tp-filters {position: sticky; top: 0; z-index: 40; background: var(--app-surface); box-shadow: 0 1px 0 var(--app-line)}
+
+/* Radial gauge for percentage KPIs — arc is drawn only from a visible backend % */
+.tp-radial {position: relative; width: 108px; height: 108px; margin: 6px auto 2px}
+.tp-radial svg {width: 100%; height: 100%; transform: rotate(-90deg)}
+.tp-radial-track {fill: none; stroke: var(--app-surface-muted); stroke-width: 11}
+.tp-radial-arc {fill: none; stroke: var(--app-brand); stroke-width: 11; stroke-linecap: round}
+.tp-radial-center {position: absolute; inset: 0; display: grid; place-content: center; text-align: center}
+.tp-radial-center strong {font-size: 23px; line-height: 1; font-variant-numeric: tabular-nums; letter-spacing: -.03em}
+.tp-radial-center small {display: block; font-size: 10px; font-weight: 650; color: var(--app-brand-deep); margin-top: 3px}
+.tp-radial-state {display: grid; place-content: center; text-align: center; width: auto; height: auto; margin: 12px 0}
+.tp-kpi:has(.tp-radial) {min-height: 196px}
+
+/* Grade-level horizontal bars — length only from a visible backend % */
+.tp-grade-chart {display: grid; gap: 12px; padding: 8px 0}
+.tp-grade-row {display: grid; grid-template-columns: 120px 1fr 52px; align-items: center; gap: 14px}
+.tp-grade-label {font-size: var(--tp-text-sm); font-weight: 650; color: var(--app-brand-deep)}
+.tp-grade-track {height: 14px; background: var(--app-surface-muted); border: 1px solid var(--app-line); border-radius: 999px; overflow: hidden}
+.tp-grade-track span {display: block; height: 100%; background: linear-gradient(90deg, var(--app-brand), var(--app-brand-deep)); border-radius: 999px}
+.tp-grade-row > strong {font-variant-numeric: tabular-nums; text-align: right; font-size: var(--tp-text-sm)}
+.tp-grade-state {grid-column: 2 / -1}
+.tp-grade-gauges {display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
+.tp-grade-gauge {display:grid;justify-items:center;padding:10px 8px;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface-strong)}
+.tp-grade-gauge-label {font-size:var(--tp-text-sm);font-weight:750;color:var(--app-brand-deep)}
+.tp-grade-gauge .tp-radial {width:82px;height:82px;margin:5px auto 0}
+.tp-grade-gauge .tp-radial-center strong {font-size:18px}
+.tp-grade-gauge .tp-radial-center small {font-size:9px}
+.tp-branch-row {display:grid;grid-template-columns:120px 1fr 52px;align-items:center;gap:14px;padding:8px 10px;border-radius:10px;text-decoration:none;color:inherit}
+.tp-branch-row:hover,.tp-branch-row:focus-visible {background:var(--app-brand-soft)}
+.tp-branch-row>strong {text-align:right;font-size:var(--tp-text-sm);font-variant-numeric:tabular-nums}
+
+/* The primary "how many Students are talented" indicator (Official
+   Identification) — largest gauge on the Organization Overview so it reads
+   as the most visually prominent element, never a fabricated value. */
+.tp-primary-indicator {padding:26px;background:var(--app-surface-strong);border:1px solid var(--app-line);border-radius:var(--app-radius-xl);box-shadow:var(--app-shadow-sm);margin-top:var(--tp-space-5)}
+.tp-primary-indicator-body {display:flex;flex-wrap:wrap;align-items:center;gap:22px}
+.tp-primary-indicator-body .tp-radial {width:168px;height:168px;margin:0}
+.tp-primary-indicator-body .tp-radial-center strong {font-size:34px}
+.tp-primary-indicator-body .tp-radial-center small {font-size:12px}
+.tp-primary-indicator-body p {flex:1 1 260px;margin:0;color:var(--app-brand-deep)}
+
+/* Ordered rubric-level distribution — intensity encodes ONLY the level's
+   position among its siblings (never a value/magnitude), so it stays safe to
+   draw for a suppressed/restricted level. Bar length still comes only from a
+   visible backend percentage, matching .tp-grade-track. */
+.tp-rubric-chart {display:grid;gap:12px;padding:8px 0}
+.tp-rubric-row {display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:14px}
+.tp-rubric-label {font-size:var(--tp-text-sm);font-weight:700;padding:4px 10px;border-radius:999px;background:color-mix(in srgb, var(--app-brand) calc(var(--tp-rubric-intensity, 0) * 55%), var(--app-surface-muted));color:var(--app-brand-deep);text-align:center}
+.tp-rubric-track {height:14px;background:var(--app-surface-muted);border:1px solid var(--app-line);border-radius:999px;overflow:hidden}
+.tp-rubric-track span {display:block;height:100%;background:linear-gradient(90deg,var(--app-brand),var(--app-brand-deep));border-radius:999px}
+.tp-rubric-track-state {background-image:repeating-linear-gradient(45deg, var(--app-line-strong) 0 2px, transparent 2px 5px)}
+.tp-rubric-row > strong, .tp-rubric-row .tp-protected {font-variant-numeric:tabular-nums}
+.tp-pattern-grid {display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:var(--tp-space-5);align-items:start}
+.tp-pattern-grid .tp-section-heading {margin-top:var(--tp-space-5)}
+.tp-detail-summary {margin-top:var(--tp-space-5)}
+.tp-fact-strip {display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.tp-fact-strip span {display:flex;align-items:baseline;gap:7px;padding:8px 11px;border:1px solid var(--app-line);border-radius:999px;background:var(--app-surface-strong);font-size:var(--tp-text-sm);color:var(--app-text-muted)}
+.tp-fact-strip b {color:var(--app-brand-deep);font-size:var(--tp-text-lg);font-variant-numeric:tabular-nums}
+
+/* Progress Over Time uses only the exact ordered labels returned by the backend. */
+.tp-period-path {display:flex;align-items:center;gap:10px;overflow-x:auto;margin:12px 0;padding:12px 14px;border:1px solid var(--app-line);border-radius:999px;background:var(--app-surface-strong);white-space:nowrap}
+.tp-period-path strong {padding:6px 10px;border-radius:999px;background:var(--app-brand-soft);color:var(--app-brand-deep);font-size:var(--tp-text-sm)}
+.tp-period-path>span {color:var(--app-brand);font-size:18px;font-weight:800}
+
+@media (max-width: 680px) {
+  .tp-grade-row {grid-template-columns: 92px 1fr 46px; gap: 8px}
+  .tp-radial {width: 92px; height: 92px}
+  .tp-radial-center strong {font-size: 19px}
+  .tp-branch-row {grid-template-columns:92px 1fr 46px;gap:8px}
+  .tp-rubric-row {grid-template-columns:92px 1fr 72px;gap:8px}
+  .tp-primary-indicator-body {gap:14px}
+  .tp-primary-indicator-body .tp-radial {width:128px;height:128px}
+  .tp-primary-indicator-body .tp-radial-center strong {font-size:26px}
+}
+
+/* Program Identity logo badge, shared across every surface that shows a Program
+   (Programs list, Program workspace header, Evaluation/Assessment/Review/Results
+   headers). object-fit normalizes any uploaded aspect ratio; no fixed dimensions
+   are required of the uploaded artwork. */
+.tp-logo-badge {display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;overflow:hidden;border-radius:8px;background:var(--app-brand-soft);vertical-align:middle}
+.tp-logo-badge img {display:block;width:100%;height:100%;object-fit:contain}
+.tp-logo-initials {font-weight:800;color:var(--app-brand-deep);letter-spacing:.02em}
+.tp-logo-sm {width:28px;height:28px}
+.tp-logo-sm .tp-logo-initials {font-size:11px}
+.tp-logo-md {width:56px;height:56px}
+.tp-logo-md .tp-logo-initials {font-size:18px}
+.tp-logo-card {display:flex;flex-wrap:wrap;align-items:center;gap:14px}
+.tp-logo-card h3 {flex:1 1 100%;margin:0}
+.tp-file-action {display:inline-flex;align-items:center;padding:8px 14px;border:1px solid var(--app-line);border-radius:8px;cursor:pointer;background:var(--app-surface)}
+.tp-file-action input[type="file"] {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}

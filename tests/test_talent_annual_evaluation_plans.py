@@ -45,6 +45,8 @@ def db():
         models.AcademicYear(id=100, school_group_id=1, year_name="2026-2027"),
         models.AcademicYear(id=101, school_group_id=1, year_name="2027-2028"),
         models.AcademicYear(id=200, school_group_id=2, year_name="2026-2027"),
+        models.PlanningSection(id=900, branch_id=10, academic_year_id=100, grade_level="1", section_name="A", class_status="Current"),
+        models.PlanningSection(id=901, branch_id=10, academic_year_id=101, grade_level="1", section_name="A", class_status="Current"),
     ])
     session.commit()
     yield session
@@ -127,6 +129,25 @@ def test_plan_and_period_api_create_get_list(db):
         assert added.status_code == 201 and added.json()["period"]["sequence"] == 1
         assert api.get(f"/api/talent/evaluation-plans/{plan['id']}").json()["period_count"] == 1
         assert len(api.get("/api/talent/evaluation-plans").json()) == 1
+
+
+def test_organization_manager_with_selected_branch_can_add_evaluation_period(db):
+    """A selected Branch is presentation context, not durable access scope."""
+    _, _, config, _ = foundation(db)
+    manager = user("1000000009", role="User", scope="ORGANIZATION", branch=10)
+    db.add(manager)
+    grant(db, "User", "talent_evaluation_plans.view", "talent_evaluation_plans.manage")
+    with client(db, manager) as api:
+        created = api.post("/api/talent/evaluation-plans", json={
+            "program_academic_year_configuration_id": config.id,
+        })
+        assert created.status_code == 201
+        added = api.post(f"/api/talent/evaluation-plans/{created.json()['id']}/periods", json={
+            "expected_plan_revision": created.json()["revision"],
+            "label": "Term 1",
+        })
+        assert added.status_code == 201
+        assert added.json()["period"]["label"] == "Term 1"
 
 
 def test_period_normalization_dates_contiguity_edit_delete_and_stale_revision(db):

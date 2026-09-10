@@ -154,6 +154,23 @@ def build_dataset(db):
         ("Nour", "Bassam", "Aziz", "female", "active", branch_south.id, "11", "A"),
         ("Yousef", "Rami", "Saleh", "male", "inactive", branch_south.id, "11", "B"),
     ]
+    # Talent Program Grade configuration is bounded by operational Planning.
+    # Keep the sanctioned local dataset on the same supported contract as the
+    # browser instead of relying on direct-write seed privileges.
+    db.add_all([
+        models.PlanningSection(
+            branch_id=branch_id,
+            academic_year_id=year.id,
+            grade_level=grade,
+            section_name=section,
+            class_status="Current",
+        )
+        for branch_id, grade, section in sorted({
+            (branch_id, grade, section)
+            for _, _, _, _, _, branch_id, grade, section in student_specs
+        })
+    ])
+    db.flush()
     students = []
     for first, father, last, gender, status, branch_id, grade, section in student_specs:
         student = create_student(db, school_group_id=group.id, first_name=first, last_name=last,

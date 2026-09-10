@@ -2,6 +2,7 @@
 
 import inspect
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -126,3 +127,125 @@ def test_create_placement(db, client):
     assert len(placements) == 1
     assert placements[0].branch_id == 11
     assert placements[0].grade_level == "2"
+
+
+def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
+    permissions(db, "students.view")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    text = response.text
+    # Real <table> structure with the required columns, not a card-only layout.
+    assert "stu-list-table" in text and "stu-list-cards" in text
+    for column in ("Student", "Grade", "Section", "Branch", "Status", "Actions"):
+        assert column in text
+    css = Path("static/css/students.css").read_text(encoding="utf-8")
+    assert ".stu-list-table { display: block; }" in css
+    assert ".stu-list-cards { display: none !important; }" in css
+    assert "@media (max-width: 680px)" in css
+    assert ".stu-list-table { display: none; }" in css
+    assert ".stu-list-cards { display: grid !important; }" in css
+
+
+def test_active_status_is_deemphasized_but_inactive_stays_a_visible_exception(db, client):
+    """Active is the normal, expected state for an attending Student (lifecycle
+    status, not Talent status). It must not be badged like an exception on every
+    row. Inactive - a real exception - keeps its visible chip. Status stays
+    available as a filter/column either way."""
+    permissions(db, "students.view")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    text = response.text
+    assert '<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>' in text
+    assert '<span class="stu-chip stu-chip-inactive">Inactive</span>' in text
+    assert "stu-chip-active" not in text
+    # Status remains a real filter/column, not removed.
+    assert 'aria-label="Status filter"' in text
+    assert "Status" in text
+
+
+def test_placement_grade_selector_excludes_kg(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    response = client.get("/students/1001?section=placement")
+    assert response.status_code == 200
+    text = response.text
+    assert 'value="KG"' not in text
+    assert 'value="1"' in text and 'value="12"' in text
+
+
+def test_sections_endpoint_reuses_planning_scope_authority_and_disabled_state(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    db.add(models.PlanningSection(
+        id=9001, grade_level="1", section_name="A", class_status="current",
+        branch_id=10, academic_year_id=100,
+    ))
+    db.commit()
+
+    configured = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100, "grade_level": "1"})
+    assert configured.status_code == 200
+    assert configured.json() == {"items": [{"id": 9001, "section_name": "A"}]}
+
+    # No PlanningSection exists for Grade 2 at this Branch/Year - the real
+    # "no Sections configured" signal the UI renders as disabled+explanation.
+    unconfigured = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100, "grade_level": "2"})
+    assert unconfigured.status_code == 200
+    assert unconfigured.json() == {"items": []}
+
+    # Foreign-branch access remains blocked, not enumerable.
+    foreign = client.get("/students/sections", params={"branch_id": 20, "academic_year_id": 200, "grade_level": "1"})
+    assert foreign.status_code == 403
+
+
+def test_sections_endpoint_requires_manage_placements_permission(db, client):
+    permissions(db, "students.view")
+    response = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100, "grade_level": "1"})
+    assert response.status_code == 403
+
+
+def test_create_placement_with_configured_planning_section_id(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    db.add(models.PlanningSection(
+        id=9002, grade_level="3", section_name="C", class_status="current",
+        branch_id=10, academic_year_id=100,
+    ))
+    db.commit()
+
+    response = client.post("/students/1002/placements", data={
+        "academic_year_id": "100", "branch_id": "10", "planning_section_id": "9002",
+        "effective_from": "2026-09-01", "effective_to": "", "reason": "",
+    })
+    assert response.status_code in (200, 302)
+    placement = db.query(models.StudentAcademicPlacement).filter_by(student_id=1002, school_group_id=1).one()
+    assert placement.planning_section_id == 9002
+    assert placement.grade_level == "3"
+    assert placement.section_name == "C"
+
+
+def test_list_filters_branch_grade_section_use_real_current_placement_query(db, client):
+    permissions(db, "students.view")
+    db.add(models.StudentAcademicPlacement(
+        id=501, school_group_id=1, student_id=1002, academic_year_id=100,
+        branch_id=11, grade_level="4", section_name="Z",
+        effective_from=datetime(2026, 1, 1), status="active",
+    ))
+    # The Section filter's dropdown only ever offers real, configured Planning
+    # Section names (never a fabricated/free-typed option); back this "Z" value
+    # with a real PlanningSection row so it is a valid, selectable filter value.
+    db.add(models.PlanningSection(
+        id=9003, grade_level="4", section_name="Z", class_status="current",
+        branch_id=11, academic_year_id=100,
+    ))
+    db.commit()
+
+    by_branch = client.get("/students/", params={"branch_id": 11})
+    assert by_branch.status_code == 200
+    assert "Bilal" in by_branch.text and "Alya" not in by_branch.text
+
+    by_grade = client.get("/students/", params={"grade": "4"})
+    assert "Bilal" in by_grade.text and "Alya" not in by_grade.text
+
+    by_section = client.get("/students/", params={"section": "Z"})
+    assert "Bilal" in by_section.text and "Alya" not in by_section.text
+
+    # An out-of-scope/foreign branch id is silently ignored (never trusted as a filter).
+    foreign_branch = client.get("/students/", params={"branch_id": 20})
+    assert "Bilal" in foreign_branch.text and "Alya" in foreign_branch.text

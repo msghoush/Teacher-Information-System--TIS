@@ -10,18 +10,24 @@ Tenant isolation (SchoolGroup), branch scope, and permission checks mirror
 from __future__ import annotations
 
 from datetime import datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 import auth
 import authorization
 import models
+from academic_grade import GRADE_LEVELS as ALL_GRADE_LEVELS
+from academic_grade import normalize_grade_level
 from auth import get_current_user
 from dependencies import get_db
+from homeroom_defaults import normalize_grade_label
+from planning_scope_service import list_operational_planning_sections
 from student_academic_service import (
+    LEARNING_STYLES,
     StudentAcademicError,
     audit_event_payload,
     create_placement,
@@ -36,14 +42,25 @@ from student_academic_service import (
     transition_placement,
     update_student,
 )
+from student_learning_style_analytics import build_distribution as build_learning_style_distribution
+from student_learning_style_analytics import resolve_population as resolve_learning_style_population
+from talent_analytics_privacy import resolve_privacy_policy_provider
 from talent_learner_profile_service import TalentLearnerProfileError, build_learner_profile
 from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/students", tags=["Students UI"])
 templates = Jinja2Templates(directory="templates")
 
-GRADE_LEVELS = ["KG", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"]
+# The Student/Talent workflow scopes its Grade selectors to 1-12 only (no KG),
+# reusing the exact shared ordered Grade representation from academic_grade.py
+# (also used by Planning/Timetable/Talent elsewhere) rather than inventing a
+# parallel Grade list - this restriction applies only at this point of use.
+GRADE_LEVELS = list(ALL_GRADE_LEVELS[1:])
 GENDER_OPTIONS = ["", "Male", "Female"]
+# Learning Style V1 (ADR 0031): "" renders as "Not specified" (neutral, not
+# an error state) and clears the field on submit; the four values mirror the
+# exact canonical set enforced server-side in student_academic_service.py.
+LEARNING_STYLE_OPTIONS = ["", *LEARNING_STYLES]
 PROFILE_SECTIONS = ("overview", "placement", "talent", "history")
 
 
@@ -95,6 +112,7 @@ def _student_view(row):
         "last_name": row.last_name,
         "gender": row.gender,
         "status": row.status,
+        "learning_style": row.learning_style,
         "created_at": row.created_at,
         "updated_at": row.updated_at,
     }
@@ -123,6 +141,42 @@ def _branches(db, user, group_id):
     ).order_by(models.Branch.name).all()
 
 
+def _sections_for(db, branch_id, academic_year_id, grade_level):
+    """Real Sections for one Branch+Academic-Year+Grade combination.
+
+    Reuses Planning's own canonical ``list_operational_planning_sections``
+    authority (the same function Timetable/Subject-Scheduling and the
+    Academic Calendar already use for this exact Current/New Section
+    selector pattern) rather than a parallel PlanningSection query, then
+    narrows to the one requested Grade the same way
+    ``routers/planning.py``'s ``list_sections_for_grade`` already does.
+    """
+    if not branch_id or not academic_year_id or not grade_level:
+        return []
+    grade = normalize_grade_label(grade_level)
+    sections = list_operational_planning_sections(db, int(branch_id), int(academic_year_id))
+    return [
+        {"id": int(section.id), "section_name": str(section.section_name or "").strip()}
+        for section in sections
+        if normalize_grade_label(section.grade_level) == grade
+    ]
+
+
+def _section_name_options(db, user, group_id):
+    """Distinct real Section names for the Students list filter.
+
+    Backed by actual PlanningSection data within the actor's authorized
+    Branch scope - never a fabricated/placeholder option list.
+    """
+    branch_ids = [b.id for b in _branches(db, user, group_id)]
+    if not branch_ids:
+        return []
+    rows = db.query(models.PlanningSection.section_name).filter(
+        models.PlanningSection.branch_id.in_(branch_ids)
+    ).distinct().all()
+    return sorted({str(r[0] or "").strip() for r in rows if r[0]})
+
+
 def _placement_view(db, row):
     payload = placement_payload(row)
     payload["branch_name"] = None
@@ -146,12 +200,17 @@ def _render(request, db, current_user, template_name, context):
     )
 
 
-def _redirect(student_id, section=None, success=None):
+def _redirect(student_id, section=None, success=None, error=None):
     url = f"/students/{student_id}"
+    params = []
     if section:
-        url += f"?section={section}"
+        params.append(f"section={section}")
     if success:
-        url += ("&" if "?" in url else "?") + f"success={success}"
+        params.append(f"success={success}")
+    if error:
+        params.append(f"error={quote(str(error))}")
+    if params:
+        url += "?" + "&".join(params)
     return RedirectResponse(url=url, status_code=302)
 
 
@@ -165,7 +224,25 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
     if status not in (None, "", "active", "inactive"):
         status = None
 
-    rows = list_students(db, school_group_id=group_id, search=search, status=status)
+    branches = _branches(db, user, group_id)
+    accessible_branch_ids = {b.id for b in branches}
+    branch_filter = request.query_params.get("branch_id") or ""
+    branch_id = int(branch_filter) if branch_filter.isdigit() and int(branch_filter) in accessible_branch_ids else None
+
+    grade_filter = str(request.query_params.get("grade", "") or "").strip()
+    grade_level = normalize_grade_level(grade_filter) if grade_filter in GRADE_LEVELS else None
+
+    section_options = _section_name_options(db, user, group_id)
+    section_filter = str(request.query_params.get("section", "") or "").strip()
+    section_name = section_filter if section_filter in section_options else None
+
+    # Grade/Branch/Section reuse the same real current-effective-placement
+    # query capability shared with GET /api/students (student_academic_service.
+    # list_students) - never a client-only/fabricated filter.
+    rows = list_students(
+        db, school_group_id=group_id, search=search, status=status,
+        branch_id=branch_id, grade_level=grade_level, section_name=section_name,
+    )
     visible_ids = _visible_branch_ids(db, user)
     now = datetime.utcnow()
     students = []
@@ -183,12 +260,37 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
     can_create = auth.has_permission(db, user, "students.create", school_group_id=group_id)
     years = _years(db, group_id)
 
+    # Learning Style V1 (ADR 0031, Sections 6-8): Branch/Organization
+    # distribution, reusing the SAME Branch/Grade/Section context filters
+    # already applied above rather than a separate filter UI. Privacy
+    # suppression reuses the governed Talent privacy contract; a
+    # misconfigured/unavailable policy fails closed to "restricted" instead
+    # of publishing raw counts. Search/status are intentionally not applied
+    # here - the distribution reflects the Branch/Grade/Section scope, not
+    # an incidental text search.
+    learning_style_distribution = None
+    policy = resolve_privacy_policy_provider()
+    if policy is not None:
+        ls_population = resolve_learning_style_population(
+            db, school_group_id=group_id, user=user, branch_id=branch_id,
+            grade_level=grade_level, section_name=section_name,
+        )
+        if ls_population is not None:
+            learning_style_distribution = build_learning_style_distribution(ls_population, policy)
+
     return _render(request, db, current_user, "students.html", {
         "request": request,
         "students": students,
+        "branches": branches,
+        "selected_branch_id": branch_id,
+        "grade_levels": GRADE_LEVELS,
+        "selected_grade": grade_level or "",
+        "section_options": section_options,
+        "selected_section": section_name or "",
         "search": search,
         "status": status or "",
         "years": years,
+        "learning_style_distribution": learning_style_distribution,
         "scoped_year_id": getattr(current_user, "scope_academic_year_id", None) or getattr(current_user, "academic_year_id", None),
         "can_create": can_create,
         "error": request.query_params.get("error") or "",
@@ -205,6 +307,7 @@ def students_new(request: Request, db: Session = Depends(get_db), current_user=D
         "request": request,
         "student": None,
         "gender_options": GENDER_OPTIONS,
+        "learning_style_options": LEARNING_STYLE_OPTIONS,
         "error": request.query_params.get("error") or "",
         "mode": "new",
     })
@@ -217,6 +320,7 @@ def students_new_post(
     last_name: str = Form(...),
     father_name: str = Form(""),
     gender: str = Form(""),
+    learning_style: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -231,6 +335,7 @@ def students_new_post(
             last_name=last_name,
             father_name=father_name or None,
             gender=gender or None,
+            learning_style=learning_style or None,
             actor=user,
         )
         db.commit()
@@ -241,10 +346,43 @@ def students_new_post(
             "request": request,
             "student": None,
             "gender_options": GENDER_OPTIONS,
+            "learning_style_options": LEARNING_STYLE_OPTIONS,
             "error": exc.message,
-            "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender},
+            "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender, "learning_style": learning_style},
             "mode": "new",
         })
+
+
+@router.get("/sections")
+def students_sections_for_grade(
+    request: Request,
+    branch_id: int = 0,
+    academic_year_id: int = 0,
+    grade_level: str = "",
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Real cascading Section options for one Academic Year + Branch + Grade.
+
+    Backs the Academic Placement form's live cascade. Reuses the exact
+    canonical Planning Section authority (``_sections_for`` ->
+    ``list_operational_planning_sections``) - no parallel Section data
+    structure. Gated by the same ``students.manage_placements`` permission
+    the placement mutation routes already require, plus the actor's real
+    Branch access scope.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "students.manage_placements")
+    if denied:
+        return denied
+    if not branch_id or not academic_year_id or not grade_level:
+        return {"items": []}
+    if not auth.can_access_branch(db, user, branch_id):
+        return JSONResponse({"detail": "Branch is outside your authorized scope."}, status_code=403)
+    branch = db.query(models.Branch).filter_by(id=branch_id, school_group_id=group_id).one_or_none()
+    year = db.query(models.AcademicYear).filter_by(id=academic_year_id, school_group_id=group_id).one_or_none()
+    if branch is None or year is None:
+        return JSONResponse({"detail": "Branch or academic year is outside the organization."}, status_code=400)
+    return {"items": _sections_for(db, branch_id, academic_year_id, grade_level)}
 
 
 @router.get("/{student_id}", response_class=HTMLResponse)
@@ -332,9 +470,11 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
         "branches": branches,
         "grades": GRADE_LEVELS,
         "gender_options": GENDER_OPTIONS,
+        "learning_style_options": LEARNING_STYLE_OPTIONS,
         "can_edit": can_edit,
         "can_activate_deactivate": can_activate_deactivate,
         "can_manage_placements": can_manage_placements,
+        "sections_api_url": "/students/sections",
         "today": datetime.utcnow().strftime("%Y-%m-%d"),
         "error": request.query_params.get("error") or "",
         "success": request.query_params.get("success") or "",
@@ -349,6 +489,7 @@ def student_edit_post(
     last_name: str = Form(...),
     father_name: str = Form(""),
     gender: str = Form(""),
+    learning_style: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -364,6 +505,7 @@ def student_edit_post(
             last_name=last_name,
             father_name=father_name or None,
             gender=gender or None,
+            learning_style=learning_style,
             actor=user,
         )
         db.commit()
@@ -399,8 +541,9 @@ def student_placement_post(
     student_id: int,
     academic_year_id: int = Form(...),
     branch_id: int = Form(...),
-    grade_level: str = Form(...),
-    section_name: str = Form(...),
+    planning_section_id: str = Form(""),
+    grade_level: str = Form(""),
+    section_name: str = Form(""),
     effective_from: str = Form(...),
     effective_to: str = Form(""),
     reason: str = Form(""),
@@ -413,14 +556,19 @@ def student_placement_post(
     try:
         if not auth.can_access_branch(db, user, branch_id):
             return HTMLResponse("Branch is outside your authorized scope.", status_code=403)
+        # A real configured PlanningSection (planning_section_id) takes precedence
+        # and supplies its own canonical grade_level/section_name; raw grade_level/
+        # section_name remain the legacy manual-entry fallback used when no
+        # PlanningSection is configured for this Branch/Academic-Year/Grade yet.
         create_placement(
             db,
             school_group_id=group_id,
             student_id=student_id,
             academic_year_id=academic_year_id,
             branch_id=branch_id,
-            grade_level=grade_level,
-            section_name=section_name,
+            planning_section_id=int(planning_section_id) if str(planning_section_id or "").strip() else None,
+            grade_level=grade_level or None,
+            section_name=section_name or None,
             effective_from=_parse_date(effective_from, "effective_from"),
             effective_to=_parse_date(effective_to, "effective_to"),
             reason=reason or None,
@@ -428,9 +576,9 @@ def student_placement_post(
         )
         db.commit()
         return _redirect(student_id, "placement", "placement")
-    except StudentAcademicError:
+    except StudentAcademicError as exc:
         db.rollback()
-    return _redirect(student_id, "placement")
+        return _redirect(student_id, "placement", error=exc.message)
 @router.post("/{student_id}/placements/{placement_id}/end")
 def student_placement_end_post(
     request: Request,
@@ -474,8 +622,9 @@ def student_placement_transition_post(
     placement_id: int,
     academic_year_id: int = Form(...),
     branch_id: int = Form(...),
-    grade_level: str = Form(...),
-    section_name: str = Form(...),
+    planning_section_id: str = Form(""),
+    grade_level: str = Form(""),
+    section_name: str = Form(""),
     transition_at: str = Form(...),
     reason: str = Form(""),
     db: Session = Depends(get_db),
@@ -502,14 +651,15 @@ def student_placement_transition_post(
             transition_at=_parse_date(transition_at, "transition_at"),
             academic_year_id=academic_year_id,
             branch_id=branch_id,
-            grade_level=grade_level,
-            section_name=section_name,
+            planning_section_id=int(planning_section_id) if str(planning_section_id or "").strip() else None,
+            grade_level=grade_level or None,
+            section_name=section_name or None,
             reason=reason or None,
             actor=user,
         )
         db.commit()
         return _redirect(student_id, "placement", "placement")
-    except StudentAcademicError:
+    except StudentAcademicError as exc:
         db.rollback()
-        return _redirect(student_id, "placement")
+        return _redirect(student_id, "placement", error=exc.message)
 # End of module.

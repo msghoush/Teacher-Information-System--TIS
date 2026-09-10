@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Program And Evaluation UX Orchestration
+
+- `routers/talent_ui.py`: projects Program, Plan, Cycle, Assessment, and related
+  action permissions into the browser; Evaluation Plan manage/govern keys are
+  included, and Branch scope suppresses organization-only govern presentation.
+- `static/js/talent-program-workspace.js`: searchable Program table and the
+  Basics -> What we assess -> Evaluation schedule -> Ready setup journey over
+  existing Program/Framework APIs.
+- `static/js/talent-evaluation-workspace.js`: standard schedule and simple
+  evaluation states; sequences existing Plan, Period, Cycle, population-preview,
+  and open APIs without owning domain state.
+- `static/css/talent-program-workspace.css`: compact table, guided-step,
+  competency/achievement, and schedule presentation.
+
 ## Student/Talent Migration Prerequisite
 
 - `db_migrations.py`: migration `20260904_000` ensures PostgreSQL-valid

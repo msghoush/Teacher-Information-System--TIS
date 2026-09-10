@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
+{% from "_learning_style.html" import learning_style_field, learning_style_badge %}
 {% block title %}{{ student.display_name }} | TIS{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
 {% block content %}
@@ -47,6 +48,7 @@
       <div class="stu-field"><label>Last name</label><span>{{ student.last_name }}</span></div>
       <div class="stu-field"><label>Father's name</label><span>{{ student.father_name or '—' }}</span></div>
       <div class="stu-field"><label>Gender</label><span>{{ student.gender or '—' }}</span></div>
+      <div class="stu-field"><label>Learning Style</label><span>{{ learning_style_badge(student.learning_style) }}</span></div>
     </div>
     {% if can_edit %}
     <details style="margin-top: 16px;">
@@ -60,6 +62,10 @@
             <select id="gender" name="gender">{% for option in gender_options %}<option value="{{ option }}" {% if student.gender == option %}selected{% endif %}>{{ option or '—' }}</option>{% endfor %}</select>
           </div>
         </div>
+        <div class="stu-field" style="margin-top: 8px;">
+          <label>Learning Style <span class="stu-hint">(optional)</span></label>
+          {{ learning_style_field(learning_style_options, student.learning_style) }}
+        </div>
         <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save</button></div>
       </form>
     </details>
@@ -71,27 +77,33 @@
   <div class="stu-panel">
     <h2>Add Academic Placement</h2>
     <p class="stu-lede">{{ icon('branch', 'shell-icon') }}Set which Academic Year, Branch, Grade, and Section this student belongs to, and when it began. Ending a placement keeps it in history.</p>
-    <form class="stu-form" method="post" action="/students/{{ student.id }}/placements">
+    <form class="stu-form" method="post" action="/students/{{ student.id }}/placements" data-stu-cascade-group data-sections-api="{{ sections_api_url }}">
       <div class="stu-form-grid">
         <div class="stu-field">
           <label for="academic_year_id">Academic Year</label>
-          <select id="academic_year_id" name="academic_year_id" required>
+          <select id="academic_year_id" name="academic_year_id" required data-stu-cascade="year">
             {% for y in years %}<option value="{{ y.id }}" {% if current_placement and current_placement.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}
           </select>
         </div>
         <div class="stu-field">
           <label for="branch_id">Branch</label>
-          <select id="branch_id" name="branch_id" required>
+          <select id="branch_id" name="branch_id" required data-stu-cascade="branch">
             {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
           </select>
         </div>
         <div class="stu-field">
           <label for="grade_level">Grade</label>
-          <select id="grade_level" name="grade_level" required>{% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}</select>
+          <select id="grade_level" name="grade_level" required data-stu-cascade="grade">
+            <option value="">Select grade</option>
+            {% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}
+          </select>
         </div>
         <div class="stu-field">
-          <label for="section_name">Section</label>
-          <input id="section_name" name="section_name" required maxlength="20" placeholder="A, B, C…">
+          <label for="planning_section_id">Section</label>
+          <select id="planning_section_id" name="planning_section_id" required disabled data-stu-cascade="section">
+            <option value="">Select academic year, branch, and grade first</option>
+          </select>
+          <p class="stu-hint" data-stu-cascade="section-hint" hidden>No Sections configured for this Grade.</p>
         </div>
         <div class="stu-field">
           <label for="effective_from">From</label>
@@ -106,7 +118,7 @@
           <input id="reason" name="reason" maxlength="255" placeholder="e.g. New academic year">
         </div>
       </div>
-      <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save Placement</button></div>
+      <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit" data-stu-cascade="submit">{{ icon('save', 'shell-icon') }}Save Placement</button></div>
     </form>
   </div>
   {% endif %}
@@ -138,15 +150,21 @@
               </div>
               <div class="stu-form-actions"><button class="stu-btn" type="submit">{{ icon('close', 'shell-icon') }}End this placement</button></div>
             </form>
-            <form class="stu-form" method="post" action="/students/{{ student.id }}/placements/{{ p.id }}/transition">
+            <form class="stu-form" method="post" action="/students/{{ student.id }}/placements/{{ p.id }}/transition" data-stu-cascade-group data-sections-api="{{ sections_api_url }}">
               <div class="stu-form-grid">
                 <div class="stu-field"><label>Move on</label><input name="transition_at" type="date" required value="{{ today }}"></div>
-                <div class="stu-field"><label>New Academic Year</label><select name="academic_year_id" required>{% for y in years %}<option value="{{ y.id }}" {% if p.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}</select></div>
-                <div class="stu-field"><label>New Branch</label><select name="branch_id" required>{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
-                <div class="stu-field"><label>New Grade</label><select name="grade_level" required>{% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}</select></div>
-                <div class="stu-field"><label>New Section</label><input name="section_name" required maxlength="20"></div>
+                <div class="stu-field"><label>New Academic Year</label><select name="academic_year_id" required data-stu-cascade="year">{% for y in years %}<option value="{{ y.id }}" {% if p.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}</select></div>
+                <div class="stu-field"><label>New Branch</label><select name="branch_id" required data-stu-cascade="branch">{% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}</select></div>
+                <div class="stu-field"><label>New Grade</label><select name="grade_level" required data-stu-cascade="grade"><option value="">Select grade</option>{% for g in grades %}<option value="{{ g }}">Grade {{ g }}</option>{% endfor %}</select></div>
+                <div class="stu-field">
+                  <label>New Section</label>
+                  <select name="planning_section_id" required disabled data-stu-cascade="section">
+                    <option value="">Select academic year, branch, and grade first</option>
+                  </select>
+                  <p class="stu-hint" data-stu-cascade="section-hint" hidden>No Sections configured for this Grade.</p>
+                </div>
               </div>
-              <div class="stu-form-actions"><button class="stu-btn" type="submit">{{ icon('open', 'shell-icon') }}Change placement</button></div>
+              <div class="stu-form-actions"><button class="stu-btn" type="submit" data-stu-cascade="submit">{{ icon('open', 'shell-icon') }}Change placement</button></div>
             </form>
           </div>
         </details>
@@ -164,6 +182,7 @@
   <div class="stu-panel">
     <h2>Talent &amp; Potential</h2>
     <p class="stu-lede">{{ icon('sparkles', 'shell-icon') }}The student's evaluation history across Programs, shown in its original historical context. Nothing here is inferred or predicted.</p>
+    <p class="stu-ls-context"><span class="stu-hint">Learner context (not a Talent signal):</span> {{ learning_style_badge(student.learning_style) }}</p>
     {% if talent_profile and talent_profile.programs %}
       {% for prog in talent_profile.programs %}
       <section class="stu-panel" style="box-shadow: none; border-color: var(--app-line);">
@@ -180,7 +199,7 @@
               <p><strong>Historical context</strong> {{ fb.name if fb else 'Branch' }} · Grade {{ c.frozen_context.grade_level }} · {{ c.frozen_context.section_name }}</p>
             {% endif %}
             {% if c.assessment.kpi_result != None %}<p><strong>Result</strong> {{ c.assessment.kpi_result }}</p>{% endif %}
-            {% if c.review_candidate is defined and c.review_candidate %}<p><strong>Review Candidate</strong> {{ c.review_candidate.status | replace('_', ' ') }}</p>{% endif %}
+            {% if c.review_candidate is defined and c.review_candidate %}<p><strong>Talent Review</strong> {{ c.review_candidate.status | replace('_', ' ') }}</p>{% endif %}
             {% if c.official_identification is defined and c.official_identification %}<p><strong>Identification</strong> {{ c.official_identification.decision | replace('_', ' ') }}</p>{% endif %}
             {% if c.competency_results %}
             <p><strong>Competency evidence</strong></p>
@@ -226,4 +245,7 @@
   </div>
   {% endif %}
 </section>
+{% endblock %}
+{% block page_scripts %}
+<script src="{{ url_for('static', path='js/students.js') }}" defer></script>
 {% endblock %}

@@ -1,11 +1,132 @@
 ---
 title: TIS Change History
-documentation_version: 3.8
-last_updated: 2026-09-09
+documentation_version: 3.9
+last_updated: 2026-09-10
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-10 — Student Learning Style V1 implementation
+
+- Implemented the ADR 0031-governed Student Learning Style V1 contract: a
+  nullable, single-select `Student.learning_style` (migration
+  `20260910_002_student_learning_style_v1`, purely additive) restricted to
+  exactly `Visual`/`Auditory`/`Read/Write`/`Kinesthetic`, validated
+  server-side in `student_academic_service.py` and rejected at the API layer
+  regardless of any UI restriction.
+- Added the field to Student create/edit (`templates/_learning_style.html`,
+  a compact icon+label selector reusing existing design tokens) and to the
+  Student Profile display (Overview and the Talent tab, shown explicitly as
+  learner context, not a Talent signal). Editing reuses the existing
+  `students.edit` permission; no new permission was added.
+- Added a Branch/Organization Learning Style distribution on the Students
+  list page and a matching `GET /api/students/analytics/learning-style-distribution`
+  route (`student_learning_style_analytics.py`), reusing the existing
+  Branch/Grade/Section filters and the governed Talent privacy/suppression
+  contract (`talent_analytics_privacy.py`'s Cell/Group complementary
+  suppression, the same shape `/rubric-distribution` already uses) rather
+  than a new or weaker rule; fails closed when no privacy policy is
+  configured.
+- Confirmed by regression test that no Talent scoring, Program Criteria,
+  Review, or Official Identification code path reads `learning_style`. The
+  Talent Review/Assessment operational drill-down (`static/js/talent-operations.js`)
+  was left unextended because its backend `context` payload lives in
+  `routers/talent_review_candidates.py`/`routers/talent_assessments.py`,
+  which already carried substantial unrelated uncommitted changes from
+  separate concurrent work. No Talent scoring, eligibility, permission,
+  tenant boundary, or `tis.db` data changed. See "Student Learning Style V1"
+  in `docs/PROJECT_STATE.md` and `docs/adr/0031-student-learning-style-v1.md`.
+
+## 2026-09-10 — Evaluation Plan scope and local-test identity correction
+
+- Classified the reported Add Evaluation Period denial as a stale sanctioned local-test identity: its role already held all canonical Evaluation Plan permissions, but the disposable database row had durable `BRANCH` scope while the current seed contract specifies `ORGANIZATION` with North Campus retained as the working Branch.
+- Preserved the KMS organization/global authority requirement and tenant boundary. Added explicit backend and browser-payload coverage proving that an organization-scoped manager with a selected Branch can mutate, while a truly Branch-scoped manager remains denied and sees a read-only explanation before submission.
+- Added a seed-contract assertion and used the existing sentinel-checked local reseed workflow as the supported repair path. No production database, raw SQL, role bypass, schema, permission key, or lifecycle rule changed.
+## 2026-09-10 — Organization Overview primary indicator and rubric distribution wiring
+
+- Added a single, largest-on-page radial gauge to the Organization Overview
+  answering "how many Students are talented": sourced only from the existing
+  `identified_of_eligible` M10 metric's `organization_total` cell, gated by
+  the existing `talent_official_identifications.view` permission. Confirmed
+  Official Identification (a separate, permanent human decision) as the
+  authoritative "talented" signal, distinct from the rubric level and from
+  Meets Program Criteria/Review-Candidate membership, both still shown
+  separately.
+- Wired the previously implemented but UI-unused M9 `/rubric-distribution`
+  route into the Organization Overview (shown only when one Program is
+  selected) using a new shared, order-derived rubric-level visual
+  (`rubricDistribution`/`rubricLevelIntensity` in `static/js/talent.js`):
+  intensity is derived only from a level's position among its siblings, never
+  from a count/percentage, so it stays safe for any label set/level count and
+  for a privacy-protected level. Bar length remains sourced only from an
+  already-visible backend percentage.
+- No analytics service, provider, privacy threshold, suppression rule,
+  permission, tenant, schema, migration, or data behavior changed; both
+  additions are pure consumers of already-existing, already-tested backend
+  projections. See "Talent Phase C Results & Analytics Experience" in
+  `docs/PROJECT_STATE.md`.
+
+## 2026-09-10 — Completed Program operational mode
+
+- Added default operational summaries for completed active Talent Programs and explicit hash-based entry back into guided editing.
+- Adopted Evaluation Plan/Evaluation Period terminology and retained the embedded Step 3 management experience.
+- Corrected Academic Year label rendering and translated organization-authority errors into user-facing Evaluation Period access messages.
+
+## 2026-09-10 — Talent guided configuration owner correction
+
+- Unified Program Basics into one setup panel and introduced a one-substep-at-a-time assessment setup flow.
+- Embedded Evaluation Schedule management inside the Program wizard while retaining the standalone operational route and existing backend lifecycle contracts.
+- Standardized user-facing Evaluation Schedule terminology and simplified assessment setup/history wording.
+- Enforced mutually exclusive desktop Student table and mobile Student cards, with visually neutral normal Active status.
+
+## 2026-09-10 - Talent Owner Visual Acceptance Corrections
+
+- Removed the "Apply context" confirm-click requirement from the shared
+  Academic Year/Program/Branch/Grade/Metric/Dimension filter used by every
+  Talent page: a `change` listener now triggers the existing debounced
+  (250ms) reload path; the visible button is relabeled "Refresh" and is now
+  an optional, immediate, non-debounced fallback. The existing URL-query-
+  parameter/`history.replaceState` context mechanism is unchanged.
+- Removed the duplicated analytics-family navigation on Organization Overview
+  and every other analytics page: the primary Talent nav now shows exactly
+  one "Results & Analytics" entry instead of repeating each analytics page
+  link that the existing sticky sub-nav already lists.
+- Corrected this document's own prior entry below and the other KMS sources:
+  the Evaluation Schedule "Baseline/Term 1/Term 2/Final" fixed-picklist
+  description was already superseded, later the same day, by a free-text
+  user-defined evaluation name (confirmed still intact, not re-implemented);
+  internal-lifecycle copy ("Prepared evaluations", "Ready to link", "Link an
+  evaluation", "No Evaluation Plan", "Frozen population") does not render in
+  that normal path (confirmed via a fresh rendered-output regression, not
+  merely template source). The compact Programs table with a collapsed
+  (not permanently expanded) Create-Program form was likewise confirmed
+  already intact.
+- Diagnosed (no code change) why Organization Overview shows "Analytics
+  unavailable" in an ordinary local run: `DATABASE_URL` must resolve to
+  exactly `.local_test_data/talent_local_test.db` to activate the sanctioned
+  local providers; an unset `DATABASE_URL` falls back to `tis.db`, which
+  correctly stays on the fail-closed production path. This is the existing
+  B11-E F1 contract working as designed, not a defect.
+- Presentation-only: no schema, migration, permission, analytics computation,
+  provider, privacy, or `tis.db` change.
+
+## 2026-09-09 - Talent Program And Evaluation UX Simplification
+
+- Replaced the desktop Program card grid with a searchable table showing
+  Program, Grades, Type, Current Year, Status, Open, and Edit.
+- Reframed Program setup as Basics, What we assess, Evaluation schedule, and
+  Ready; joined each competency with its rubric-level achievement descriptions
+  and kept version mechanics inside the edit disclosure.
+- Replaced the normal manual Plan/Period/Cycle workflow with a standard
+  Baseline/Term 1/Term 2/Final schedule and Setup/Ready to start/In progress/
+  Complete states.
+- Start Evaluation now calls existing create/link/preview/open contracts in
+  revision order and shows the eligible Student count and Academic Placement
+  effective date before the governed population freeze.
+- Added missing `talent_evaluation_plans.manage` and `.govern` browser permission
+  projection plus organization-scope regression coverage. No schema, migration,
+  Student UI, analytics, pricing, AI, timetable, or backend authority changed.
 
 ## 2026-09-09 - PostgreSQL Student/Talent Migration Prerequisite Repair
 

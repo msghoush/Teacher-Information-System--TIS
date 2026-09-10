@@ -48,6 +48,10 @@ def db():
         models.PlanningSection(id=1000, branch_id=10, academic_year_id=100, grade_level="1", section_name="A", class_status="Current"),
         models.PlanningSection(id=1001, branch_id=11, academic_year_id=100, grade_level="1", section_name="B", class_status="Current"),
         models.PlanningSection(id=1002, branch_id=10, academic_year_id=100, grade_level="4", section_name="D", class_status="Current"),
+        # Grade "2" is real Planning-configured data (not just a Program eligible-Grade
+        # fixture default) so upsert_annual_configuration's Planning-scoped Grade
+        # validation accepts the existing foundation() default of ("1", "2").
+        models.PlanningSection(id=1003, branch_id=10, academic_year_id=100, grade_level="2", section_name="C", class_status="Current"),
     ])
     session.commit()
     yield engine, session
