@@ -405,6 +405,36 @@ def test_frozen_read_uses_historical_branch_while_organization_sees_integrity(db
         assert body["population_fingerprint"] == cycle.population_fingerprint
 
 
+def test_viewing_open_cycle_population_auto_reconciles_missed_eligible_student(db):
+    """Regression for the P0 gap: a Student who became eligible without ever
+    triggering ``synchronize_placement_to_open_cycles`` (e.g. placed before
+    this reconciliation existed, or any other synchronization gap) must still
+    surface as "Not Started" the next time an organization-authorized viewer
+    opens the Cycle's population, per ADR 0033's "opening an existing Open
+    assessment invokes ... before reading its members" resolved condition -
+    without requiring an explicit call to the population/synchronize route.
+    """
+    _, session = db
+    program, framework, _ = foundation(session, grades=("1",))
+    student_placement(session, first="Already Open", branch=10, section=1000)
+    cycle = draft_cycle(session, program, framework)
+    open_cycle(session, school_group_id=1, cycle_id=cycle.id, expected_revision=1,
+               organization_authorized=True)
+    assert cycle.population_count == 1
+    # Simulate a Student who became eligible without going through the
+    # placement-save synchronization path (the real-world gap this guards).
+    late_student, _ = student_placement(session, first="Missed", branch=10, section=1000)
+    org_admin = _user("1000000003", branch=10, scope="ORGANIZATION")
+    session.add(org_admin)
+    session.commit()
+    with _client(session, org_admin) as client:
+        body = client.get(f"/api/talent/assessment-cycles/{cycle.id}/population").json()
+        assert body["count"] == 2
+        assert late_student.id in {m["student_id"] for m in body["members"]}
+    session.refresh(cycle)
+    assert cycle.population_count == 2
+
+
 def test_dedicated_permissions_and_cross_tenant_ids_are_non_enumerating(db):
     _, session = db
     program, framework, _ = foundation(session)

@@ -219,6 +219,28 @@ def cycles_population(cycle_id: int, request: Request, db: Session = Depends(get
     user, group_id, denied = _authorize(request, db, current_user, "talent_assessment_cycles.view_population")
     if denied:
         return denied
+    # ADR 0033 resolved condition: opening an existing Open Cycle's population
+    # must additively reconcile eligible-but-missing members before the read,
+    # so Students already eligible before a synchronization gap (e.g. placed
+    # before this reconciliation was deployed) are not permanently hidden.
+    # Reconciliation itself requires organization authority (ADR 0033); a
+    # branch-scoped viewer simply reads the current stored population, which
+    # organization-authorized synchronization keeps up to date for everyone.
+    if _organization_authorized(user):
+        try:
+            precheck = get_cycle(db, school_group_id=group_id, cycle_id=cycle_id)
+        except TalentAssessmentCycleError as exc:
+            return _error(exc)
+        if precheck.status == "open":
+            try:
+                reconcile_open_cycle_population(
+                    db, school_group_id=group_id, cycle_id=cycle_id,
+                    expected_revision=precheck.revision,
+                    organization_authorized=True, actor=user,
+                )
+                db.commit()
+            except TalentAssessmentCycleError:
+                db.rollback()
     try:
         cycle, rows = frozen_population(db, school_group_id=group_id, cycle_id=cycle_id)
     except TalentAssessmentCycleError as exc:

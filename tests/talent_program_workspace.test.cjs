@@ -413,6 +413,48 @@ test('a stale in-flight response for a previous Program can never overwrite the 
   assert.doesNotMatch(root.innerHTML, /<h2>Mental Math<\/h2>/, 'the stale Program A response never overwrote the newer Program B state');
 });
 
+test('Program index offers Delete only when the backend-computed actions array allows it (ADR 0032), with confirmation and the real DELETE route', async () => {
+  const {ctx, root, calls} = (() => {
+    const root = {innerHTML: '', querySelector: () => null, querySelectorAll: () => []};
+    const c = [];
+    const api = async (path, options) => {
+      c.push({path, options});
+      if (options) return {};
+      if (path === '/api/talent/programs') return [{id: 11, name: 'Performing Arts', status: 'draft', actions: ['delete']}];
+      if (path.endsWith('/academic-years')) return [];
+      if (path.endsWith('/frameworks')) return [];
+      throw new Error(`Unexpected ${path}`);
+    };
+    const ctx = {root, year: '2026', params: new URLSearchParams(), can: key => key === 'talent_programs.view' || key === 'talent_programs.manage', api};
+    return {ctx, root, calls: c};
+  })();
+  await render(ctx);
+  assert.match(root.innerHTML, /data-action="delete-program" data-id="11"/);
+  const oldConfirm = global.window;
+  global.window = {confirm: () => true, scrollY: 0, scrollTo(){}, addEventListener(){}, removeEventListener(){}};
+  try {
+    await root.onclick({target: {closest: sel => sel.includes('delete-program') ? {dataset: {action: 'delete-program', id: '11'}} : null}});
+  } finally { global.window = oldConfirm; }
+  const del = calls.find(c => c.path === '/api/talent/programs/11' && c.options && c.options.method === 'DELETE');
+  assert.ok(del, 'expected a DELETE call to the Program route');
+});
+
+test('Program index omits Delete when the backend-computed actions array does not allow it', async () => {
+  const {ctx, root} = (() => {
+    const root = {innerHTML: '', querySelector: () => null, querySelectorAll: () => []};
+    const api = async path => {
+      if (path === '/api/talent/programs') return [{id: 11, name: 'Performing Arts', status: 'active', actions: []}];
+      if (path.endsWith('/academic-years')) return [];
+      if (path.endsWith('/frameworks')) return [];
+      throw new Error(`Unexpected ${path}`);
+    };
+    const ctx = {root, year: '2026', params: new URLSearchParams(), can: key => key === 'talent_programs.view' || key === 'talent_programs.manage', api};
+    return {ctx, root};
+  })();
+  await render(ctx);
+  assert.doesNotMatch(root.innerHTML, /data-action="delete-program"/);
+});
+
 test('removing the Program logo requires confirmation and calls the Program-scoped logo DELETE route', async () => {
   const {ctx, root, calls} = fixture(true, 'draft', {logoUrl: '/organization-assets/1/programs/11/logo/a.png'});
   await render(ctx);

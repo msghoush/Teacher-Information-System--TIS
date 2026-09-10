@@ -320,6 +320,58 @@ def complete_assessment(db, *, school_group_id, assessment_id, expected_revision
     return assessment
 
 
+_ASSESSMENT_DELETE_BLOCKER_TABLES = (
+    (models.TalentStudentCompetencyResult, "competency results"),
+    (models.TalentReviewCandidate, "a Talent Review Candidate record"),
+    (models.TalentOfficialIdentification, "an Official Identification decision"),
+    (models.TalentEducatorInput, "Educator Input"),
+)
+
+
+def assessment_delete_blockers(db, *, assessment_id):
+    """Real, re-verified list of dependent-evidence labels that block a delete (ADR 0034).
+
+    Every dependent table checked here (`TalentStudentCompetencyResult`,
+    `TalentReviewCandidate`, `TalentOfficialIdentification`, `TalentEducatorInput`)
+    carries a direct `assessment_id` column in the current schema - re-verified
+    against `models.py`, not assumed from ADR 0034's description alone.
+    """
+    return [label for model, label in _ASSESSMENT_DELETE_BLOCKER_TABLES
+            if db.query(model.id).filter_by(assessment_id=assessment_id).first() is not None]
+
+
+def can_delete_assessment(db, *, assessment_id):
+    """Real backend capability check (ADR 0034): zero dependent evidence/history rows."""
+    return not assessment_delete_blockers(db, assessment_id=assessment_id)
+
+
+def delete_assessment(db, *, school_group_id, assessment_id, actor=None):
+    """Hard-delete a Student Assessment per ADR 0034's exact, scoped zero-evidence exception.
+
+    Allowed only when zero `TalentStudentCompetencyResult`, `TalentReviewCandidate`,
+    `TalentOfficialIdentification`, or `TalentEducatorInput` rows reference this
+    Assessment. Any such row is rejected outright - never a silent no-op, never a
+    partial delete, never a cascade-delete of the dependent evidence itself. This
+    never touches `TalentAssessmentCyclePopulationMember` rows, Student placement
+    history, or Cycle population records - only the Assessment row itself is
+    removed.
+    """
+    assessment = _assessment(db, school_group_id, assessment_id, lock=True)
+    if assessment is None:
+        raise TalentStudentAssessmentError("not_found", "Student Assessment was not found.")
+    blockers = assessment_delete_blockers(db, assessment_id=assessment.id)
+    if blockers:
+        raise TalentStudentAssessmentError(
+            "assessment_has_dependents",
+            "This Assessment has recorded " + ", ".join(blockers) + " and cannot be deleted.",
+        )
+    before = assessment_payload(assessment)
+    _audit(db, assessment, actor=actor, action="delete", before=before)
+    db.delete(assessment)
+    db.flush()
+    return assessment.id
+
+
 def mark_non_complete(db, *, school_group_id, assessment_id, expected_revision, status, actor=None):
     if status not in {"incomplete", "insufficient_evidence"}:
         raise TalentStudentAssessmentError("invalid_status", "Assessment status must be Incomplete or Insufficient Evidence.")
