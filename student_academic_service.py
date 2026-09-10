@@ -6,7 +6,7 @@ import hashlib
 import json
 from datetime import datetime
 
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 import models
@@ -18,6 +18,27 @@ class StudentAcademicError(ValueError):
         super().__init__(message)
         self.code = code
         self.message = message
+
+
+# Learning Style V1 (ADR 0031): exactly four approved values, no others.
+# Student-domain learner-profile context only - never a Talent score and
+# never read by any Talent scoring/eligibility/Official Identification
+# computation. Optional/nullable; an empty value clears it back to "not
+# specified", mirroring how other optional Student fields (e.g. gender) are
+# already cleared by ``_clean`` below.
+LEARNING_STYLES = ("Visual", "Auditory", "Read/Write", "Kinesthetic")
+
+
+def _clean_learning_style(value):
+    cleaned = " ".join(str(value or "").split())
+    if not cleaned:
+        return None
+    if cleaned not in LEARNING_STYLES:
+        raise StudentAcademicError(
+            "invalid_learning_style",
+            "Learning Style must be one of Visual, Auditory, Read/Write, or Kinesthetic.",
+        )
+    return cleaned
 
 
 def _clean(value, field: str, *, required: bool = False, maximum: int = 100):
@@ -34,6 +55,7 @@ def _student_payload(student):
         "id": student.id, "school_group_id": student.school_group_id,
         "first_name": student.first_name, "father_name": student.father_name,
         "last_name": student.last_name, "gender": student.gender, "status": student.status,
+        "learning_style": student.learning_style,
     }
 
 
@@ -70,7 +92,7 @@ def get_student(db: Session, school_group_id: int, student_id: int):
 
 
 def create_student(db: Session, *, school_group_id: int, first_name, last_name,
-                   father_name=None, gender=None, actor=None):
+                   father_name=None, gender=None, learning_style=None, actor=None):
     if db.get(models.SchoolGroup, school_group_id) is None:
         raise StudentAcademicError("invalid_scope", "The selected organization is unavailable.")
     student = models.Student(
@@ -79,6 +101,7 @@ def create_student(db: Session, *, school_group_id: int, first_name, last_name,
         father_name=_clean(father_name, "father_name"),
         last_name=_clean(last_name, "last_name", required=True),
         gender=_clean(gender, "gender", maximum=24), status="active",
+        learning_style=_clean_learning_style(learning_style),
         created_by_user_id=getattr(actor, "user_id", None),
         updated_by_user_id=getattr(actor, "user_id", None),
     )
@@ -96,6 +119,8 @@ def update_student(db: Session, *, school_group_id: int, student_id: int, actor=
     for field in ("first_name", "father_name", "last_name", "gender"):
         if field in changes:
             setattr(student, field, _clean(changes[field], field, required=field in {"first_name", "last_name"}, maximum=24 if field == "gender" else 100))
+    if "learning_style" in changes:
+        student.learning_style = _clean_learning_style(changes["learning_style"])
     if "status" in changes:
         status = str(changes["status"] or "").strip().lower()
         if status not in {"active", "inactive"}:
@@ -111,7 +136,42 @@ def update_student(db: Session, *, school_group_id: int, student_id: int, actor=
     return student
 
 
-def list_students(db: Session, *, school_group_id: int, search: str = "", status: str | None = None):
+def _current_placement_scope_subquery(db: Session, *, school_group_id: int, at: datetime | None = None):
+    """Real, backend-computed "current effective placement" scope per Student.
+
+    Reuses the exact half-open ``[effective_from, effective_to)`` eligibility rule
+    ``resolve_placement`` already applies, then picks each Student's latest
+    ``effective_from`` among eligible rows (SQLite/PostgreSQL-portable GROUP BY,
+    no window function) - the same tie-break ``resolve_placement`` uses. This
+    backs real Branch/Grade/Section list filters; it is never a fabricated or
+    client-only filter.
+    """
+    at = at or datetime.utcnow()
+    P = models.StudentAcademicPlacement
+    eligible = db.query(P).filter(
+        P.school_group_id == school_group_id,
+        P.effective_from <= at,
+        or_(P.effective_to.is_(None), P.effective_to > at),
+    ).subquery()
+    latest = db.query(
+        eligible.c.student_id.label("student_id"),
+        func.max(eligible.c.effective_from).label("max_from"),
+    ).group_by(eligible.c.student_id).subquery()
+    current = db.query(
+        eligible.c.student_id.label("student_id"),
+        eligible.c.branch_id.label("branch_id"),
+        eligible.c.grade_level.label("grade_level"),
+        eligible.c.section_name.label("section_name"),
+    ).join(
+        latest,
+        and_(eligible.c.student_id == latest.c.student_id, eligible.c.effective_from == latest.c.max_from),
+    ).subquery()
+    return current
+
+
+def list_students(db: Session, *, school_group_id: int, search: str = "", status: str | None = None,
+                  branch_id: int | None = None, grade_level: str | None = None,
+                  section_name: str | None = None, at: datetime | None = None):
     query = db.query(models.Student).filter(models.Student.school_group_id == school_group_id)
     cleaned = str(search or "").strip()
     if cleaned:
@@ -119,6 +179,15 @@ def list_students(db: Session, *, school_group_id: int, search: str = "", status
         query = query.filter(or_(models.Student.first_name.ilike(pattern), models.Student.father_name.ilike(pattern), models.Student.last_name.ilike(pattern)))
     if status:
         query = query.filter(models.Student.status == str(status).strip().lower())
+    if branch_id or grade_level or section_name:
+        current = _current_placement_scope_subquery(db, school_group_id=school_group_id, at=at)
+        query = query.join(current, current.c.student_id == models.Student.id)
+        if branch_id:
+            query = query.filter(current.c.branch_id == int(branch_id))
+        if grade_level:
+            query = query.filter(current.c.grade_level == normalize_grade_level(grade_level))
+        if section_name:
+            query = query.filter(current.c.section_name == str(section_name).strip())
     return query.order_by(models.Student.last_name, models.Student.first_name, models.Student.id).all()
 
 

@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
+{% from "_learning_style.html" import learning_style_field %}
 {% block title %}Add Student | TIS{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
 {% block content %}
@@ -36,6 +37,10 @@
             {% for option in gender_options %}<option value="{{ option }}" {% if form and form.gender == option %}selected{% endif %}>{{ option or '—' }}</option>{% endfor %}
           </select>
         </div>
+      </div>
+      <div class="stu-field" style="margin-top: 8px;">
+        <label>Learning Style <span class="stu-hint">(optional)</span></label>
+        {{ learning_style_field(learning_style_options, form.learning_style if form else '') }}
       </div>
       <div class="stu-form-actions">
         <button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save Student</button>

@@ -27,26 +27,102 @@
   <div class="stu-hero">
     <form class="stu-search" method="get" action="/students/">
       <input type="search" name="search" value="{{ search }}" placeholder="Search by name" aria-label="Search students">
+      <select name="branch_id" aria-label="Branch filter">
+        <option value="">All branches</option>
+        {% for b in branches %}<option value="{{ b.id }}" {% if selected_branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
+      </select>
+      <select name="grade" aria-label="Grade filter">
+        <option value="">All grades</option>
+        {% for g in grade_levels %}<option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>Grade {{ g }}</option>{% endfor %}
+      </select>
+      <select name="section" aria-label="Section filter">
+        <option value="">All sections</option>
+        {% for s in section_options %}<option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
       <select name="status" aria-label="Status filter">
         <option value="">All statuses</option>
         <option value="active" {% if status == 'active' %}selected{% endif %}>Active</option>
         <option value="inactive" {% if status == 'inactive' %}selected{% endif %}>Inactive</option>
       </select>
       <button class="stu-btn" type="submit">{{ icon('search', 'shell-icon') }}Filter</button>
-      {% if search or status %}<a class="stu-btn stu-btn-sm" href="/students/">Clear</a>{% endif %}
+      {% if search or status or selected_branch_id or selected_grade or selected_section %}<a class="stu-btn stu-btn-sm" href="/students/">Clear</a>{% endif %}
     </form>
     <span class="stu-count">{{ students|length }} student{{ 's' if students|length != 1 else '' }}</span>
   </div>
 
+  {% if learning_style_distribution %}
+  <div class="stu-panel stu-ls-panel">
+    <h2>Learning Style distribution</h2>
+    <p class="stu-lede">{{ icon('insights', 'shell-icon') }}Learner context only - not a Talent score and never part of rubric results, Program Criteria, Review, or Official Identification. Reflects the Branch/Grade/Section filters above.</p>
+    {% set ls_accent_map = {'Visual':'var(--app-brand)','Auditory':'var(--app-accent)','Read/Write':'var(--app-success)','Kinesthetic':'var(--app-warning)'} %}
+    {% if learning_style_distribution.state == 'restricted' %}
+    <p class="stu-protected">Protected for privacy; this distribution is not shown for the current selection.</p>
+    {% elif learning_style_distribution.levels %}
+    <div class="stu-ls-chart" role="group" aria-label="Learning Style distribution">
+      {% for level in learning_style_distribution.levels %}
+      <div class="stu-ls-row" style="--stu-ls-accent: {{ ls_accent_map.get(level.label, 'var(--app-muted, #5d6b82)') }};">
+        <span class="stu-ls-row-label">{{ level.label }}</span>
+        {% if level.state == 'visible' %}
+        <div class="stu-ls-track" role="img" aria-label="{{ level.label }}: {{ level.percentage }} percent"><span style="width:{{ level.percentage }}%"></span></div>
+        <strong>{{ level.percentage }}%</strong><small>{{ level.count }}</small>
+        {% else %}
+        <div class="stu-ls-track stu-ls-track-state" role="img" aria-label="{{ level.label }}: protected for privacy"></div>
+        <span class="stu-protected">Protected for privacy</span>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="stu-count">No data yet for the current selection.</p>
+    {% endif %}
+  </div>
+  {% endif %}
+
   {% if not students %}
   <div class="stu-empty">
     {{ icon('users', 'shell-icon') }}
-    <h3>{{ 'No students match your search' if search or status else 'No students yet' }}</h3>
-    <p>{{ 'Try a different name or clear the filters.' if search or status else 'Add your first student to begin building their record.' }}</p>
-    {% if can_create and not search and not status %}<a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>{% endif %}
+    <h3>{{ 'No students match your filters' if search or status or selected_branch_id or selected_grade or selected_section else 'No students yet' }}</h3>
+    <p>{{ 'Try different filters or clear them.' if search or status or selected_branch_id or selected_grade or selected_section else 'Add your first student to begin building their record.' }}</p>
+    {% if can_create and not search and not status and not selected_branch_id and not selected_grade and not selected_section %}<a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>{% endif %}
   </div>
   {% else %}
-  <div class="stu-grid">
+
+  <!-- Desktop/tablet: compact scanning table. -->
+  <div class="stu-table-wrap stu-list-table">
+    <table class="stu-table">
+      <caption class="stu-visually-hidden">Students</caption>
+      <thead>
+        <tr>
+          <th scope="col">Student</th>
+          <th scope="col">Grade</th>
+          <th scope="col">Section</th>
+          <th scope="col">Branch</th>
+          <th scope="col">Status</th>
+          <th scope="col">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for s in students %}
+        <tr>
+          <th scope="row">
+            <a class="stu-row-name" href="/students/{{ s.id }}">
+              <span class="stu-avatar" aria-hidden="true">{{ s.initials }}</span>
+              <span>{{ s.display_name }}</span>
+            </a>
+          </th>
+          <td>{{ s.current_placement.grade_level if s.current_placement else '—' }}</td>
+          <td>{{ s.current_placement.section_name if s.current_placement else '—' }}</td>
+          <td>{{ s.current_placement.branch_name if s.current_placement and s.current_placement.branch_name else '—' }}</td>
+          <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
+          <td><a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile: compact cards, no table (a real table is impractical at this width). -->
+  <div class="stu-grid stu-list-cards">
     {% for s in students %}
     <a class="stu-card" href="/students/{{ s.id }}">
       <div class="stu-card-top">
@@ -57,7 +133,7 @@
         </div>
       </div>
       <div>
-        {% if s.status == 'active' %}<span class="stu-chip stu-chip-active">Active</span>{% else %}<span class="stu-chip stu-chip-inactive">Inactive</span>{% endif %}
+        {% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}
       </div>
       <div class="stu-place">
         {% if s.current_placement %}

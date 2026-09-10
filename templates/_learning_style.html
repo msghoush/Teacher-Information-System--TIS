@@ -1,0 +1,39 @@
+{% from "_app_icons.html" import icon %}
+{#
+  Learning Style V1 (ADR 0031) shared display/edit markup.
+
+  Student-domain learner-profile context only - never a Talent score. Reused
+  by the Student create/edit forms and the Student Profile display so the
+  four approved values, their compact icon/accent treatment, and the
+  "Not specified" neutral fallback are defined in exactly one place.
+
+  Icon coverage: Visual -> "eye" and Read/Write -> "exam" (document/text
+  page) and Kinesthetic -> "activity" (movement/pulse line, already reused
+  elsewhere in the icon system for "Allocated Hours" - disambiguated here by
+  the always-present text label) are reasonable semantic fits from the
+  existing canonical icon set. Auditory has NO semantically fitting canonical
+  icon in templates/_app_icons.html (no ear/sound/speaker glyph exists) - this
+  is a real, reported icon-system gap, not an invented asset; Auditory is
+  rendered with the text label only.
+#}
+{% set ls_icon = {'Visual': 'eye', 'Read/Write': 'exam', 'Kinesthetic': 'activity'} %}
+{% set ls_accent = {'Visual': 'var(--app-brand)', 'Auditory': 'var(--app-accent)', 'Read/Write': 'var(--app-success)', 'Kinesthetic': 'var(--app-warning)'} %}
+
+{% macro learning_style_field(options, selected) %}
+<div class="stu-ls-options" role="radiogroup" aria-label="Learning Style">
+  {% for option in options %}
+  <label class="stu-ls-option{% if selected == option %} is-selected{% endif %}" style="{% if option %}--stu-ls-accent:{{ ls_accent[option] }};{% endif %}">
+    <input type="radio" name="learning_style" value="{{ option }}" {% if selected == option %}checked{% endif %}>
+    {% if option and ls_icon.get(option) %}{{ icon(ls_icon[option], 'stu-ls-icon') }}{% endif %}
+    <span>{{ option or 'Not specified' }}</span>
+  </label>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro learning_style_badge(value) %}
+<span class="stu-chip stu-ls-badge{% if not value %} stu-ls-badge-unset{% endif %}"{% if value %} style="--stu-ls-accent:{{ ls_accent[value] }};"{% endif %}>
+  {% if value and ls_icon.get(value) %}{{ icon(ls_icon[value], 'stu-ls-icon') }}{% endif %}
+  {{ value or 'Not specified' }}
+</span>
+{% endmacro %}

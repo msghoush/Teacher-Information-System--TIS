@@ -18,11 +18,14 @@ function fixture(allowed=true) {
   return {ctx,root,calls,feedback};
 }
 
-test('authorized empty context offers real Plan and evaluation creation',async()=>{
+test('authorized empty context offers a free-text evaluation name, not a fixed picklist',async()=>{
   const {ctx,root}=fixture();await render(ctx);
-  assert.match(root.innerHTML,/Create Evaluation Plan/);
-  assert.match(root.innerHTML,/Prepare evaluation/);
-  assert.match(root.innerHTML,/Student list is fixed/);
+  assert.match(root.innerHTML,/Add Evaluation Period/);
+  assert.match(root.innerHTML,/Evaluation Period Name/);
+  assert.match(root.innerHTML,/<input type="text" name="label"/);
+  assert.doesNotMatch(root.innerHTML,/Baseline, Term 1, Term 2, Final/);
+  assert.doesNotMatch(root.innerHTML,/How many evaluations this year\?/);
+  assert.match(root.innerHTML,/included Student list unchanged for history/);
   assert.doesNotMatch(root.innerHTML,/cycle_id|framework_version_id|program_academic_year_configuration_id/);
 });
 
@@ -32,12 +35,96 @@ test('read permission gates the workspace',async()=>{
   assert.equal(calls.length,0);
 });
 
-test('Plan creation posts the selected real annual configuration',async()=>{
+test('a truly branch-scoped projection explains the read-only schedule before submission',async()=>{
+  const {ctx,root}=fixture();
+  ctx.can=permission=>permission==='talent_evaluation_plans.view'||permission==='talent_programs.view';
+  await render(ctx);
+  assert.match(root.innerHTML,/read-only in your current workspace/);
+  assert.match(root.innerHTML,/organization-authorized Program manager/);
+  assert.doesNotMatch(root.innerHTML,/data-form="add-period"/);
+  assert.doesNotMatch(root.innerHTML,/Organization or global scope/);
+});
+
+test('organization-authority failures are translated without backend scope jargon',async()=>{
+  const {ctx,root,feedback}=fixture();
+  const read=ctx.api;ctx.api=async(path,options)=>{if(options){const error=new Error('Organization or global scope is required.');error.code='organization_authority_required';throw error;}return read(path,options);};
+  await render(ctx);
+  const original=global.FormData;global.FormData=class {constructor(){return new Map([['label','Term 1']]);}};
+  try {await root.onsubmit({target:{matches:selector=>selector==='form[data-form="add-period"]',dataset:{},querySelector:()=>feedback},preventDefault(){}});} finally {global.FormData=original;}
+  assert.match(feedback.textContent,/don't have access to add or change Evaluation Periods/);
+  assert.doesNotMatch(feedback.textContent,/Organization or global scope/);
+});
+
+test('Adding an evaluation with a user-entered name creates the plan then the named period',async()=>{
   const {ctx,root,calls}=fixture();await render(ctx);
-  const original=global.FormData;global.FormData=class {constructor(){return new Map();}};
-  try {root.onsubmit({target:{matches:()=>true,dataset:{form:'plan'},querySelector:()=>({textContent:'',setAttribute(){}})},preventDefault(){}});} finally {global.FormData=original;}
+  const original=global.FormData;global.FormData=class {constructor(){return new Map([['label','Audition']]);}};
+  try {root.onsubmit({target:{matches:selector=>selector==='form[data-form="add-period"]',dataset:{},querySelector:()=>({textContent:'',setAttribute(){}})},preventDefault(){}});} finally {global.FormData=original;}
   await new Promise(resolve=>setImmediate(resolve));
-  const write=calls.find(c=>c.options);
-  assert.equal(write.path,'/api/talent/evaluation-plans');
-  assert.deepEqual(JSON.parse(write.options.body),{program_academic_year_configuration_id:21});
+  const writes=calls.filter(c=>c.options);
+  assert.equal(writes[0].path,'/api/talent/evaluation-plans');
+  assert.deepEqual(JSON.parse(writes[0].options.body),{program_academic_year_configuration_id:21});
+  assert.equal(writes[1].path,'/api/talent/evaluation-plans/undefined/periods');
+  const periodBody=JSON.parse(writes[1].options.body);
+  assert.equal(periodBody.label,'Audition');
+});
+
+test('normal-path Evaluation Plan uses approved terminology without internal lifecycle vocabulary',async()=>{
+  const feedback={textContent:'',setAttribute(){}};
+  const period={id:41,label:'Baseline',cycle:{id:61,status:'open'},actions:['edit']};
+  const plan={id:21,program_id:11,status:'active',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,api:async path=>{
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  const banned=[/Prepared evaluations/,/Ready to link/,/Link an evaluation/,/No Evaluation Plan/,/Frozen population/,
+    />Plan</,/>Period</,/>Cycle</,/>Link</];
+  for (const pattern of banned) assert.doesNotMatch(root.innerHTML, pattern, `must not render ${pattern}`);
+  assert.match(root.innerHTML,/Evaluation Plan/);
+  assert.match(root.innerHTML,/Evaluation Period/);
+  assert.match(root.innerHTML,/In progress/);
+});
+
+test('simple states translate the governed lifecycle',()=>{
+  const {stateFor}=require('../static/js/talent-evaluation-workspace.js');
+  assert.equal(stateFor({status:'draft'},{cycle:null}),'Setup');
+  assert.equal(stateFor({status:'active'},{cycle:null}),'Ready to start');
+  assert.equal(stateFor({status:'active'},{cycle:{status:'open'}}),'In progress');
+  assert.equal(stateFor({status:'active'},{cycle:{status:'closed'}}),'Complete');
+});
+
+test('Start Evaluation prepares, links, previews, and opens in governed order',async()=>{
+  const calls=[],feedback={textContent:'',setAttribute(){}},period={id:41,label:'Baseline',cycle:null};
+  const plan={id:21,program_id:11,status:'active',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},api:async(path,options)=>{
+    calls.push({path,options});
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+    if(path==='/api/talent/assessment-cycles'&&options)return {id:61,revision:1,population_effective_at:'2026-09-09T10:00:00'};
+    if(path.endsWith('/link-period')&&options)return {cycle_revision:2,plan_revision:6};
+    if(path.endsWith('/population/preview'))return {count:12};
+    if(path.endsWith('/open')&&options){period.cycle={id:61,status:'open',revision:3};return {status:'open'};}
+    throw new Error(`Unexpected ${path}`);
+  }};
+  const previous=global.window;global.window={addEventListener(){},removeEventListener(){},confirm:()=>true};
+  try {
+    await render(ctx);
+    await root.onclick({target:{closest:()=>({dataset:{start:'41'},hasAttribute:()=>false})}});
+  } finally {global.window=previous;}
+  const writes=calls.filter(call=>call.options).map(call=>call.path);
+  assert.deepEqual(writes,[
+    '/api/talent/assessment-cycles',
+    '/api/talent/assessment-cycles/61/link-period',
+    '/api/talent/assessment-cycles/61/open',
+  ]);
+  assert.ok(calls.some(call=>call.path==='/api/talent/assessment-cycles/61/population/preview'));
 });

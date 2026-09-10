@@ -31,6 +31,10 @@ def db():
     session.add_all([
         models.Branch(id=10, school_group_id=1, name="One A"), models.Branch(id=11, school_group_id=1, name="One B"), models.Branch(id=20, school_group_id=2, name="Two"),
         models.AcademicYear(id=100, school_group_id=1, year_name="2026-2027"), models.AcademicYear(id=101, school_group_id=1, year_name="2027-2028"), models.AcademicYear(id=200, school_group_id=2, year_name="2026-2027"),
+        models.PlanningSection(id=900, branch_id=10, academic_year_id=100, grade_level="KG", section_name="K", class_status="Current"),
+        models.PlanningSection(id=901, branch_id=10, academic_year_id=100, grade_level="1", section_name="A", class_status="Current"),
+        models.PlanningSection(id=902, branch_id=10, academic_year_id=100, grade_level="2", section_name="B", class_status="Current"),
+        models.PlanningSection(id=903, branch_id=10, academic_year_id=100, grade_level="3", section_name="C", class_status="Current"),
     ]); session.commit(); yield session; session.close()
 
 
@@ -66,6 +70,9 @@ def test_annual_configuration_normalizes_grades_and_rejects_foreign_year(db):
     assert foreign.value.code == "invalid_scope"
     with pytest.raises(TalentProgramError):
         upsert_annual_configuration(db, school_group_id=1, program_id=row.id, academic_year_id=101, is_enabled=True, eligible_grade_levels=["13"])
+    with pytest.raises(TalentProgramError) as unplanned:
+        upsert_annual_configuration(db, school_group_id=1, program_id=row.id, academic_year_id=101, is_enabled=True, eligible_grade_levels=["1"])
+    assert unplanned.value.code == "invalid_grades"
 
 
 def test_framework_version_allocation_stale_guard_immutability_and_retirement(db):

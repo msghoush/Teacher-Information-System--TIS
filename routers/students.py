@@ -16,6 +16,9 @@ from student_academic_service import (
     create_student, deactivate_external_identifier, end_placement, get_student, list_audit_events, list_placements,
     list_students, placement_payload, resolve_placement, transition_placement, update_student,
 )
+from student_learning_style_analytics import build_distribution as build_learning_style_distribution
+from student_learning_style_analytics import resolve_population as resolve_learning_style_population
+from talent_analytics_privacy import resolve_privacy_policy_provider
 
 router = APIRouter(prefix="/api/students", tags=["Students"])
 
@@ -49,7 +52,8 @@ def _parse_datetime(value, field):
 def _student_json(row):
     return {"id": row.id, "school_group_id": row.school_group_id, "first_name": row.first_name,
             "father_name": row.father_name, "last_name": row.last_name, "gender": row.gender,
-            "status": row.status, "created_at": row.created_at, "updated_at": row.updated_at}
+            "status": row.status, "learning_style": row.learning_style,
+            "created_at": row.created_at, "updated_at": row.updated_at}
 
 
 @router.post("")
@@ -57,7 +61,7 @@ def student_create(request: Request, payload: dict = Body(...), db: Session = De
     user, group_id, denied = _authorize(request, db, current_user, "students.create")
     if denied: return denied
     try:
-        row = create_student(db, school_group_id=group_id, actor=user, **{key: payload.get(key) for key in ("first_name", "father_name", "last_name", "gender")})
+        row = create_student(db, school_group_id=group_id, actor=user, **{key: payload.get(key) for key in ("first_name", "father_name", "last_name", "gender", "learning_style")})
         db.commit(); db.refresh(row)
         return JSONResponse(jsonable_encoder(_student_json(row)), status_code=201)
     except StudentAcademicError as exc:
@@ -65,10 +69,45 @@ def student_create(request: Request, payload: dict = Body(...), db: Session = De
 
 
 @router.get("")
-def student_list(request: Request, search: str = Query(""), status: str | None = Query(None), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def student_list(request: Request, search: str = Query(""), status: str | None = Query(None),
+                  branch_id: int | None = Query(None), grade_level: str | None = Query(None),
+                  section_name: str | None = Query(None), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _, group_id, denied = _authorize(request, db, current_user, "students.view")
     if denied: return denied
-    return [_student_json(row) for row in list_students(db, school_group_id=group_id, search=search, status=status)]
+    return [_student_json(row) for row in list_students(
+        db, school_group_id=group_id, search=search, status=status,
+        branch_id=branch_id, grade_level=grade_level, section_name=section_name,
+    )]
+
+
+@router.get("/analytics/learning-style-distribution")
+def student_learning_style_distribution(
+    request: Request, branch_id: int | None = Query(None), grade_level: str | None = Query(None),
+    section_name: str | None = Query(None), db: Session = Depends(get_db),
+    current_user=Depends(get_current_user), policy=Depends(resolve_privacy_policy_provider),
+):
+    """Branch/Organization Learning Style distribution (ADR 0031, Sections 6-8).
+
+    Population: Students with a current effective academic placement in the
+    actor's authorized Branch scope, optionally narrowed to one Branch/Grade/
+    Section via the same filters the Students list already supports - never
+    filtered by Talent Program/Cycle participation. Gated by the same
+    ``students.view`` permission the Students list itself already requires
+    (no new permission). A misconfigured/unavailable privacy policy fails
+    closed rather than publishing raw counts.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "students.view")
+    if denied:
+        return denied
+    if policy is None:
+        return JSONResponse({"detail": "Analytics is unavailable.", "code": "analytics_unavailable"}, status_code=503)
+    rows = resolve_learning_style_population(
+        db, school_group_id=group_id, user=user, branch_id=branch_id,
+        grade_level=grade_level, section_name=section_name,
+    )
+    if rows is None:
+        return JSONResponse({"detail": "Branch is outside your authorized scope."}, status_code=403)
+    return jsonable_encoder(build_learning_style_distribution(rows, policy))
 
 
 @router.get("/{student_id}")
@@ -84,7 +123,7 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
     keys = ("students.activate_deactivate",) if set(payload) == {"status"} else ("students.edit",)
     user, group_id, denied = _authorize(request, db, current_user, *keys)
     if denied: return denied
-    allowed = {key: payload[key] for key in ("first_name", "father_name", "last_name", "gender", "status") if key in payload}
+    allowed = {key: payload[key] for key in ("first_name", "father_name", "last_name", "gender", "learning_style", "status") if key in payload}
     try:
         row = update_student(db, school_group_id=group_id, student_id=student_id, actor=user, **allowed)
         db.commit(); db.refresh(row); return _student_json(row)

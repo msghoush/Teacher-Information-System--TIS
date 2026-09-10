@@ -1137,6 +1137,15 @@ def test_competency_id_filter_narrows_to_one(db, scenario):
 def test_competency_id_filter_foreign_competency_rejected(db, scenario):
     program = scenario["program"]
     framework = scenario["framework"]
+    # Authorize Grade "1" for the foreign tenant's Branch/Academic Year via a
+    # real PlanningSection (same seeding pattern as
+    # tests/test_talent_review_candidate_foundation.py and
+    # tests/test_talent_review_official_identification_educator_input.py)
+    # so the fail-closed Planning-Grade-cascade validation in
+    # upsert_annual_configuration does not reject this fixture's own setup
+    # before the actual foreign-competency assertion below runs.
+    db.add(models.PlanningSection(id=2000, branch_id=20, academic_year_id=200, grade_level="1", section_name="A", class_status="Current"))
+    db.commit()
     _, _, foreign_fw_competency, *_ = qualitative_program(db, group=2, year=200, grades=("1",))
     admin = user("2400000003")
     db.add(admin)

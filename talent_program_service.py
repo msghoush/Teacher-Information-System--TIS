@@ -10,8 +10,10 @@ from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+import branding_storage
 import models
 from academic_grade import GRADE_LEVELS, normalize_grade_level
+from planning_scope_service import list_operational_planning_grades
 
 
 class TalentProgramError(ValueError):
@@ -42,9 +44,20 @@ def _audit(db, *, group_id, program_id, actor, resource_type, resource_id, actio
     ))
 
 
+def _program_logo_url(school_group_id, logo_path):
+    if not logo_path:
+        return None
+    try:
+        subpath = branding_storage.organization_asset_subpath(school_group_id, logo_path)
+    except branding_storage.BrandingStorageError:
+        return None
+    return f"/organization-assets/{int(school_group_id)}/{subpath}"
+
+
 def program_payload(row):
     return {"id": row.id, "school_group_id": row.school_group_id, "name": row.name,
-            "description": row.description, "status": row.status}
+            "description": row.description, "status": row.status,
+            "logo_url": _program_logo_url(row.school_group_id, row.logo_path)}
 
 
 def framework_payload(row):
@@ -92,6 +105,39 @@ def update_program(db, *, school_group_id, program_id, name=None, description=No
     return row
 
 
+def set_program_logo(db, *, school_group_id, program_id, logo_path, content_type, actor=None):
+    """Replace the Program Identity logo (upload/replace share one action).
+
+    Unlike name/description, the logo is presentational branding, not
+    evaluation content referenced by frozen historical records, so this is
+    allowed for any non-retired Program status (not draft-only).
+    """
+    row = get_program(db, school_group_id, program_id, lock=True)
+    if row is None: raise TalentProgramError("not_found", "Talent Program was not found.")
+    if row.status == "retired": raise TalentProgramError("retired_program", "A retired Talent Program cannot change its Program Identity logo.")
+    before = program_payload(row)
+    old_logo_path = row.logo_path
+    row.logo_path = logo_path
+    row.logo_content_type = content_type
+    row.updated_by_user_id = getattr(actor, "user_id", None); row.updated_at = datetime.utcnow(); db.flush()
+    _audit(db, group_id=school_group_id, program_id=row.id, actor=actor, resource_type="program", resource_id=row.id, action="update", before=before, after=program_payload(row))
+    return row, old_logo_path
+
+
+def remove_program_logo(db, *, school_group_id, program_id, actor=None):
+    row = get_program(db, school_group_id, program_id, lock=True)
+    if row is None: raise TalentProgramError("not_found", "Talent Program was not found.")
+    if row.logo_path is None:
+        return row, None
+    before = program_payload(row)
+    old_logo_path = row.logo_path
+    row.logo_path = None
+    row.logo_content_type = None
+    row.updated_by_user_id = getattr(actor, "user_id", None); row.updated_at = datetime.utcnow(); db.flush()
+    _audit(db, group_id=school_group_id, program_id=row.id, actor=actor, resource_type="program", resource_id=row.id, action="update", before=before, after=program_payload(row))
+    return row, old_logo_path
+
+
 def transition_program(db, *, school_group_id, program_id, target_status, actor=None):
     row = get_program(db, school_group_id, program_id, lock=True)
     if row is None: raise TalentProgramError("not_found", "Talent Program was not found.")
@@ -104,11 +150,24 @@ def transition_program(db, *, school_group_id, program_id, target_status, actor=
     return row
 
 
-def _grades_csv(values):
+def _grades_csv(values, *, allowed=None):
     if not isinstance(values, (list, tuple, set)) or not values: raise TalentProgramError("invalid_grades", "At least one eligible Grade is required.")
     normalized = {normalize_grade_level(value) for value in values}
     if "" in normalized: raise TalentProgramError("invalid_grades", "Eligible Grades must use KG or 1 through 12.")
+    # When a Planning scope is supplied, even an empty set is authoritative:
+    # direct API calls cannot fabricate Grades before Planning is configured.
+    if allowed is not None and not normalized.issubset(allowed):
+        raise TalentProgramError("invalid_grades", "Eligible Grades must be Grades actually configured in Planning for this organization and Academic Year.")
     return ",".join(grade for grade in GRADE_LEVELS if grade in normalized)
+
+
+def organization_planning_grades(db, school_group_id, academic_year_id):
+    """Union of real Planning-configured Grades across every Branch in the organization for one Academic Year."""
+    branch_ids = [row[0] for row in db.query(models.Branch.id).filter_by(school_group_id=school_group_id).all()]
+    combined = set()
+    for branch_id in branch_ids:
+        combined.update(list_operational_planning_grades(db, branch_id, academic_year_id))
+    return combined
 
 
 def upsert_annual_configuration(db, *, school_group_id, program_id, academic_year_id, is_enabled, eligible_grade_levels, actor=None):
@@ -118,10 +177,14 @@ def upsert_annual_configuration(db, *, school_group_id, program_id, academic_yea
     if program.status == "retired": raise TalentProgramError("retired_program", "A retired Talent Program cannot change annual configuration.")
     row = db.query(models.TalentProgramAcademicYearConfiguration).filter_by(program_id=program_id, academic_year_id=academic_year_id).one_or_none()
     before = {"is_enabled": row.is_enabled, "eligible_grade_levels": row.eligible_grade_levels_csv.split(",")} if row else None
+    # Resolved before any row is created/attached so the read-only Planning scan
+    # below cannot autoflush a still-incomplete (NOT NULL csv) pending insert.
+    allowed_grades = organization_planning_grades(db, school_group_id, academic_year_id)
+    grades_csv = _grades_csv(eligible_grade_levels, allowed=allowed_grades)
     if row is None:
         row = models.TalentProgramAcademicYearConfiguration(school_group_id=school_group_id, program_id=program_id,
             academic_year_id=academic_year_id, created_by_user_id=getattr(actor, "user_id", None)); db.add(row)
-    row.is_enabled = bool(is_enabled); row.eligible_grade_levels_csv = _grades_csv(eligible_grade_levels)
+    row.is_enabled = bool(is_enabled); row.eligible_grade_levels_csv = grades_csv
     row.updated_by_user_id = getattr(actor, "user_id", None); row.updated_at = datetime.utcnow(); db.flush()
     after = {"is_enabled": row.is_enabled, "eligible_grade_levels": row.eligible_grade_levels_csv.split(",")}
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="annual_configuration", resource_id=row.id, action="create" if before is None else "update", before=before, after=after)

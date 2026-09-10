@@ -18,9 +18,11 @@ templates = Jinja2Templates(directory="templates")
 VIEWS = {
     "overview": ("Overview", "talent_programs.view"),
     "programs": ("Programs", "talent_programs.view"),
-    "evaluation-plans": ("Evaluation Plans", "talent_evaluation_plans.view"),
+    "evaluation-plans": ("Evaluation Plan", "talent_evaluation_plans.view"),
     "assessments": ("Student Assessments", "talent_assessments.view"),
-    "reviews": ("Review Candidates", "talent_review_candidates.view"),
+    # User-facing label is "Talent Review"; backend permission key and route
+    # segment stay "review_candidates"/"reviews" for deterministic/audit continuity.
+    "reviews": ("Talent Review", "talent_review_candidates.view"),
     "learner-profile": ("Learner Profile", "talent_learner_profiles.view"),
     "analytics": ("Organization Overview", "talent_analytics.view"),
     "talent-map": ("Talent Map", "talent_analytics.view"),
@@ -63,12 +65,13 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
                    "talent_assessment_cycles.view", "talent_assessment_cycles.view_population",
                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                    "talent_programs.manage", "talent_programs.govern",
+                   "talent_evaluation_plans.manage", "talent_evaluation_plans.govern",
                    "talent_assessments.manage", "talent_assessments.complete",
                    "talent_review_candidates.manage", "talent_official_identifications.record",
                    "talent_educator_inputs.view", "talent_educator_inputs.add", "talent_educator_inputs.amend"}}
     # Mirror the existing organization-only API gates for action presentation.
     if not auth.can_access_all_branches(user):
-        for key in ("talent_programs.govern", "talent_assessment_cycles.govern",
+        for key in ("talent_programs.govern", "talent_evaluation_plans.manage", "talent_evaluation_plans.govern", "talent_assessment_cycles.govern",
                     "talent_official_identifications.record"):
             allowed[key] = False
     return templates.TemplateResponse(request=request, name="talent/workspace.html", context={

@@ -7,6 +7,36 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Talent Guided Setup And Scheduling Authority
+
+The normal M11 Program journey is Basics -> What we assess -> Evaluation
+schedule -> Ready. What we assess is a joined presentation of one exact
+Framework version's competencies, rubric levels, and achievement descriptions;
+editing continues to use draft versions and preserves active/historical
+immutability internally. Program discovery uses a searchable desktop table
+with Program, Grades, Type, Current Year, Status, and actions; the
+Create-Program form is not permanently expanded there and opens as a
+collapsed panel behind "New Program".
+
+Evaluation names are free-text and user-defined (for example Term 1, Audition,
+or Spring Review), never a fixed Baseline/Term 1/Term 2/Final picklist, with
+states Setup, Ready to start, In progress, and Complete. "Add evaluation" and
+Start Evaluation orchestrate the existing M8 Plan/Period and M4 Cycle APIs -
+adding the first evaluation creates the underlying Plan/Period state
+implicitly; they do not replace domain services, and none of that internal
+Plan/Period/Cycle/Link vocabulary is rendered in this normal path. Before
+open, the authorized population preview supplies the eligible Student count
+and effective date. Cycle open remains organization-governed and freezes
+Academic Placement-derived history. Permission projection is advisory
+presentation only; API authorization, tenant scope, revisions, lifecycle
+validation, and frozen history are final.
+
+The shared `tp-filters` context selector (Academic Year/Program/Branch/Grade/
+Metric/Dimension) used across every Talent page applies a selection change
+automatically (debounced) instead of requiring a separate "Apply context"
+click; the primary Talent nav shows one "Results & Analytics" entry rather
+than duplicating the sticky analytics sub-nav's individual page links.
+
 ## Student/Talent Migration Ordering Authority
 
 Student and Talent persistence is owned by the ordered migration ledger, not

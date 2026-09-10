@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Product Roadmap
 
+## Talent M11 Program And Evaluation UX Status
+
+The Owner-directed Programs, assessment-setup, and evaluation-schedule
+simplification is implemented on `dev` and ready for independent review.
+Focused browser-module and backend lifecycle/tenant tests pass. The existing
+M2-M8 architecture, frozen population, Framework history, permission gates,
+and revision conflicts remain authoritative. No schema migration is required.
+
 ## Production Migration Blocker Status
 
 The Student Academic Placement PostgreSQL pre-deploy blocker is repaired and

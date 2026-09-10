@@ -7,6 +7,96 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Evaluation Plan Scope And Local Test Identity
+
+Evaluation Plan and Evaluation Period mutations require both the matching canonical permission and durable organization/global access scope. A visible or selected Branch remains working context and does not reduce an organization-scoped manager's authority. Truly Branch-scoped users receive a read-only Evaluation Plan workspace and are not offered mutation controls.
+
+The sanctioned Talent local-test seed defines `local_test_admin` as organization-scoped while assigning North Campus as its working Branch. If an older disposable `.local_test_data/talent_local_test.db` contains that identity with `BRANCH` access scope, it is stale and must be rebuilt with the guarded local-test reseed command; application authorization must not bypass or elevate it at runtime.
+
+## Talent Program Operational Mode And Evaluation Plan Terminology
+
+An active Program whose annual configuration, active assessment setup, achievement descriptions, and Evaluation Periods are complete opens in Operational/Summary mode by default. It shows the Program identity, real Academic Year label, enablement, Grades, competency/rubric/Period counts, assessment setup status, and permission-gated Edit Program, Edit What we assess, Manage Evaluation Plan, Open Assessments, and View Results actions. Any explicit setup hash re-enters the same four-step wizard; Finish Setup clears that edit state and returns a completed Program to its operational summary.
+
+The approved user-facing annual concept is **Evaluation Plan**, containing **Evaluation Periods**. Program setup keeps the Evaluation Plan embedded in Step 3. Backend `EvaluationPlan` identifiers and routes remain unchanged. Branch-scoped payloads no longer advertise Plan management that the API's existing organization-authority gate would reject, and any such API error is translated into an action-specific access message rather than exposing scope-policy jargon.
+
+## Talent Guided Configuration Owner Recheck
+
+Program creation and editing stay on `/talent/programs` through four hash-backed panels: Program Basics, What we assess, Evaluation Schedule, and Ready. Program Basics combines logo, draft name/description, selected Academic Year, annual enablement, and Planning-derived Grades in one panel and one Save & Continue action. What we assess has its own Competencies, Rubric Levels, Achievement Descriptions, and Review substeps; only the selected substep is rendered and add/edit forms remain collapsed until requested. Assessment setup history and creation of an editable successor setup are disclosed under advanced history rather than shown as the normal workflow.
+
+The Program wizard embeds the existing Evaluation Schedule renderer and its permission-, revision-, population-preview-, and lifecycle-aware Plan/Period/Cycle calls. The separate Evaluation Schedule route remains available for later operations, but setup navigation no longer redirects there. Ready is a compact count/check summary whose action returns to the embedded schedule. The Students collection uses an explicit desktop table/mobile cards breakpoint, so both representations are never visible together; normal Active status is accessible but visually neutral.
+
+## Talent Program Setup Wizard Visual Acceptance
+
+Program setup is a real four-step, hash-backed wizard. The Program identity header and compact progress indicator remain visible, while the page renders only the active Basics, What we assess, Evaluation Schedule, or Ready panel. Completed steps show a check, incomplete assessment setup shows a compact remaining-item reason, prior steps remain directly editable, and refresh restores the selected hash step. The former permanent Grades and Build your evaluation summary cards are removed.
+
+The wizard continues to call the existing permission-gated, revision-aware Program, annual configuration, framework, rubric, descriptor, Evaluation Plan, Period, and Cycle contracts. Program removal is intentionally absent because the governed Program lifecycle is activate/retire; supported logo, draft setup item, schedule-period, and in-progress assessment-result removal actions retain their existing permission and lifecycle checks.
+
+## Talent Program Identity And Planning Context Completion
+
+Talent Program Identity uses nullable Program logo metadata, the existing organization branding storage safeguards, `talent_programs.manage`, and organization-scoped upload/replace/remove routes. Compact badges use the uploaded asset or derived initials across Program, evaluation, assessment/review, profile, and results contexts; organization branding remains separate and no Branch override exists.
+
+Talent Grade choices and direct annual-configuration validation use operational Current/New `PlanningSection` data. Longitudinal filtering cascades Academic Year -> authorized Branch -> configured Grade -> Planning Section and fails closed for empty or invalid Planning scope. In-progress competency results may be cleared through the existing `talent_assessments.manage`, expected-revision DELETE contract; completed/incomplete/insufficient-evidence assessments remain read-only.
+
+
+## Talent Owner Visual Acceptance Corrections
+
+Following real Owner visual acceptance of the M11 workspace, four presentation
+defects the prior code-level trace missed were corrected. The shared `tp-filters`
+context selector (Academic Year/Program/Branch/Grade/Metric/Dimension) no longer
+requires a separate "Apply context" confirm click on any Talent page that reuses
+it (Programs, Evaluation Schedule, Organization Overview, and every other view
+sharing the one `templates/talent/workspace.html` filter form and `static/js/
+talent.js` apply logic): a `change` listener on the form now calls the same
+`applyContext()` function the button's `submit` handler already used, debounced
+250ms so rapid multi-dropdown changes collapse into one reload; the existing
+URL-query-parameter/`history.replaceState` context-threading mechanism is
+unchanged and unextended by a new storage mechanism. The visible button is
+relabeled "Refresh" (no longer styled as a required primary action) and remains
+only as an immediate, non-debounced manual fallback.
+
+The Talent primary navigation previously rendered a full analytics-family link
+list (Organization Overview, Talent Map, Program Results, Students Across
+Programs, Progress Over Time) and then, on every analytics-family page, an
+additional sub-navigation duplicating most of the same links directly beneath
+it. The primary nav now collapses that family into exactly one "Results &
+Analytics" entry; the existing sticky sub-nav (`.tp-results-nav`) continues to
+list the individual analytics pages, including Students, only while the user is
+actually inside that family - it retains genuine value there since six distinct
+analytics pages are more than the primary nav should enumerate.
+
+Both corrections are presentation-only: no schema, migration, permission,
+backend authority, analytics computation, or `tis.db` change. See
+`docs/PROJECT_STATE.md` for the file-level detail and the accompanying
+Evaluation-Schedule/Programs-page implementation-truth summary.
+
+## Talent Program And Evaluation UX Simplification
+
+The M11 operational workspace now presents Program setup as four user-facing
+steps: Basics, What we assess, Evaluation schedule, and Ready. The desktop
+Program index is a searchable compact table; the Create-Program form is not
+permanently expanded on that landing screen and instead opens as a collapsed
+panel via a "New Program" action, matching the Students "Add Student"
+separate-entry-point precedent. What we assess joins each competency to its
+rubric levels and achievement descriptions in one view and keeps Framework
+version history inside the existing edit path.
+
+Evaluation scheduling accepts a free-text, user-defined evaluation name (for
+example Term 1, Audition, or Spring Review - never a fixed Baseline/Term 1/
+Term 2/Final picklist) and translates Plan/Period/Cycle state to Setup, Ready
+to start, In progress, or Complete for that name; internal lifecycle copy
+("Prepared evaluations", "Ready to link", "Link an evaluation", "No Evaluation
+Plan", "Frozen population") does not appear anywhere in this normal path. Start
+Evaluation uses the existing APIs in order to prepare and link a draft Cycle,
+preview the authorized eligible population, show its count and Academic
+Placement effective date, and then open the Cycle. Opening still freezes the
+population and all backend revisions, permissions, organization gates, and
+version/lifecycle checks remain authoritative. The UI permission payload now
+includes both `talent_evaluation_plans.manage` and `talent_evaluation_plans.
+govern`; Branch scope never advertises govern.
+
+This change adds no schema, migration, backend domain mutation, pricing, AI,
+analytics, timetable, Student UI, or `tis.db` change.
+
 ## Student/Talent PostgreSQL Migration Prerequisite Repair
 
 Render pre-deploy exposed a PostgreSQL ordering defect before application

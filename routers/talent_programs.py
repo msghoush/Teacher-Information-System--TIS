@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Body, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, File, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
@@ -6,17 +6,19 @@ from sqlalchemy.orm import Session
 
 import auth
 import authorization
+import branding_storage
 import models
 from auth import get_current_user
 from dependencies import get_db
+from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, create_competency,
     add_rubric_level, configure_kpi, configure_review_candidate_policy,
     create_framework_draft, create_program, framework_payload, get_program, list_programs,
     get_framework_configuration,
-    program_payload, remove_framework_competency, reorder_framework_competencies,
+    program_payload, remove_framework_competency, remove_program_logo, reorder_framework_competencies,
     remove_descriptor, remove_kpi, remove_review_candidate_policy, remove_rubric_level,
-    reorder_rubric_levels,
+    reorder_rubric_levels, set_program_logo,
     retire_framework, transition_program, update_competency, update_framework_competency,
     update_framework_draft, update_program, update_rubric_level, upsert_annual_configuration,
     upsert_descriptor, upsert_rubric,
@@ -59,6 +61,64 @@ def programs_list(request: Request, search: str = Query(""), db: Session = Depen
     return denied or [program_payload(row) for row in list_programs(db, school_group_id=group_id, search=search)]
 
 
+def _grade_sort_key(value: str):
+    if value == "KG":
+        return (0, 0)
+    try:
+        return (1, int(value))
+    except (TypeError, ValueError):
+        return (2, 0)
+
+
+@router.get("/planning-grades")
+def programs_planning_grades(request: Request, academic_year_id: int = Query(...), branch_id: int | None = Query(None), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Real Grades configured in Planning for the requested Academic Year (optionally one Branch).
+
+    Reuses ``planning_scope_service.list_operational_planning_grades`` (the same
+    Current/New PlanningSection authority Subject Scheduling and Students already
+    use) rather than a fabricated or blanket KG-12 catalog. Both Program setup
+    (organization+Academic-Year scoped, no Branch) and the shared Talent context
+    filter (optionally one Branch) call this same endpoint. With no Branch
+    selected, this returns the union of configured Grades across every Branch the
+    actor may access for that Academic Year.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.view", "talent_analytics.view")
+    if denied:
+        return denied
+    year = db.query(models.AcademicYear).filter_by(id=academic_year_id, school_group_id=group_id).one_or_none()
+    if year is None:
+        return JSONResponse({"detail": "Academic Year is not available in your organization.", "code": "not_found"}, status_code=404)
+    if branch_id is not None:
+        branch = db.query(models.Branch).filter_by(id=branch_id, school_group_id=group_id).one_or_none()
+        if branch is None or not auth.can_access_branch(db, user, branch_id):
+            return JSONResponse({"detail": "Branch is not available in your authorized scope.", "code": "not_found"}, status_code=404)
+        return list_operational_planning_grades(db, branch_id, academic_year_id)
+    if auth.can_access_all_branches(user):
+        branch_ids = [row[0] for row in db.query(models.Branch.id).filter_by(school_group_id=group_id).all()]
+    else:
+        branch_ids = [row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()]
+    combined = set()
+    for one_branch_id in branch_ids:
+        combined.update(list_operational_planning_grades(db, one_branch_id, academic_year_id))
+    return sorted(combined, key=_grade_sort_key)
+
+
+@router.get("/planning-sections")
+def programs_planning_sections(request: Request, academic_year_id: int = Query(...), branch_id: int = Query(...), grade_level: str = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Operational Planning sections for one authorized Branch/Year/Grade."""
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.view", "talent_analytics.view")
+    if denied:
+        return denied
+    year = db.query(models.AcademicYear).filter_by(id=academic_year_id, school_group_id=group_id).one_or_none()
+    branch = db.query(models.Branch).filter_by(id=branch_id, school_group_id=group_id).one_or_none()
+    if year is None or branch is None or not auth.can_access_branch(db, user, branch_id):
+        return JSONResponse({"detail": "Planning context is not available in your authorized scope.", "code": "not_found"}, status_code=404)
+    normalized = str(grade_level or "").strip().upper()
+    items = [row for row in list_operational_planning_sections(db, branch_id, academic_year_id)
+             if str(row.grade_level or "").strip().upper() == normalized]
+    return [{"id": row.id, "section_name": row.section_name} for row in items]
+
+
 @router.post("")
 def programs_create(request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
@@ -79,6 +139,54 @@ def programs_update(program_id: int, request: Request, payload: dict = Body(...)
     user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
     if denied: return denied
     return _run(db, lambda: program_payload(update_program(db, school_group_id=group_id, program_id=program_id, name=payload.get("name") if "name" in payload else None, description=payload.get("description") if "description" in payload else None, actor=user)))
+
+
+@router.post("/{program_id}/logo")
+async def program_logo_upload(program_id: int, request: Request, logo: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Upload or replace the Program Identity logo.
+
+    Reuses ``branding_storage.py``'s existing safe-image/SVG validation and
+    atomic write pattern at a Program-scoped path; never a parallel upload
+    subsystem. One action covers both first upload and replace.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    existing = get_program(db, group_id, program_id)
+    if existing is None:
+        return JSONResponse({"detail": "Talent Program was not found.", "code": "not_found"}, status_code=404)
+    if existing.status == "retired":
+        return JSONResponse({"detail": "A retired Talent Program cannot change its Program Identity logo.", "code": "retired_program"}, status_code=400)
+    file_bytes = await logo.read()
+    try:
+        upload_info = branding_storage.validate_program_logo_upload(file_bytes, logo.filename)
+    except branding_storage.BrandingStorageError as exc:
+        return JSONResponse({"detail": str(exc), "code": "invalid_logo"}, status_code=400)
+
+    def work():
+        relative_path = branding_storage.write_program_logo_file(
+            file_bytes, school_group_id=group_id, program_id=program_id, extension=upload_info.extension,
+        )
+        row, old_logo_path = set_program_logo(
+            db, school_group_id=group_id, program_id=program_id,
+            logo_path=relative_path, content_type=upload_info.content_type, actor=user,
+        )
+        if old_logo_path and old_logo_path != relative_path:
+            branding_storage.delete_program_logo_file(old_logo_path, school_group_id=group_id, program_id=program_id)
+        return program_payload(row)
+    return _run(db, work)
+
+
+@router.delete("/{program_id}/logo")
+def program_logo_remove(program_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+
+    def work():
+        row, old_logo_path = remove_program_logo(db, school_group_id=group_id, program_id=program_id, actor=user)
+        if old_logo_path:
+            branding_storage.delete_program_logo_file(old_logo_path, school_group_id=group_id, program_id=program_id)
+        return program_payload(row)
+    return _run(db, work)
 
 
 @router.post("/{program_id}/lifecycle/{target_status}")

@@ -57,16 +57,48 @@ def test_unknown_view_is_404(client):
     assert client.get('/talent/unknown').status_code == 404
 
 
+def test_organization_overview_has_no_duplicate_analytics_navigation(db, client):
+    """The Owner's real screenshot showed the full Talent navigation followed
+    immediately by a second, overlapping Results & Analytics navigation. The
+    primary nav must collapse the whole analytics family into one entry point;
+    only the dedicated sub-nav may list the individual analytics pages."""
+    permissions(db, 'talent_analytics.view', 'talent_analytics.view_students')
+    response = client.get('/talent/analytics')
+    assert response.status_code == 200
+    for href in ('href="/talent/talent-map"', 'href="/talent/portfolio"',
+                 'href="/talent/overlap"', 'href="/talent/longitudinal"',
+                 'href="/talent/students"'):
+        assert response.text.count(href) == 1, f'{href} must appear exactly once, not duplicated across two navs'
+    assert 'Results &amp; Analytics</span>' in response.text
+
+
 def test_branch_scope_never_advertises_organization_only_talent_actions(db, client):
     permissions(db, 'talent_programs.view', 'talent_programs.govern',
+                'talent_evaluation_plans.manage',
+                'talent_evaluation_plans.govern',
                 'talent_assessment_cycles.govern',
                 'talent_official_identifications.record')
     client.app.dependency_overrides[get_current_user] = lambda: actor(scope='BRANCH')
     response = client.get('/talent/programs')
     assert response.status_code == 200
     assert '"talent_programs.govern": false' in response.text
+    assert '"talent_evaluation_plans.manage": false' in response.text
+    assert '"talent_evaluation_plans.govern": false' in response.text
     assert '"talent_assessment_cycles.govern": false' in response.text
     assert '"talent_official_identifications.record": false' in response.text
+
+
+def test_evaluation_plan_action_permissions_reach_browser_payload(db, client):
+    permissions(db, 'talent_evaluation_plans.view',
+                'talent_evaluation_plans.manage',
+                'talent_evaluation_plans.govern')
+    response = client.get('/talent/evaluation-plans')
+    assert response.status_code == 200
+    # actor() is durably organization-scoped while retaining Branch 10 as the
+    # selected/visible working context. A Branch selection must not suppress
+    # organization-authorized Evaluation Plan actions.
+    assert '"talent_evaluation_plans.manage": true' in response.text
+    assert '"talent_evaluation_plans.govern": true' in response.text
 
 
 def test_authorized_learner_profile_link_redirects_to_canonical_student_profile(db):
