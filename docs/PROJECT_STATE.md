@@ -983,8 +983,9 @@ audit. Draft preview and Open resolve canonical Academic Placement at the
 explicit `population_effective_at` against the Program Academic Year
 configuration's eligible grades. Open atomically freezes the full organization
 population with exact Placement/Academic Year/Branch/grade/section context and
-stores a deterministic full count and fingerprint. No reopen, post-Open
-mutation, late-entry exception, or assessor assignment exists.
+stores a deterministic full count and fingerprint. There is no reopen,
+population removal, or assessor assignment. Accepted ADR 0033 permits only
+audited additive synchronization of newly eligible Students while Open.
 
 Dedicated `talent_assessment_cycles.view/manage/view_population/govern`
 permissions are Administrator-only by default. Branch authors may manage

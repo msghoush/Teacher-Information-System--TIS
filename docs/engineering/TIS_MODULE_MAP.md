@@ -420,7 +420,9 @@ handling across all three M6 routers.
   `TalentAssessmentAudit` in `models.py`.
 - Authority: `talent_assessment_cycle_service.py` derives Draft eligibility,
   performs atomic Open/Close, freezes historical context, and computes the
-  canonical population fingerprint.
+  canonical population fingerprint. Accepted ADR 0033 permits placement-triggered,
+  additive-only synchronization while Open; it locks and revisions the Cycle,
+  updates count/fingerprint, and audits every added member.
 - API: `routers/talent_assessment_cycles.py` exposes bounded Cycle and
   authorization-filtered population operations under
   `/api/talent/assessment-cycles`.

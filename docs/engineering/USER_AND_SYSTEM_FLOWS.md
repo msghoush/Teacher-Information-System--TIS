@@ -379,8 +379,10 @@ other recorded status (Completed, Incomplete, or Insufficient Evidence) shows
    status to Open, and audits the event in one transaction.
 4. Open/Closed reads use frozen Branch context. Branch readers never receive
    the full count/fingerprint; later Student transfers do not change their
-   historical visibility. Close is final. Reopen and late population mutation
-   are not available.
+   historical visibility. A confirmed qualifying Placement may add a missing
+   member to an Open Cycle under ADR 0033; the Cycle is locked, revisioned,
+   re-counted, re-fingerprinted, and audited in the same transaction. Existing
+   members/evidence are unchanged. Close is final and forbids synchronization.
 
 ## Configure And Generate With Teacher Scheduling Rules
 

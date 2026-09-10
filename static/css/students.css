@@ -99,6 +99,8 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-placement .stu-line { display: flex; justify-content: space-between; gap: var(--stu-space-2); font-size: 14px; }
 .stu-placement .stu-line span:first-child { color: var(--app-muted, #5d6b82); }
 .stu-placement .stu-line span:last-child { font-weight: 600; text-align: right; }
+.stu-placement-actions { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); margin-top: var(--stu-space-2); }
+.stu-placement-action-panel { flex-basis: 100%; border-top: 1px solid var(--app-line); padding-top: var(--stu-space-3); }
 
 /* Tables (precise records) */
 .stu-table-wrap { overflow: auto; border: 1px solid var(--app-line); border-radius: 12px; background: var(--app-surface); box-shadow: var(--app-shadow-sm); margin-bottom: var(--stu-space-5); }

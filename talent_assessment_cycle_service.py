@@ -210,6 +210,97 @@ def derive_eligible_population(db, *, cycle):
     } for row in placements]
 
 
+def eligible_open_cycles_for_placement_scope(db, *, school_group_id, academic_year_id, grade_level):
+    """Return Open Cycles whose enabled annual configuration includes the Grade."""
+    cycles = db.query(models.TalentAssessmentCycle).filter_by(
+        school_group_id=school_group_id,
+        academic_year_id=academic_year_id,
+        status="open",
+    ).order_by(models.TalentAssessmentCycle.id).all()
+    result = []
+    for cycle in cycles:
+        config = _annual_configuration(db, cycle)
+        eligible = set((config.eligible_grade_levels_csv or "").split(",")) if config and config.is_enabled else set()
+        if grade_level in eligible:
+            result.append(cycle)
+    return result
+
+
+def synchronize_placement_to_open_cycles(db: Session, *, school_group_id, student_id,
+                                         academic_placement_id, effective_at=None, actor=None):
+    """Add one newly eligible Placement snapshot to every matching Open Cycle.
+
+    Existing members and all evidence remain untouched. Each matching Cycle is
+    locked, revisioned, re-fingerprinted, and audited in the placement transaction.
+    """
+    sync_at = effective_at or datetime.utcnow()
+    placement = db.query(models.StudentAcademicPlacement).filter_by(
+        id=academic_placement_id,
+        student_id=student_id,
+        school_group_id=school_group_id,
+    ).one_or_none()
+    if placement is None:
+        raise TalentAssessmentCycleError("placement_not_found", "Academic Placement was not found for roster synchronization.")
+    if placement.effective_from > sync_at or (placement.effective_to is not None and placement.effective_to <= sync_at):
+        return []
+
+    candidate_ids = [cycle.id for cycle in eligible_open_cycles_for_placement_scope(
+        db,
+        school_group_id=school_group_id,
+        academic_year_id=placement.academic_year_id,
+        grade_level=placement.grade_level,
+    )]
+    synchronized = []
+    for cycle_id in candidate_ids:
+        cycle = _cycle(db, school_group_id, cycle_id, lock=True)
+        if cycle is None or cycle.status != "open":
+            continue
+        existing = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+            school_group_id=school_group_id,
+            cycle_id=cycle.id,
+            student_id=student_id,
+        ).one_or_none()
+        if existing is not None:
+            continue
+        before = cycle_payload(cycle)
+        member = models.TalentAssessmentCyclePopulationMember(
+            school_group_id=school_group_id,
+            cycle_id=cycle.id,
+            program_id=cycle.program_id,
+            academic_year_id=cycle.academic_year_id,
+            framework_version_id=cycle.framework_version_id,
+            student_id=student_id,
+            academic_placement_id=placement.id,
+            branch_id=placement.branch_id,
+            planning_section_id=placement.planning_section_id,
+            grade_level=placement.grade_level,
+            section_name=placement.section_name,
+            population_effective_at=sync_at,
+            frozen_at=sync_at,
+        )
+        db.add(member)
+        db.flush()
+        rows = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+            school_group_id=school_group_id, cycle_id=cycle.id
+        ).order_by(models.TalentAssessmentCyclePopulationMember.student_id).all()
+        payloads = [population_member_payload(row) for row in rows]
+        cycle.population_count = len(rows)
+        cycle.population_fingerprint = population_fingerprint(cycle, payloads)
+        cycle.revision += 1
+        cycle.updated_by_user_id = getattr(actor, "user_id", None)
+        cycle.updated_at = sync_at
+        db.flush()
+        after = cycle_payload(cycle)
+        after["roster_synchronization"] = {
+            "effective_at": sync_at.isoformat(),
+            "added_member_ids": [member.id],
+            "added_student_ids": [student_id],
+        }
+        _audit(db, cycle, actor=actor, action="population_sync", before=before, after=after)
+        synchronized.append(cycle)
+    return synchronized
+
+
 def preview_population(db, *, school_group_id, cycle_id):
     cycle = get_cycle(db, school_group_id=school_group_id, cycle_id=cycle_id)
     if cycle.status != "draft":

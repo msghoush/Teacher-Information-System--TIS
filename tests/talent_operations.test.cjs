@@ -237,3 +237,26 @@ test('no Program selected (org-wide) keeps the existing multi-Cycle card chooser
   assert.doesNotMatch(root.innerHTML,/No Evaluation Period is open for this Program/);
   assert.match(root.innerHTML,/<article class="tp-card"><h3>Term 1/);
 });
+
+test('starting an assessment carries the current Program forward in the resulting navigation (no ribbon/content mismatch)',async()=>{
+  const root=domRoot();
+  const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
+  const members=[{id:101,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
+  let startButton,clickHandler;
+  startButton={dataset:{member:'101'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
+  root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
+  let navigated=null;
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
+    navigate:(target,extra)=>{navigated={target,extra};},
+    api:async(path,options)=>{
+      if(path.startsWith('/api/talent/assessments?'))return [];
+      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.endsWith('/population'))return {members};
+      if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:'2026'};
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.equal(typeof clickHandler,'function');
+  await clickHandler();
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,academic_year_id:'2026',program_id:'11'}});
+});

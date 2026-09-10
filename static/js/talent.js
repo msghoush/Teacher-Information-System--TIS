@@ -249,13 +249,27 @@
       };
       const ctx={root,view,api:operationApi,can,year,params,notify:message=>{status.textContent=message;},
         navigate:(target,extra)=>{location.href=`/talent/${target}?${qs({academic_year_id:year.value,...extra})}`;}};
-      const workspace=view==='programs' ? window.TalentProgramWorkspace :
+      // A direct/bookmarked evaluation-plans deep link resolves into the
+      // equivalent Program-workspace context (same program_id/academic_year_id,
+      // landing on the embedded #tp-schedule step) client-side only, so it
+      // never forces an extra authorization round-trip against a different
+      // permission key. A user who cannot also access Programs (holds only
+      // talent_evaluation_plans.* permissions, never talent_programs.view)
+      // keeps the pre-existing standalone Evaluation Plan workspace exactly
+      // as before - this is a real, still-supported access pattern, not a
+      // fallback for an error.
+      const mergeIntoProgram=view==='evaluation-plans'&&Boolean(pid)&&can('talent_programs.view');
+      if(mergeIntoProgram)history.replaceState(null,'',`/talent/programs?${qs({academic_year_id:ay,program_id:pid})}#tp-schedule`);
+      const workspace=(view==='programs'||mergeIntoProgram) ? window.TalentProgramWorkspace :
         view==='evaluation-plans' ? window.TalentEvaluationWorkspace : window.TalentOperations;
       await workspace.render(ctx);
       return null;
     }
     if (view==='overview') {
-      const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['evaluation-plans','Evaluation Plans','Plan and start this year’s evaluations.','talent_evaluation_plans.view','start'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['reviews','Talent Review','Review Students who meet Program Criteria.','talent_review_candidates.view','eye'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
+      // Evaluation Plan is intentionally not a card here: it is configured
+      // only inside a Program's own guided setup (embedded Step 3), never as
+      // a second top-level entry point duplicating that configuration.
+      const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['reviews','Talent Review','Review Students who meet Program Criteria.','talent_review_candidates.view','eye'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
       const yearLabel=esc(year.options[year.selectedIndex]?.textContent || '');
       let hero=`<div class="tp-hero"><p class="tp-eyebrow">Academic Year ${yearLabel}</p><h3>Where Talent &amp; Potential stands right now</h3><p>A privacy-safe, factual snapshot of configured Programs and authorized analytics for this Academic Year. Every figure below is exactly what the backend returns - nothing is inferred or estimated here.</p><div class="tp-hero-stats" id="tp-hero-stats"><p class="tp-empty">Loading headline figures…</p></div></div>`;
       if (can('talent_analytics.view')) {

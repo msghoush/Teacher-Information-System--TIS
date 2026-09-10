@@ -18,8 +18,10 @@ from routers.talent_assessment_cycles import router
 from student_academic_service import create_placement, create_student, transition_placement, update_student
 from talent_assessment_cycle_service import (
     TalentAssessmentCycleError, close_cycle, create_cycle, frozen_population,
-    open_cycle, population_fingerprint, preview_population, update_cycle,
+    open_cycle, population_fingerprint, preview_population,
+    synchronize_placement_to_open_cycles, update_cycle,
 )
+from talent_student_assessment_service import start_assessment
 from talent_program_service import (
     activate_framework, create_framework_draft, create_program, retire_framework,
     transition_program, upsert_annual_configuration,
@@ -209,6 +211,68 @@ def test_open_freezes_exact_context_and_fingerprint_then_close_is_final(db):
         update_cycle(session, school_group_id=1, cycle_id=cycle.id,
                      expected_revision=closed.revision, title="Rewrite")
     assert immutable.value.code == "immutable_cycle"
+
+
+def test_open_cycle_additively_synchronizes_newly_eligible_student_without_rewriting_evidence(db):
+    _, session = db
+    program, framework, _ = foundation(session, name="Mental Math", grades=("1",))
+    existing_student, _ = student_placement(session, first="Existing")
+    cycle = draft_cycle(session, program, framework)
+    open_cycle(session, school_group_id=1, cycle_id=cycle.id, expected_revision=1,
+               organization_authorized=True)
+    session.commit()
+    _, original_members = frozen_population(session, school_group_id=1, cycle_id=cycle.id)
+    original_member = original_members[0]
+    existing_assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=original_member.id,
+    )
+    session.commit()
+    original_fingerprint = cycle.population_fingerprint
+
+    new_student, placement = student_placement(
+        session, first="Newly Eligible", start=datetime(2026, 11, 1)
+    )
+    synchronized = synchronize_placement_to_open_cycles(
+        session, school_group_id=1, student_id=new_student.id,
+        academic_placement_id=placement.id, effective_at=datetime(2026, 11, 2),
+    )
+    session.commit()
+
+    assert [row.id for row in synchronized] == [cycle.id]
+    _, members = frozen_population(session, school_group_id=1, cycle_id=cycle.id)
+    assert [row.student_id for row in members] == [existing_student.id, new_student.id]
+    added = next(row for row in members if row.student_id == new_student.id)
+    assert (added.academic_placement_id, added.branch_id, added.grade_level, added.section_name) == (
+        placement.id, 10, "1", "A"
+    )
+    assert added.population_effective_at == datetime(2026, 11, 2)
+    assert cycle.population_count == 2
+    assert cycle.population_fingerprint != original_fingerprint
+    assert session.get(models.TalentStudentAssessment, existing_assessment.id).revision == 1
+    assert session.query(models.TalentStudentAssessment).filter_by(cycle_id=cycle.id).count() == 1
+    assert session.query(models.TalentAssessmentAudit).filter_by(
+        cycle_id=cycle.id, action="population_sync"
+    ).count() == 1
+
+    # The new member is Not Started until the existing assessment service is used.
+    new_assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=added.id,
+    )
+    assert new_assessment.status == "in_progress"
+
+    close_cycle(session, school_group_id=1, cycle_id=cycle.id,
+                expected_revision=cycle.revision, organization_authorized=True)
+    session.commit()
+    another_student, another_placement = student_placement(
+        session, first="After Close", start=datetime(2026, 11, 3)
+    )
+    assert synchronize_placement_to_open_cycles(
+        session, school_group_id=1, student_id=another_student.id,
+        academic_placement_id=another_placement.id, effective_at=datetime(2026, 11, 4),
+    ) == []
+    assert cycle.population_count == 2
 
 
 def test_post_open_sources_cannot_reinterpret_frozen_population(db):

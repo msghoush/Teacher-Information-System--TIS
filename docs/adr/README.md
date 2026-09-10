@@ -56,3 +56,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0030-m10-organization-analytics-multi-worker-qualification-minimum.md`
 - `0031-student-learning-style-v1.md`
 - `0032-draft-talent-program-hard-delete-exception.md`
+- `0033-open-talent-cycle-additive-roster-synchronization.md`

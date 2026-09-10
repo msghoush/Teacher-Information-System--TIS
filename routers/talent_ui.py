@@ -54,6 +54,18 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
         student_id = request.query_params.get("student_id")
         if student_id and str(student_id).isdigit():
             return RedirectResponse(url=f"/students/{student_id}?section=talent", status_code=302)
+    # Evaluation Plan/Period configuration is presented as embedded inside a
+    # Program's own guided setup (its #tp-schedule step) and no longer has a
+    # standalone top-level Talent nav entry - see templates/talent/workspace.html.
+    # This route intentionally still renders the "evaluation-plans" view exactly
+    # as before (same permission gate, same template/config): the underlying
+    # standalone workspace and its `talent_evaluation_plans.*`-only authorized
+    # persona (a role holding Evaluation Plan permissions without
+    # `talent_programs.view`) both remain fully functional deep-link targets.
+    # A user who also holds `talent_programs.view` gets the richer, merged
+    # Program-context experience client-side (static/js/talent.js), which can
+    # safely resolve program_id/academic_year_id into the equivalent Program
+    # workspace URL without an extra authorization round-trip.
     group_id = getattr(user, "scope_school_group_id", None) or auth.get_user_school_group_id(db, user)
     if not group_id:
         return HTMLResponse("Select an organization scope to open Talent & Potential.", status_code=403)

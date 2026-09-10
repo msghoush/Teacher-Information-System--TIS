@@ -45,6 +45,11 @@ from student_academic_service import (
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
 from talent_analytics_privacy import resolve_privacy_policy_provider
+from talent_assessment_cycle_service import (
+    TalentAssessmentCycleError,
+    eligible_open_cycles_for_placement_scope,
+    synchronize_placement_to_open_cycles,
+)
 from talent_learner_profile_service import TalentLearnerProfileError, build_learner_profile
 from ui_shell import build_shell_context
 
@@ -407,6 +412,42 @@ def students_sections_for_grade(
     return {"items": _sections_for(db, branch_id, academic_year_id, grade_level)}
 
 
+@router.get("/placement-open-cycle-preview")
+def placement_open_cycle_preview(
+    request: Request,
+    student_id: int,
+    academic_year_id: int,
+    branch_id: int,
+    planning_section_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    user, group_id, denied = _authorize(request, db, current_user, "students.manage_placements")
+    if denied:
+        return denied
+    if get_student(db, group_id, student_id) is None:
+        return JSONResponse({"detail": "Student was not found."}, status_code=404)
+    if not auth.can_access_branch(db, user, branch_id):
+        return JSONResponse({"detail": "Branch is outside your authorized scope."}, status_code=403)
+    section = db.query(models.PlanningSection).filter_by(
+        id=planning_section_id, branch_id=branch_id, academic_year_id=academic_year_id
+    ).one_or_none()
+    if section is None:
+        return JSONResponse({"detail": "Planning Section does not match the selected Academic Year and Branch."}, status_code=400)
+    cycles = eligible_open_cycles_for_placement_scope(
+        db, school_group_id=group_id, academic_year_id=academic_year_id,
+        grade_level=normalize_grade_level(section.grade_level),
+    )
+    existing_cycle_ids = {
+        row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.cycle_id).filter(
+            models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,
+            models.TalentAssessmentCyclePopulationMember.student_id == student_id,
+            models.TalentAssessmentCyclePopulationMember.cycle_id.in_([cycle.id for cycle in cycles]),
+        ).all()
+    } if cycles else set()
+    return {"open_cycle_count": sum(1 for cycle in cycles if cycle.id not in existing_cycle_ids)}
+
+
 @router.get("/{student_id}", response_class=HTMLResponse)
 def student_profile(request: Request, student_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "students.view")
@@ -477,6 +518,20 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
 
     years = _years(db, group_id)
     branches = _branches(db, user, group_id)
+    year_ids = {int(year.id) for year in years}
+    branch_ids = {int(branch.id) for branch in branches}
+    shell_year_id = getattr(user, "scope_academic_year_id", None) or getattr(user, "academic_year_id", None)
+    shell_branch_id = getattr(user, "scope_branch_id", None) or getattr(user, "branch_id", None)
+    placement_academic_year_id = (
+        int(current_view["academic_year_id"]) if current_view else
+        int(shell_year_id) if shell_year_id and int(shell_year_id) in year_ids else
+        None
+    )
+    placement_branch_id = (
+        int(current_view["branch_id"]) if current_view else
+        int(shell_branch_id) if shell_branch_id and int(shell_branch_id) in branch_ids else
+        None
+    )
 
     return _render(request, db, current_user, "student_profile.html", {
         "request": request,
@@ -490,6 +545,8 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
         "audit_events": audit_events,
         "years": years,
         "branches": branches,
+        "placement_academic_year_id": placement_academic_year_id,
+        "placement_branch_id": placement_branch_id,
         "grades": GRADE_LEVELS,
         "gender_options": GENDER_OPTIONS,
         "learning_style_options": LEARNING_STYLE_OPTIONS,
@@ -582,7 +639,7 @@ def student_placement_post(
         # and supplies its own canonical grade_level/section_name; raw grade_level/
         # section_name remain the legacy manual-entry fallback used when no
         # PlanningSection is configured for this Branch/Academic-Year/Grade yet.
-        create_placement(
+        placement = create_placement(
             db,
             school_group_id=group_id,
             student_id=student_id,
@@ -596,9 +653,13 @@ def student_placement_post(
             reason=reason or None,
             actor=user,
         )
+        synced = synchronize_placement_to_open_cycles(
+            db, school_group_id=group_id, student_id=student_id,
+            academic_placement_id=placement.id, actor=user,
+        )
         db.commit()
-        return _redirect(student_id, "placement", "placement")
-    except StudentAcademicError as exc:
+        return _redirect(student_id, "placement", "placement_synced" if synced else "placement")
+    except (StudentAcademicError, TalentAssessmentCycleError) as exc:
         db.rollback()
         return _redirect(student_id, "placement", error=exc.message)
 @router.post("/{student_id}/placements/{placement_id}/end")
@@ -665,7 +726,7 @@ def student_placement_transition_post(
     try:
         if not auth.can_access_branch(db, user, branch_id):
             return HTMLResponse("Branch is outside your authorized scope.", status_code=403)
-        transition_placement(
+        _, placement = transition_placement(
             db,
             school_group_id=group_id,
             student_id=student_id,
@@ -679,9 +740,13 @@ def student_placement_transition_post(
             reason=reason or None,
             actor=user,
         )
+        synced = synchronize_placement_to_open_cycles(
+            db, school_group_id=group_id, student_id=student_id,
+            academic_placement_id=placement.id, actor=user,
+        )
         db.commit()
-        return _redirect(student_id, "placement", "placement")
-    except StudentAcademicError as exc:
+        return _redirect(student_id, "placement", "placement_synced" if synced else "placement")
+    except (StudentAcademicError, TalentAssessmentCycleError) as exc:
         db.rollback()
         return _redirect(student_id, "placement", error=exc.message)
 # End of module.

@@ -35,6 +35,25 @@ def test_navigation_and_html_use_actual_shared_shell(db, client):
     assert 'href="/talent/reviews"' not in response.text
 
 
+def test_talent_year_defaults_to_shell_year_and_respects_explicit_authorized_year(db, client):
+    import models
+
+    permissions(db, 'talent_programs.view')
+    db.add(models.AcademicYear(id=99, school_group_id=1, year_name='2025-2026', is_active=True))
+    db.commit()
+
+    defaulted = client.get('/talent/programs')
+    assert defaulted.status_code == 200
+    assert '<option value="100" selected>2026-2027</option>' in defaulted.text
+    assert '<option value="99" selected>' not in defaulted.text
+
+    explicit = client.get('/talent/programs?academic_year_id=99')
+    assert explicit.status_code == 200
+    source = open('static/js/talent.js', encoding='utf-8').read()
+    assert "params.has('academic_year_id')" in source
+    assert "year.value=params.get('academic_year_id')" in source
+
+
 @pytest.mark.parametrize('view', list(talent_ui.VIEWS))
 def test_all_authorized_views_render(db, client, view):
     permissions(db, *set(v[1] for v in talent_ui.VIEWS.values()), 'talent_analytics.view_students')
@@ -140,3 +159,55 @@ def test_authorized_learner_profile_link_redirects_to_canonical_student_profile(
     # The resolved page is the canonical Student Profile's Talent tab, not a separate
     # standalone "Learner Profile" page identity.
     assert 'Talent &amp; Potential' in resolved.text
+
+
+def test_evaluation_plan_is_no_longer_a_standalone_primary_nav_entry(db, client):
+    """Evaluation Plan/Period configuration now lives only inside a Program's
+    own guided setup (its embedded Step 3/#tp-schedule); it must not remain a
+    separate top-level Talent surface in the primary nav or the Overview
+    action-card grid (there must be exactly one user-facing entry point)."""
+    permissions(db, 'talent_programs.view', 'talent_evaluation_plans.view', 'talent_assessments.view',
+                'talent_review_candidates.view', 'talent_analytics.view')
+    for view in ('overview', 'programs', 'assessments', 'reviews'):
+        response = client.get(f'/talent/{view}')
+        assert response.status_code == 200
+        assert 'href="/talent/evaluation-plans"' not in response.text
+    # The primary nav keeps exactly the operationally-focused five surfaces.
+    nav = client.get('/talent/overview').text
+    assert 'href="/talent/programs"' in nav
+    assert 'href="/talent/assessments"' in nav
+    assert 'href="/talent/reviews"' in nav
+    assert 'href="/talent/analytics"' in nav
+
+
+def test_evaluation_plan_deep_link_stays_authorized_under_its_own_permission(db, client):
+    """A bookmarked/old Evaluation Plan URL must keep resolving successfully
+    under its existing `talent_evaluation_plans.view` gate - the same gate a
+    role holding ONLY Evaluation Plan permissions (never talent_programs.view)
+    has always used. Merging this deep link into the richer Program-workspace
+    experience for a Program-authorized user happens client-side
+    (static/js/talent.js), so it never forces an extra server-side
+    authorization round-trip against a different permission key that a
+    narrower, still-legitimate role would fail."""
+    permissions(db, 'talent_evaluation_plans.view')
+
+    with_program = client.get('/talent/evaluation-plans?program_id=7&academic_year_id=100', follow_redirects=False)
+    assert with_program.status_code == 200
+    assert 'id="tp-config"' in with_program.text
+
+    without_program = client.get('/talent/evaluation-plans', follow_redirects=False)
+    assert without_program.status_code == 200
+    assert 'id="tp-config"' in without_program.text
+
+
+def test_evaluation_plan_route_and_backend_remain_functional(db, client):
+    """The HTML route and underlying API surface are not deleted, only the
+    top-level nav entry pointing directly at them. A role holding only
+    Evaluation Plan permissions (never talent_programs.view) is a real,
+    still-supported persona and must not be denied access."""
+    from routers import talent_ui as talent_ui_module
+
+    assert 'evaluation-plans' in talent_ui_module.VIEWS
+    permissions(db, 'talent_evaluation_plans.view')
+    response = client.get('/talent/evaluation-plans')
+    assert response.status_code == 200
