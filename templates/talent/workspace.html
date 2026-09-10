@@ -19,7 +19,11 @@
   </div>
   {% set analytics_family = ['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
   <nav class="tp-nav" aria-label="Talent & Potential">
-  {% for key in ['overview','programs','evaluation-plans','assessments','reviews'] %}
+  {# Evaluation Plan is intentionally absent here: it is configured only inside
+     a Program's own guided setup (embedded Step 3/#tp-schedule), never as a
+     separate top-level Talent surface. Its route/API still exist for deep
+     links; see routers/talent_ui.py's evaluation-plans redirect. #}
+  {% for key in ['overview','programs','assessments','reviews'] %}
     {% if key == 'overview' or talent_permissions[talent_views[key][1]] %}<a href="/talent/{{ key }}" {% if talent_view == key %}aria-current="page"{% endif %}>{{ icon(nav_icons.get(key,'info'), 'tp-nav-icon') }}<span>{{ talent_views[key][0] }}</span></a>{% endif %}
   {% endfor %}
   {% if talent_permissions['talent_analytics.view'] %}<a href="/talent/analytics" {% if talent_view in analytics_family %}aria-current="page"{% endif %}>{{ icon('insights', 'tp-nav-icon') }}<span>Results &amp; Analytics</span></a>{% endif %}

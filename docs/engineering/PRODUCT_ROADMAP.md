@@ -233,10 +233,11 @@ Implemented: SchoolGroup-wide Assessment Cycle Draft/Open/Closed lifecycle,
 explicit-time dynamic eligibility preview, atomic frozen Student population,
 historical placement snapshots, full population integrity fingerprint,
 dedicated permission boundaries, Branch-filtered identifiable reads, and
-operational audit. Deferred to later milestones: assessor assignment, Student
+operational audit. Accepted ADR 0033 adds confirmed-placement-triggered,
+additive-only Open roster synchronization without member/evidence removal;
+Closed Cycles remain final. Deferred to later milestones: assessor assignment, Student
 Assessment, results, Review Candidate instances/evaluation, Official
-Identification, analytics, AI, development plans, and late-population
-exception workflow.
+Identification, analytics, AI, and development plans.
 
 ### Simplified Timetable Workflow And Published Visibility
 

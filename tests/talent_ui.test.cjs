@@ -185,3 +185,23 @@ test('an absent program_id resolves to the neutral (no Program selected) state, 
   assert.equal(resolveProgramSelection([mentalMath, chessClub], ''), '');
   assert.equal(resolveProgramSelection([mentalMath, chessClub], undefined), '');
 });
+
+// Evaluation Plan is no longer a standalone top-level Talent surface - it is
+// configured only inside a Program's own guided setup (embedded #tp-schedule
+// step). A direct/bookmarked /talent/evaluation-plans deep link must resolve
+// into that same Program context client-side (never re-authorized against a
+// different permission key server-side - see routers/talent_ui.py), while a
+// user who lacks talent_programs.view keeps the pre-existing standalone
+// Evaluation Plan workspace exactly as before (a real, still-supported access
+// pattern, not a fallback for an error).
+test('an evaluation-plans deep link with Program access merges into the Program workspace at #tp-schedule', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /mergeIntoProgram=view==='evaluation-plans'&&Boolean\(pid\)&&can\('talent_programs\.view'\)/);
+  assert.match(source, /history\.replaceState\(null,'',`\/talent\/programs\?\$\{qs\(\{academic_year_id:ay,program_id:pid\}\)\}#tp-schedule`\)/);
+  assert.match(source, /const workspace=\(view==='programs'\|\|mergeIntoProgram\) \? window\.TalentProgramWorkspace :/);
+});
+
+test('a user without talent_programs.view still resolves the standalone Evaluation Plan workspace', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /view==='evaluation-plans' \? window\.TalentEvaluationWorkspace : window\.TalentOperations/);
+});

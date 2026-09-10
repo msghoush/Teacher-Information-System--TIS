@@ -166,13 +166,46 @@
 
         [yearSelect, branchSelect].forEach((select) => select.addEventListener("change", refreshGrades));
         gradeSelect.addEventListener("change", refreshSections);
-        form.addEventListener("submit", (event) => {
+        form.addEventListener("submit", async (event) => {
             if (!form.checkValidity() || !sectionSelect.value) {
                 event.preventDefault();
                 form.reportValidity();
                 if (hint) {
                     hint.hidden = false;
                     hint.textContent = "Choose a configured Section before saving.";
+                }
+                return;
+            }
+            if (form.dataset.openCyclePreview && form.dataset.openCycleConfirmed !== "true") {
+                event.preventDefault();
+                const preview = new URL(form.dataset.openCyclePreview, window.location.origin);
+                preview.searchParams.set("academic_year_id", yearSelect.value);
+                preview.searchParams.set("branch_id", branchSelect.value);
+                preview.searchParams.set("planning_section_id", sectionSelect.value);
+                preview.searchParams.set("student_id", form.dataset.studentId);
+                try {
+                    const response = await fetch(preview, {
+                        credentials: "same-origin",
+                        headers: { Accept: "application/json" },
+                    });
+                    if (!response.ok) throw new Error("preview_failed");
+                    const payload = await response.json();
+                    if (Number(payload.open_cycle_count || 0) > 0) {
+                        const confirmed = window.confirm(
+                            "Student will be added to an open assessment.\n\n" +
+                            "This placement makes the Student eligible for an already-open Talent assessment cycle.\n" +
+                            "After saving, the Student will be added as Not Started.\n" +
+                            "Existing assessment records will not be changed."
+                        );
+                        if (!confirmed) return;
+                    }
+                    form.dataset.openCycleConfirmed = "true";
+                    form.requestSubmit(submitButton);
+                } catch (_) {
+                    if (hint) {
+                        hint.hidden = false;
+                        hint.textContent = "Open-assessment eligibility could not be checked. Please try saving again.";
+                    }
                 }
                 return;
             }

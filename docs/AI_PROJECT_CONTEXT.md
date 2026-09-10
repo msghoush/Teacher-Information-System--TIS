@@ -1071,7 +1071,8 @@ Milestone M4 implements `TalentAssessmentCycle` as one SchoolGroup-wide
 canonical authority bound to a Talent Program, Academic Year, and exact
 Framework Version. A Cycle deliberately has no `branch_id`. Its lifecycle is
 one-way `draft -> open -> closed`: there is no reopen, rollback, deletion,
-post-Open population mutation, late-entry exception, or assessor assignment.
+population removal, or assessor assignment. ADR 0033 permits only audited,
+additive synchronization of newly eligible Students while the Cycle is Open.
 Draft metadata uses expected-revision stale-write protection. The explicit
 `population_effective_at` may change only in Draft and is required for preview
 and Open; no hidden current-time rule is used.
@@ -1091,6 +1092,14 @@ Placement identity plus Academic Year, frozen Branch, grade, section,
 nullable PlanningSection provenance, and effective/frozen timestamps.
 Current Placement, annual configuration, PlanningSection, and later Framework
 retirement cannot reinterpret an Open/Closed population.
+After an authorized Student Placement save, ADR 0033 synchronization locks each
+matching Open Cycle, adds only a missing member with the new Placement snapshot,
+and updates revision, count, fingerprint, and audit in the placement transaction.
+Opening an existing Open assessment also invokes a dedicated organization-governed,
+expected-revision reconciliation before its population is read. That operation
+derives canonical Placement eligibility at the synchronization instant and adds
+only missing members, covering Students eligible before ADR 0033 deployment.
+Existing members and evidence are never changed; Closed Cycles remain final.
 
 M4 adds dedicated Administrator-only-by-default permissions:
 `talent_assessment_cycles.view`, `.manage`, `.view_population`, and `.govern`.

@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  {% if success %}<div class="stu-banner stu-banner-success" role="status">Saved successfully.</div>{% endif %}
+  {% if success %}<div class="stu-banner stu-banner-success" role="status">{% if success == 'placement_synced' %}Placement saved. The Student was added to the eligible open assessment as Not Started.{% else %}Saved successfully.{% endif %}</div>{% endif %}
   {% if error %}<div class="stu-banner stu-banner-error" role="alert">{{ error }}</div>{% endif %}
 
   <nav class="stu-tabs" aria-label="Student sections">
@@ -80,19 +80,20 @@
     <div class="stu-banner" role="status">This Student already has a current placement. Use <strong>End / Change</strong> on the current record below so its history remains intact.</div>
     {% else %}
     <p class="stu-lede">{{ icon('branch', 'shell-icon') }}Set which Academic Year, Branch, Grade, and Section this student belongs to, and when it began. Ending a placement keeps it in history.</p>
-    <form class="stu-form" method="post" action="/students/{{ student.id }}/placements" data-stu-cascade-group data-sections-api="{{ sections_api_url }}">
+    <form class="stu-form" method="post" action="/students/{{ student.id }}/placements" data-stu-cascade-group data-sections-api="{{ sections_api_url }}" data-open-cycle-preview="/students/placement-open-cycle-preview" data-student-id="{{ student.id }}">
       <div class="stu-form-grid">
         <div class="stu-field">
           <label for="academic_year_id">Academic Year</label>
           <select id="academic_year_id" name="academic_year_id" required data-stu-cascade="year">
-            {% for y in years %}<option value="{{ y.id }}" {% if current_placement and current_placement.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}
+            {% for y in years %}<option value="{{ y.id }}" {% if placement_academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}
           </select>
         </div>
         <div class="stu-field">
           <label for="branch_id">Branch</label>
           <select id="branch_id" name="branch_id" required data-stu-cascade="branch">
-            {% for b in branches %}<option value="{{ b.id }}">{{ b.name }}</option>{% endfor %}
+            {% for b in branches %}<option value="{{ b.id }}" {% if placement_branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
           </select>
+          <p class="stu-hint">Defaults to the current workspace context. Changing it loads Planning Grades for that exact Academic Year and Branch.</p>
         </div>
         <div class="stu-field">
           <label for="grade_level">Grade</label>
@@ -153,7 +154,7 @@
               </div>
               <div class="stu-form-actions"><button class="stu-btn" type="submit">{{ icon('close', 'shell-icon') }}End this placement</button></div>
             </form>
-            <form class="stu-form" method="post" action="/students/{{ student.id }}/placements/{{ p.id }}/transition" data-stu-cascade-group data-sections-api="{{ sections_api_url }}">
+            <form class="stu-form" method="post" action="/students/{{ student.id }}/placements/{{ p.id }}/transition" data-stu-cascade-group data-sections-api="{{ sections_api_url }}" data-open-cycle-preview="/students/placement-open-cycle-preview" data-student-id="{{ student.id }}">
               <div class="stu-form-grid">
                 <div class="stu-field"><label>Move on</label><input name="transition_at" type="date" required value="{{ today }}"></div>
                 <div class="stu-field"><label>New Academic Year</label><select name="academic_year_id" required data-stu-cascade="year">{% for y in years %}<option value="{{ y.id }}" {% if p.academic_year_id == y.id %}selected{% endif %}>{{ y.year_name }}</option>{% endfor %}</select></div>

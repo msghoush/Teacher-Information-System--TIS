@@ -173,7 +173,15 @@
       ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)} ${badge(c.status)}</h3><p>Student list date: ${esc(c.population_effective_at || 'Not set')}</p>${link('assessments','Open evaluation students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
       :(noOpenEvaluation?note('No Evaluation Period is open for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
     mount(`${cardsHtml}${cycle?`<h3>${esc(cycle.title)}</h3>`:''}${population?`<h3>Students in this evaluation</h3>${note('This Student list remains as recorded when the evaluation started.')}${population.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${memberRows}</tbody></table></div>`:note('No Students were included when this evaluation started.')}`:''}<h3>Assessment Records</h3>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
-    on('start',async el=>{const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,cycle_population_member_id:Number(el.dataset.member)}});navigate('assessments',{assessment_id:result.id,academic_year_id:result.academic_year_id});});
+    // Starting an assessment leaves this list to open the new assessment
+    // editor directly. That is a real cross-surface navigation (Student
+    // Assessments -> a specific assessment), so it must carry the current
+    // Program forward the same way every other link in this file does (see
+    // url()/link() above, which always include program_id from params) -
+    // omitting it here would silently reset the upper ribbon/context
+    // selector to "Choose a Program" while the opened assessment itself
+    // still belongs to Program pid, an internal context mismatch.
+    on('start',async el=>{const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,cycle_population_member_id:Number(el.dataset.member)}});navigate('assessments',{assessment_id:result.id,academic_year_id:result.academic_year_id,program_id:pid});});
   }
   function localDate(value) {const d=new Date(value.endsWith('Z')||/[+-]\d\d:\d\d$/.test(value)?value:`${value}Z`);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
   if(typeof module!=='undefined')module.exports={saveResults,esc,context,localDate,render};

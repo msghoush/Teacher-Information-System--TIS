@@ -161,7 +161,10 @@ Student + Academic Placement + Academic Year + Branch + grade + section
 context through composite scoped foreign keys; current Placement and nullable
 PlanningSection provenance are never historical rendering authority.
 `talent_assessment_audits` is the bounded append-only operational lifecycle
-audit. Migration `20260904_004_talent_assessment_cycle_frozen_population`
+audit. While a Cycle is Open, accepted ADR 0033 permits only additive member
+snapshots after a confirmed eligible Placement; existing members/evidence are
+never changed, and Closed membership remains final. Migration
+`20260904_004_talent_assessment_cycle_frozen_population`
 creates all three tables and the exact Academic Placement composite unique
 target required by the member FK.
 

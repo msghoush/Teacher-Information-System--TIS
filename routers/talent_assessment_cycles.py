@@ -14,7 +14,8 @@ from dependencies import get_db
 from talent_assessment_cycle_service import (
     TalentAssessmentCycleError, close_cycle, create_cycle, cycle_payload,
     frozen_population, get_cycle, list_cycles, open_cycle, population_fingerprint,
-    population_member_payload, preview_population, update_cycle,
+    population_member_payload, preview_population, reconcile_open_cycle_population,
+    update_cycle,
 )
 
 router = APIRouter(prefix="/api/talent/assessment-cycles", tags=["Talent Assessment Cycles"])
@@ -195,6 +196,22 @@ def cycles_close(cycle_id: int, request: Request, payload: dict = Body(...), db:
         expected_revision=int(payload.get("expected_revision")),
         organization_authorized=_organization_authorized(user), actor=user,
     )))
+
+
+@router.post("/{cycle_id}/population/synchronize")
+def cycles_synchronize_population(cycle_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_assessment_cycles.govern")
+    if denied:
+        return denied
+    return _run(db, lambda: _sync_payload(*reconcile_open_cycle_population(
+        db, school_group_id=group_id, cycle_id=cycle_id,
+        expected_revision=int(payload.get("expected_revision")),
+        organization_authorized=_organization_authorized(user), actor=user,
+    )))
+
+
+def _sync_payload(cycle, additions):
+    return {"cycle": cycle_payload(cycle), "added_count": len(additions)}
 
 
 @router.get("/{cycle_id}/population")

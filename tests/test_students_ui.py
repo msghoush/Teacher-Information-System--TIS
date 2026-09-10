@@ -235,6 +235,34 @@ def test_placement_form_has_validation_pending_and_network_error_feedback():
     assert 'submitButton.textContent = "Saving placement…"' in source
     assert "Choose a configured Section before saving." in source
     assert "Sections could not be loaded. Check your connection" in source
+    assert "Student will be added to an open assessment." in source
+    assert "Existing assessment records will not be changed." in source
+    assert "data-open-cycle-preview" in Path("templates/student_profile.html").read_text(encoding="utf-8")
+
+
+def test_placement_open_cycle_preview_and_synced_success_feedback(db, client, monkeypatch):
+    permissions(db, "students.view", "students.manage_placements")
+    db.add(models.PlanningSection(
+        id=9020, grade_level="3", section_name="Mental Math", class_status="Current",
+        branch_id=10, academic_year_id=100,
+    ))
+    db.commit()
+    marker = type("OpenCycle", (), {"id": 42})()
+    monkeypatch.setattr(students_ui, "eligible_open_cycles_for_placement_scope", lambda *args, **kwargs: [marker])
+    preview = client.get("/students/placement-open-cycle-preview", params={
+        "student_id": 1002, "academic_year_id": 100, "branch_id": 10, "planning_section_id": 9020,
+    })
+    assert preview.status_code == 200
+    assert preview.json() == {"open_cycle_count": 1}
+
+    monkeypatch.setattr(students_ui, "synchronize_placement_to_open_cycles", lambda *args, **kwargs: [marker])
+    response = client.post("/students/1002/placements", data={
+        "academic_year_id": "100", "branch_id": "10", "planning_section_id": "9020",
+        "effective_from": "2026-09-01", "effective_to": "", "reason": "Mental Math",
+    })
+    assert response.status_code == 200
+    assert "Placement saved" in response.text
+    assert "added to the eligible open assessment as Not Started" in response.text
 
 
 def test_active_status_is_deemphasized_but_inactive_stays_a_visible_exception(db, client):
@@ -262,6 +290,24 @@ def test_placement_grade_selector_excludes_kg(db, client):
     assert 'value="KG"' not in text
     assert 'value="1"' not in text and 'value="12"' not in text
     assert "Select academic year and branch first" in text
+
+
+def test_new_placement_defaults_to_shell_year_and_branch_not_first_sorted_options(db, client):
+    permissions(db, "students.view", "students.manage_placements")
+    db.query(models.StudentAcademicPlacement).filter_by(student_id=1001, school_group_id=1).delete()
+    db.add(models.AcademicYear(id=99, school_group_id=1, year_name="2025-2026", is_active=False))
+    db.add(models.Branch(id=9, school_group_id=1, name="Aardvark Campus", status=True))
+    db.commit()
+
+    response = client.get("/students/1001?section=placement")
+    assert response.status_code == 200
+    # actor() is scoped to Academic Year 100 and Branch 10. Those values must
+    # be explicit selections even though 99/9 sort first in their lists.
+    assert '<option value="100" selected>2026-2027</option>' in response.text
+    assert '<option value="10" selected>' in response.text
+    assert '<option value="99" selected>' not in response.text
+    assert '<option value="9" selected>' not in response.text
+    assert "loads Planning Grades for that exact Academic Year and Branch" in response.text
 
 
 def test_sections_endpoint_reuses_planning_scope_authority_and_disabled_state(db, client):
