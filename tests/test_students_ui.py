@@ -249,3 +249,21 @@ def test_list_filters_branch_grade_section_use_real_current_placement_query(db, 
     # An out-of-scope/foreign branch id is silently ignored (never trusted as a filter).
     foreign_branch = client.get("/students/", params={"branch_id": 20})
     assert "Bilal" in foreign_branch.text and "Alya" in foreign_branch.text
+
+
+def test_learning_style_filter_cascade_uses_planning_branch_grade_section(db, client):
+    permissions(db, "students.view")
+    db.add_all([
+        models.PlanningSection(id=9101, grade_level="4", section_name="North A", class_status="Current", branch_id=10, academic_year_id=100),
+        models.PlanningSection(id=9102, grade_level="7", section_name="South B", class_status="Current", branch_id=11, academic_year_id=100),
+    ])
+    db.commit()
+    organization = client.get("/students/")
+    assert organization.status_code == 200
+    assert 'aria-label="Organization scope">Organization' in organization.text
+    assert 'value="4"' in organization.text and 'value="7"' in organization.text
+    north = client.get("/students/", params={"branch_id": 10})
+    assert 'value="4"' in north.text and 'value="7"' not in north.text
+    north_grade = client.get("/students/", params={"branch_id": 10, "grade": "4"})
+    assert "North A" in north_grade.text and "South B" not in north_grade.text
+    assert "data-ls-filter-cascade" in north_grade.text

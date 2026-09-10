@@ -2,7 +2,7 @@
 {% from "_app_icons.html" import icon %}
 {% from "_learning_style.html" import learning_style_field, learning_style_badge %}
 {% block title %}{{ student.display_name }} | TIS{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}">{% endblock %}
 {% block content %}
 <section class="stu">
   <a class="stu-btn stu-btn-sm" href="/students/">{{ icon('chevron-right', 'shell-icon') }}All Students</a>
@@ -203,7 +203,7 @@
             {% if c.official_identification is defined and c.official_identification %}<p><strong>Identification</strong> {{ c.official_identification.decision | replace('_', ' ') }}</p>{% endif %}
             {% if c.competency_results %}
             <p><strong>Competency evidence</strong></p>
-            <ul>{% for r in c.competency_results %}<li>{{ r.evidence or 'Recorded evidence' }}</li>{% endfor %}</ul>
+            <ul>{% for r in c.competency_results %}<li><strong>{{ r.competency_label or 'Competency' }}</strong> <span data-rubric-level='{{ r.rubric_level | tojson | forceescape }}'>{{ r.rubric_level.label if r.rubric_level else 'No rubric level recorded' }}</span><p>{{ r.evidence or 'Recorded evidence' }}</p></li>{% endfor %}</ul>
             {% endif %}
           </div>
         </details>
@@ -247,5 +247,6 @@
 </section>
 {% endblock %}
 {% block page_scripts %}
+<script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/students.js') }}" defer></script>
 {% endblock %}

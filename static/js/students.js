@@ -124,4 +124,32 @@
     document.querySelectorAll("[data-stu-cascade-group]").forEach((form) => {
         initializeCascadeGroup(form);
     });
+
+    document.querySelectorAll("[data-rubric-level]").forEach((target) => {
+        try {
+            const level = JSON.parse(target.dataset.rubricLevel || "null");
+            if (level && window.TalentRubricVisual) {
+                target.outerHTML = window.TalentRubricVisual.badge(level);
+            }
+        } catch (_) {
+            // Keep the server-rendered label as an accessible fallback.
+        }
+    });
+
+    document.querySelectorAll("[data-ls-filter-cascade]").forEach((form) => {
+        const branch = form.querySelector('[name="branch_id"]');
+        const grade = form.querySelector('[name="grade"]');
+        const section = form.querySelector('[name="section"]');
+        if (!branch || !grade || !section) return;
+        branch.addEventListener("change", () => {
+            grade.value = "";
+            section.value = "";
+            form.requestSubmit();
+        });
+        grade.addEventListener("change", () => {
+            section.value = "";
+            form.requestSubmit();
+        });
+        section.addEventListener("change", () => form.requestSubmit());
+    });
 })();

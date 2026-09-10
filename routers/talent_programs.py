@@ -14,8 +14,8 @@ from planning_scope_service import list_operational_planning_grades, list_operat
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, create_competency,
     add_rubric_level, configure_kpi, configure_review_candidate_policy,
-    create_framework_draft, create_program, framework_payload, get_program, list_programs,
-    get_framework_configuration,
+    create_framework_draft, create_program, delete_program, framework_payload, get_program, list_programs,
+    get_framework_configuration, program_delete_blockers,
     program_payload, remove_framework_competency, remove_program_logo, reorder_framework_competencies,
     remove_descriptor, remove_kpi, remove_review_candidate_policy, remove_rubric_level,
     reorder_rubric_levels, set_program_logo,
@@ -41,6 +41,24 @@ def _authorize(request, db, user, *keys):
 def _organization_authorized(user): return auth.get_access_scope(user) in {auth.ACCESS_SCOPE_ORGANIZATION, auth.ACCESS_SCOPE_GLOBAL}
 
 
+def _with_actions(db, user, group_id, row):
+    """Attach a real backend-computed capability list; never a client-side guess.
+
+    ADR 0032: "delete" is only offered when the Program is actually Draft
+    status with zero related rows AND the actor holds talent_programs.delete
+    plus the same organization-scope authorization other Program mutation
+    routes require.
+    """
+    payload = program_payload(row)
+    actions = []
+    if (row.status == "draft" and _organization_authorized(user)
+            and auth.has_permission(db, user, "talent_programs.delete")
+            and not program_delete_blockers(db, program_id=row.id)):
+        actions.append("delete")
+    payload["actions"] = actions
+    return payload
+
+
 def _error(exc):
     status = 404 if exc.code == "not_found" else 409 if exc.code in {"stale_framework", "duplicate_program", "duplicate_competency", "duplicate_membership", "supersession_required", "duplicate_level", "duplicate_order", "duplicate_rule"} else 403 if exc.code == "organization_authority_required" else 400
     return JSONResponse({"detail": exc.message, "code": exc.code}, status_code=status)
@@ -57,8 +75,8 @@ def _run(db, fn, *, created=False):
 
 @router.get("")
 def programs_list(request: Request, search: str = Query(""), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    _, group_id, denied = _authorize(request, db, current_user, "talent_programs.view")
-    return denied or [program_payload(row) for row in list_programs(db, school_group_id=group_id, search=search)]
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.view")
+    return denied or [_with_actions(db, user, group_id, row) for row in list_programs(db, school_group_id=group_id, search=search)]
 
 
 def _grade_sort_key(value: str):
@@ -128,10 +146,24 @@ def programs_create(request: Request, payload: dict = Body(...), db: Session = D
 
 @router.get("/{program_id}")
 def programs_read(program_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    _, group_id, denied = _authorize(request, db, current_user, "talent_programs.view")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.view")
     if denied: return denied
     row = get_program(db, group_id, program_id)
-    return program_payload(row) if row else JSONResponse({"detail": "Talent Program was not found.", "code": "not_found"}, status_code=404)
+    return _with_actions(db, user, group_id, row) if row else JSONResponse({"detail": "Talent Program was not found.", "code": "not_found"}, status_code=404)
+
+
+@router.delete("/{program_id}")
+def programs_delete(program_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """ADR 0032 scoped exception: hard-delete a Draft Talent Program with zero related rows.
+
+    Every Configured/Active/Retired Program, or a Draft Program with any
+    related row, is rejected with a clear error - never a silent no-op.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete")
+    if denied: return denied
+    if not _organization_authorized(user):
+        return _error(TalentProgramError("organization_authority_required", "Organization authority is required to permanently delete a Talent Program."))
+    return _run(db, lambda: {"id": delete_program(db, school_group_id=group_id, program_id=program_id, actor=user), "deleted": True})
 
 
 @router.patch("/{program_id}")
@@ -336,7 +368,7 @@ def framework_competencies_reorder(program_id: int, framework_id: int, request: 
 
 @router.delete("/{program_id}/frameworks/{framework_id}/competencies/{competency_id}")
 def framework_competencies_remove(program_id: int, framework_id: int, competency_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete")
     if denied: return denied
     return _run(db, lambda: {"framework_revision": remove_framework_competency(db, school_group_id=group_id, program_id=program_id,
         framework_id=framework_id, competency_id=competency_id, expected_revision=expected_revision, actor=user).revision})
@@ -389,7 +421,7 @@ def rubric_levels_reorder(program_id: int, framework_id: int, request: Request, 
 
 @router.delete("/{program_id}/frameworks/{framework_id}/rubric/levels/{level_id}")
 def rubric_level_remove(program_id: int, framework_id: int, level_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete")
     if denied: return denied
     return _run(db, lambda: {"framework_revision": remove_rubric_level(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, level_id=level_id, expected_revision=expected_revision, actor=user).revision})
 

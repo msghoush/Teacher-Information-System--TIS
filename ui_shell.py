@@ -231,7 +231,7 @@ PAGE_META = {
         "eyebrow": "Learner Development",
         "title": "Talent & Potential",
         "intro": "Explore Programs, evaluation evidence, and deterministic insights in their historical context.",
-        "icon": "clipboard-check",
+        "icon": "sparkles",
     },
     "dashboard": {
         "eyebrow": "Command Center",
@@ -357,7 +357,7 @@ def _build_nav_items(
         {
             "label": "Talent & Potential",
             "href": "/talent",
-            "icon": "clipboard-check",
+            "icon": "sparkles",
             "permission_keys": ("talent_programs.view", "talent_evaluation_plans.view", "talent_assessments.view", "talent_review_candidates.view", "talent_learner_profiles.view", "talent_analytics.view"),
             "permission_mode": "any",
         },

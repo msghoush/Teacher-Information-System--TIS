@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Talent Rubric And Analytics Closure Flow
+
+1. Rubric configuration establishes arbitrary labels and `display_order`; the shared browser helper derives visual strength and an explicit “position of total” cue from that order.
+2. Assessment entry uses the same treatment for selectable levels. Talent Review and Student/Learner Profile resolve the actual persisted level from the exact historical Assessment and Framework.
+3. Meets Program Criteria remains the deterministic candidate outcome. Official Identification remains a separate permanent human decision; neither is inferred from the strongest displayed level.
+4. Talent Overview links to operational work. Organization Overview shows selective executive results and directs users to Program Results, Branch Results, Talent Map, and Progress Over Time for detail.
+5. Learning Style distribution starts at the authorized Organization context, optionally narrows by Branch, then exposes only Planning-configured Grades and Sections. The existing Students analytics endpoint applies permission, tenant/Branch scope, and privacy suppression.
+
 ## Evaluation Plan Authority And Local Retest Flow
 
 1. The server requires `talent_evaluation_plans.manage` or `.govern`, as applicable, plus durable organization/global access scope for Evaluation Plan and Evaluation Period mutations.

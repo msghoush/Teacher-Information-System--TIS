@@ -180,6 +180,26 @@ def test_qualifying_candidate_starts_pending_review(db):
     assert candidate.reviewed_by_user_id is None and candidate.reviewed_at is None
 
 
+def test_review_projection_exposes_actual_rubric_level_without_identifying_student(db):
+    _, session = db
+    candidate, *_ = qualifying_candidate(session)
+    viewer = _user("2000000099", branch=10, scope="ORGANIZATION", role="Editor")
+    session.add_all([viewer, models.RolePermission(
+        school_group_id=1, role="Editor", permission_key="talent_review_candidates.view", is_allowed=True,
+    )])
+    session.commit()
+    app = FastAPI(); app.include_router(review_candidates_router)
+    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_current_user] = lambda: viewer
+    with TestClient(app) as client:
+        body = client.get("/api/talent/review-candidates").json()
+    assert body[0]["id"] == candidate.id
+    assert body[0]["rubric_level"]["label"] == "High"
+    assert body[0]["rubric_level"]["position"] == 3
+    assert body[0]["rubric_level"]["total_levels"] == 3
+    assert "official_identification" not in body[0]
+
+
 def test_mark_reviewed_requires_manage_permission_at_router(db):
     _, session = db
     candidate, *_ = qualifying_candidate(session)

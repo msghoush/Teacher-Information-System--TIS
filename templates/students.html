@@ -25,18 +25,19 @@
   {% endif %}
 
   <div class="stu-hero">
-    <form class="stu-search" method="get" action="/students/">
+    <form class="stu-search" method="get" action="/students/" data-ls-filter-cascade>
       <input type="search" name="search" value="{{ search }}" placeholder="Search by name" aria-label="Search students">
+      <span class="stu-filter-context" aria-label="Organization scope">Organization</span>
       <select name="branch_id" aria-label="Branch filter">
         <option value="">All branches</option>
         {% for b in branches %}<option value="{{ b.id }}" {% if selected_branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
       </select>
       <select name="grade" aria-label="Grade filter">
-        <option value="">All grades</option>
+        <option value="">All configured grades</option>
         {% for g in grade_levels %}<option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>Grade {{ g }}</option>{% endfor %}
       </select>
-      <select name="section" aria-label="Section filter">
-        <option value="">All sections</option>
+      <select name="section" aria-label="Section filter" {% if not selected_grade %}disabled{% endif %}>
+        <option value="">{{ 'Choose a Grade first' if not selected_grade else 'All configured sections' }}</option>
         {% for s in section_options %}<option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
       <select name="status" aria-label="Status filter">

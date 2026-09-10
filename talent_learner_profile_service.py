@@ -78,8 +78,36 @@ def build_learner_profile(db, *, school_group_id, student_id, visible_branch_ids
             models.TalentStudentCompetencyResult.school_group_id == school_group_id,
             models.TalentStudentCompetencyResult.assessment_id.in_(assessment_ids or [-1]),
         ).order_by(models.TalentStudentCompetencyResult.assessment_id, models.TalentStudentCompetencyResult.framework_competency_id).all()
+        competency_ids = {row.framework_competency_id for row in results}
+        competencies_by_id = {row.id: row for row in db.query(models.FrameworkCompetency).filter(
+            models.FrameworkCompetency.school_group_id == school_group_id,
+            models.FrameworkCompetency.id.in_(competency_ids or [-1]),
+        ).all()}
+        framework_ids = {assessment.framework_version_id for assessment in assessments}
+        levels = db.query(models.TalentRubricLevel).filter(
+            models.TalentRubricLevel.school_group_id == school_group_id,
+            models.TalentRubricLevel.framework_version_id.in_(framework_ids or [-1]),
+        ).order_by(models.TalentRubricLevel.framework_version_id, models.TalentRubricLevel.display_order, models.TalentRubricLevel.id).all()
+        levels_by_framework = defaultdict(list)
+        for level in levels:
+            levels_by_framework[level.framework_version_id].append(level)
+        level_by_id = {level.id: level for level in levels}
+        assessments_by_id = {assessment.id: assessment for assessment in assessments}
         for row in results:
-            results_by_assessment[row.assessment_id].append(competency_result_payload(row))
+            payload = competency_result_payload(row)
+            assessment = assessments_by_id[row.assessment_id]
+            scale = levels_by_framework[assessment.framework_version_id]
+            level = level_by_id.get(row.rubric_level_id)
+            competency = competencies_by_id.get(row.framework_competency_id)
+            payload["competency_label"] = competency.label if competency else None
+            payload["rubric_level"] = None if level is None else {
+                "id": level.id,
+                "label": level.label,
+                "display_order": level.display_order,
+                "position": scale.index(level) + 1,
+                "total_levels": len(scale),
+            }
+            results_by_assessment[row.assessment_id].append(payload)
     program_ids = {row.program_id for row in assessments}
     programs = {row.id: row for row in db.query(models.TalentProgram).filter(
         models.TalentProgram.school_group_id == school_group_id, models.TalentProgram.id.in_(program_ids or [-1]),

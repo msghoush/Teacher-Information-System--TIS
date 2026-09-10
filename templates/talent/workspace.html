@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
 {% block title %}{{ talent_title }} · Talent & Potential | TIS{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-program-workspace.css') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-program-workspace.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}">{% endblock %}
 {% block content %}
 {% set nav_icons = {'overview':'dashboard','programs':'degree','evaluation-plans':'calendar','assessments':'exam','reviews':'clipboard-check','analytics':'insights','talent-map':'table','portfolio':'spreadsheet','branch':'branch','overlap':'activity','students':'users','longitudinal':'clock','learner-profile':'eye'} %}
 <section class="tp" id="talent-workspace" data-view="{{ talent_view }}">
@@ -49,6 +49,7 @@
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
 <script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
+<script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/talent-program-workspace.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}" defer></script>

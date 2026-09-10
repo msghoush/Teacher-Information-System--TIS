@@ -135,12 +135,22 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
    --app-warning) for a distinct accent per style - never color alone, the
    icon (where one exists) and text label are always present too. */
 .stu-ls-options { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); }
-.stu-ls-option { position: relative; display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--app-line); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: 13px; font-weight: 700; color: var(--app-ink); cursor: pointer; background: var(--app-surface); transition: border-color 140ms ease, background-color 140ms ease; }
-.stu-ls-option input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.stu-ls-option { position: relative; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--app-line); border-radius: 999px; padding: 6px 14px 6px 10px; font-size: 13px; font-weight: 700; color: var(--app-ink); cursor: pointer; background: var(--app-surface); transition: border-color 140ms ease, background-color 140ms ease; }
+/* The native radio stays visible (not opacity:0/1px-hidden) per accessibility
+   requirement; it is simply styled small and inline within the pill rather
+   than removed from the visual layout. */
+.stu-ls-option input { position: static; opacity: 1; width: 14px; height: 14px; margin: 0; flex: 0 0 auto; accent-color: var(--stu-ls-accent, var(--app-brand)); cursor: pointer; }
 .stu-ls-option svg { width: 16px; height: 16px; color: var(--stu-ls-accent, var(--app-muted, #5d6b82)); }
 .stu-ls-option:hover { border-color: var(--stu-ls-accent, var(--app-line-strong)); }
-.stu-ls-option.is-selected { border-color: var(--stu-ls-accent, var(--app-brand)); background: color-mix(in srgb, var(--stu-ls-accent, var(--app-brand)) 10%, var(--app-surface)); }
+/* .is-selected (server-rendered on initial load) and :has(input:checked)
+   (live, immediate feedback on click before any save/reload) apply the same
+   selected treatment so the clicked pill visibly reflects the new selection
+   right away. */
+.stu-ls-option.is-selected, .stu-ls-option:has(input:checked) { border-color: var(--stu-ls-accent, var(--app-brand)); background: color-mix(in srgb, var(--stu-ls-accent, var(--app-brand)) 10%, var(--app-surface)); }
 .stu-ls-option input:focus-visible ~ svg, .stu-ls-option:has(input:focus-visible) { outline: 2px solid var(--app-brand); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .stu-ls-option { transition: none; }
+}
 .stu-ls-badge { background: var(--app-surface-muted); color: var(--app-ink); border: 1px solid var(--stu-ls-accent, var(--app-line)); }
 .stu-ls-badge svg { width: 14px; height: 14px; color: var(--stu-ls-accent, var(--app-muted, #5d6b82)); }
 .stu-ls-badge-unset { color: var(--app-muted, #5d6b82); border-style: dashed; }
@@ -159,6 +169,7 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-ls-track span { display: block; height: 100%; background: var(--stu-ls-accent, var(--app-brand)); border-radius: inherit; }
 .stu-ls-track-state { background: repeating-linear-gradient(45deg, var(--app-surface-muted), var(--app-surface-muted) 6px, var(--app-line) 6px, var(--app-line) 12px); }
 .stu-protected { color: var(--app-muted, #5d6b82); font-style: italic; font-size: 13px; margin: 0; }
+.stu-filter-context { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 10px; background: var(--app-surface-muted); color: var(--app-muted, #5d6b82); font-weight: 700; }
 
 /* Responsive */
 @media (max-width: 680px) {

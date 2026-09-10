@@ -1,6 +1,9 @@
 /* M11 presentation only: authoritative API projections, never reconstructed metrics. */
 (() => {
   'use strict';
+  const rubricVisual = typeof module !== 'undefined' && module.exports
+    ? require('./talent-rubric-visual.js')
+    : window.TalentRubricVisual;
   const labels = {
     programs_configured:'Programs configured', active_programs:'Active Programs',
     frozen_eligible_memberships:'Students participating', frozen_eligible:'Students participating',
@@ -106,37 +109,8 @@
     }).join('');
     return `<div class="tp-grade-chart tp-branch-chart" role="group" aria-label="Results by Branch">${body}</div>`;
   }
-  // Canonical ordered-rubric-level visual: works for any label set and any
-  // level count (never a hardcoded Beginning/Approaching/Meets/Exceeds set).
-  // Intensity is derived ONLY from an item's position among its siblings
-  // (order-1)/(count-1), never from a value/magnitude, so it is safe to draw
-  // even for a suppressed/restricted level; it is always paired with a
-  // persistent numeric/text second channel (the level label plus its visible
-  // percentage or protected-state text) so meaning never depends on color
-  // alone. Bar fill length still comes only from an already-visible backend
-  // percentage, exactly like gradeBars/branchBars. Shared by any surface that
-  // needs a rubric-ordered visual instead of being reimplemented per screen.
-  function rubricLevelIntensity(index, count) {
-    return count > 1 ? index / (count - 1) : 1;
-  }
-  function rubricDistribution(levels) {
-    const rows = (levels || []).filter(item => item && item.label != null && typeof item.display_order !== 'undefined')
-      .slice().sort((a, b) => a.display_order - b.display_order);
-    if (!rows.length) return empty('No rubric levels are configured.');
-    const count = rows.length;
-    const body = rows.map((level, index) => {
-      const intensity = rubricLevelIntensity(index, count);
-      const visible = level.state === 'visible' && typeof level.percentage === 'number' && Number.isFinite(level.percentage);
-      const valueText = visible
-        ? `<strong>${number(level.percentage)}%</strong><small>${number(level.count)} Student${level.count === 1 ? '' : 's'}</small>`
-        : `<span class="tp-protected">${esc(states[level.state] || 'Not available')}</span>`;
-      const track = visible
-        ? `<div class="tp-rubric-track" role="img" aria-label="${esc(level.label)}: ${number(level.percentage)} percent"><span style="width:${Math.max(0, Math.min(100, level.percentage))}%"></span></div>`
-        : `<div class="tp-rubric-track tp-rubric-track-state" role="img" aria-label="${esc(level.label)}: ${esc(states[level.state] || 'not available')}"></div>`;
-      return `<div class="tp-rubric-row" style="--tp-rubric-intensity:${intensity.toFixed(3)}"><span class="tp-rubric-label">${esc(level.label)}</span>${track}${valueText}</div>`;
-    }).join('');
-    return `<div class="tp-rubric-chart" role="group" aria-label="Rubric level distribution">${body}</div>`;
-  }
+  const rubricLevelIntensity = rubricVisual.intensity;
+  const rubricDistribution = rubricVisual.distribution;
   function kpiCard(key, cell, href='', context='') {
     const isRate = cell && cell.state === 'visible' && typeof cell.percentage === 'number' && Number.isFinite(cell.percentage);
     const value = isRate ? radialGauge(cell, labels[key] || human(key)) : `<div class="tp-kpi-value">${metric(cell)}</div>`;
@@ -148,6 +122,7 @@
   const lede = (title, text, tone='') => `<div class="tp-section-lede${tone?` tp-tone-${tone}`:''}"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg><div><h3>${esc(title)}</h3><p>${esc(text)}</p></div></div>`;
   const initials = name => esc(String(name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '?');
   const programLogo = (program, size='tp-logo-sm') => program ? (typeof window!=='undefined'&&window.TalentProgramIdentity ? window.TalentProgramIdentity.logoBadge(program,size) : `<span class="tp-logo-badge ${size}"><span class="tp-logo-initials" aria-hidden="true">${initials(program.name)}</span></span>`) : '';
+  const appIcon = name => typeof window!=='undefined'&&window.TalentProgramWorkspace?.icon ? window.TalentProgramWorkspace.icon(name) : '';
   // Real matrix/grid markup (CSS Grid, ARIA grid semantics) for the Talent Map. Every
   // protected/suppressed cell is a distinct categorical pattern + text, never a
   // magnitude-proportional gradient; only an already-visible backend percentage may set
@@ -266,7 +241,7 @@
       return null;
     }
     if (view==='overview') {
-      const routes=[['programs','Programs','Explore the Program intent, lifecycle, and versioned frameworks.','talent_programs.view'],['evaluation-plans','Plan the year','Understand ordered evaluation Periods and their execution context.','talent_evaluation_plans.view'],['assessments','Explore evidence','Read Student assessments in their original frozen context.','talent_assessments.view'],['analytics','Understand activity','Explore privacy-safe participation and coverage.','talent_analytics.view'],['talent-map','Locate patterns','See one factual metric across Programs and Branches.','talent_analytics.view'],['longitudinal','Progress over time','Explore ordered Periods within one Program and Academic Year.','talent_analytics.view']];
+      const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['evaluation-plans','Evaluation Plans','Plan and start this year’s evaluations.','talent_evaluation_plans.view','start'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['reviews','Talent Review','Review Students who meet Program Criteria.','talent_review_candidates.view','eye'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
       const yearLabel=esc(year.options[year.selectedIndex]?.textContent || '');
       let hero=`<div class="tp-hero"><p class="tp-eyebrow">Academic Year ${yearLabel}</p><h3>Where Talent &amp; Potential stands right now</h3><p>A privacy-safe, factual snapshot of configured Programs and authorized analytics for this Academic Year. Every figure below is exactly what the backend returns - nothing is inferred or estimated here.</p><div class="tp-hero-stats" id="tp-hero-stats"><p class="tp-empty">Loading headline figuresâ€¦</p></div></div>`;
       if (can('talent_analytics.view')) {
@@ -280,7 +255,7 @@
       } else {
         hero=hero.replace('<p class="tp-empty">Loading headline figuresâ€¦</p>', '<p class="tp-empty">Headline analytics require the Organization Analytics permission.</p>');
       }
-      return hero+`<div class="tp-grid">${routes.filter(r=>can(r[3])).map((r,i)=>`<article class="tp-card"><p class="tp-eyebrow">${String(i+1).padStart(2,'0')}</p><h3>${r[1]}</h3><p>${r[2]}</p>${link(r[0],'Explore')}</article>`).join('')}</div>${note('Begin with a Program, follow its annual plan, then explore assessment evidence and authorized analytics.')}`;
+      return hero+`<div class="tp-grid tp-overview-actions">${routes.filter(r=>can(r[3])).map(r=>`<article class="tp-card tp-action-card"><div class="tp-action-card-icon">${appIcon(r[4])}</div><h3>${esc(r[1])}</h3><p>${esc(r[2])}</p>${link(r[0],`Open ${r[1]}`)}</article>`).join('')}</div>`;
     }
     if (view==='programs') {
       if (!pid) return programCards(await api('programs',signal));
@@ -308,7 +283,7 @@
       if (!sid) return empty('Open a Student Profile from an authorized assessment or the Students view.');
       const data=await api(`learner-profiles/${encodeURIComponent(sid)}`,signal);
       const name=[data.student.first_name,data.student.father_name,data.student.last_name].filter(Boolean).join(' ');
-      return `<article class="tp-card"><p class="tp-eyebrow">Learner Profile</p><h3>${esc(name)}</h3><p>Program-specific evidence Â· Historical context preserved</p></article>`+data.programs.map(p=>`<section class="tp-card"><h3>${programLogo(programCatalog.get(String(p.program.id))||p.program)} ${esc(p.program.name)}</h3>${p.academic_years.map(y=>`<h4>${esc(y.academic_year.year_name)}</h4>${y.cycles.map(c=>`<details><summary>${esc(c.cycle.title)} Â· ${esc(human(c.assessment.status))}</summary><p>Assessment setup: ${esc(c.framework_version.title)} Â· Version ${esc(c.framework_version.version_number)}</p>${c.frozen_context?`<p>Historical Branch context recorded Â· Grade ${esc(c.frozen_context.grade_level)} Â· ${esc(c.frozen_context.section_name)}</p>`:''}${c.assessment.kpi_result!=null?`<p>Program result: ${esc(c.assessment.kpi_result)}</p>`:''}${Object.hasOwn(c,'review_candidate')?`<p>Meets Program Criteria: ${esc(c.review_candidate?human(c.review_candidate.status):'No recorded result')}</p>`:''}${Object.hasOwn(c,'official_identification')?`<p>Official Identification: ${esc(c.official_identification?human(c.official_identification.decision):'No recorded decision')}</p>`:''}${(c.competency_results||[]).map(r=>`<p>Recorded competency evidence Â· Rubric level recorded</p><p>${esc(r.evidence)}</p>`).join('')}</details>`).join('')}`).join('')}</section>`).join('')+(!data.programs.length?empty('No authorized Talent assessment history is available.'):'' )+(data.timeline?.length?`<h3>Historical timeline</h3><ol class="tp-sequence">${data.timeline.map(e=>`<li class="tp-period"><span aria-hidden="true">â€¢</span><div><strong>${esc(human(e.event_type))}</strong><p>${esc(e.occurred_at)}</p></div></li>`).join('')}</ol>`:'');
+      return `<article class="tp-card"><p class="tp-eyebrow">Learner Profile</p><h3>${esc(name)}</h3><p>Program-specific evidence Â· Historical context preserved</p></article>`+data.programs.map(p=>`<section class="tp-card"><h3>${programLogo(programCatalog.get(String(p.program.id))||p.program)} ${esc(p.program.name)}</h3>${p.academic_years.map(y=>`<h4>${esc(y.academic_year.year_name)}</h4>${y.cycles.map(c=>`<details><summary>${esc(c.cycle.title)} Â· ${esc(human(c.assessment.status))}</summary><p>Assessment setup: ${esc(c.framework_version.title)} Â· Version ${esc(c.framework_version.version_number)}</p>${c.frozen_context?`<p>Historical Branch context recorded Â· Grade ${esc(c.frozen_context.grade_level)} Â· ${esc(c.frozen_context.section_name)}</p>`:''}${c.assessment.kpi_result!=null?`<p>Program result: ${esc(c.assessment.kpi_result)}</p>`:''}${Object.hasOwn(c,'review_candidate')?`<p>Meets Program Criteria: ${esc(c.review_candidate?human(c.review_candidate.status):'No recorded result')}</p>`:''}${Object.hasOwn(c,'official_identification')?`<p>Official Identification: ${esc(c.official_identification?human(c.official_identification.decision):'No recorded decision')}</p>`:''}${(c.competency_results||[]).map(r=>`<div><strong>${esc(r.competency_label||'Competency')}</strong> ${rubricVisual.badge(r.rubric_level)}<p>${esc(r.evidence||'Recorded evidence')}</p></div>`).join('')}</details>`).join('')}`).join('')}</section>`).join('')+(!data.programs.length?empty('No authorized Talent assessment history is available.'):'' )+(data.timeline?.length?`<h3>Historical timeline</h3><ol class="tp-sequence">${data.timeline.map(e=>`<li class="tp-period"><span aria-hidden="true">â€¢</span><div><strong>${esc(human(e.event_type))}</strong><p>${esc(e.occurred_at)}</p></div></li>`).join('')}</ol>`:'');
     }
     if (!ay) return empty('Select an Academic Year to explore analytics.');
     const base='organization-analytics/', common={academic_year_id:ay};
@@ -325,13 +300,13 @@
       // three-tier distinction preserved throughout this view.
       const identificationAllowed=can('talent_official_identifications.view');
       const rubricAllowed=Boolean(pid)&&can('talent_analytics.view');
-      const [overview,portfolio,map,gradeMap,identifiedMap,rubric]=await Promise.all([
+      const [overview,map,gradeMap,identifiedMap,rubric,longitudinal]=await Promise.all([
         api(`${base}overview?${qs(common)}`,signal),
-        api(`${base}program-portfolio?${qs(common)}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_grade'})}`,signal),
         identificationAllowed?api(`${base}talent-map?${qs({...common,metric:'identified_of_eligible',dimension:'program_branch'})}`,signal).catch(()=>null):Promise.resolve(null),
         rubricAllowed?api(`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution`,signal).catch(()=>null):Promise.resolve(null),
+        pid?api(`${base}programs/${encodeURIComponent(pid)}/longitudinal?${qs({...common,metric:'completion_coverage'})}`,signal).catch(()=>null):Promise.resolve(null),
       ]);
       // Drawn only from the already-privacy-closed organization_total cell the
       // backend returns for this exact scope (org-wide, or the selected
@@ -342,26 +317,22 @@
       const rubricSection=rubric&&Array.isArray(rubric.distributions)&&rubric.distributions.length
         ? `<section aria-labelledby="tp-rubric-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Rubric</p><h3 id="tp-rubric-title">Rubric level distribution</h3></div></div><p>A Student's highest rubric level is a separate signal from Meets Program Criteria and from Official Identification.</p>${rubric.distributions.map(d=>d.state==='restricted'?`<div class="tp-card"><h4>${esc(d.framework_title||'Assessment setup')}</h4>${empty('Protected for privacy; this rubric distribution is not shown.')}</div>`:`<div class="tp-card"><h4>${esc(d.framework_title||d.rubric_name||'Assessment setup')}</h4>${rubricDistribution(d.levels)}</div>`).join('')}</section>`
         : '';
-      const m={...(portfolio.totals||{}),...(overview.metrics||{})};
-      const kpis=['programs_configured','active_programs','frozen_eligible_memberships','completion_coverage','started_coverage','required_period_execution','candidate_membership_count','identified_count'].filter(k=>Object.hasOwn(m,k));
-      const rateKpis=kpis.filter(k=>['completion_coverage','started_coverage','required_period_execution'].includes(k));
-      const factKpis=kpis.filter(k=>!rateKpis.includes(k));
-      const programSummaries=(portfolio.programs||[]).map(row=>`<article class="tp-result-card"><header>${programLogo(programCatalog.get(String(row.program.id))||row.program)}<div><p class="tp-eyebrow">Program</p><h3>${esc(row.program.name)}</h3></div>${badge(row.program.status)}</header>${progressVisual(row.metrics.completion_coverage,'Completion')}${progressVisual(row.metrics.started_coverage,'Assessments started')}<div class="tp-mini-metrics">${['frozen_eligible','candidate_count','identified_count'].filter(k=>Object.hasOwn(row.metrics,k)).map(k=>`<span><b>${metric(row.metrics[k])}</b>${esc(labels[k])}</span>`).join('')}</div>${link('portfolio','Open Program results',{program_id:row.program.id})}</article>`).join('');
+      const m={...(overview.metrics||{})};
+      const rateKpis=['completion_coverage','started_coverage','required_period_execution'].filter(k=>Object.hasOwn(m,k));
+      const factKpis=['candidate_membership_count'].filter(k=>Object.hasOwn(m,k));
       const branchItems=(map.columns||[]).map(branch=>({label:branch.label,cell:(map.column_totals||[]).find(t=>String(t.branch_id)===String(branch.id)),href:`/talent/branch?${qs({academic_year_id:ay,branch_id:branch.id})}`}));
       const branchVisual=branchBars(branchItems);
-      const previewRows=(map.rows||[]).slice(0,3), previewColumns=(map.columns||[]).slice(0,4);
-      const previewCell=(r,c)=>map.cells.find(x=>x.coordinates.program_id===r.id&&x.coordinates.branch_id===c.id);
-      const preview=previewRows.length&&previewColumns.length?matrix('Talent Map preview','Program',previewColumns,previewRows,previewCell,r=>map.row_totals.find(x=>x.program_id===r.id),c=>map.column_totals.find(x=>x.branch_id===c.id),map.organization_total,(r,c)=>previewCell(r,c)?.state==='visible'?link('branch','Open',{branch_id:c.id}):null):empty('The Talent Map will appear when Programs have frozen evaluation groups.');
       const gradeItems=(gradeMap.columns||[]).map(col=>({label:col.label,cell:(gradeMap.column_totals||[]).find(t=>String(t.grade_level)===String(col.id))}));
       const gradeSection=(gradeMap.columns&&gradeMap.columns.length)?`<section aria-labelledby="tp-grade-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Grades</p><h3 id="tp-grade-title">${can('talent_review_candidates.view')?'Talent by Grade':'Assessment progress by Grade'}</h3></div>${link('talent-map','Open the full Talent Map',{metric:overviewMetric,dimension:'program_grade'})}</div>${gradeGauges(gradeItems)}</section>`:'';
+      const progressionSection=longitudinal?`<section aria-labelledby="tp-period-progression"><div class="tp-section-heading"><div><p class="tp-eyebrow">Evaluation Periods</p><h3 id="tp-period-progression">Assessment progression</h3></div>${link('longitudinal','Open Progress Over Time',{program_id:pid})}</div>${periodVisual(longitudinal)}</section>`:'';
       return lede('Your organization at a glance','See Program activity, Student participation, evaluation progress, and the next places to explore.')+
         identifiedIndicator+
         `<section aria-labelledby="tp-headline-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Academic Year ${esc(year.options[year.selectedIndex]?.textContent||'')}</p><h3 id="tp-headline-title">Organization snapshot</h3></div><p>Figures reflect your authorized scope and this Academic Year.</p></div><div class="tp-kpi-grid">${rateKpis.map(k=>kpiCard(k,m[k],k==='completion_coverage'?`/talent/portfolio?${qs({academic_year_id:ay})}`:'' )).join('')}</div><div class="tp-fact-strip">${factKpis.map(k=>`<span><b>${metric(m[k])}</b>${esc(labels[k]||human(k))}</span>`).join('')}</div></section>`+
         note('Participation counts Program memberships, so a Student in two Programs can appear twice. Each percentage and total comes directly from the governed analytics service.')+
         gradeSection+
         `<section aria-labelledby="tp-branch-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3 id="tp-branch-summary">${can('talent_review_candidates.view')?'Talent by Branch':'Assessment progress by Branch'}</h3></div><p>Select a Branch to open its results. Branches are never ranked.</p></div>${branchVisual}</section>`+
-        `<section aria-labelledby="tp-program-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Programs</p><h3 id="tp-program-summary">Program patterns</h3></div>${link('portfolio','View all Program results')}</div><div class="tp-result-grid">${programSummaries||empty('No configured Programs are available for this Academic Year.')}</div></section>`+
-        `<section aria-labelledby="tp-map-preview"><div class="tp-section-heading"><div><p class="tp-eyebrow">Talent Map</p><h3 id="tp-map-preview">${can('talent_review_candidates.view')?'Talent share':'Assessment completion'} across Programs and Branches</h3></div>${link('talent-map','Open the full Talent Map',{metric:overviewMetric})}</div>${preview}</section>`+
+        progressionSection+
+        `<div class="tp-actions">${link('portfolio','Open Program Results')}${link('talent-map','Open Talent Map',{metric:overviewMetric})}</div>`+
         rubricSection;
     }
     if (view==='portfolio' || view==='branch') {
@@ -510,7 +481,17 @@
       await refreshPlanningGrades();
     }
     if(['programs','evaluation-plans','analytics','branch','longitudinal','portfolio','talent-map','students','learner-profile'].includes(config.view)&&can('talent_programs.view')) {
-      document.getElementById('tp-program-field').hidden=false;
+      // On the Programs page itself, the compact searchable Program table
+      // (rendered in-content when no Program is selected) already is the
+      // Program-selection mechanism and carries Program identity/logo; the
+      // top compact context selector is redundant until a Program is chosen,
+      // so exactly one mechanism is visible at a time. A URL that already
+      // carries program_id lands directly in the "selected" state (the field
+      // becomes visible before the workspace fetch, so no grid ever flashes
+      // first). Every other view has no in-content chooser, so its compact
+      // selector must stay visible regardless of selection state.
+      const showProgramField = config.view!=='programs' || Boolean(params.get('program_id'));
+      document.getElementById('tp-program-field').hidden=!showProgramField;
       try {const items=await api('programs');programCatalog=new Map(items.map(item=>[String(item.id),item]));program.innerHTML='<option value="">Choose a Program</option>'+items.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');if(params.has('program_id'))program.value=params.get('program_id');}
       catch {document.getElementById('tp-program-field').hidden=true;}
     }

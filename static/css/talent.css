@@ -134,6 +134,10 @@
 /* Notes */
 .tp-note {display: flex; gap: var(--tp-space-3); align-items: flex-start; border-left: 3px solid var(--app-brand); padding: var(--tp-space-3) 18px; background: var(--app-brand-soft); border-radius: 0 10px 10px 0; margin: var(--tp-space-5) 0}
 .tp-note strong {display: flex; align-items: center; gap: 6px}
+
+/* Advisory Evaluation Plan warnings (server-computed; presentation only). */
+.tp-warnings {list-style: none; margin: 0 0 var(--tp-space-4); padding: 0; display: flex; flex-direction: column; gap: 6px}
+.tp-warning {display: flex; align-items: flex-start; gap: 8px; font-size: var(--tp-text-xs); font-weight: 600; color: var(--app-warning, #8a5a00); background: color-mix(in srgb, var(--app-warning, #f0b429) 12%, var(--app-surface)); border: 1px solid var(--app-warning, #f0b429); border-radius: 8px; padding: 6px 10px}
 .tp-empty {padding: var(--tp-space-7) var(--tp-space-5); text-align: center; border: 1px dashed var(--app-line-strong); border-radius: 14px; background: var(--app-surface); color: var(--app-ink)}
 .tp-error {border-left: 4px solid var(--app-danger); padding: var(--tp-space-5); background: var(--app-surface-strong); border-radius: 8px; margin: var(--tp-space-4) 0}
 .tp-error button {margin-top: var(--tp-space-3); background: var(--app-brand); color: #fff; border-color: var(--app-brand)}
@@ -324,3 +328,6 @@
 .tp-logo-card h3 {flex:1 1 100%;margin:0}
 .tp-file-action {display:inline-flex;align-items:center;padding:8px 14px;border:1px solid var(--app-line);border-radius:8px;cursor:pointer;background:var(--app-surface)}
 .tp-file-action input[type="file"] {position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+.tp-overview-actions .tp-action-card {position:relative;display:flex;flex-direction:column;min-height:10rem;padding-top:1rem}
+.tp-action-card-icon {display:grid;place-items:center;width:2.25rem;height:2.25rem;border-radius:.65rem;background:var(--app-brand-soft);color:var(--app-brand-deep)}
+.tp-action-card .tp-card-hit {margin-top:auto}

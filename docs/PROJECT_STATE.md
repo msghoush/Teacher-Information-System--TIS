@@ -1,11 +1,120 @@
 ---
 title: TIS Project State
-documentation_version: 3.9
+documentation_version: 4.0
 last_updated: 2026-09-10
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Corrective Reconstruction Batch 2 — Permissions, Draft Program Delete, Evaluation Timeline
+
+Implements the governance recorded above in "Draft Talent Program Hard
+Delete — Scoped Governance Exception Recorded" (ADR 0032) plus a related set
+of permission-narrowing changes. Three new permission keys were added to
+`permission_registry.py` using the existing additive `(key, description)`
+tuple pattern, with no hard-coded role names: `talent_programs.delete`,
+`talent_evaluation_plans.delete_period`, `talent_evaluation_plans.manage_timeline`.
+
+`DELETE /api/talent/programs/{program_id}` (`routers/talent_programs.py`,
+`talent_program_service.delete_program`/`program_delete_blockers`) permits a
+hard delete only when `program.status == 'draft'` AND zero rows exist in
+every table with a real, re-verified direct foreign key to
+`talent_programs.id`. That re-verification against the current `models.py`
+schema confirmed exactly the five tables ADR 0032 named —
+`TalentProgramFrameworkVersion`, `TalentProgramAcademicYearConfiguration`,
+`TalentCompetency`, `TalentAssessmentCycle`, `TalentEducatorInput` — and no
+others; every other Talent table reaches a Program only transitively through
+one of these five, so the database's own composite foreign keys already make
+a downstream row impossible once these five are confirmed empty. Any other
+status, or a Draft Program with a related row, is rejected with a clear
+error, never a silent no-op. The route requires `talent_programs.delete`
+plus the same organization-scope authorization already used by other
+Program mutation routes, and records the deletion through the existing
+`TalentConfigurationAudit` mechanism (no new audit path). The Program
+list/read payloads now include a real backend-computed `actions` array
+(`"delete"` present only when the backend already allows it) so the UI never
+client-side-guesses this affordance. No Configured/Active/Retired Program
+gained a hard-delete path; the activate/retire invariant is otherwise
+unchanged.
+
+The existing Competency framework-membership and Rubric Level true-delete
+routes are narrowed from `talent_programs.manage` to the new
+`talent_programs.delete`, preserving every existing lifecycle/history guard
+unchanged. Evaluation Period true-delete is narrowed from
+`talent_evaluation_plans.manage` to the new
+`talent_evaluation_plans.delete_period`. The new
+`talent_evaluation_plans.manage_timeline` permission gates exactly
+`planned_start_date`/`planned_end_date` edits and Period
+reorder/sequence (`POST .../periods/reorder`); ordinary Period content
+editing (label, short code, required flag, notes) stays under the existing
+`talent_evaluation_plans.manage`. A single `PATCH` touching both a timeline
+field and a content field now requires both permissions — missing either
+rejects the whole request before any field is applied, never a partial
+save. Viewing dates is unchanged (no new permission required to read them).
+`planned_start_date`/`planned_end_date` already existed on
+`TalentPlannedEvaluationPeriod` and were already returned/accepted by the
+API; this pass did not add new backend date capability. The Talent icon
+(`ui_shell.py` `PAGE_META["talent"]["icon"]` and the primary nav item) moved
+from the shared `clipboard-check` glyph (still used by Observations,
+unchanged) to the existing canonical `sparkles` glyph, so the two modules no
+longer share an icon. The Program list/summary "Type" label was renamed to
+"Scoring Mode" (derived states unchanged: Not set/Rubric/Numeric + rubric;
+no schema/API change), and the operational "Saved assessments" list is now
+labeled "Assessment Records" in `static/js/talent-operations.js`, reusing
+the existing Start/Continue/View Assessment action distinction unchanged.
+The Evaluation Plan workspace now renders the existing server-computed
+advisory warnings (`period_window_overlap`, `chronological_inconsistency`,
+`cycle_outside_planned_window`, already returned on the Plan payload by
+`talent_evaluation_plan_service.plan_warnings`) as a compact, ARIA-labeled
+list — presentation only, no new validation math. A completed numeric
+assessment result now shows its already-returned scale
+(`result_scale_min`/`result_scale_max`) beside the result; `interpretation`
+text is not included in that payload and was not fabricated.
+
+Both gaps above were closed in a follow-up verification/closure pass with
+UI-only changes and no new backend capability. `static/js/talent-evaluation-workspace.js`
+now renders each Period's `planned_start_date`/`planned_end_date` as
+always-visible native date inputs, editable only when that Period's
+backend-returned `actions` array includes `edit_timeline` (the existing
+`talent_evaluation_plans.manage_timeline` gate) and read-only text otherwise;
+the date save is its own separate request carrying only the two timeline
+fields, never combined with label/content fields, so the existing
+mixed-PATCH-requires-both rule is never bypassed by a silently partial
+submission; clearing a date sends `null`, matching the already-existing
+backend clear support. Separately, the shared Talent context filter
+(`static/js/talent.js`) now hides its top compact Program dropdown
+specifically on the `/talent/programs` view while no Program is selected,
+since that view's own compact Program table (with Program identity/logo) is
+already the selection mechanism there; the dropdown remains the sole
+selector once a Program is chosen on that view, and remains the sole
+selector on every other Talent view, which has no in-content chooser. A
+deep link that already carries `program_id` still lands directly in the
+selected state with no chooser flash, since the field-visibility decision is
+synchronous from the URL before any data fetch. No permission, schema,
+migration, tenant, or backend contract changed.
+
+## Talent Corrective Batches 3 And 4 Complete
+
+One shared rubric visual module now renders arbitrary ordered levels across configuration, assessment entry, Talent Review, Student Profile, Learner Profile, and analytics. Review and profile read projections add the actual stored rubric label and its position without changing candidate computation. Official Identification remains a separate permanent human decision.
+
+Talent Overview is reduced to compact operational action cards. Organization Overview no longer duplicates Program Results cards or a Talent Map matrix; it keeps selective progress, Program Criteria, Official Identification, Branch/Grade distribution, selected-Program rubric distribution, and selected-Program Evaluation Period progression. Learning Style distribution continues to use the existing Students endpoint and privacy contract, while its read-only filters now cascade from authorized Organization/Branch context through Planning-derived Grades and Sections.
+
+## Draft Talent Program Hard Delete — Scoped Governance Exception Recorded
+
+Per direct Owner instruction on 2026-09-10, a narrow exception to the
+activate/retire-only Program lifecycle (recorded below in "Talent Program
+Setup Wizard Owner Correction" and unchanged) is now approved: see
+`docs/adr/0032-draft-talent-program-hard-delete-exception.md`. A Program may
+be hard-deleted only while `status == 'draft'` and it has zero rows in every
+table with a direct/child relationship to it (framework versions, Academic
+Year configuration, competencies, assessment cycles, educator input — the
+exact list is re-verified against the schema at implementation time). Every
+Configured, Active, Retired, or otherwise historical Program remains
+governed by activate/retire only, exactly as already recorded; terminal
+assessments and historical framework versions remain immutable. This entry
+and the referenced ADR are the authorization record, not a completion
+record.
 
 ## Student Learning Style V1 — Governance Decision Recorded
 

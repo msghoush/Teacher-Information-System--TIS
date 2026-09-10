@@ -118,7 +118,8 @@ test('Program index is a compact searchable table with primary actions',async()=
   }};
   await render(ctx);
   assert.match(root.innerHTML,/<table/);
-  assert.match(root.innerHTML,/Program<\/th><th>Grades<\/th><th>Type<\/th><th>Current Year<\/th><th>Status<\/th><th>Actions/);
+  assert.match(root.innerHTML,/Program<\/th><th>Grades<\/th><th>Scoring Mode<\/th><th>Current Year<\/th><th>Status<\/th><th>Actions/);
+  assert.doesNotMatch(root.innerHTML,/<th>Type<\/th>/);
   assert.match(root.innerHTML,/Search Programs/);
   assert.match(root.innerHTML,/New Program/);
   assert.match(root.innerHTML,/>Open<\/a>/);

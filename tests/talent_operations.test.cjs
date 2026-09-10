@@ -57,7 +57,7 @@ test('Talent Review renders a compact table, not one large card per Student',asy
   const root=domRoot();
   const ctx={root,year:'2026',view:'reviews',params:new URLSearchParams('cycle_id=5&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
-      if(path.startsWith('/api/talent/review-candidates?'))return [{id:1,academic_year_id:'2026',program_id:'11',status:'pending_review',evaluated_at:'2026-01-01',assessment_id:9,context:{student_name:'Alya <X>',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}}];
+      if(path.startsWith('/api/talent/review-candidates?'))return [{id:1,academic_year_id:'2026',program_id:'11',status:'pending_review',evaluated_at:'2026-01-01',assessment_id:9,rubric_level:{id:3,label:'Inventive',display_order:40,position:4,total_levels:5},context:{student_name:'Alya <X>',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}}];
       if(path.startsWith('/api/talent/official-identifications'))return [];
       throw new Error(`Unexpected ${path}`);
     }};
@@ -66,6 +66,8 @@ test('Talent Review renders a compact table, not one large card per Student',asy
   assert.doesNotMatch(root.innerHTML,/<article class="tp-card">/);
   assert.match(root.innerHTML,/Alya &lt;X&gt;/);
   assert.match(root.innerHTML,/Meets Program Criteria/);
+  assert.match(root.innerHTML,/Inventive/);
+  assert.match(root.innerHTML,/4\/5/);
   assert.doesNotMatch(root.innerHTML,/Review Candidate/);
   assert.doesNotMatch(root.innerHTML,/>Candidate</);
   assert.match(root.innerHTML,/review_id=1/);
@@ -73,7 +75,7 @@ test('Talent Review renders a compact table, not one large card per Student',asy
 
 test('opening one Talent Review row (review_id) shows full per-Student detail, not the list',async()=>{
   const root=domRoot();
-  const row={id:1,academic_year_id:'2026',program_id:'11',status:'reviewed',evaluated_at:'2026-01-01',assessment_id:9,context:{student_name:'Alya',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}};
+  const row={id:1,academic_year_id:'2026',program_id:'11',status:'reviewed',evaluated_at:'2026-01-01',assessment_id:9,rubric_level:{id:3,label:'Inventive',display_order:40,position:4,total_levels:5},context:{student_name:'Alya',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}};
   const ctx={root,year:'2026',view:'reviews',params:new URLSearchParams('cycle_id=5&program_id=11&review_id=1'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/review-candidates?'))return [row];
@@ -84,6 +86,8 @@ test('opening one Talent Review row (review_id) shows full per-Student detail, n
   assert.doesNotMatch(root.innerHTML,/<table class="tp-compact-table">/);
   assert.match(root.innerHTML,/Back to Talent Review/);
   assert.match(root.innerHTML,/<article class="tp-card">/);
+  assert.match(root.innerHTML,/Highest recorded rubric level/);
+  assert.match(root.innerHTML,/Rubric evidence, Program Criteria, and Official Identification remain separate records/);
 });
 
 function assessmentApi(overrides={}) {
@@ -105,6 +109,8 @@ test('an editable assessment shows Clear Result only for competencies with a sav
   await withWindow(()=>render(ctx));
   assert.match(root.innerHTML,/data-action="clear-result"[^>]*data-competency="101"/);
   assert.doesNotMatch(root.innerHTML,/data-competency="102"[\s\S]{0,400}?data-action="clear-result"/);
+  assert.match(root.innerHTML,/role="progressbar"/);
+  assert.match(root.innerHTML,/tp-rubric-level/);
 });
 
 test('a completed (read-only) assessment never shows Clear Result even with a saved result',async()=>{
@@ -147,8 +153,9 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
   assert.match(root.innerHTML,/data-action="start"[^>]*data-member="101"[^>]*>Start Assessment/);
   assert.match(root.innerHTML,/assessment_id=501[^"]*">Continue Assessment/);
   assert.match(root.innerHTML,/assessment_id=502[^"]*">View Assessment/);
-  assert.match(root.innerHTML,/Saved assessments[\s\S]*<table class="tp-compact-table">/);
-  assert.doesNotMatch(root.innerHTML,/Saved assessments[\s\S]*<article class="tp-card"><h3>Mid Way/);
+  assert.match(root.innerHTML,/Assessment Records[\s\S]*<table class="tp-compact-table">/);
+  assert.doesNotMatch(root.innerHTML,/Saved assessments/);
+  assert.doesNotMatch(root.innerHTML,/Assessment Records[\s\S]*<article class="tp-card"><h3>Mid Way/);
 });
 
 test('arriving on Student Assessments with a Program but no cycle_id auto-opens the one Open evaluation (no extra click)',async()=>{
@@ -195,7 +202,8 @@ test('a Program with no Evaluation Cycle at all shows an honest, distinct no-ope
   await withWindow(()=>render(ctx));
   assert.match(root.innerHTML,/No Evaluation Period is open for this Program/);
   assert.match(root.innerHTML,/evaluation-plans\?[^"]*program_id=11/);
-  assert.match(root.innerHTML,/No assessments saved in this context yet\./);
+  assert.match(root.innerHTML,/No Assessment Records in this context yet\./);
+  assert.doesNotMatch(root.innerHTML,/No assessments saved in this context yet\./);
   assert.doesNotMatch(root.innerHTML,/Students in this evaluation/);
 });
 

@@ -90,6 +90,74 @@ test('normal-path Evaluation Plan uses approved terminology without internal lif
   assert.match(root.innerHTML,/In progress/);
 });
 
+test('a Period with manage_timeline shows editable, always-visible, accessibly-labeled date inputs',async()=>{
+  const feedback={textContent:'',setAttribute(){}};
+  const period={id:41,label:'Baseline',cycle:null,actions:['edit','edit_timeline','remove'],planned_start_date:'2026-01-05',planned_end_date:'2026-01-20'};
+  const plan={id:21,program_id:11,status:'draft',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,api:async path=>{
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  assert.match(root.innerHTML,/data-form="period-timeline"/);
+  assert.match(root.innerHTML,/type="date" name="planned_start_date" value="2026-01-05"/);
+  assert.match(root.innerHTML,/type="date" name="planned_end_date" value="2026-01-20"/);
+  assert.match(root.innerHTML,/aria-label="Baseline start date"/);
+  assert.match(root.innerHTML,/aria-label="Baseline end date"/);
+});
+
+test('a Period without manage_timeline renders dates read-only but always visible, never hidden',async()=>{
+  const feedback={textContent:'',setAttribute(){}};
+  const period={id:41,label:'Baseline',cycle:null,actions:['edit','remove'],planned_start_date:'2026-01-05',planned_end_date:null};
+  const plan={id:21,program_id:11,status:'draft',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,api:async path=>{
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  assert.doesNotMatch(root.innerHTML,/data-form="period-timeline"/);
+  assert.match(root.innerHTML,/tp-period-dates/);
+  assert.match(root.innerHTML,/2026-01-05/);
+  assert.match(root.innerHTML,/No end date/);
+});
+
+test('saving a Period timeline PATCHes only the two governed date fields, never mixed with content fields',async()=>{
+  const calls=[],feedback={textContent:'',setAttribute(){}};
+  const period={id:41,label:'Baseline',cycle:null,actions:['edit','edit_timeline'],planned_start_date:'2026-01-05',planned_end_date:'2026-01-20'};
+  const plan={id:21,program_id:11,status:'draft',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},api:async(path,options)=>{
+    calls.push({path,options});
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+    if(options)return {plan_revision:6,period:{...period,planned_start_date:null,planned_end_date:'2026-02-01'}};
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  const original=global.FormData;global.FormData=class {constructor(){return new Map([['planned_start_date',''],['planned_end_date','2026-02-01']]);}};
+  try {await root.onsubmit({target:{matches:selector=>selector==='form[data-form="period-timeline"]',dataset:{period:'41'},querySelector:()=>feedback},preventDefault(){}});}
+  finally {global.FormData=original;}
+  const write=calls.find(call=>call.options && call.path==='/api/talent/evaluation-periods/41');
+  assert.ok(write,'expected a PATCH to the Period');
+  const body=JSON.parse(write.options.body);
+  assert.deepEqual(Object.keys(body).sort(),['expected_plan_revision','planned_end_date','planned_start_date']);
+  assert.equal(body.planned_start_date,null);
+  assert.equal(body.planned_end_date,'2026-02-01');
+});
+
 test('simple states translate the governed lifecycle',()=>{
   const {stateFor}=require('../static/js/talent-evaluation-workspace.js');
   assert.equal(stateFor({status:'draft'},{cycle:null}),'Setup');
