@@ -414,6 +414,77 @@ def close_cycle(db, *, school_group_id, cycle_id, expected_revision,
     return cycle
 
 
+def reconcile_open_cycle_population(db, *, school_group_id, cycle_id, expected_revision,
+                                    organization_authorized, actor=None):
+    """Additive-only roster synchronization for an Open Cycle (ADR 0033).
+
+    Derives currently eligible canonical placements via ``derive_eligible_population``
+    and inserts only the missing ``(cycle_id, student_id)`` members, preserving each
+    existing member and its evidence untouched. Idempotent: a call with no newly
+    eligible Students is a safe no-op that returns the unchanged Cycle and an empty
+    additions list.
+    """
+    if not organization_authorized:
+        raise TalentAssessmentCycleError("organization_authority_required", "Organization authority is required to synchronize a Cycle roster.")
+    cycle = _cycle(db, school_group_id, cycle_id, lock=True)
+    if cycle is None:
+        raise TalentAssessmentCycleError("not_found", "Talent Assessment Cycle was not found.")
+    if cycle.status != "open":
+        raise TalentAssessmentCycleError("invalid_lifecycle", "Only an Open Cycle can be synchronized.")
+    if cycle.revision != int(expected_revision):
+        raise TalentAssessmentCycleError("stale_cycle", "Cycle changed since it was read.")
+
+    eligible = derive_eligible_population(db, cycle=cycle)
+    existing_student_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.student_id).filter_by(
+        school_group_id=school_group_id, cycle_id=cycle.id
+    ).all()}
+    additions = [member for member in eligible if member["student_id"] not in existing_student_ids]
+    if not additions:
+        return cycle, []
+
+    sync_at = datetime.utcnow()
+    before = cycle_payload(cycle)
+    added_members = []
+    for member in additions:
+        row = models.TalentAssessmentCyclePopulationMember(
+            school_group_id=cycle.school_group_id,
+            cycle_id=cycle.id,
+            program_id=cycle.program_id,
+            framework_version_id=cycle.framework_version_id,
+            student_id=member["student_id"],
+            academic_placement_id=member["academic_placement_id"],
+            academic_year_id=member["academic_year_id"],
+            branch_id=member["branch_id"],
+            planning_section_id=member["planning_section_id"],
+            grade_level=member["grade_level"],
+            section_name=member["section_name"],
+            population_effective_at=sync_at,
+            frozen_at=sync_at,
+        )
+        db.add(row)
+        added_members.append(row)
+    db.flush()
+
+    rows = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        school_group_id=school_group_id, cycle_id=cycle.id
+    ).order_by(models.TalentAssessmentCyclePopulationMember.student_id).all()
+    payloads = [population_member_payload(row) for row in rows]
+    cycle.population_count = len(rows)
+    cycle.population_fingerprint = population_fingerprint(cycle, payloads)
+    cycle.revision += 1
+    cycle.updated_by_user_id = getattr(actor, "user_id", None)
+    cycle.updated_at = sync_at
+    db.flush()
+    after = cycle_payload(cycle)
+    after["roster_synchronization"] = {
+        "effective_at": sync_at.isoformat(),
+        "added_member_ids": [member.id for member in added_members],
+        "added_student_ids": [member.student_id for member in added_members],
+    }
+    _audit(db, cycle, actor=actor, action="population_sync", before=before, after=after)
+    return cycle, added_members
+
+
 def frozen_population(db, *, school_group_id, cycle_id):
     cycle = get_cycle(db, school_group_id=school_group_id, cycle_id=cycle_id)
     if cycle.status == "draft":

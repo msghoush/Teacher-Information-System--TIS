@@ -19,7 +19,8 @@ from student_academic_service import create_placement, create_student, transitio
 from talent_assessment_cycle_service import (
     TalentAssessmentCycleError, close_cycle, create_cycle, frozen_population,
     open_cycle, population_fingerprint, preview_population,
-    synchronize_placement_to_open_cycles, update_cycle,
+    reconcile_open_cycle_population, synchronize_placement_to_open_cycles,
+    update_cycle,
 )
 from talent_student_assessment_service import start_assessment
 from talent_program_service import (
@@ -475,3 +476,85 @@ def test_forged_cross_tenant_population_relationship_is_rejected(db):
     ))
     with pytest.raises(IntegrityError):
         session.commit()
+
+
+def test_reconcile_open_cycle_population_is_additive_idempotent_and_governed(db):
+    _, session = db
+    program, framework, _ = foundation(session, name="Reconcile", grades=("1",))
+    existing_student, _ = student_placement(session, first="Existing")
+    cycle = draft_cycle(session, program, framework)
+    opened = open_cycle(session, school_group_id=1, cycle_id=cycle.id, expected_revision=1,
+                        organization_authorized=True)
+    session.commit()
+    _, original_members = frozen_population(session, school_group_id=1, cycle_id=cycle.id)
+    original_member = original_members[0]
+    existing_assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=original_member.id,
+    )
+    session.commit()
+
+    # Draft/Closed Cycles must reject synchronization.
+    draft = draft_cycle(session, program, framework)
+    with pytest.raises(TalentAssessmentCycleError) as invalid:
+        reconcile_open_cycle_population(session, school_group_id=1, cycle_id=draft.id,
+                                        expected_revision=1, organization_authorized=True)
+    assert invalid.value.code == "invalid_lifecycle"
+
+    # Organization authority is required.
+    with pytest.raises(TalentAssessmentCycleError) as denied:
+        reconcile_open_cycle_population(session, school_group_id=1, cycle_id=opened.id,
+                                        expected_revision=opened.revision, organization_authorized=False)
+    assert denied.value.code == "organization_authority_required"
+
+    # Stale expected_revision is rejected.
+    with pytest.raises(TalentAssessmentCycleError) as stale:
+        reconcile_open_cycle_population(session, school_group_id=1, cycle_id=opened.id,
+                                        expected_revision=opened.revision + 1, organization_authorized=True)
+    assert stale.value.code == "stale_cycle"
+
+    # No newly eligible Student yet: idempotent no-op.
+    unchanged_cycle, no_additions = reconcile_open_cycle_population(
+        session, school_group_id=1, cycle_id=opened.id,
+        expected_revision=opened.revision, organization_authorized=True,
+    )
+    session.commit()
+    assert no_additions == []
+    assert unchanged_cycle.revision == opened.revision
+    assert unchanged_cycle.population_count == 1
+    revision_before_addition = unchanged_cycle.revision
+
+    # Backdated Placement (effective before the Cycle's fixed population_effective_at)
+    # created after Open: derive_eligible_population would already include this
+    # Student at the historical instant, but the row was never frozen because the
+    # Placement did not exist yet when the Cycle opened. Reconciliation must
+    # additively catch this Student up.
+    new_student, placement = student_placement(session, first="NewlyEligible", start=datetime(2026, 9, 15))
+    reconciled_cycle, additions = reconcile_open_cycle_population(
+        session, school_group_id=1, cycle_id=opened.id,
+        expected_revision=revision_before_addition, organization_authorized=True,
+    )
+    session.commit()
+    assert len(additions) == 1
+    assert reconciled_cycle.revision == revision_before_addition + 1
+    assert reconciled_cycle.population_count == 2
+    revision_after_addition = reconciled_cycle.revision
+    _, members = frozen_population(session, school_group_id=1, cycle_id=opened.id)
+    assert {row.student_id for row in members} == {existing_student.id, new_student.id}
+    added = next(row for row in members if row.student_id == new_student.id)
+    assert added.academic_placement_id == placement.id
+    # Existing member and its assessment evidence are untouched.
+    assert session.get(models.TalentStudentAssessment, existing_assessment.id).revision == 1
+    assert session.query(models.TalentAssessmentAudit).filter_by(
+        cycle_id=opened.id, action="population_sync"
+    ).count() == 1
+
+    # Calling again with nothing new is a safe no-op.
+    final_cycle, second_additions = reconcile_open_cycle_population(
+        session, school_group_id=1, cycle_id=opened.id,
+        expected_revision=revision_after_addition, organization_authorized=True,
+    )
+    session.commit()
+    assert second_additions == []
+    assert final_cycle.revision == revision_after_addition
+    assert final_cycle.population_count == 2
