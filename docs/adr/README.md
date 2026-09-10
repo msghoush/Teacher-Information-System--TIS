@@ -1,6 +1,6 @@
 ---
 title: TIS Architecture Decision Records
-documentation_version: 3.2
+documentation_version: 3.3
 last_updated: 2026-09-10
 ---
 
@@ -55,3 +55,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0029-m10-organization-analytics-repeatable-read-boundary.md`
 - `0030-m10-organization-analytics-multi-worker-qualification-minimum.md`
 - `0031-student-learning-style-v1.md`
+- `0032-draft-talent-program-hard-delete-exception.md`

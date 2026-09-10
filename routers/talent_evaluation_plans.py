@@ -82,11 +82,15 @@ def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=Fa
         return []
     manage = auth.has_permission(db, user, "talent_evaluation_plans.manage")
     govern = auth.has_permission(db, user, "talent_evaluation_plans.govern")
+    manage_timeline = auth.has_permission(db, user, "talent_evaluation_plans.manage_timeline")
+    delete_period_perm = auth.has_permission(db, user, "talent_evaluation_plans.delete_period")
     cycle_manage = auth.has_permission(db, user, "talent_assessment_cycles.manage")
     if period is None:
         actions = []
         if manage and plan.status in {"draft", "active"}:
-            actions.extend(["add_period", "reorder_periods"])
+            actions.append("add_period")
+        if manage_timeline and plan.status in {"draft", "active"}:
+            actions.append("reorder_periods")
         if govern and plan.status == "draft":
             actions.append("activate")
         if govern and plan.status == "active":
@@ -98,9 +102,13 @@ def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=Fa
         return []
     actions = []
     if manage and plan.status != "closed" and period.status == "planned" and cycle is None:
-        actions.extend(["edit", "reorder"])
-        if plan.status == "draft":
-            actions.append("remove")
+        actions.append("edit")
+    if manage_timeline and plan.status != "closed" and period.status == "planned" and cycle is None:
+        # Gates only planned_start_date/planned_end_date editability and
+        # reorder; ordinary content editing stays under "edit" (manage).
+        actions.extend(["edit_timeline", "reorder"])
+    if delete_period_perm and plan.status == "draft" and period.status == "planned" and cycle is None:
+        actions.append("remove")
     if govern and plan.status == "active" and period.status == "planned" and cycle is None:
         actions.append("cancel")
     if manage and cycle_manage and period.status == "planned":
@@ -161,12 +169,29 @@ def periods_add(plan_id: int, request: Request, payload: dict = Body(...), db: S
     return _run(db, work, created=True)
 
 
+_TIMELINE_PERIOD_FIELDS = {"planned_start_date", "planned_end_date"}
+_CONTENT_PERIOD_FIELDS = {"label", "short_code", "is_required", "notes"}
+
+
 @router.patch("/evaluation-periods/{period_id}")
 def periods_update(period_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.manage")
+    allowed = {key: payload[key] for key in ("label", "short_code", "planned_start_date", "planned_end_date", "is_required", "notes") if key in payload}
+    # A mixed PATCH touching both timeline (planned_start_date/planned_end_date)
+    # and ordinary content fields requires BOTH permissions - missing either
+    # rejects the whole request before any field is applied (no partial
+    # application). A PATCH touching neither recognized set falls back to the
+    # existing base "manage" gate so the unchanged invalid_input error below
+    # still fires with the same authorization behavior as before.
+    required_keys = []
+    if allowed.keys() & _TIMELINE_PERIOD_FIELDS:
+        required_keys.append("talent_evaluation_plans.manage_timeline")
+    if allowed.keys() & _CONTENT_PERIOD_FIELDS:
+        required_keys.append("talent_evaluation_plans.manage")
+    if not required_keys:
+        required_keys = ["talent_evaluation_plans.manage"]
+    user, group_id, denied = _authorize(request, db, current_user, *required_keys, all_required=True)
     if denied:
         return denied
-    allowed = {key: payload[key] for key in ("label", "short_code", "planned_start_date", "planned_end_date", "is_required", "notes") if key in payload}
     def work():
         _require_org(user)
         if not allowed:
@@ -178,7 +203,7 @@ def periods_update(period_id: int, request: Request, payload: dict = Body(...), 
 
 @router.delete("/evaluation-periods/{period_id}")
 def periods_delete(period_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.manage")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.delete_period")
     if denied:
         return denied
     return _run(db, lambda: (_require_org(user), {"plan_revision": delete_period(db, school_group_id=group_id, period_id=period_id, expected_plan_revision=payload["expected_plan_revision"], actor=user).revision})[1])
@@ -186,7 +211,7 @@ def periods_delete(period_id: int, request: Request, payload: dict = Body(...), 
 
 @router.post("/evaluation-plans/{plan_id}/periods/reorder")
 def periods_reorder(plan_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.manage")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.manage_timeline")
     if denied:
         return denied
     return _run(db, lambda: (_require_org(user), {"plan_revision": reorder_periods(db, school_group_id=group_id, plan_id=plan_id, expected_plan_revision=payload["expected_plan_revision"], period_ids=payload.get("period_ids", []), actor=user).revision})[1])

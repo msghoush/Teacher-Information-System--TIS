@@ -150,6 +150,59 @@ def transition_program(db, *, school_group_id, program_id, target_status, actor=
     return row
 
 
+# ADR 0032: the only tables with a direct (enforced, composite) foreign key
+# to talent_programs.id. Every other Talent table reaches a Program only
+# transitively (e.g. through framework_version_id or cycle_id), so those
+# foreign keys already make a downstream row impossible once these five are
+# confirmed empty; this list must be re-verified against models.py any time
+# the Talent schema changes.
+_PROGRAM_DELETE_BLOCKER_TABLES = (
+    (models.TalentProgramFrameworkVersion, "framework_versions"),
+    (models.TalentProgramAcademicYearConfiguration, "academic_year_configurations"),
+    (models.TalentCompetency, "competencies"),
+    (models.TalentAssessmentCycle, "assessment_cycles"),
+    (models.TalentEducatorInput, "educator_inputs"),
+)
+
+
+def program_delete_blockers(db, *, program_id):
+    """Real, re-verified list of related-table labels that block a hard delete."""
+    return [label for model, label in _PROGRAM_DELETE_BLOCKER_TABLES
+            if db.query(model.id).filter_by(program_id=program_id).first() is not None]
+
+
+def can_delete_program(db, *, program_id, status):
+    """Real backend capability check (ADR 0032): Draft status and zero related rows."""
+    return status == "draft" and not program_delete_blockers(db, program_id=program_id)
+
+
+def delete_program(db, *, school_group_id, program_id, actor=None):
+    """Hard-delete a Talent Program per ADR 0032's exact, scoped exception.
+
+    Allowed only while status == 'draft' AND zero rows exist in every table
+    with a direct/child relationship to the Program. Any other status, or a
+    Draft Program with any related row, is rejected with a clear error -
+    never a silent no-op, never a partial delete. Every Configured, Active,
+    Retired, or otherwise historical Program remains governed by
+    activate/retire only, unaffected by this function.
+    """
+    row = get_program(db, school_group_id, program_id, lock=True)
+    if row is None: raise TalentProgramError("not_found", "Talent Program was not found.")
+    if row.status != "draft":
+        raise TalentProgramError("not_draft", "Only a Draft Talent Program can be permanently deleted.")
+    blockers = program_delete_blockers(db, program_id=row.id)
+    if blockers:
+        raise TalentProgramError(
+            "program_has_dependents",
+            "This Draft Talent Program has related records (" + ", ".join(blockers) + ") and cannot be permanently deleted.",
+        )
+    before = program_payload(row)
+    _audit(db, group_id=school_group_id, program_id=row.id, actor=actor, resource_type="program", resource_id=row.id, action="delete", before=before)
+    db.delete(row)
+    db.flush()
+    return row.id
+
+
 def _grades_csv(values, *, allowed=None):
     if not isinstance(values, (list, tuple, set)) or not values: raise TalentProgramError("invalid_grades", "At least one eligible Grade is required.")
     normalized = {normalize_grade_level(value) for value in values}

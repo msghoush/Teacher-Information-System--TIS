@@ -7,6 +7,14 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Rubric Visuals And Analytics Ownership
+
+- `static/js/talent-rubric-visual.js` and `static/css/talent-rubric-visual.css`: shared arbitrary-label/count rubric ordering, position cue, selected state, and reduced-motion treatment.
+- `routers/talent_review_candidates.py`: adds the exact Assessment's highest recorded rubric level to authorized Review read projections only.
+- `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence.
+- `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views.
+- `routers/students_ui.py` and `templates/students.html`: present the existing Learning Style distribution through Planning-derived Branch/Grade/Section choices; the API and privacy provider remain unchanged.
+
 ## Talent Program And Evaluation UX Orchestration
 
 - `routers/talent_ui.py`: projects Program, Plan, Cycle, Assessment, and related

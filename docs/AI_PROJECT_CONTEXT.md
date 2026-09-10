@@ -7,6 +7,12 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Talent Corrective Batches 3 And 4
+
+Talent rubric levels use one shared, order-derived visual system across Program setup, assessment entry, Talent Review, Student/Learner Profile, and analytics. Visual strength follows `display_order` for any labels or level count and is always paired with label plus position; an interactive selection also has check/border state. Rubric level, Meets Program Criteria, and Official Identification remain three independent facts.
+
+Talent Overview is the operational landing page. Organization Overview owns selective executive KPIs, Branch/Grade distribution, optional Program rubric distribution, and Evaluation Period progression; Program Results and Branch Results own detailed cards, while Talent Map alone owns the privacy-safe Program matrix. Learning Style distribution remains a Students-domain view over the existing endpoint and governed suppression provider, with Planning-derived Organization/Branch/Grade/Section context.
+
 ## Evaluation Plan Scope And Local Test Identity
 
 Evaluation Plan and Evaluation Period mutations require both the matching canonical permission and durable organization/global access scope. A visible or selected Branch remains working context and does not reduce an organization-scoped manager's authority. Truly Branch-scoped users receive a read-only Evaluation Plan workspace and are not offered mutation controls.

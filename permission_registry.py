@@ -121,6 +121,7 @@ PERMISSION_GROUPS = (
             ("talent_programs.view", "View talent programs, frameworks, and competencies"),
             ("talent_programs.manage", "Author talent programs, framework drafts, and competencies"),
             ("talent_programs.govern", "Activate, retire, and transition talent program/framework lifecycle"),
+            ("talent_programs.delete", "Permanently delete a Draft Talent Program with no related records"),
         ),
     },
     {
@@ -140,6 +141,8 @@ PERMISSION_GROUPS = (
             ("talent_evaluation_plans.view", "View annual Talent evaluation plans and periods"),
             ("talent_evaluation_plans.manage", "Create and manage annual Talent evaluation plans and periods"),
             ("talent_evaluation_plans.govern", "Activate, cancel periods in, and close annual Talent evaluation plans"),
+            ("talent_evaluation_plans.delete_period", "Permanently delete a Draft-status Evaluation Period"),
+            ("talent_evaluation_plans.manage_timeline", "Manage Evaluation Period planned dates and reorder/sequence"),
         ),
     },
     {

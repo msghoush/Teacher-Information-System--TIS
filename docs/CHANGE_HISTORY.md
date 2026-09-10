@@ -7,6 +7,13 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-10 — Talent corrective Batches 3 and 4
+
+- Extracted one reusable, order-derived rubric visual system and applied it across Program setup, assessment entry, Talent Review, Student/Learner Profile, and analytics. It supports arbitrary labels/counts, always shows position and label, and adds selected/check/border state without treating the highest level as Official Identification.
+- Added tenant-bounded read projections for the actual persisted rubric level in Talent Review and historical profile evidence. Candidate selection, scoring, permissions, and Official Identification behavior are unchanged.
+- Reduced Talent Overview to operational action cards and removed Program-card/Talent-Map-matrix duplication from Organization Overview. Detailed Program, Branch, matrix, and longitudinal views retain their established ownership and governed metrics.
+- Kept the existing Learning Style endpoint and suppression contract; its Students UI now uses an explicit Planning-derived Organization/Branch/Grade/Section cascade. Added no endpoint, permission, metric, schema, or migration.
+
 ## 2026-09-10 — Student Learning Style V1 implementation
 
 - Implemented the ADR 0031-governed Student Learning Style V1 contract: a

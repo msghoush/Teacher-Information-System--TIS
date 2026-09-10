@@ -100,7 +100,11 @@ test('analytics source wires supported filters and keeps secondary totals compac
   const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
   assert.match(source,/params\.set\('branch_id',branch\.value\)/);
   assert.match(source,/params\.set\('grade_level',grade\.value\)/);
-  assert.match(source,/Program patterns/);
+  assert.doesNotMatch(source,/Program patterns/);
+  assert.doesNotMatch(source,/Talent Map preview/);
+  assert.doesNotMatch(source,/program-portfolio\?\$\{qs\(common\)\}/);
+  assert.match(source,/Open Program Results/);
+  assert.match(source,/Open Talent Map/);
   assert.match(source,/Assessment progress by Grade/);
   assert.match(source,/Detailed totals/);
   assert.match(source,/Meets Program Criteria:<\/strong>/);

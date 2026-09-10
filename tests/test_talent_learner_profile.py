@@ -222,6 +222,12 @@ def test_one_visible_branch_talent_record_does_not_unlock_the_other_branchs_hist
     }
     assert assessment_ids_seen == {assessment_a.id}
     branch_a_cycle_item = branch_a_profile["programs"][0]["academic_years"][0]["cycles"][0]
+    result = branch_a_cycle_item["competency_results"][0]
+    assert result["competency_label"] == "One"
+    assert result["rubric_level"] == {
+        "id": result["rubric_level_id"], "label": "High", "display_order": 1,
+        "position": 1, "total_levels": 1,
+    }
     assert branch_a_cycle_item["review_candidate"]["id"] == candidate_a.id
     assert branch_a_cycle_item["official_identification"]["id"] == identification_a.id
     assert branch_a_cycle_item["official_identification"]["decision"] == "identified"

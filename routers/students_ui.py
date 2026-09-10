@@ -162,19 +162,27 @@ def _sections_for(db, branch_id, academic_year_id, grade_level):
     ]
 
 
-def _section_name_options(db, user, group_id):
-    """Distinct real Section names for the Students list filter.
-
-    Backed by actual PlanningSection data within the actor's authorized
-    Branch scope - never a fabricated/placeholder option list.
-    """
-    branch_ids = [b.id for b in _branches(db, user, group_id)]
-    if not branch_ids:
-        return []
-    rows = db.query(models.PlanningSection.section_name).filter(
-        models.PlanningSection.branch_id.in_(branch_ids)
-    ).distinct().all()
-    return sorted({str(r[0] or "").strip() for r in rows if r[0]})
+def _learning_style_filter_options(db, branches, academic_year_id, branch_id=None, grade_level=None):
+    """Planning-owned Branch -> Grade -> Section choices for read-only analytics."""
+    if not academic_year_id:
+        return [], []
+    branch_ids = {branch.id for branch in branches}
+    if branch_id is not None and branch_id not in branch_ids:
+        return [], []
+    selected_branch_ids = [branch_id] if branch_id is not None else sorted(branch_ids)
+    sections = [
+        section
+        for selected_branch_id in selected_branch_ids
+        for section in list_operational_planning_sections(db, int(selected_branch_id), int(academic_year_id))
+    ]
+    configured = {normalize_grade_level(row.grade_level) for row in sections}
+    grades = [grade for grade in GRADE_LEVELS if grade in configured]
+    names = [] if grade_level not in configured else sorted({
+        str(row.section_name or "").strip()
+        for row in sections
+        if normalize_grade_level(row.grade_level) == grade_level and row.section_name
+    })
+    return grades, names
 
 
 def _placement_view(db, row):
@@ -229,12 +237,24 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
     branch_filter = request.query_params.get("branch_id") or ""
     branch_id = int(branch_filter) if branch_filter.isdigit() and int(branch_filter) in accessible_branch_ids else None
 
+    scoped_year_id = getattr(current_user, "scope_academic_year_id", None) or getattr(current_user, "academic_year_id", None)
     grade_filter = str(request.query_params.get("grade", "") or "").strip()
-    grade_level = normalize_grade_level(grade_filter) if grade_filter in GRADE_LEVELS else None
-
-    section_options = _section_name_options(db, user, group_id)
+    requested_grade = normalize_grade_level(grade_filter) if grade_filter in GRADE_LEVELS else None
+    grade_options, section_options = _learning_style_filter_options(
+        db, branches, scoped_year_id, branch_id=branch_id, grade_level=requested_grade,
+    )
+    grade_level = requested_grade if requested_grade in grade_options else None
     section_filter = str(request.query_params.get("section", "") or "").strip()
-    section_name = section_filter if section_filter in section_options else None
+    allowed_section_options = section_options
+    if section_filter and not requested_grade:
+        selected_branch_ids = [branch_id] if branch_id is not None else [branch.id for branch in branches]
+        allowed_section_options = sorted({
+            str(section.section_name or "").strip()
+            for selected_branch_id in selected_branch_ids
+            for section in list_operational_planning_sections(db, int(selected_branch_id), int(scoped_year_id))
+            if section.section_name
+        }) if scoped_year_id else []
+    section_name = section_filter if section_filter in allowed_section_options else None
 
     # Grade/Branch/Section reuse the same real current-effective-placement
     # query capability shared with GET /api/students (student_academic_service.
@@ -283,7 +303,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "students": students,
         "branches": branches,
         "selected_branch_id": branch_id,
-        "grade_levels": GRADE_LEVELS,
+        "grade_levels": grade_options,
         "selected_grade": grade_level or "",
         "section_options": section_options,
         "selected_section": section_name or "",
@@ -291,7 +311,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "status": status or "",
         "years": years,
         "learning_style_distribution": learning_style_distribution,
-        "scoped_year_id": getattr(current_user, "scope_academic_year_id", None) or getattr(current_user, "academic_year_id", None),
+        "scoped_year_id": scoped_year_id,
         "can_create": can_create,
         "error": request.query_params.get("error") or "",
         "success": request.query_params.get("success") or "",

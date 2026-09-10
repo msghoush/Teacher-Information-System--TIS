@@ -45,6 +45,17 @@
     const setupReady = Boolean(configuration && activeFramework && program.status === 'active');
     const canAddPeriod = managePlan && plan?.status !== 'closed' && configuration;
     const addForm = canAddPeriod ? `<form class="tp-card tp-editor tp-schedule-form" data-form="add-period"><h3>Add Evaluation Period</h3><label>Evaluation Period Name<input type="text" name="label" placeholder="e.g., Term 1, Audition, Spring Review, Final Performance" maxlength="80" required></label><div class="tp-actions"><button type="submit">${icon('add')}Add Evaluation Period</button></div><p data-feedback role="status" aria-live="polite"></p></form>` : '';
+    // Presentation only: renders exactly the server-computed advisory warnings
+    // already returned on the Plan payload (no new validation math here).
+    const warningLabel = code => ({
+      period_window_overlap: 'Evaluation Periods have overlapping planned dates.',
+      chronological_inconsistency: 'Evaluation Periods are not in planned date order.',
+      cycle_outside_planned_window: "An evaluation's Student list date falls outside its Period's planned window.",
+    }[code] || code);
+    const periodLabelFor = id => periods.find(item => item.id === id)?.label;
+    const warningsNotice = (plan?.warnings || []).length
+      ? `<ul class="tp-warnings" aria-label="Evaluation Plan advisory warnings">${(plan.warnings).map(w => `<li class="tp-warning" role="note" aria-label="${esc(warningLabel(w.code))}"><span aria-hidden="true">⚠</span> <span>${esc(warningLabel(w.code))}${(w.period_ids || []).some(periodLabelFor) ? ` (${esc((w.period_ids || []).map(periodLabelFor).filter(Boolean).join(', '))})` : ''}</span></li>`).join('')}</ul>`
+      : '';
     const readOnlyNotice = !managePlan
       ? '<p class="tp-callout">This Evaluation Plan is read-only in your current workspace. Ask an organization-authorized Program manager to add or change Evaluation Periods.</p>'
       : '';
@@ -56,16 +67,25 @@
       const open = cycle && cycle.status !== 'draft' && can('talent_assessments.view') && can('talent_assessment_cycles.view_population') ? `<a href="${esc(link('assessments', year, program.id, cycle.id))}">${icon('eye')}Open Evaluation</a>` : '';
       const canRename = (period.actions || []).includes('edit');
       const canRemove = (period.actions || []).includes('remove');
+      const canManageTimeline = (period.actions || []).includes('edit_timeline');
       const nameCell = canRename
         ? `<form class="tp-inline-rename" data-form="rename-period" data-period="${period.id}"><input type="text" name="label" value="${esc(period.label)}" maxlength="80" required aria-label="Evaluation Period Name"><button type="submit">Save name</button></form>`
         : esc(period.label);
       const removeButton = canRemove ? `<button type="button" data-remove="${period.id}">${icon('trash')}Remove</button>` : '';
-      return `<tr><th scope="row">${nameCell}</th><td><span class="tp-badge tp-state-${esc(state.toLowerCase().replaceAll(' ', '-'))}">${esc(state)}</span></td><td><div class="tp-row-actions">${start ? `<button type="button" data-start="${period.id}">${icon('start')}Start Evaluation</button>` : open}${removeButton}</div></td></tr>`;
+      // Dates stay visible at all times; only the actor whose backend-returned
+      // Period actions include "edit_timeline" gets editable date inputs. This
+      // mirrors the server's own gate (talent_evaluation_plans.manage_timeline)
+      // and never attempts to submit dates alongside label/other content
+      // fields, keeping the existing mixed-PATCH-requires-both rule intact.
+      const dateCell = canManageTimeline
+        ? `<form class="tp-inline-rename" data-form="period-timeline" data-period="${period.id}"><input type="date" name="planned_start_date" value="${esc(period.planned_start_date || '')}" aria-label="${esc(period.label)} start date"><input type="date" name="planned_end_date" value="${esc(period.planned_end_date || '')}" aria-label="${esc(period.label)} end date"><button type="submit">Save dates</button></form>`
+        : `<span class="tp-period-dates" aria-label="${esc(period.label)} planned dates">${esc(period.planned_start_date || 'No start date')} – ${esc(period.planned_end_date || 'No end date')}</span>`;
+      return `<tr><th scope="row">${nameCell}</th><td><span class="tp-badge tp-state-${esc(state.toLowerCase().replaceAll(' ', '-'))}">${esc(state)}</span></td><td>${dateCell}</td><td><div class="tp-row-actions">${start ? `<button type="button" data-start="${period.id}">${icon('start')}Start Evaluation</button>` : open}${removeButton}</div></td></tr>`;
     }).join('');
 
     const heading=embedded?'<p>Plan when this Program will be evaluated during the Academic Year.</p>':`<a href="${esc(link('programs', year, program.id))}#tp-schedule">Back to Program setup</a><header class="tp-section-lede">${programLogo(program)}<div><p class="tp-eyebrow">${esc(program.name)}</p><h2>Evaluation Plan</h2><p>Plan when this Program will be evaluated during the Academic Year.</p></div></header>`;
     const navigation=embedded?`<div class="tp-wizard-actions"><a href="#tp-builder-review">Back</a><a class="tp-primary-link" href="#tp-ready">Save &amp; Continue</a></div>`:`<div class="tp-wizard-actions"><a href="${esc(link('programs', year, program.id))}#tp-builder-review">Back</a>${periods.length?`<a class="tp-primary-link" href="${esc(link('programs', year, program.id))}#tp-ready">Finish Setup</a>`:''}</div>`;
-    root.innerHTML = `<div data-feedback role="status" aria-live="polite"></div>${heading}${readiness ? `<p class="tp-callout">${esc(readiness)}</p>` : ''}${readOnlyNotice}${periods.length ? `<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Evaluation Period</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="tp-empty">${managePlan ? 'Add this year\'s Evaluation Periods below.' : 'No Evaluation Periods have been added for this year.'}</p>`}${addForm}${readyAction}<details class="tp-card"><summary>Plan details</summary><p>${plan ? `Evaluation Plan saved with ${periods.length} Period${periods.length === 1 ? '' : 's'}.` : 'No Evaluation Plan saved yet.'}</p><p>Starting an evaluation keeps its assessment setup and included Student list unchanged for history.</p></details>${navigation}`;
+    root.innerHTML = `<div data-feedback role="status" aria-live="polite"></div>${heading}${readiness ? `<p class="tp-callout">${esc(readiness)}</p>` : ''}${readOnlyNotice}${warningsNotice}${periods.length ? `<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Evaluation Period</th><th>Status</th><th>Dates</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="tp-empty">${managePlan ? 'Add this year\'s Evaluation Periods below.' : 'No Evaluation Periods have been added for this year.'}</p>`}${addForm}${readyAction}<details class="tp-card"><summary>Plan details</summary><p>${plan ? `Evaluation Plan saved with ${periods.length} Period${periods.length === 1 ? '' : 's'}.` : 'No Evaluation Plan saved yet.'}</p><p>Starting an evaluation keeps its assessment setup and included Student list unchanged for history.</p></details>${navigation}`;
 
     let busy = false;
     const dirtyForms = new Set();
@@ -103,6 +123,22 @@
         try {
           await request(`/api/talent/evaluation-periods/${form.dataset.period}`, 'PATCH', {expected_plan_revision:plan.revision, label});
           await refresh('Evaluation renamed.');
+        } catch (error) { fail(error, form); } finally { setBusy(false); }
+        return;
+      }
+      if (form.matches('form[data-form="period-timeline"]')) {
+        event.preventDefault(); if (busy) return;
+        const data = new FormData(form);
+        // Only the two governed timeline fields are ever submitted here, kept
+        // deliberately separate from the rename form's content fields, so this
+        // never assembles a mixed content+timeline PATCH the actor might lack
+        // one of the two required permissions for.
+        const startValue = String(data.get('planned_start_date') || '').trim();
+        const endValue = String(data.get('planned_end_date') || '').trim();
+        setBusy(true); feedback(form).textContent = 'Saving dates...';
+        try {
+          await request(`/api/talent/evaluation-periods/${form.dataset.period}`, 'PATCH', {expected_plan_revision:plan.revision, planned_start_date: startValue || null, planned_end_date: endValue || null});
+          await refresh('Evaluation dates updated.');
         } catch (error) { fail(error, form); } finally { setBusy(false); }
         return;
       }

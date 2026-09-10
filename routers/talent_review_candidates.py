@@ -19,7 +19,35 @@ router = APIRouter(prefix="/api/talent/review-candidates", tags=["Talent Review 
 
 
 def _display_payload(db, row):
-    return authorized_payload(db, row, candidate_payload)
+    return {**authorized_payload(db, row, candidate_payload), "rubric_level": _rubric_level(db, row)}
+
+
+def _rubric_level(db, row):
+    """Highest rubric level actually recorded on the candidate Assessment.
+
+    This is an additive read projection only. Candidate qualification continues
+    to use its persisted policy evaluation and Official Identification remains
+    a separate human decision.
+    """
+    levels = db.query(models.TalentRubricLevel).filter_by(
+        school_group_id=row.school_group_id,
+        framework_version_id=row.framework_version_id,
+    ).order_by(models.TalentRubricLevel.display_order, models.TalentRubricLevel.id).all()
+    recorded_ids = {item[0] for item in db.query(models.TalentStudentCompetencyResult.rubric_level_id).filter_by(
+        school_group_id=row.school_group_id,
+        assessment_id=row.assessment_id,
+    ).all()}
+    recorded = [level for level in levels if level.id in recorded_ids]
+    if not recorded:
+        return None
+    level = recorded[-1]
+    return {
+        "id": level.id,
+        "label": level.label,
+        "display_order": level.display_order,
+        "position": levels.index(level) + 1,
+        "total_levels": len(levels),
+    }
 
 
 def _scope(db, user):
@@ -143,7 +171,7 @@ def review_candidates_list(request: Request, cycle_id: int | None = Query(None),
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
     contexts = authorized_contexts(db, group_id, rows)
-    return [{**candidate_payload(row), "context": contexts[row.id]} for row in rows]
+    return [{**candidate_payload(row), "context": contexts[row.id], "rubric_level": _rubric_level(db, row)} for row in rows]
 
 
 @router.get("/{candidate_id}")

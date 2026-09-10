@@ -1,0 +1,22 @@
+.tp-rubric-level {
+  --tp-rubric-intensity: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  max-width: 100%;
+  padding: .3rem .55rem;
+  border: 1px solid color-mix(in srgb, var(--app-brand, #3159a7) calc(28% + var(--tp-rubric-intensity) * 45%), var(--app-line, #d8dee8));
+  border-left-width: calc(3px + var(--tp-rubric-intensity) * 3px);
+  border-radius: .55rem;
+  background: color-mix(in srgb, var(--app-brand-soft, #e9effc) calc(20% + var(--tp-rubric-intensity) * 65%), white);
+  color: var(--app-text, #1d2939);
+  font-weight: 650;
+}
+.tp-rubric-level.is-selected { box-shadow: 0 0 0 2px var(--app-focus, #3159a7); }
+.tp-rubric-order { color: var(--app-muted, #5d6b82); font-size: .75rem; font-variant-numeric: tabular-nums; }
+.tp-rubric-level small { font-weight: 500; color: var(--app-muted, #5d6b82); }
+.tp-rubric-choice { display: grid; gap: .35rem; }
+.tp-rubric-choice input:focus-visible + .tp-rubric-level { outline: 3px solid var(--app-focus, #3159a7); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) {
+  .tp-rubric-level, .tp-rubric-track > span, .tp-progress-track > span, .tp-radial-arc { transition: none !important; animation: none !important; }
+}
