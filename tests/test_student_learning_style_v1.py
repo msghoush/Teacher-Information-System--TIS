@@ -313,6 +313,100 @@ def test_edit_details_form_renders_the_selector_and_preselects_the_current_value
             assert f'value="{style}" checked' not in html
 
 
+def test_edit_details_form_preselects_not_specified_when_no_value_is_saved(db):
+    """Real rendered-HTML regression for the Edit Details flow when a
+    Student has never had a Learning Style saved (``learning_style`` is
+    ``None`` in the database, not an empty string).
+
+    The shared macro compares the saved value against each option
+    (including the empty-string "Not specified" option) with ``==``; a
+    Python/Jinja ``None`` saved value must still resolve to the
+    "Not specified" pill being checked/selected on load, exactly like a
+    freshly-created Student (see
+    ``test_new_student_form_renders_the_selector_with_all_four_values_and_none_selected``),
+    not leave every pill unselected.
+    """
+    from fastapi.staticfiles import StaticFiles
+    from routers import students_ui
+
+    permissions(db, "students.view", "students.edit")
+    db.add(models.Student(
+        id=6002, school_group_id=1, first_name="Omar", last_name="Four",
+        status="active", learning_style=None,
+    ))
+    db.commit()
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor()
+    with TestClient(app) as client:
+        response = client.get("/students/6002?section=overview")
+    assert response.status_code == 200
+    html = response.text
+    assert 'value="" checked' in html
+    assert html.count("is-selected") == 1
+    for style in LEARNING_STYLES:
+        assert f'value="{style}" checked' not in html
+
+
+def test_learning_style_label_structurally_wraps_its_radio_with_no_intervening_element_or_id_collision(db):
+    """Structural proof that the click target is correct native HTML.
+
+    A Learning Style click/select defect was reported and reproduced in a
+    real browser. Reading ``_learning_style.html`` shows a ``<label>``
+    directly wrapping its ``<input type="radio">`` with a shared ``name``
+    (no ``id``/``for`` pairing at all, so a duplicate ``id`` elsewhere on
+    the page cannot break this specific control's association) - this is
+    exactly the robust native pattern that should make "click anywhere on
+    the pill selects it" work with zero JavaScript. This test proves that
+    structure holds in the real rendered page rather than only in the
+    template source: every ``stu-ls-option`` label's *first* child element
+    is its own radio input (nothing wraps or sits between the label and its
+    input that could intercept the click), and no ``id`` attribute is
+    duplicated anywhere on the rendered page (which would otherwise be able
+    to break unrelated ``for``/``id`` associations on the same page, e.g.
+    First/Last name).
+    """
+    import re
+
+    from fastapi.staticfiles import StaticFiles
+    from routers import students_ui
+
+    permissions(db, "students.view", "students.edit")
+    db.add(models.Student(
+        id=6003, school_group_id=1, first_name="Lina", last_name="Five",
+        status="active", learning_style="Visual",
+    ))
+    db.commit()
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor()
+    with TestClient(app) as client:
+        response = client.get("/students/6003?section=overview")
+    assert response.status_code == 200
+    html = response.text
+
+    # Every stu-ls-option label's first child (ignoring whitespace) is its
+    # own radio input - no wrapping/overlapping element sits in between.
+    label_opens = list(re.finditer(r'<label class="stu-ls-option[^"]*"[^>]*>', html))
+    assert len(label_opens) == 5  # "" + the four LEARNING_STYLES
+    for match in label_opens:
+        remainder = html[match.end():].lstrip()
+        assert remainder.startswith('<input type="radio" name="learning_style"'), (
+            "an element other than the radio input directly follows the "
+            "stu-ls-option <label> open tag, which could intercept clicks"
+        )
+
+    # No duplicate id anywhere on the page (a duplicate id could silently
+    # break an unrelated for/id association elsewhere on the same page).
+    ids = re.findall(r'\bid="([^"]+)"', html)
+    duplicates = {value for value in ids if ids.count(value) > 1}
+    assert not duplicates, f"duplicate id attribute(s) on the page: {duplicates}"
+
+
 def test_html_students_page_renders_the_distribution_panel_when_policy_is_available(db, monkeypatch):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
@@ -334,6 +428,50 @@ def test_html_students_page_renders_the_distribution_panel_when_policy_is_availa
     assert response.status_code == 200
     assert "Learning Style distribution" in response.text
     assert "not a talent score" in response.text.lower()
+
+
+def test_html_students_page_shows_one_panel_level_protected_message_when_every_category_is_suppressed(db, monkeypatch):
+    """When the whole cohort is small enough that every Learning Style
+    category is individually suppressed, the page must show ONE clear
+    panel-level explanation rather than repeating "Protected for privacy" on
+    every row - while still rendering every category label (categorical
+    protection preserved) and never a count/percentage for a suppressed row."""
+    from fastapi.staticfiles import StaticFiles
+    from routers import students_ui
+
+    permissions(db, "students.view")
+    # A small population below the deterministic suppression threshold for
+    # every individual category, but above it in total, mirroring the real
+    # sanctioned local test cohort shape (total visible, every category cell
+    # suppressed).
+    db.add_all([
+        models.Student(id=6001, school_group_id=1, first_name="A", last_name="One", status="active", learning_style="Visual"),
+        models.Student(id=6002, school_group_id=1, first_name="B", last_name="Two", status="active", learning_style="Visual"),
+        models.Student(id=6003, school_group_id=1, first_name="C", last_name="Three", status="active", learning_style="Auditory"),
+        models.Student(id=6004, school_group_id=1, first_name="D", last_name="Four", status="active", learning_style="Kinesthetic"),
+        models.Student(id=6005, school_group_id=1, first_name="E", last_name="Five", status="active", learning_style=None),
+    ])
+    db.commit()
+    monkeypatch.setattr(
+        "routers.students_ui.resolve_privacy_policy_provider",
+        lambda: DeterministicSuppressionTestPolicy(minimum_cohort=5),
+    )
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor()
+    with TestClient(app) as client:
+        response = client.get("/students/")
+    assert response.status_code == 200
+    # Exactly one panel-level protected explanation, not one per row.
+    assert response.text.count("stu-protected-panel") == 1
+    assert response.text.lower().count("protected for privacy") == 1
+    # Fully protected data renders no chart rows or category-by-category fake bars.
+    assert 'class="stu-ls-chart"' not in response.text
+    assert 'class="stu-ls-row"' not in response.text
+    # No raw count or percentage for any protected category leaks through.
+    assert "66.7" not in response.text and "40.0" not in response.text and "20.0" not in response.text
 
 
 # ---------------------------------------------------------------------------

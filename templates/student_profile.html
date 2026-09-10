@@ -75,7 +75,10 @@
   {% if section == 'placement' %}
   {% if can_manage_placements %}
   <div class="stu-panel">
-    <h2>Add Academic Placement</h2>
+    <h2>{{ 'Change Academic Placement' if current_placement else 'Add Academic Placement' }}</h2>
+    {% if current_placement %}
+    <div class="stu-banner" role="status">This Student already has a current placement. Use <strong>End / Change</strong> on the current record below so its history remains intact.</div>
+    {% else %}
     <p class="stu-lede">{{ icon('branch', 'shell-icon') }}Set which Academic Year, Branch, Grade, and Section this student belongs to, and when it began. Ending a placement keeps it in history.</p>
     <form class="stu-form" method="post" action="/students/{{ student.id }}/placements" data-stu-cascade-group data-sections-api="{{ sections_api_url }}">
       <div class="stu-form-grid">
@@ -120,6 +123,7 @@
       </div>
       <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit" data-stu-cascade="submit">{{ icon('save', 'shell-icon') }}Save Placement</button></div>
     </form>
+    {% endif %}
   </div>
   {% endif %}
 

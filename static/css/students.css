@@ -139,7 +139,12 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 /* The native radio stays visible (not opacity:0/1px-hidden) per accessibility
    requirement; it is simply styled small and inline within the pill rather
    than removed from the visual layout. */
-.stu-ls-option input { position: static; opacity: 1; width: 14px; height: 14px; margin: 0; flex: 0 0 auto; accent-color: var(--stu-ls-accent, var(--app-brand)); cursor: pointer; }
+/* Explicitly own every box-model property the ambient ".stu-field input"
+   rule also sets (border/padding/background/border-radius, in addition to
+   size) - both selectors share the same specificity, so without this the
+   radio's box model would be an unpredictable mix of both rules depending
+   on source order, rather than fully owned by this control. */
+.stu-ls-option input { position: static; opacity: 1; width: 14px; height: 14px; margin: 0; padding: 0; border: none; border-radius: 0; background: none; flex: 0 0 auto; accent-color: var(--stu-ls-accent, var(--app-brand)); cursor: pointer; }
 .stu-ls-option svg { width: 16px; height: 16px; color: var(--stu-ls-accent, var(--app-muted, #5d6b82)); }
 .stu-ls-option:hover { border-color: var(--stu-ls-accent, var(--app-line-strong)); }
 /* .is-selected (server-rendered on initial load) and :has(input:checked)
@@ -169,6 +174,16 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-ls-track span { display: block; height: 100%; background: var(--stu-ls-accent, var(--app-brand)); border-radius: inherit; }
 .stu-ls-track-state { background: repeating-linear-gradient(45deg, var(--app-surface-muted), var(--app-surface-muted) 6px, var(--app-line) 6px, var(--app-line) 12px); }
 .stu-protected { color: var(--app-muted, #5d6b82); font-style: italic; font-size: 13px; margin: 0; }
+/* Panel-level protected-state explanation: shown once when every category in
+   the current selection is suppressed, replacing a "Protected for privacy"
+   line repeated on every row. Neutral tone - this is an expected privacy
+   outcome, not an error or a broken/empty panel. */
+.stu-protected-panel { display: flex; align-items: flex-start; gap: 8px; font-style: normal; font-size: 13px; padding: 10px 12px; border-radius: 10px; background: var(--app-surface-muted); border: 1px solid var(--app-line); margin: 0 0 var(--stu-space-3); }
+.stu-protected-panel svg { width: 18px; height: 18px; min-width: 18px; color: var(--app-muted, #5d6b82); }
+.stu-protected-panel strong { color: var(--app-ink); font-style: normal; }
+.stu-protected-panel p { margin: 2px 0 0; }
+.stu-card-fact { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; color: var(--app-muted, #5d6b82); font-size: 12px; }
+.stu-card-fact > span:first-child { font-weight: 700; }
 .stu-filter-context { display: inline-flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 10px; background: var(--app-surface-muted); color: var(--app-muted, #5d6b82); font-weight: 700; }
 
 /* Responsive */

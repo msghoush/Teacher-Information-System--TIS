@@ -2,7 +2,7 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-const {metric,esc,heatBucket,matrix,matrixCellHtml} = require('../static/js/talent.js');
+const {metric,esc,heatBucket,matrix,matrixCellHtml,resolveProgramSelection} = require('../static/js/talent.js');
 
 // A realistic Talent Map payload shape (fetched live from the synthetic preview
 // harness) covering visible, no_data, and a would-be suppressed coordinate.
@@ -47,6 +47,17 @@ test('heat bucket only reads an already-visible backend percentage, never a raw 
   assert.equal(heatBucket({state: 'visible', percentage: 40}), 3);
   assert.equal(heatBucket({state: 'visible', percentage: 60}), 4);
   assert.equal(heatBucket({state: 'visible', percentage: 90}), 5);
+});
+
+test('talent.js source contains no double-encoded UTF-8 (mojibake) text', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  // U+00E2 and U+00C2 are the lead codepoints produced when correct UTF-8 text
+  // (an arrow, en/em dash, middle dot, or ellipsis) is misread as
+  // Windows-1252/Latin-1 and re-saved as UTF-8. Neither codepoint has any
+  // legitimate use in this file, so their presence signals a reintroduced
+  // encoding regression like the one this test guards against.
+  assert.doesNotMatch(source, new RegExp(String.fromCharCode(0x00e2)), 'found mojibake marker U+00E2 in talent.js');
+  assert.doesNotMatch(source, new RegExp(String.fromCharCode(0x00c2)), 'found mojibake marker U+00C2 in talent.js');
 });
 
 test('Talent Map matrix uses real ARIA grid semantics and a keyboard-focusable cell per coordinate', () => {
@@ -126,4 +137,51 @@ test('Student Drill and Learner Profile never render raw program/cycle/branch da
   assert.doesNotMatch(source, /esc\(c\.cycle_id\)/);
   assert.doesNotMatch(source, /esc\(c\.branch_id\)/);
   assert.doesNotMatch(source, /esc\(c\.frozen_context\.branch_id\)/);
+});
+
+// Owner-confirmed Program context-integrity defect: the shared ribbon/context
+// Program selector and the Programs workspace must always resolve to the
+// SAME canonical Program, identified only by program_id. These tests exercise
+// resolveProgramSelection, the pure resolver init() now uses to populate the
+// ribbon <select>'s value, exactly as it is called in production - the same
+// contract the DOM-dependent init()/applyContext() wiring cannot be unit
+// tested for directly in this repo (no jsdom dependency is available, so the
+// live <select> DOM behavior itself is not Node-testable; this pure resolver
+// is the testable seam for that exact selection logic).
+const mentalMath = {id: 11, name: 'Mental Math'};
+const chessClub = {id: 27, name: 'Chess Club'};
+const sameNameOtherId = {id: 99, name: 'Mental Math'};
+
+test('canonical Program selection matches by program_id only, never by name', () => {
+  assert.equal(resolveProgramSelection([mentalMath, chessClub], '11'), '11');
+  assert.equal(resolveProgramSelection([mentalMath, chessClub], 11), '11');
+  // A second Program that happens to share a name must never be selected in
+  // place of the actual id match, and matching stays exact even when a
+  // same-named row exists elsewhere in the list.
+  assert.equal(resolveProgramSelection([sameNameOtherId, chessClub], '11'), '');
+  assert.equal(resolveProgramSelection([mentalMath, sameNameOtherId], '99'), '99');
+});
+
+test('canonical Program selection never defaults to the first Program in the list', () => {
+  // A requested id that does not (yet) exist in the loaded list - the classic
+  // "list still loading" / stale-id race - must resolve to the neutral ""
+  // state, never silently fall back to items[0].
+  assert.equal(resolveProgramSelection([mentalMath, chessClub], '404'), '');
+  assert.equal(resolveProgramSelection([], '11'), '');
+});
+
+test('a valid deep-link program_id resolves correctly once the async Program list arrives, with no overwrite', () => {
+  // Simulates init(): the <select> starts with no options loaded (list not
+  // yet fetched); once the real Program list resolves, the deep-linked id
+  // must resolve to that exact Program - never reset to blank/first-item
+  // merely because the list arrived asynchronously.
+  const deepLinkedId = String(chessClub.id);
+  const loadedList = [mentalMath, chessClub];
+  assert.equal(resolveProgramSelection(loadedList, deepLinkedId), String(chessClub.id));
+});
+
+test('an absent program_id resolves to the neutral (no Program selected) state, not an arbitrary Program', () => {
+  assert.equal(resolveProgramSelection([mentalMath, chessClub], null), '');
+  assert.equal(resolveProgramSelection([mentalMath, chessClub], ''), '');
+  assert.equal(resolveProgramSelection([mentalMath, chessClub], undefined), '');
 });

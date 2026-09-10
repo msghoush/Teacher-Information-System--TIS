@@ -107,6 +107,41 @@ test('completed Ready state offers Finish Setup to exit the wizard',async()=>{
   assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
 });
 
+// Finish Setup must exit to the canonical Programs list - not re-render the
+// same workspace ctx (which still carries the current program_id in
+// ctx.params and would just redraw the operational summary/wizard again).
+// setupComplete (and so the clickable data-action="finish-setup" button,
+// as opposed to a plain "finish the next incomplete step" link) requires
+// program.status==='active', so a Draft Program's "Finish Setup" is a plain
+// href step-link, not this JS handler - covered separately below.
+for (const [label, hash] of [
+  ['a fully-ready/Active Program', '#tp-ready'],
+  // A direct deep-link straight into the Ready step (no prior step-by-step
+  // navigation through basics/assess/schedule in this render call).
+  ['a direct deep-link straight into the Ready step', '#tp-ready'],
+]) {
+  test(`Finish Setup on ${label} navigates to the canonical Programs list with no program_id, query state, or hash`,async()=>{
+    const {ctx,root}=fixture(true,'active',{complete:true,hash});
+    await render(ctx);
+    assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
+    const navigated=[];
+    ctx.navigate=(target,extra)=>navigated.push({target,extra});
+    await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
+    // Exactly one navigation call, to the plain "programs" list target with
+    // no extra query params (so ctx.navigate's own URL builder produces
+    // /talent/programs?academic_year_id=... with no program_id and no
+    // hash - never the operational summary for the just-finished Program).
+    assert.deepEqual(navigated,[{target:'programs',extra:undefined}]);
+  });
+}
+
+test('a Draft Program\'s "Finish Setup" is a plain step link, not the finish-setup JS action, until the Program is Active',async()=>{
+  const {ctx,root}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
+  await render(ctx);
+  assert.doesNotMatch(root.innerHTML,/data-action="finish-setup"/);
+  assert.match(root.innerHTML,/class="tp-primary-link" href="#tp-(?:basics|builder-competencies|schedule)">Finish Setup/);
+});
+
 test('Program index is a compact searchable table with primary actions',async()=>{
   const feedback={textContent:'',setAttribute(){}},root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
   const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
@@ -201,6 +236,181 @@ test('an empty Planning Grade configuration shows a clear empty state, not an em
   await render(ctx);
   assert.match(root.innerHTML, /No Grades are configured in Planning for this Academic Year\./);
   assert.doesNotMatch(root.innerHTML, /<fieldset><legend>Grades<\/legend>/);
+});
+
+// Owner-confirmed defect: the Programs workspace repeatedly flashed
+// "Loading Programs..." and re-fetched the entire Program list and this
+// Program's full setup graph on every same-page wizard-step navigation
+// (Basics/What we assess/Evaluation Plan/Ready, and the assess substeps),
+// because each of those is a real `#hash` anchor and the workspace's own
+// `hashchange` listener called the full `render(ctx)` fetch chain again on
+// every click. These tests exercise `render(ctx, {viaHash:true})` directly,
+// exactly as the module's internal `hashGuard` now does, to prove a
+// same-Program-context step change reuses the already-fetched bundle while
+// every real context change or explicit reload still fetches fresh data.
+test('a hash-only step navigation (viaHash) within the same Program/Academic Year reuses the already-fetched bundle: no "Loading Programs..." flash and no duplicate Program-list/setup-graph requests',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+  await render(ctx);
+  const initialCalls=calls.length;
+  assert.ok(calls.some(c=>c.path==='/api/talent/programs'),'initial render fetches the Program catalog');
+  root.innerHTML='';
+  await render(ctx,{viaHash:true});
+  assert.equal(calls.length,initialCalls,'no additional network calls were issued for a same-context hash navigation');
+  assert.doesNotMatch(root.innerHTML,/Loading Programs/,'the workspace is never blanked to a loading state for a local step change');
+  assert.match(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
+});
+test('a hash-only (viaHash) navigation still redraws the requested step correctly from cached data',async()=>{
+  const {ctx,root}=fixture(true,'draft',{step:'assess',hash:'#tp-basics'});
+  await render(ctx);
+  assert.match(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
+  ctx.hash='#tp-builder';
+  await render(ctx,{viaHash:true});
+  assert.match(root.innerHTML,/id="tp-builder" class="tp-wizard-panel"/);
+  assert.doesNotMatch(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
+});
+test('viaHash with a different Program/Academic Year context (a real context change) still performs a fresh fetch, not a stale reuse',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+  await render(ctx);
+  const afterFirst=calls.filter(c=>c.path==='/api/talent/programs').length;
+  ctx.params=new URLSearchParams('program_id=11&step=basics&academic_year_id=2027');
+  ctx.year='2027';
+  await render(ctx,{viaHash:true});
+  const afterSecond=calls.filter(c=>c.path==='/api/talent/programs').length;
+  assert.equal(afterSecond,afterFirst+1,'a changed Academic Year context is a cache miss and fetches fresh data even when called with viaHash');
+});
+test('explicit Refresh (a real, non-hash render call) always fetches fresh data even when a matching hash-cache already exists',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+  await render(ctx);
+  await render(ctx,{viaHash:true});
+  const beforeRefresh=calls.filter(c=>c.path==='/api/talent/programs').length;
+  await render(ctx);
+  const afterRefresh=calls.filter(c=>c.path==='/api/talent/programs').length;
+  assert.equal(afterRefresh,beforeRefresh+1,'an explicit (non-hash) render always performs a real Program-list request');
+});
+test('a save (mutate -> refresh) always reflects freshly saved data on the very next hash-only render, never a pre-save cached value',async()=>{
+  const {ctx,root}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+  let currentDescription='Original description';
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(options&&options.method==='PATCH'&&path==='/api/talent/programs/11'){currentDescription=JSON.parse(options.body).description;return {};}
+    if(!options&&path==='/api/talent/programs')return [{id:11,name:'Performing Arts',status:'draft',description:currentDescription}];
+    return read(path,options);
+  };
+  await render(ctx);
+  const old=global.FormData;global.FormData=class extends Map {constructor(){super([['name','Performing Arts'],['description','Updated description']]);}};
+  try {await root.onsubmit({preventDefault(){},target:{dataset:{form:'edit-program'},querySelector:()=>({textContent:'',setAttribute(){}})}});}
+  finally {global.FormData=old;}
+  await render(ctx,{viaHash:true});
+  assert.match(root.innerHTML,/Updated description/);
+  assert.doesNotMatch(root.innerHTML,/Original description/);
+});
+test('a failed initial fetch never populates the cache, so a subsequent hash-only render safely falls back to a real fetch instead of throwing or reusing a broken bundle',async()=>{
+  const {ctx,root}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{if(!options&&path==='/api/talent/programs')throw new Error('Network error');return read(path,options);};
+  await assert.rejects(render(ctx));
+  ctx.api=read;
+  await render(ctx,{viaHash:true});
+  assert.match(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
+});
+test('rapid duplicate hash-only navigations do not accumulate duplicate Program-list requests (cache hit on every repeat)',async()=>{
+  const {ctx,calls}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+  await render(ctx);
+  const before=calls.filter(c=>c.path==='/api/talent/programs').length;
+  await Promise.all([render(ctx,{viaHash:true}),render(ctx,{viaHash:true}),render(ctx,{viaHash:true})]);
+  const after=calls.filter(c=>c.path==='/api/talent/programs').length;
+  assert.equal(after,before,'three back-to-back hash-only renders in the same context issue zero additional Program-list requests');
+});
+
+// Owner-confirmed Program context-integrity defect: the shared ribbon/context
+// Program selector and the Programs workspace must always resolve to the
+// SAME canonical Program, identified only by program_id - never by name, and
+// never by which Program happens to load/appear first. These tests exercise
+// the Programs workspace's own real render(ctx) end to end with two
+// distinctly-named fixture Programs, proving it reads (and, across a real
+// context change, re-reads) canonical program_id from the shared ctx.params
+// object rather than caching an independent "selected Program" of its own.
+function programWorkspaceCtx(pid, programs, apiTail = () => Promise.resolve([])) {
+  const root = {innerHTML: '', querySelector: () => null, querySelectorAll: () => []};
+  const calls = [];
+  const api = async (path, options) => {
+    calls.push({path, options});
+    if (options) return {};
+    if (path === '/api/talent/programs') return programs;
+    if (path.startsWith('/api/talent/programs/planning-grades')) return [];
+    if (path.endsWith('/academic-years')) return [];
+    if (path.endsWith('/frameworks')) return [];
+    if (path.endsWith('/competencies')) return [];
+    if (path.startsWith('/api/talent/evaluation-plans')) return [];
+    return apiTail(path, options);
+  };
+  const ctx = {root, year: '2026', yearLabel: '2026-2027', params: new URLSearchParams(`program_id=${pid}`), can: key => key === 'talent_programs.view', api, notify() {}, navigate() {}};
+  return {ctx, root, calls};
+}
+const mentalMathProgram = {id: 11, name: 'Mental Math', status: 'draft'};
+const chessClubProgram = {id: 27, name: 'Chess Club', status: 'draft'};
+
+test('the Programs workspace resolves the canonical Program by program_id only, matching neither the first list item nor by name', async () => {
+  const programs = [mentalMathProgram, chessClubProgram];
+  const {ctx: ctxA, root: rootA} = programWorkspaceCtx(String(chessClubProgram.id), programs);
+  await render(ctxA);
+  assert.match(rootA.innerHTML, /<h2>Chess Club<\/h2>/);
+  assert.doesNotMatch(rootA.innerHTML, /<h2>Mental Math<\/h2>/);
+
+  const {ctx: ctxB, root: rootB} = programWorkspaceCtx(String(mentalMathProgram.id), programs);
+  await render(ctxB);
+  assert.match(rootB.innerHTML, /<h2>Mental Math<\/h2>/);
+  assert.doesNotMatch(rootB.innerHTML, /<h2>Chess Club<\/h2>/);
+});
+
+test('changing canonical program_id on the shared ctx (simulating a ribbon-driven or inner-selector-driven Program change) fully switches the workspace and bypasses the hash-only cache', async () => {
+  const programs = [mentalMathProgram, chessClubProgram];
+  const {ctx, root, calls} = programWorkspaceCtx(String(mentalMathProgram.id), programs);
+  await render(ctx);
+  assert.match(root.innerHTML, /<h2>Mental Math<\/h2>/);
+  const fetchesAfterFirst = calls.filter(c => c.path === '/api/talent/programs').length;
+
+  // A real Program change updates the same shared ctx.params object the
+  // ribbon/applyContext() and the Programs workspace both read - exactly the
+  // single canonical program_id source of truth.
+  ctx.params = new URLSearchParams(`program_id=${chessClubProgram.id}`);
+  await render(ctx);
+  assert.match(root.innerHTML, /<h2>Chess Club<\/h2>/);
+  assert.doesNotMatch(root.innerHTML, /<h2>Mental Math<\/h2>/);
+  const fetchesAfterSecond = calls.filter(c => c.path === '/api/talent/programs').length;
+  assert.equal(fetchesAfterSecond, fetchesAfterFirst + 1, 'a real Program change always performs a fresh fetch, never a stale-Program cache reuse');
+});
+
+test('a stale in-flight response for a previous Program can never overwrite the currently-rendered newer Program (async/staleness safety)', async () => {
+  const programs = [mentalMathProgram, chessClubProgram];
+  let releaseStaleProgram;
+  const gate = new Promise(resolve => { releaseStaleProgram = resolve; });
+  const root = {innerHTML: '', querySelector: () => null, querySelectorAll: () => []};
+  const staleCtx = {
+    root, year: '2026', yearLabel: '2026-2027', params: new URLSearchParams(`program_id=${mentalMathProgram.id}`),
+    can: key => key === 'talent_programs.view', notify() {}, navigate() {},
+    api: async (path, options) => { if (options) return {}; if (path === '/api/talent/programs') { await gate; return programs; } return []; },
+  };
+  // Program A (Mental Math) starts rendering first but its Program-list fetch
+  // is deliberately held open ("stale/slow response").
+  const stalePromise = render(staleCtx);
+  // Program B (Chess Club) is selected next on the very same shared root/ctx
+  // shape (simulating the ribbon or inner selector immediately choosing a
+  // different Program) and resolves fully before A's held-open fetch returns.
+  const freshCtx = {
+    root, year: '2026', yearLabel: '2026-2027', params: new URLSearchParams(`program_id=${chessClubProgram.id}`),
+    can: key => key === 'talent_programs.view', notify() {}, navigate() {},
+    api: async (path, options) => { if (options) return {}; if (path === '/api/talent/programs') return programs; if (path.startsWith('/api/talent/programs/planning-grades')) return []; if (path.endsWith('/academic-years')) return []; if (path.endsWith('/frameworks')) return []; if (path.endsWith('/competencies')) return []; if (path.startsWith('/api/talent/evaluation-plans')) return []; return []; },
+  };
+  await render(freshCtx);
+  assert.match(root.innerHTML, /<h2>Chess Club<\/h2>/, 'the newer Program (B) is fully rendered');
+  // Now let the stale Program A response resolve. Its render must detect it
+  // has been superseded (the shared module-level renderToken guard) and
+  // return WITHOUT overwriting the already-rendered, newer Program B state.
+  releaseStaleProgram();
+  await stalePromise;
+  assert.match(root.innerHTML, /<h2>Chess Club<\/h2>/, 'Program B remains rendered after the stale Program A response resolves');
+  assert.doesNotMatch(root.innerHTML, /<h2>Mental Math<\/h2>/, 'the stale Program A response never overwrote the newer Program B state');
 });
 
 test('removing the Program logo requires confirmation and calls the Program-scoped logo DELETE route', async () => {
