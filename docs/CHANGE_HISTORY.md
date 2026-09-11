@@ -1,11 +1,23 @@
 ---
 title: TIS Change History
-documentation_version: 3.9
+documentation_version: 4.0
 last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-11 — Talent urgent navigation, readiness, review, and recovery adjustments
+
+- Removed the duplicated in-page Talent primary navigation; the permission-aware application sidebar tree is now the sole primary module navigation.
+- Moved readiness into the opened Program summary. The separate Ready step is removed, and **Ready** is shown positively only when Program/Grade, assessment-criteria, and Evaluation Plan prerequisites are complete.
+- Changed Grade-first authoring to one selected Grade at a time (default first configured Grade), removing repeated Grade labels from every Competency row while preserving dedicated Competency/Level delete permissions.
+- Clarified user-facing terminology: competency-owned rubric structure is presented as **Assessment Criteria** rather than being falsely renamed KPI. The separate numeric `TalentKpiConfiguration` is explicitly labeled **Key Performance Indicator (KPI)** and now exposes Add/Edit/Delete KPI actions.
+- Added Administrator-default `talent_assessments.reset_for_reassessment`. A reset preserves completed evidence/history, makes the prior current attempt historical, audits the action, and returns the Student to Not started so a fresh Assessment may begin in the same Evaluation. ADR 0034 zero-evidence hard-delete remains unchanged.
+- Student Assessments now visibly marks the selected Evaluation Period/Program, carries Cycle context when Start Assessment opens the Student workspace, and continues to load the exact persisted Program/Grade competencies and criteria.
+- Talent Review now supports authorized Branch/Grade/Section filters, offers All Branches only to actors with multiple authorized Branches, and removes the primary user-facing "Meets criteria" classification while preserving deterministic Candidate logic internally.
+- Analytics unavailable/validation states now surface the specific backend reason and a more actionable next step when configuration/data prerequisites are missing.
+
 
 ## 2026-09-11 — Talent setup finalization, Period grouping, and reassessment reset correction
 
