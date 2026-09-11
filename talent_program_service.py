@@ -826,8 +826,10 @@ def configure_review_candidate_policy(db, *, school_group_id, program_id, framew
     _require_draft(framework, expected_revision); mode = str(match_mode or "").strip().lower()
     if mode not in {"all", "any"}: raise TalentProgramError("invalid_policy", "Candidate policy match_mode must be all or any.")
     if is_enabled and not rules: raise TalentProgramError("invalid_policy", "Enabled candidate policy requires at least one rule.")
-    rubric = _rubric(db, framework.id); member_ids = {row.id for row in _framework_members(db, framework.id)}
-    level_ids = {row.id for row in db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework.id)}
+    member_ids = {row.id for row in _framework_members(db, framework.id)}
+    level_rows = db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework.id).all()
+    level_ids = {row.id for row in level_rows}
+    level_by_id = {row.id: row for row in level_rows}
     kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework.id, is_enabled=True).one_or_none()
     normalized = []; seen_competencies = set(); kpi_rule_seen = False
     for index, item in enumerate(rules or [], 1):
@@ -840,7 +842,16 @@ def configure_review_candidate_policy(db, *, school_group_id, program_id, framew
         # is deferred to M4.
         if rule_type == "rubric_level_at_or_above":
             member_id, level_id = int(item.get("framework_competency_id")), int(item.get("rubric_level_id"))
-            if member_id not in member_ids or level_id not in level_ids or rubric is None: raise TalentProgramError("invalid_policy", "Rubric candidate rules must reference this exact Framework competency and level.")
+            level = level_by_id.get(level_id)
+            rubric = None if level is None else db.query(models.TalentRubric).filter_by(
+                id=level.rubric_id, framework_version_id=framework.id,
+                program_id=program_id, school_group_id=school_group_id,
+            ).one_or_none()
+            if (
+                member_id not in member_ids or level_id not in level_ids or rubric is None
+                or (rubric.framework_competency_id is not None and rubric.framework_competency_id != member_id)
+            ):
+                raise TalentProgramError("invalid_policy", "Rubric candidate rules must reference the selected Competency's exact rubric level.")
             if member_id in seen_competencies: raise TalentProgramError("duplicate_rule", "Each Framework competency can have only one candidate rule.")
             seen_competencies.add(member_id)
             normalized.append((rule_type, index, member_id, rubric.id, level_id, None))
