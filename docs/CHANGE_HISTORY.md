@@ -1,11 +1,20 @@
 ---
 title: TIS Change History
 documentation_version: 3.9
-last_updated: 2026-09-10
+last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-11 — Talent current-rubric, reassessment, and granular delete correction
+
+- Removed the separate Assessment Records/History table from the normal Student Assessment workspace; the current eligible Student row, status, and action are now the sole operational surface while superseded attempts remain preserved evidence internally.
+- Separated historical compatibility from current rubric authority: legacy Framework-wide shared rubrics may still be read for historical comparison, but normal Evaluation starts select only a complete competency-owned rubric structure for every applicable Competency.
+- Preserved no-op Framework-clone behavior while keeping material Student-facing rubric changes reassessment-triggering. Completed current Students surface **Re-evaluation required** and the replacement attempt remains attached to the original visible Evaluation/Term.
+- Enforced Assessment-history immutability consistently across competency/rubric/level/description authoring mutations.
+- Added `talent_programs.delete_competency` and `talent_programs.delete_rubric_level` as independently assignable permissions. `talent_programs.delete` remains whole-Draft-Program deletion only; `talent_programs.manage` does not grant destructive authority.
+- Fixed Competency removal in the new rubric structure by deleting the eligible competency-owned Rubric and its Levels with the Framework membership after existing descriptor/KPI/candidate-rule dependency checks. No schema migration was added.
 
 ## 2026-09-10 — Talent corrective Batches 3 and 4
 

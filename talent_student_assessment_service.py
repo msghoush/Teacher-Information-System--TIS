@@ -190,10 +190,10 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
             "This Evaluation does not have an assessment tool/framework.",
         )
 
-    # Owner-directed simple assessment flow: the Evaluation's exact Framework
-    # is the assessment authority. Draft/Active lifecycle labels are not an
-    # additional gate to starting a Student Assessment. What matters here is
-    # whether the referenced tool is actually assessable.
+    # Low-level/legacy callers remain backward-compatible so existing evidence
+    # is not stranded. The normal Evaluation workflow is stricter:
+    # start_assessment_for_evaluation() selects only a complete competency-owned
+    # rubric structure for current user-facing assessment work.
     has_competency = db.query(models.FrameworkCompetency.id).filter_by(
         school_group_id=school_group_id,
         program_id=cycle.program_id,
@@ -288,7 +288,7 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     return assessment
 
 
-def _assessment_semantic_snapshot(db: Session, *, framework, grade):
+def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy=True):
     """Student-facing assessment structure for one Framework and historical Grade.
 
     Deliberately excludes Framework version/title/supersession metadata so a
@@ -310,10 +310,12 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade):
         models.FrameworkCompetency.id,
     ).all()
 
-    legacy_rubric = db.query(models.TalentRubric).filter(
-        models.TalentRubric.framework_version_id == framework.id,
-        models.TalentRubric.framework_competency_id.is_(None),
-    ).one_or_none()
+    legacy_rubric = None
+    if allow_legacy:
+        legacy_rubric = db.query(models.TalentRubric).filter(
+            models.TalentRubric.framework_version_id == framework.id,
+            models.TalentRubric.framework_competency_id.is_(None),
+        ).one_or_none()
 
     result = []
     for member in members:
@@ -383,7 +385,9 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
         models.TalentProgramFrameworkVersion.id.desc(),
     ).all()
     for framework in candidates:
-        snapshot = _assessment_semantic_snapshot(db, framework=framework, grade=grade)
+        snapshot = _assessment_semantic_snapshot(
+            db, framework=framework, grade=grade, allow_legacy=False
+        )
         if snapshot and all(
             item.get("rubric") and item["rubric"].get("levels")
             for item in snapshot
@@ -469,11 +473,11 @@ def reassessment_requirement(db: Session, assessment):
         models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
     ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all()
     current_snapshot = _assessment_semantic_snapshot(
-        db, framework=current_framework, grade=grade
+        db, framework=current_framework, grade=grade, allow_legacy=True
     )
     for framework in candidates:
         candidate_snapshot = _assessment_semantic_snapshot(
-            db, framework=framework, grade=grade
+            db, framework=framework, grade=grade, allow_legacy=False
         )
         if candidate_snapshot == current_snapshot:
             continue

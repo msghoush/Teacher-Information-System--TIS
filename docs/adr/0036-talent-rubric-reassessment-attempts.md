@@ -91,7 +91,11 @@ views may still read superseded Assessments explicitly.
 ### Permissions and tenant isolation
 
 Re-evaluation reuses `talent_assessments.manage`. Read access remains
-`talent_assessments.view`. No new permission key is introduced. Every lookup,
+`talent_assessments.view`. Rubric-authoring deletion is independently governed:
+`talent_programs.delete_competency` controls removal of a Competency branch from
+an editable Framework and `talent_programs.delete_rubric_level` controls true
+Rubric Level removal. These do not imply whole-Program delete authority, and
+`talent_programs.manage` alone does not imply either delete capability. Every lookup,
 new Cycle, new Assessment, Framework resolution, and Student placement check
 remains SchoolGroup-scoped and subject to the existing Branch-authorization
 checks.
@@ -110,7 +114,10 @@ Migration `20260911_004_talent_competency_specific_rubrics` adds nullable
 `talent_rubrics.framework_competency_id`, removes the old one-rubric-per-
 Framework uniqueness rule, and enforces one rubric per exact
 `Framework Version + Framework Competency`. Existing NULL-owned rubrics remain
-legacy shared rubrics so historical data stays readable.
+legacy shared rubrics only for historical/read-comparison compatibility. Normal
+current Evaluation starts select only a complete competency-owned rubric
+structure for every applicable Competency; a legacy shared rubric never makes a
+new user-facing Assessment assessable.
 
 The linkage is service-validated and intentionally additive so existing
 PostgreSQL/SQLite deployments do not require destructive table rewrites.
@@ -132,8 +139,10 @@ not trigger re-evaluation.
 
 Student Assessments display **Re-evaluation required** when the current
 completed Assessment is superseded by a materially changed, assessable newer
-Framework. Historical Assessments are labelled historical; the replacement
-attempt is the current operational result.
+Framework. Starting re-evaluation opens the replacement attempt against the
+newer rubric while keeping the original visible Evaluation/Term. The prior
+attempt remains preserved evidence but is not listed as a separate History or
+Assessment Records table in the normal operational workspace.
 
 ## Consequences
 

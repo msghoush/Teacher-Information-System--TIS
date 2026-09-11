@@ -1590,7 +1590,7 @@ For a selected Program/Evaluation, the current operational Student list is
 driven by live Academic Placement eligibility from ADR 0035 plus tenant, Academic
 Year, eligible Grade, and authorized Branch/scope constraints. Students are
 shown as Not started, In progress, Completed, or Re-evaluation required.
-Historical Assessment Records remain a separate history section.
+Historical/superseded attempts remain preserved evidence but the normal Student Assessment workspace does not render a separate Assessment Records/History section; the current Student row/status/action is the operational surface.
 
 ADR 0036 remains authoritative for re-evaluation. A materially changed newer
 Grade-applicable rubric keeps the previous completed attempt immutable and
@@ -1607,11 +1607,19 @@ Review.
 ## Talent Rubric Authoring, Results UX, And Performance
 
 New competency-owned rubric creation starts clean. Assessed legacy shared-rubric
-levels are never auto-copied into a new competency rubric. An author may
+levels are never auto-copied into a new competency rubric. Normal current
+Evaluation starts require a complete competency-owned rubric for every
+applicable Competency; legacy shared rubrics are historical/read-comparison
+compatibility only and cannot authorize a new user-facing Assessment. An author may
 explicitly use **Copy Levels From** another competency in the same current Draft
 Framework. Copying is one-time and independent; it may copy only level structure
 or level structure plus descriptions, and never copies Student evidence or
-historical Assessment state.
+historical Assessment state. Competency removal and Rubric Level true-delete
+use the dedicated assignable permissions `talent_programs.delete_competency`
+and `talent_programs.delete_rubric_level`; whole Draft Program delete remains
+separate under `talent_programs.delete`. Assessed Frameworks remain semantically
+immutable and require a new Framework version before any Student-facing rubric
+change.
 
 The Programs list uses a bounded summary read instead of per-Program
 annual/framework/configuration fan-out. A selected Program is loaded directly

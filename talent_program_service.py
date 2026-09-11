@@ -416,7 +416,7 @@ def update_framework_competency(db, *, school_group_id, program_id, framework_id
                                 expected_revision, label=None, description=None, grade_level="__unchanged__", actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     row = db.query(models.FrameworkCompetency).filter_by(
         framework_version_id=framework_id, talent_competency_id=competency_id
     ).one_or_none()
@@ -438,7 +438,7 @@ def update_framework_competency(db, *, school_group_id, program_id, framework_id
 def remove_framework_competency(db, *, school_group_id, program_id, framework_id, competency_id, expected_revision, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     row = db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework_id, talent_competency_id=competency_id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Framework competency was not found.")
     if (db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).first()
@@ -446,7 +446,35 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
             or db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
             or db.query(models.TalentReviewCandidateRule).filter_by(framework_competency_id=row.id).first()):
         raise TalentProgramError("competency_in_use", "Remove rubric descriptors, KPI weighting, and candidate rules referencing this competency first.")
-    before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description}
+    owned_rubric = db.query(models.TalentRubric).filter_by(
+        school_group_id=school_group_id,
+        program_id=program_id,
+        framework_version_id=framework_id,
+        framework_competency_id=row.id,
+    ).one_or_none()
+    owned_level_ids = []
+    if owned_rubric is not None:
+        owned_level_ids = [
+            item.id for item in db.query(models.TalentRubricLevel).filter_by(
+                school_group_id=school_group_id,
+                program_id=program_id,
+                framework_version_id=framework_id,
+                rubric_id=owned_rubric.id,
+            ).all()
+        ]
+    before = {
+        "competency_id": row.talent_competency_id,
+        "display_order": row.display_order,
+        "grade_level": row.grade_level,
+        "label": row.label,
+        "description": row.description,
+        "owned_rubric_id": owned_rubric.id if owned_rubric is not None else None,
+        "owned_rubric_level_ids": owned_level_ids,
+    }
+    if owned_rubric is not None:
+        db.query(models.TalentRubricLevel).filter_by(rubric_id=owned_rubric.id).delete(synchronize_session=False)
+        db.delete(owned_rubric)
+        db.flush()
     db.delete(row); db.flush()
     for index, member in enumerate(_framework_members(db, framework_id), 1): member.display_order = index
     framework.revision += 1; _refresh_framework(db, framework)
@@ -631,7 +659,7 @@ def _m3_mutation(db, framework, *, actor, action, before, resources):
 def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_revision, name, description=None, framework_competency_id=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision); before = _m3_semantic_payload(db, framework.id)
+    _require_mutable_draft(db, framework, expected_revision); before = _m3_semantic_payload(db, framework.id)
     if framework_competency_id is not None:
         member = db.query(models.FrameworkCompetency).filter_by(
             id=int(framework_competency_id), framework_version_id=framework.id,
@@ -676,7 +704,7 @@ def copy_competency_rubric_levels(
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None:
         raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     source_id = int(source_framework_competency_id)
     target_id = int(target_framework_competency_id)
     if source_id == target_id:
@@ -734,7 +762,7 @@ def copy_competency_rubric_levels(
 def add_rubric_level(db, *, school_group_id, program_id, framework_id, expected_revision, code, label, description=None, numeric_value=None, display_order=None, framework_competency_id=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision); rubric = _rubric(db, framework.id, int(framework_competency_id) if framework_competency_id is not None else None)
+    _require_mutable_draft(db, framework, expected_revision); rubric = _rubric(db, framework.id, int(framework_competency_id) if framework_competency_id is not None else None)
     if rubric is None: raise TalentProgramError("rubric_required", "Create this Competency rubric before adding levels.")
     before = _m3_semantic_payload(db, framework.id); code = _clean(code, "code", required=True, maximum=80).upper()
     if db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id, code=code).first(): raise TalentProgramError("duplicate_level", "Rubric level code already exists in this Framework.")
@@ -752,7 +780,7 @@ def add_rubric_level(db, *, school_group_id, program_id, framework_id, expected_
 def update_rubric_level(db, *, school_group_id, program_id, framework_id, level_id, expected_revision, label=None, description=None, numeric_value="__unchanged__", actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     row = db.query(models.TalentRubricLevel).filter_by(id=level_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Rubric level was not found.")
     before = _m3_semantic_payload(db, framework.id)
@@ -769,7 +797,7 @@ def update_rubric_level(db, *, school_group_id, program_id, framework_id, level_
 def reorder_rubric_levels(db, *, school_group_id, program_id, framework_id, level_ids, expected_revision, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision); rubric = _rubric(db, framework.id); rows = db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id if rubric else -1).all()
+    _require_mutable_draft(db, framework, expected_revision); rubric = _rubric(db, framework.id); rows = db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id if rubric else -1).all()
     by_id = {row.id: row for row in rows}
     if len(level_ids) != len(set(level_ids)) or set(level_ids) != set(by_id): raise TalentProgramError("invalid_order", "Order must contain every rubric level exactly once.")
     before = _m3_semantic_payload(db, framework.id); offset = len(rows) + 1000000
@@ -786,7 +814,7 @@ def reorder_rubric_levels(db, *, school_group_id, program_id, framework_id, leve
 def remove_rubric_level(db, *, school_group_id, program_id, framework_id, level_id, expected_revision, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     row = db.query(models.TalentRubricLevel).filter_by(id=level_id, framework_version_id=framework.id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Rubric level was not found.")
     if (db.query(models.TalentCompetencyRubricDescriptor).filter_by(rubric_level_id=row.id).first()
@@ -801,7 +829,7 @@ def remove_rubric_level(db, *, school_group_id, program_id, framework_id, level_
 def upsert_descriptor(db, *, school_group_id, program_id, framework_id, framework_competency_id, rubric_level_id, expected_revision, descriptor, grade_level=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     member = db.query(models.FrameworkCompetency).filter_by(id=framework_competency_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
     level = db.query(models.TalentRubricLevel).filter_by(id=rubric_level_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
     rubric = None if level is None else db.query(models.TalentRubric).filter_by(
@@ -845,7 +873,7 @@ def upsert_descriptor(db, *, school_group_id, program_id, framework_id, framewor
 def remove_descriptor(db, *, school_group_id, program_id, framework_id, descriptor_id, expected_revision, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision); row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(id=descriptor_id, framework_version_id=framework.id).one_or_none()
+    _require_mutable_draft(db, framework, expected_revision); row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(id=descriptor_id, framework_version_id=framework.id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Rubric descriptor was not found.")
     before = _m3_semantic_payload(db, framework.id); removed_descriptor_id = row.id; db.delete(row); db.flush(); _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_remove", before=before, resources=[("rubric_descriptor", removed_descriptor_id)]); return framework
 
@@ -853,7 +881,7 @@ def remove_descriptor(db, *, school_group_id, program_id, framework_id, descript
 def remove_grade_descriptor(db, *, school_group_id, program_id, framework_id, descriptor_id, expected_revision, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     row = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(id=descriptor_id, framework_version_id=framework.id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Grade-specific rubric descriptor was not found.")
     before = _m3_semantic_payload(db, framework.id)

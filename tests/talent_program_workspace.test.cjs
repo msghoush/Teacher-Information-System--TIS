@@ -634,6 +634,8 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
   assert.match(root.innerHTML,/Beginning/);
   assert.match(root.innerHTML,/Reads with limited accuracy/);
   assert.match(root.innerHTML,/\+ Add Competency/);
+  assert.match(root.innerHTML,/Delete Competency/);
+  assert.match(root.innerHTML,/Delete Level/);
   assert.doesNotMatch(root.innerHTML,/<h3>Rubric Levels<\/h3>/);
 
   const old=global.FormData;
@@ -650,6 +652,64 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
   assert.equal(calls.filter(item=>!item.options&&item.path.endsWith('/frameworks')).length,broadBefore.versions,'rubric save does not refetch Framework list');
 });
 
+
+
+test('Rubric delete actions are hidden when manage permission exists without dedicated delete permissions',async()=>{
+  const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.can=key=>key==='talent_programs.view'||key==='talent_programs.manage';
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Reading Fluency',description:'Reads connected text'}]
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],
+      rubrics:[{
+        id:301,framework_competency_id:71,name:'Oral Reading',
+        levels:[{id:401,rubric_id:301,framework_competency_id:71,code:'L1',label:'Beginning',description:'Beginning',order:1}]
+      }],
+      descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Reading Fluency/);
+  assert.match(root.innerHTML,/Edit Rubric/);
+  assert.doesNotMatch(root.innerHTML,/Delete Competency/);
+  assert.doesNotMatch(root.innerHTML,/Delete Level/);
+});
+
+
+test('dedicated rubric delete permissions work without edit/manage permission',async()=>{
+  const {ctx,root}=fixture(false,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.can=key=>key==='talent_programs.view'||key==='talent_programs.delete_competency'||key==='talent_programs.delete_rubric_level';
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Reading Fluency',description:'Reads connected text'}]
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],
+      rubrics:[{
+        id:301,framework_competency_id:71,name:'Oral Reading',
+        levels:[{id:401,rubric_id:301,framework_competency_id:71,code:'L1',label:'Beginning',description:'Beginning',order:1}]
+      }],
+      descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Delete Competency/);
+  assert.match(root.innerHTML,/Delete Level/);
+  assert.doesNotMatch(root.innerHTML,/Edit Rubric/);
+  assert.doesNotMatch(root.innerHTML,/\+ Add Level/);
+});
 
 test('empty competency rubric offers explicit Copy Levels From another current competency',async()=>{
   const {ctx,root,calls}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});

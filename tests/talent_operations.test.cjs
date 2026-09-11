@@ -190,9 +190,7 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
   assert.match(root.innerHTML,/data-action="start"[^>]*data-student="101"[^>]*>Start Assessment/);
   assert.match(root.innerHTML,/assessment_id=501[^"]*">Continue Assessment/);
   assert.match(root.innerHTML,/assessment_id=502[^"]*">View Assessment/);
-  assert.match(root.innerHTML,/Assessment Records[\s\S]*<table class="tp-compact-table">/);
-  assert.doesNotMatch(root.innerHTML,/Saved assessments/);
-  assert.doesNotMatch(root.innerHTML,/Assessment Records[\s\S]*<article class="tp-card"><h3>Mid Way/);
+  assert.doesNotMatch(root.innerHTML,/Assessment Records|<p class="tp-eyebrow">History<\/p>/);
 });
 
 test('completed Student with a changed rubric is surfaced as Re-evaluation required',async()=>{
@@ -216,38 +214,6 @@ test('completed Student with a changed rubric is surfaced as Re-evaluation requi
   assert.match(root.innerHTML,/Re-evaluation required/);
   assert.match(root.innerHTML,/data-action="reassess-row"[^>]*data-id="502"/);
   assert.doesNotMatch(root.innerHTML,/data-action="start"[^>]*data-student="103"/);
-});
-
-test('ADR 0034: Assessment Records offers Delete only when the backend-computed actions array allows it',async()=>{
-  const root=domRoot();
-  const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
-  const members=[{id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
-  const rows=[{id:502,cycle_population_member_id:103,status:'completed',academic_year_id:'2026',program_id:'11',actions:['delete']}];
-  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
-    api:async path=>{
-      if(path.startsWith('/api/talent/assessments?'))return rows;
-      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
-      if(path.endsWith('/eligible-students'))return {members};
-      throw new Error(`Unexpected ${path}`);
-    }};
-  await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/data-action="delete-assessment"[^>]*data-id="502"/);
-});
-
-test('ADR 0034: Assessment Records omits Delete when the backend-computed actions array does not allow it',async()=>{
-  const root=domRoot();
-  const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
-  const members=[{id:102,student_name:'Mid Way',grade_level:'3',section_name:'A'}];
-  const rows=[{id:501,cycle_population_member_id:102,status:'in_progress',academic_year_id:'2026',program_id:'11',actions:[]}];
-  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
-    api:async path=>{
-      if(path.startsWith('/api/talent/assessments?'))return rows;
-      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
-      if(path.endsWith('/eligible-students'))return {members};
-      throw new Error(`Unexpected ${path}`);
-    }};
-  await withWindow(()=>render(ctx));
-  assert.doesNotMatch(root.innerHTML,/data-action="delete-assessment"/);
 });
 
 test('arriving on Student Assessments with one Evaluation context shows its enrolled Students directly',async()=>{
@@ -295,8 +261,7 @@ test('a Program with no Evaluation context shows an honest message with a link t
   await withWindow(()=>render(ctx));
   assert.match(root.innerHTML,/No Evaluation Period is available for this Program/);
   assert.match(root.innerHTML,/evaluation-plans\?[^"]*program_id=11/);
-  assert.match(root.innerHTML,/No Assessment Records in this context yet\./);
-  assert.doesNotMatch(root.innerHTML,/No assessments saved in this context yet\./);
+  assert.doesNotMatch(root.innerHTML,/Assessment Records|No assessments saved in this context yet\./);
   assert.doesNotMatch(root.innerHTML,/Students/);
 });
 
