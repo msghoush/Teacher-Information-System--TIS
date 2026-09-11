@@ -23,8 +23,8 @@ contract, and leave historical Assessments unchanged. The actual numeric KPI
 configuration remains separate and has a visible expand/collapse disclosure.
 
 Students cross-Branch browsing is controlled by
-`students.view_all_branches` plus organization/global scope. It is
-Administrator-default and not Editor/User-default. Learning Style aggregation
+`students.view_all_branches` plus organization/global scope. The managed-role policy keeps it
+Administrator-only. Learning Style aggregation
 remains ADR 0031 privacy-closed; missing privacy configuration may be explained
 to the user but never causes raw aggregate values to be rendered.
 
