@@ -65,7 +65,7 @@ Framework. The numeric KPI disclosure has an explicit expand/collapse affordance
 Students list management actions use compact icon-only controls with accessible
 labels. Cross-Branch Student browsing uses the dedicated
 `students.view_all_branches` permission and also requires organization/global
-scope; it is Administrator-default and not Editor/User-default. Other actors
+scope; the managed role policy keeps it Administrator-only. Other actors
 are fixed to their assigned authorized Branch and do not see **All branches**.
 Learning Style aggregates still fail closed under ADR 0031: unavailable privacy
 configuration renders an explanatory unavailable state with no statistics,
