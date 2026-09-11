@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-11T05:03:34.092383+03:00",
+  "generated_at": "2026-09-11T05:46:47.331320+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "529aeec",
+  "commit_sha": "1c9944b",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "07dd6a07cceddce76ff001c5d5acf4efa28c352026b667aef14068ab577dbe3f",
-  "pdf_size_bytes": 1688646,
+  "pdf_sha256": "40b468154137878c72a61dc19fd7b98f352f288ea92064a5055e014a92b68e3c",
+  "pdf_size_bytes": 1689015,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -39,9 +39,9 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-11T04:48:08.462610+03:00",
-      "size_bytes": 113028,
-      "sha256": "6cfd89245d29fa0366763679d111921d528d25c79a4290bcd62695f96702a9d8",
+      "modified_at": "2026-09-11T05:46:31.872458+03:00",
+      "size_bytes": 113230,
+      "sha256": "4d75f7aad31063f24159ad7375fb83ca21c1d5e108a018e78a83bc13272e8789",
       "pdf_page": 63
     },
     {
@@ -438,9 +438,9 @@
     },
     {
       "path": "docs/adr/0035-live-academic-placement-assessment-eligibility.md",
-      "modified_at": "2026-09-11T04:48:08.466610+03:00",
-      "size_bytes": 3849,
-      "sha256": "da4332899d2e29a310e6fc0cb8f6c9063bece3f5e293ebed240dd3ecb0cbe139",
+      "modified_at": "2026-09-11T05:46:31.872458+03:00",
+      "size_bytes": 4080,
+      "sha256": "eaf5de8582771c72c67ba4a5eab19f18e085e84d9956f5a4e687f09c74cb706c",
       "pdf_page": 424
     },
     {
