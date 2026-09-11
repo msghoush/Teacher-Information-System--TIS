@@ -223,10 +223,13 @@
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
-    const [allRows,cycles,programs,explicitEligible]=await Promise.all([
+    const [allRows,cycles,programs,plans,explicitEligible]=await Promise.all([
       api(`/api/talent/assessments?${query({})}`),
       api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`),
       can('talent_programs.view')?api('/api/talent/programs').catch(()=>[]):Promise.resolve([]),
+      can('talent_evaluation_plans.view')
+        ?api(`/api/talent/evaluation-plans?${query({program_id:pid,academic_year_id:year})}`).catch(()=>[])
+        :Promise.resolve([]),
       cycleId?api(`/api/talent/assessment-cycles/${cycleId}/eligible-students`).catch(()=>null):Promise.resolve(null),
     ]);
     const rows=allRows.filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
@@ -259,20 +262,64 @@
       return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${studentName}<small>${esc(m.branch_name||'')} · ${esc(m.section_name||'')}</small></span></span></th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${action}</td></tr>`;
     }).join(''):'';
 
-    const groups=new Map();
+    // Evaluation Period -> unique Programs. Planned Periods are the display
+    // authority; linked Cycles provide the assessable context when one exists.
+    // This prevents duplicate Program cards when multiple physical Cycles
+    // represent the same Program/Period and still shows configured Programs
+    // before their first Cycle has been materialized.
+    const cycleByPeriodProgram=new Map();
     cycles.forEach(context=>{
-      const label=context.evaluation_label || context.title || 'Evaluation';
-      const key=label.trim().toLowerCase();
-      if(!groups.has(key))groups.set(key,{label,sequence:context.evaluation_sequence,contexts:[]});
-      groups.get(key).contexts.push(context);
+      const key=context.evaluation_period_id==null?null:`${context.evaluation_period_id}::${context.program_id}`;
+      if(key&&!cycleByPeriodProgram.has(key))cycleByPeriodProgram.set(key,context);
     });
-    const evaluationGroups=[...groups.values()].sort((a,b)=>{
+    const displayContexts=[];
+    plans.forEach(plan=>{
+      (plan.periods||[]).forEach(period=>{
+        if(period.status==='cancelled')return;
+        const linked=cycleByPeriodProgram.get(`${period.id}::${plan.program_id}`) || null;
+        displayContexts.push({
+          ...(linked||{}),
+          id:linked?.id||null,
+          program_id:plan.program_id,
+          academic_year_id:plan.academic_year_id,
+          evaluation_period_id:period.id,
+          evaluation_label:period.label,
+          evaluation_sequence:period.sequence,
+          plan_id:plan.id,
+          plan_revision:plan.revision,
+          plan_status:plan.status,
+        });
+      });
+    });
+    const plannedKeys=new Set(displayContexts.map(context=>context.evaluation_period_id==null?null:`${context.evaluation_period_id}::${context.program_id}`).filter(Boolean));
+    cycles.forEach(context=>{
+      const key=context.evaluation_period_id==null?null:`${context.evaluation_period_id}::${context.program_id}`;
+      if(!key||!plannedKeys.has(key))displayContexts.push(context);
+    });
+
+    const groups=new Map();
+    displayContexts.forEach(context=>{
+      const label=context.evaluation_label || context.title || 'Evaluation';
+      const periodKey=context.evaluation_period_id!=null?`period:${context.evaluation_period_id}`:`label:${label.trim().toLowerCase()}`;
+      if(!groups.has(periodKey))groups.set(periodKey,{label,sequence:context.evaluation_sequence,programs:new Map()});
+      const group=groups.get(periodKey);
+      const programKey=String(context.program_id);
+      if(!group.programs.has(programKey) || (!group.programs.get(programKey).id && context.id)){
+        group.programs.set(programKey,context);
+      }
+    });
+    const evaluationGroups=[...groups.values()].map(group=>({
+      ...group,
+      contexts:[...group.programs.values()],
+    })).sort((a,b)=>{
       const as=Number.isFinite(Number(a.sequence))?Number(a.sequence):9999;
       const bs=Number.isFinite(Number(b.sequence))?Number(b.sequence):9999;
       return as-bs || a.label.localeCompare(b.label);
     });
     const cardsHtml=evaluationGroups.length
-      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>`<section class="tp-evaluation-group"><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Evaluation Period</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));return `<a class="tp-evaluation-program-card" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${esc(p?.name || `Program ${context.program_id}`)}</strong><small>View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`;}).join('')}</div></section>`).join('')}</div>`
+      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>`<section class="tp-evaluation-group"><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Evaluation Period</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));const title=esc(p?.name || `Program ${context.program_id}`);return context.id
+        ?`<a class="tp-evaluation-program-card" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`
+        :`<a class="tp-evaluation-program-card" href="${esc(url('evaluation-plans',{program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · open the plan to start Student Assessments</small></span><span aria-hidden="true">→</span></a>`;}).join('')}</div></section>`).join('')}</div>`
       :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
 
     const selectedHeading=cycle?`<div class="tp-selected-evaluation"><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Selected Evaluation</p><h3>${esc(cycle.evaluation_label||cycle.title)}</h3><p>${esc(programById.get(String(cycle.program_id))?.name||'Program')}</p></div></div>`:'';
