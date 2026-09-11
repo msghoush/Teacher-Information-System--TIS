@@ -58,7 +58,12 @@
       if(busy)return;busy=true;
       const controls=[...root.querySelectorAll('button,input,textarea,select')].map(el=>[el,el.disabled]);controls.forEach(([el])=>el.disabled=true);
       try {await work();}
-      catch(error){stale=stale||error.status===409;feedback(el,`${error.message}${stale?' Your entries are still here. Reload the saved version before making further changes.':''}`,true);}
+      catch(error){
+        stale=stale||error.status===409;
+        feedback(el,`${error.message}${stale?' Your entries are still here. Reload the saved version before making further changes.':''}`,true);
+        const message=root.querySelector('#op-message');
+        if(message){message.setAttribute('role','alert');message.classList.add('tp-error');message.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
+      }
       finally{busy=false;controls.filter(([el])=>el.isConnected).forEach(([el,disabled])=>el.disabled=disabled);}
     }
     const bindForm=(name,work)=>{
@@ -326,11 +331,36 @@
     const cardsHtml=evaluationGroups.length
       ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>{const selected=Boolean(selectedLabel&&group.label.trim().toLowerCase()===selectedLabel);return `<section class="tp-evaluation-group${selected?' is-selected':''}" ${selected?'aria-current="true"':''}><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">${selected?'Selected Evaluation Period':'Evaluation Period'}</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}${selected?' · active':''}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));const title=esc(p?.name || `Program ${context.program_id}`);return context.id
         ?`<a class="tp-evaluation-program-card${String(context.id)===String(cycle?.id)?' is-selected':''}" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>${String(context.id)===String(cycle?.id)?'Selected Program · ':''}View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`
-        :`<a class="tp-evaluation-program-card" href="${esc(url('evaluation-plans',{program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · open the plan to start Student Assessments</small></span><span aria-hidden="true">→</span></a>`;}).join('')}</div></section>`;}).join('')}</div>`
+        :can('talent_assessment_cycles.manage')&&can('talent_evaluation_plans.manage')&&can('talent_evaluation_plans.select_period')
+          ?`<button type="button" class="tp-evaluation-program-card" data-action="select-planned-evaluation" data-program="${context.program_id}" data-period="${context.evaluation_period_id}" data-plan-revision="${context.plan_revision}" data-label="${esc(context.evaluation_label||group.label)}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Select this Program for ${esc(group.label)} and view eligible Students</small></span><span aria-hidden="true">→</span></button>`
+          :`<span class="tp-evaluation-program-card is-disabled" aria-disabled="true"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · ask an organization-authorized manager to open Student Assessments</small></span><span aria-hidden="true">—</span></span>`;}).join('')}</div></section>`;}).join('')}</div>`
       :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
 
     const selectedHeading=cycle?`<div class="tp-selected-evaluation"><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Selected Evaluation</p><h3>${esc(cycle.evaluation_label||cycle.title)}</h3><p>${esc(programById.get(String(cycle.program_id))?.name||'Program')}</p></div></div>`:'';
     mount(`${cardsHtml}${selectedHeading}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+
+    on('select-planned-evaluation',async el=>{
+      const programId=Number(el.dataset.program), periodId=Number(el.dataset.period);
+      const planRevision=Number(el.dataset.planRevision);
+      if(!programId||!periodId||!Number.isFinite(planRevision))throw new Error('This Evaluation Period context is incomplete. Refresh and try again.');
+      const frameworks=await api(`/api/talent/programs/${programId}/frameworks`);
+      const assessmentFramework=frameworks.find(item=>item.status==='active')
+        || [...frameworks].reverse().find(item=>item.status!=='retired');
+      if(!assessmentFramework)throw new Error('Finish the Program assessment criteria before starting Student Assessments.');
+      const created=await api('/api/talent/assessment-cycles',{method:'POST',body:{
+        program_id:programId,
+        academic_year_id:Number(year),
+        framework_version_id:assessmentFramework.id,
+        title:el.dataset.label||'Evaluation',
+        population_effective_at:new Date().toISOString(),
+      }});
+      await api(`/api/talent/assessment-cycles/${created.id}/link-period`,{method:'POST',body:{
+        planned_period_id:periodId,
+        expected_plan_revision:planRevision,
+        expected_cycle_revision:created.revision,
+      }});
+      navigate('assessments',{cycle_id:created.id,program_id:programId,academic_year_id:Number(year)});
+    });
 
     // ADR 0035: Start Assessment uses the Student's current Academic Placement
     // as eligibility authority. The backend captures the historical Placement

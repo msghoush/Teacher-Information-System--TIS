@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 3.9
+documentation_version: 4.0
 last_updated: 2026-09-11
 source_of_truth: true
 ---
@@ -14,6 +14,15 @@ source_of_truth: true
 - `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence.
 - `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views.
 - `routers/students_ui.py` and `templates/students.html`: present the existing Learning Style distribution through Planning-derived Branch/Grade/Section choices; the API and privacy provider remain unchanged.
+
+## Owner Video Acceptance Correction Ownership
+
+- `static/js/talent-operations.js`: selects configured Programs directly inside Evaluation Periods, materializes/links an internal Cycle when absent, keeps Evaluation/Program context through Start Assessment, and surfaces action failures visibly.
+- `talent_student_assessment_service.py` + `routers/talent_assessments.py`: normal Assessment start remains the authority for newest complete Grade-applicable competency-owned criteria and current Assessment creation; the returned Assessment carries exact Framework provenance.
+- `static/js/talent-program-workspace.js`: immutable Delete Competency becomes clone-new-Draft-then-delete, preserving assessed history; KPI disclosure owns explicit collapse affordance.
+- `permission_registry.py`: adds `students.view_all_branches` and constrains it to the Administrator managed role.
+- `routers/students_ui.py`: enforces Students list Branch selection against `students.view_all_branches` plus organization/global scope and projects explicit Learning Style analytics-unavailable state without weakening privacy.
+- `templates/students.html` + `static/css/students.css`: accessible icon-only Student management actions, fixed Branch context for actors without cross-Branch authority, and fail-closed Learning Style availability messaging.
 
 ## Talent Recovery, Review Filters, And Navigation Ownership
 

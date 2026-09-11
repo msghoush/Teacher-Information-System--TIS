@@ -1,6 +1,6 @@
 ---
 title: Student Learning Style V1
-documentation_version: 1.0
+documentation_version: 1.1
 last_updated: 2026-09-10
 status: accepted
 module: architecture
@@ -74,6 +74,23 @@ behavior) - reusing existing enforcement infrastructure rather than a
 separate, weaker rule invented for this field. A protected cohort's visual
 treatment must not encode hidden magnitude through bar length, color
 intensity, percentage, tooltip, or ordering.
+
+### Student list branch scope and unavailable analytics presentation
+
+Cross-Branch Student browsing is explicitly permissioned. The dedicated
+`students.view_all_branches` permission is Administrator-only in the managed
+role policy and is effective only with organization/global access scope. Without both conditions,
+the Students list is fixed to the actor's assigned authorized Branch and does
+not offer an **All branches** choice.
+
+The aggregate privacy contract remains fail closed. If the governed privacy
+provider is unavailable or invalid, the Students page may explain that
+Learning Style statistics are unavailable, but it must render **no aggregate
+counts, percentages, category bars, or inferred magnitude**. A configured
+policy that suppresses the selected cohort continues to show the existing
+privacy-protected state instead of raw statistics. Individual Student Learning
+Style values remain governed by normal Student-record permissions and are not
+a substitute for aggregate analytics.
 
 ### Governance boundary
 

@@ -376,7 +376,8 @@
 .tp-evaluation-group>header small{color:var(--app-muted)}
 .tp-evaluation-icon,.tp-program-icon{display:grid;place-items:center;width:40px;height:40px;min-width:40px;border-radius:12px;background:var(--app-surface-strong);border:1px solid var(--app-line);font-size:18px}
 .tp-evaluation-programs{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;padding:14px}
-.tp-evaluation-program-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface-muted);color:inherit;text-decoration:none;transition:transform 160ms ease,border-color 160ms ease,box-shadow 160ms ease}
+.tp-evaluation-program-card{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;width:100%;padding:12px 14px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface-muted);color:inherit;text-decoration:none;text-align:left;font:inherit;cursor:pointer;transition:transform 160ms ease,border-color 160ms ease,box-shadow 160ms ease}
+.tp-evaluation-program-card.is-disabled{cursor:not-allowed;opacity:.72}
 .tp-evaluation-program-card:hover,.tp-evaluation-program-card:focus-visible{transform:translateY(-1px);border-color:var(--app-line-strong);box-shadow:var(--app-shadow-sm)}
 .tp-evaluation-program-card strong{display:block;color:var(--app-brand-deep)}
 .tp-evaluation-program-card small{display:block;color:var(--app-muted);margin-top:2px}

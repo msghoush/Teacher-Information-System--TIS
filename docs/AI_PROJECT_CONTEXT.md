@@ -1,11 +1,32 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.8
+documentation_version: 3.9
 last_updated: 2026-09-09
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Owner Video Acceptance Correction
+
+Student Assessments now treats the configured Program card inside each
+Evaluation Period as the direct operational selector. If its internal Cycle
+does not exist yet, authorized UI orchestration creates and links it through
+the existing Cycle/Period contracts and remains in Student Assessments. Start
+Assessment opens the returned Assessment and that Assessment resolves its exact
+persisted Program/Framework/Grade criteria; no client-side rubric substitution
+or cross-Program inference is permitted. Action errors are surfaced visibly.
+
+An immutable Framework may expose Delete Competency only as a versioned future
+change: clone a new Draft, remove there under the dedicated permission/revision
+contract, and leave historical Assessments unchanged. The actual numeric KPI
+configuration remains separate and has a visible expand/collapse disclosure.
+
+Students cross-Branch browsing is controlled by
+`students.view_all_branches` plus organization/global scope. The managed-role policy keeps it
+Administrator-only. Learning Style aggregation
+remains ADR 0031 privacy-closed; missing privacy configuration may be explained
+to the user but never causes raw aggregate values to be rendered.
 
 ## Talent Operational Recovery And UX Correction
 

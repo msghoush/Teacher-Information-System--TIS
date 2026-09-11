@@ -721,6 +721,36 @@ test('Rubric delete actions are hidden when manage permission exists without ded
 });
 
 
+test('immutable assessment setup offers safe versioned Delete Competency and visible KPI collapse affordance',async()=>{
+  const {ctx,root,calls}=fixture(true,'active',{hash:'#tp-rubric',complete:true});
+  ctx.can=key=>[
+    'talent_programs.view','talent_programs.manage','talent_programs.delete_competency'
+  ].includes(key);
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    calls.push({path,options});
+    if(options&&path==='/api/talent/programs/11/frameworks'&&options.method==='POST')return {id:32,revision:1};
+    if(options&&path==='/api/talent/programs/11/frameworks/32/competencies/61?expected_revision=1'&&options.method==='DELETE')return {};
+    if(!options&&path.endsWith('/configuration'))return {
+      levels:[],descriptors:[],
+      rubrics:[{id:301,framework_competency_id:71,name:'Expression criteria',levels:[{id:401,label:'Secure',description:'Secure',display_order:1}]}],
+      kpi:{enabled:true,scale_min:0,scale_max:100,components:[]},
+      review_candidate_policy:null,revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/data-action="remove-member-versioned"[^>]*data-key="61"/);
+  assert.match(root.innerHTML,/class="tp-kpi-disclosure"/);
+  await root.onclick({target:{closest:selector=>selector==='[data-action]'?{dataset:{action:'remove-member-versioned',key:'61'}}:null}});
+  const created=calls.find(call=>call.path==='/api/talent/programs/11/frameworks'&&call.options?.method==='POST');
+  assert.ok(created);
+  const payload=JSON.parse(created.options.body);
+  assert.equal(payload.clone_from_id,31);
+  assert.equal(payload.supersedes_framework_version_id,31);
+  assert.ok(calls.some(call=>call.path==='/api/talent/programs/11/frameworks/32/competencies/61?expected_revision=1'&&call.options?.method==='DELETE'));
+});
+
 test('dedicated rubric delete permissions work without edit/manage permission',async()=>{
   const {ctx,root}=fixture(false,'draft',{hash:'#tp-rubric',complete:true});
   const read=ctx.api;

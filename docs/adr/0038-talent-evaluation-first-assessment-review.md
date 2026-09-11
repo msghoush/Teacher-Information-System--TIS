@@ -1,6 +1,6 @@
 ---
 title: Talent Evaluation-First Assessment and Review Workspace
-documentation_version: 1.1
+documentation_version: 1.2
 last_updated: 2026-09-11
 status: accepted
 module: architecture
@@ -53,7 +53,7 @@ Users may configure labels such as:
 
 The operational Student Assessment hierarchy is **Evaluation Period -> unique Programs -> Students**. The display grouping key is the normalized user-facing Evaluation label, not a physical Cycle id or a Program-specific Planned Period id. Configured sequence orders the resulting label groups when available. Therefore a repeated label (for example `Term 1`) across Mental Math and Qaida Nourania renders as one `Term 1` section containing each Program once, even when legacy Cycle metadata lacks matching sequence values.
 
-Multiple physical Cycles for the same Program/Period must never duplicate that Program card. Evaluation Plans are also a display source: a configured Program/Period remains visible before its first internal Cycle has been materialized; opening it directs the user through the existing Evaluation Plan/start-assessment workflow. Cycle remains internal provenance/execution context, not a second user-facing Program occurrence.
+Multiple physical Cycles for the same Program/Period must never duplicate that Program card. Evaluation Plans are also a display source: a configured Program/Period remains visible before its first internal Cycle has been materialized. An authorized user selects that Program **directly inside Student Assessments**; the UI materializes and links the internal Cycle through the existing permission-, revision-, and tenant-scoped Cycle/Period APIs, then remains in Student Assessments and opens the eligible Student roster. It must not bounce the user to a separate Evaluation Plan page merely because the internal Cycle does not yet exist. Cycle remains internal provenance/execution context, not a second user-facing Program occurrence.
 
 ## Student Assessment information architecture
 

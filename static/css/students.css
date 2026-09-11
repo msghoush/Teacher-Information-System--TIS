@@ -35,6 +35,9 @@
 .stu-btn svg { width: 16px; height: 16px; min-width: 16px; min-height: 16px; }
 .stu-action-btn { gap: 6px; }
 .stu-action-btn svg { width: 13px; height: 13px; min-width: 13px; min-height: 13px; }
+.stu-icon-btn { width: 40px; min-width: 40px; padding: 0; justify-content: center; gap: 0; }
+.stu-btn-sm.stu-icon-btn { width: 36px; min-width: 36px; padding: 0; }
+
 .stu-count { color: var(--app-muted, #5d6b82); font-size: 13px; }
 
 .stu-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

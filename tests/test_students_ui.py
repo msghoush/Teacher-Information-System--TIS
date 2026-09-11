@@ -34,13 +34,18 @@ def client(db):
 
 def test_student_delete_permissions_are_registered_and_configurable():
     import permission_registry as pr
-    for key in ("students.delete", "students.bulk_delete", "students.force_delete_history"):
+    for key in ("students.delete", "students.bulk_delete", "students.force_delete_history", "students.view_all_branches"):
         assert key in pr.ALL_PERMISSION_KEYS
         assert key in pr.PERMISSION_LABELS
         assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
         assert key in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
     assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
     assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
+    assert "students.view_all_branches" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
+    assert "students.view_all_branches" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
+    assert "students.view_all_branches" not in pr.constrain_role_permissions(
+        pr.auth.ROLE_EDITOR, {"students.view_all_branches"}
+    )
 
 
 def test_list_requires_students_view(db, client):
@@ -75,6 +80,52 @@ def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permission
     assert 'data-student-bulk-delete-form' in response.text
     assert '/students/1001/delete' in response.text
     assert 'data-student-select' in response.text
+
+
+def test_student_list_uses_accessible_icon_only_management_actions(db, client):
+    permissions(db, "students.view", "students.create", "students.delete", "students.bulk_delete")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    text = response.text
+    assert 'aria-label="Add Student"' in text
+    assert 'data-student-bulk-delete' in text and 'aria-label="Delete selected"' in text
+    assert 'class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn"' in text
+    assert 'aria-label="Open Alya Learner"' in text
+    assert 'aria-label="Delete Alya Learner"' in text
+
+
+def test_only_organization_admin_permission_exposes_student_branch_switcher(db):
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
+    allowed = TestClient(app)
+
+    response = allowed.get("/students/")
+    assert response.status_code == 200
+    assert '<select name="branch_id"' in response.text
+    assert 'All branches' in response.text
+
+
+def test_branch_scoped_student_view_cannot_switch_or_request_all_branches(db):
+    permissions(db, "students.view")
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor(scope="BRANCH", branch=10)
+    scoped = TestClient(app)
+
+    response = scoped.get("/students/?branch_id=11")
+    assert response.status_code == 200
+    assert '<select name="branch_id"' not in response.text
+    assert 'All branches' not in response.text
+    assert 'aria-label="Branch scope"' in response.text
+    assert 'North' in response.text
+    assert 'name="branch_id" value="10"' in response.text
 
 
 def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, client):
@@ -245,6 +296,11 @@ def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
 
 
 def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mobile(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     permissions(db, "students.view", "students.edit")
     saved = db.get(models.Student, 1001)
     saved.learning_style = "Read/Write"
@@ -364,6 +420,11 @@ def test_placement_open_cycle_preview_and_synced_success_feedback(db, client, mo
 
 
 def test_active_status_is_deemphasized_but_inactive_stays_a_visible_exception(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     """Active is the normal, expected state for an attending Student (lifecycle
     status, not Talent status). It must not be badged like an exception on every
     row. Inactive - a real exception - keeps its visible chip. Status stays
@@ -475,6 +536,11 @@ def test_placement_cascade_loads_grades_from_the_same_planning_endpoint():
 
 
 def test_list_filters_branch_grade_section_use_real_current_placement_query(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     permissions(db, "students.view")
     db.add(models.StudentAcademicPlacement(
         id=501, school_group_id=1, student_id=1002, academic_year_id=100,
@@ -506,6 +572,11 @@ def test_list_filters_branch_grade_section_use_real_current_placement_query(db, 
 
 
 def test_learning_style_filter_cascade_uses_planning_branch_grade_section(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     permissions(db, "students.view")
     db.add_all([
         models.PlanningSection(id=9101, grade_level="4", section_name="North A", class_status="Current", branch_id=10, academic_year_id=100),

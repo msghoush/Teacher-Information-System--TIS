@@ -430,6 +430,26 @@ def test_html_students_page_renders_the_distribution_panel_when_policy_is_availa
     assert "not a talent score" in response.text.lower()
 
 
+def test_html_students_page_explains_when_privacy_policy_is_unavailable(db, monkeypatch):
+    from fastapi.staticfiles import StaticFiles
+    from routers import students_ui
+
+    permissions(db, "students.view")
+    monkeypatch.setattr("routers.students_ui.resolve_privacy_policy_provider", lambda: None)
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor()
+    with TestClient(app) as client:
+        response = client.get("/students/")
+    assert response.status_code == 200
+    assert "Learning Style distribution" in response.text
+    assert "Learning Style statistics unavailable" in response.text
+    assert "governed analytics privacy configuration is not available" in response.text
+    assert 'class="stu-ls-chart"' not in response.text
+
+
 def test_html_students_page_shows_one_panel_level_protected_message_when_every_category_is_suppressed(db, monkeypatch):
     """When the whole cohort is small enough that every Learning Style
     category is individually suppressed, the page must show ONE clear

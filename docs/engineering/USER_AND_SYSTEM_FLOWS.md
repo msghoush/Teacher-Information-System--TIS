@@ -1,11 +1,28 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.6
+documentation_version: 3.7
 last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Owner Video Acceptance Flow Corrections
+
+1. Student Assessments groups configured Programs beneath each user-defined Evaluation Period whether or not an internal Cycle already exists.
+2. Selecting a Program with no Cycle does not redirect to Evaluation Plan. With the existing Cycle-manage + Plan-manage + Period-select permissions, the browser creates the internal Cycle, links it to that Planned Period using revision guards, then re-enters Student Assessments with that Period/Program selected.
+3. The Student roster is then the operational surface. **Start Assessment** posts the selected Evaluation context and Student, receives the new current Assessment, and opens that Assessment immediately.
+4. The opened Assessment resolves its own persisted `program_id` and `framework_version_id`, then renders the exact Grade-applicable Framework Competencies, competency-owned assessment criteria/Levels/descriptions, and any saved results. The browser does not substitute another Program's rubric.
+5. Any create/start failure is surfaced in the visible operational alert region; a failed click must not look like a no-op.
+6. Delete Competency against an immutable/assessed Framework is a versioned future-change flow only: clone the current Framework, delete from the new Draft using the dedicated permission/revision guard, and preserve old Assessment evidence unchanged.
+7. KPI numeric configuration remains separate from assessment criteria and has an explicit disclosure/collapse control.
+
+## Students Branch And Learning Style Presentation Flow
+
+1. Add Student, Delete selected, per-row Open, and per-row Delete are compact icon-only controls with accessible names/tooltips.
+2. Cross-Branch Students browsing requires `students.view_all_branches` **and** organization/global access scope. The managed-role policy keeps this permission Administrator-only.
+3. Without that authority the list is fixed to the actor's assigned authorized Branch, the Branch selector is replaced by a read-only Branch context, and **All branches** is not offered.
+4. Learning Style distribution continues to use the ADR 0031 privacy provider. If that provider is unavailable, the page explains that aggregate statistics are unavailable and emits no chart/count/percentage. If the selected cohort is suppressed, the privacy-protected state remains the only aggregate presentation.
 
 ## Talent Selected Evaluation And Recovery Flow
 

@@ -1,6 +1,6 @@
 ---
 title: TIS Master Context
-documentation_version: 3.8
+documentation_version: 3.9
 last_updated: 2026-09-09
 source_of_truth: true
 ---
@@ -42,6 +42,34 @@ Assessments/Talent Review/Results & Analytics. Results & Analytics retains its
 own bounded sub-navigation inside that family. Program assessment authoring
 shows one selected eligible Grade at a time (defaulting to the first configured
 Grade) instead of repeating the same Grade in every Competency row.
+
+## Video Acceptance Corrections — Student Assessments And Students
+
+Owner video acceptance on 2026-09-11 confirms that a configured Program shown
+under an Evaluation Period is itself the selectable operational entry point.
+If the Period does not yet have its internal Cycle, an authorized selection
+creates and links that Cycle through the existing M8/M4 APIs and remains in
+Student Assessments. The user is never redirected to Evaluation Plan merely
+because that internal row is absent. **Start Assessment** must create/open the
+Student's current Assessment and render the exact saved Program Framework for
+the Student's Grade: Competencies -> competency-owned assessment criteria ->
+ordered Levels/descriptions. Any start failure must surface visibly as an
+actionable error rather than appearing to do nothing.
+
+For immutable/assessed Program setup, Delete Competency never mutates historical
+Framework evidence. When the actor has the dedicated delete/manage permissions,
+the UI may offer Delete Competency by cloning a new editable Framework Version
+and deleting the Competency there; completed evidence remains bound to the old
+Framework. The numeric KPI disclosure has an explicit expand/collapse affordance.
+
+Students list management actions use compact icon-only controls with accessible
+labels. Cross-Branch Student browsing uses the dedicated
+`students.view_all_branches` permission and also requires organization/global
+scope; the managed role policy keeps it Administrator-only. Other actors
+are fixed to their assigned authorized Branch and do not see **All branches**.
+Learning Style aggregates still fail closed under ADR 0031: unavailable privacy
+configuration renders an explanatory unavailable state with no statistics,
+while suppressed cohorts remain privacy-protected.
 
 ## Talent Assessment Recovery And Review UX Authority
 

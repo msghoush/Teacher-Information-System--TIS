@@ -15,10 +15,10 @@
     <div class="stu-actions">
       {% if can_bulk_delete %}
       <form id="student-bulk-delete" method="post" action="/students/bulk-delete" data-student-bulk-delete-form>
-        <button class="stu-btn" type="submit" data-student-bulk-delete disabled>{{ icon('trash', 'shell-icon') }}Delete selected</button>
+        <button class="stu-btn stu-icon-btn" type="submit" data-student-bulk-delete disabled aria-label="Delete selected" title="Delete selected">{{ icon('trash', 'shell-icon') }}<span class="stu-visually-hidden" data-bulk-delete-label>Delete selected</span></button>
       </form>
       {% endif %}
-      {% if can_create %}<a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>{% endif %}
+      {% if can_create %}<a class="stu-btn stu-btn-primary stu-icon-btn" href="/students/new" aria-label="Add Student" title="Add Student">{{ icon('user-plus', 'shell-icon') }}<span class="stu-visually-hidden">Add Student</span></a>{% endif %}
     </div>
     {% endif %}
   </header>
@@ -34,10 +34,15 @@
     <form class="stu-search" method="get" action="/students/" data-ls-filter-cascade>
       <input type="search" name="search" value="{{ search }}" placeholder="Search by name" aria-label="Search students">
       <span class="stu-filter-context" aria-label="Organization scope">Organization</span>
+      {% if can_switch_branches %}
       <select name="branch_id" aria-label="Branch filter">
         <option value="">All branches</option>
         {% for b in branches %}<option value="{{ b.id }}" {% if selected_branch_id == b.id %}selected{% endif %}>{{ b.name }}</option>{% endfor %}
       </select>
+      {% else %}
+      <span class="stu-filter-context" aria-label="Branch scope">{{ selected_branch_name or 'Assigned branch' }}</span>
+      {% if selected_branch_id %}<input type="hidden" name="branch_id" value="{{ selected_branch_id }}">{% endif %}
+      {% endif %}
       <select name="grade" aria-label="Grade filter">
         <option value="">All configured grades</option>
         {% for g in grade_levels %}<option value="{{ g }}" {% if selected_grade == g %}selected{% endif %}>Grade {{ g }}</option>{% endfor %}
@@ -62,7 +67,12 @@
     <h2>Learning Style distribution</h2>
     <p class="stu-lede">{{ icon('insights', 'shell-icon') }}Learner context only - not a Talent score and never part of rubric results, Program Criteria, Review, or Official Identification. Reflects the Branch/Grade/Section filters above.</p>
     {% set ls_accent_map = {'Visual':'var(--app-brand)','Auditory':'var(--app-accent)','Read/Write':'var(--app-success)','Kinesthetic':'var(--app-warning)'} %}
-    {% if learning_style_distribution.state == 'restricted' %}
+    {% if learning_style_distribution.state == 'unavailable' %}
+    <div class="stu-protected stu-protected-panel" role="status">
+      {{ icon('shield', 'shell-icon') }}
+      <div><strong>Learning Style statistics unavailable</strong><p>The governed analytics privacy configuration is not available yet. Individual Learning Style values remain visible where authorized, but aggregate statistics stay hidden.</p></div>
+    </div>
+    {% elif learning_style_distribution.state == 'restricted' %}
     <p class="stu-protected">Protected for privacy; this distribution is not shown for the current selection.</p>
     {% elif learning_style_distribution.levels %}
     {% set visible_level_count = learning_style_distribution.levels | selectattr('state', 'equalto', 'visible') | list | length %}
@@ -98,7 +108,7 @@
     {{ icon('users', 'shell-icon') }}
     <h3>{{ 'No students match your filters' if search or status or selected_branch_id or selected_grade or selected_section else 'No students yet' }}</h3>
     <p>{{ 'Try different filters or clear them.' if search or status or selected_branch_id or selected_grade or selected_section else 'Add your first student to begin building their record.' }}</p>
-    {% if can_create and not search and not status and not selected_branch_id and not selected_grade and not selected_section %}<a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>{% endif %}
+    {% if can_create and not search and not status and not selected_branch_id and not selected_grade and not selected_section %}<a class="stu-btn stu-btn-primary stu-icon-btn" href="/students/new" aria-label="Add Student" title="Add Student">{{ icon('user-plus', 'shell-icon') }}<span class="stu-visually-hidden">Add Student</span></a>{% endif %}
   </div>
   {% else %}
 
@@ -135,11 +145,11 @@
           <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
           <td>
             <div class="stu-actions">
-              <a class="stu-btn stu-btn-sm stu-action-btn" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
+              <a class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn" href="/students/{{ s.id }}" aria-label="Open {{ s.display_name }}" title="Open">{{ icon('open', 'shell-icon') }}<span class="stu-visually-hidden">Open {{ s.display_name }}</span></a>
               {% if can_delete %}
               <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-id="{{ s.id }}" data-student-name="{{ s.display_name }}">
                 <input type="hidden" name="force_history" value="" data-force-history>
-                <button class="stu-btn stu-btn-sm stu-action-btn" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
+                <button class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn" type="submit" aria-label="Delete {{ s.display_name }}" title="Delete">{{ icon('trash', 'shell-icon') }}<span class="stu-visually-hidden">Delete {{ s.display_name }}</span></button>
               </form>
               {% endif %}
             </div>
@@ -175,11 +185,11 @@
         {% endif %}
       </div>
       <div class="stu-actions">
-        <a class="stu-btn stu-btn-sm stu-action-btn" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
+        <a class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn" href="/students/{{ s.id }}" aria-label="Open {{ s.display_name }}" title="Open">{{ icon('open', 'shell-icon') }}<span class="stu-visually-hidden">Open {{ s.display_name }}</span></a>
         {% if can_delete %}
         <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-id="{{ s.id }}" data-student-name="{{ s.display_name }}">
           <input type="hidden" name="force_history" value="" data-force-history>
-          <button class="stu-btn stu-btn-sm stu-action-btn" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
+          <button class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn" type="submit" aria-label="Delete {{ s.display_name }}" title="Delete">{{ icon('trash', 'shell-icon') }}<span class="stu-visually-hidden">Delete {{ s.display_name }}</span></button>
         </form>
         {% endif %}
       </div>
@@ -200,7 +210,11 @@
     const selected = selections.filter(input => input.checked).length;
     if (bulkButton) {
       bulkButton.disabled = selected === 0;
-      bulkButton.textContent = selected ? `Delete selected (${selected})` : 'Delete selected';
+      const label = selected ? `Delete selected (${selected})` : 'Delete selected';
+      bulkButton.setAttribute('aria-label', label);
+      bulkButton.setAttribute('title', label);
+      const hiddenLabel = bulkButton.querySelector('[data-bulk-delete-label]');
+      if (hiddenLabel) hiddenLabel.textContent = label;
     }
     if (selectAll) {
       selectAll.checked = selections.length > 0 && selections.every(input => input.checked);
