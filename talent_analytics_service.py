@@ -435,13 +435,25 @@ def raw_candidate_by_dimension(db: Session, pop_query, dimension_type: str, *, h
         return None
     dim_col = _dimension_column(dimension_type)
     base = pop_query.with_entities(
-        models.TalentAssessmentCyclePopulationMember.id.label("member_id"),
+        models.TalentAssessmentCyclePopulationMember.cycle_id.label("cycle_id"),
+        models.TalentAssessmentCyclePopulationMember.student_id.label("student_id"),
         dim_col.label("dim_key"),
     ).subquery()
-    rows = db.query(base.c.dim_key, func.count(models.TalentReviewCandidate.id)).select_from(base).join(
-        models.TalentStudentAssessment, models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+    rows = db.query(
+        base.c.dim_key, func.count(models.TalentReviewCandidate.id)
+    ).select_from(base).join(
+        models.TalentStudentAssessment,
+        and_(
+            models.TalentStudentAssessment.student_id == base.c.student_id,
+            func.coalesce(
+                models.TalentStudentAssessment.evaluation_context_cycle_id,
+                models.TalentStudentAssessment.cycle_id,
+            ) == base.c.cycle_id,
+            models.TalentStudentAssessment.is_current.is_(True),
+        ),
     ).join(
-        models.TalentReviewCandidate, models.TalentReviewCandidate.assessment_id == models.TalentStudentAssessment.id,
+        models.TalentReviewCandidate,
+        models.TalentReviewCandidate.assessment_id == models.TalentStudentAssessment.id,
     ).group_by(base.c.dim_key).all()
     return {dim_key: int(count) for dim_key, count in rows}
 
@@ -471,17 +483,30 @@ def raw_identification_by_dimension(db: Session, pop_query, dimension_type: str,
         return None
     dim_col = _dimension_column(dimension_type)
     base = pop_query.with_entities(
-        models.TalentAssessmentCyclePopulationMember.id.label("member_id"),
+        models.TalentAssessmentCyclePopulationMember.cycle_id.label("cycle_id"),
+        models.TalentAssessmentCyclePopulationMember.student_id.label("student_id"),
         dim_col.label("dim_key"),
     ).subquery()
     rows = db.query(
-        base.c.dim_key, models.TalentOfficialIdentification.decision, func.count(models.TalentOfficialIdentification.id),
+        base.c.dim_key,
+        models.TalentOfficialIdentification.decision,
+        func.count(models.TalentOfficialIdentification.id),
     ).select_from(base).join(
-        models.TalentStudentAssessment, models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+        models.TalentStudentAssessment,
+        and_(
+            models.TalentStudentAssessment.student_id == base.c.student_id,
+            func.coalesce(
+                models.TalentStudentAssessment.evaluation_context_cycle_id,
+                models.TalentStudentAssessment.cycle_id,
+            ) == base.c.cycle_id,
+            models.TalentStudentAssessment.is_current.is_(True),
+        ),
     ).join(
-        models.TalentReviewCandidate, models.TalentReviewCandidate.assessment_id == models.TalentStudentAssessment.id,
+        models.TalentReviewCandidate,
+        models.TalentReviewCandidate.assessment_id == models.TalentStudentAssessment.id,
     ).join(
-        models.TalentOfficialIdentification, models.TalentOfficialIdentification.review_candidate_id == models.TalentReviewCandidate.id,
+        models.TalentOfficialIdentification,
+        models.TalentOfficialIdentification.review_candidate_id == models.TalentReviewCandidate.id,
     ).group_by(base.c.dim_key, models.TalentOfficialIdentification.decision).all()
     per_dim = defaultdict(lambda: {"identified": 0, "not_identified": 0})
     for dim_key, decision, count in rows:
