@@ -261,6 +261,27 @@ svg:is(
     min-width: 0;
 }
 
+.sidebar-link--brand {
+    min-height: 76px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+.sidebar-link--brand .sidebar-link-main {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.sidebar-brand-logo {
+    display: block;
+    width: min(190px, 100%);
+    height: auto;
+    max-height: 66px;
+    object-fit: contain;
+    object-position: left center;
+    flex: 0 1 auto;
+}
+
 .sidebar-nav-badge {
     display: inline-flex;
     align-items: center;
