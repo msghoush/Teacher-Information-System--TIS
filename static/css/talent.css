@@ -413,4 +413,5 @@
   .tp-competency-average-row>strong{text-align:left}
   .tp-evaluation-programs{grid-template-columns:1fr}
 }
-
+.tp-content.is-refreshing,#tp-content.is-refreshing{opacity:.72;pointer-events:none;transition:opacity 120ms ease}
+#tp-content[aria-busy="true"]{cursor:progress}
