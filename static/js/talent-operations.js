@@ -138,11 +138,17 @@
     }
     if(params.get('assessment_id')) {
       let assessment=await api(`/api/talent/assessments/${encodeURIComponent(params.get('assessment_id'))}`);
-      const assessmentProgram=can('talent_programs.view')?await api(`/api/talent/programs/${assessment.program_id}`).catch(()=>null):null;
-      const results=await api(`/api/talent/assessments/${assessment.id}/competency-results`);
-      if(!can('talent_programs.view')) {mount(`<article class="tp-card"><h3>${programLogo(assessmentProgram)} ${esc(assessment.context?.student_name || 'Student name unavailable')}</h3>${context(assessment)}</article>`+note('Program viewing permission is needed to display the competency and rubric labels. Ask your administrator for access.'));return;}
       const base=`/api/talent/programs/${assessment.program_id}/frameworks/${assessment.framework_version_id}`;
-      const [framework,configuration]=await Promise.all([api(base),api(`${base}/configuration`)]);
+      const canViewPrograms=can('talent_programs.view');
+      const canViewInputs=can('talent_educator_inputs.view');
+      const [assessmentProgram,results,framework,configuration,loadedInputs]=await Promise.all([
+        canViewPrograms?api(`/api/talent/programs/${assessment.program_id}`).catch(()=>null):Promise.resolve(null),
+        api(`/api/talent/assessments/${assessment.id}/competency-results`),
+        canViewPrograms?api(base):Promise.resolve(null),
+        canViewPrograms?api(`${base}/configuration`):Promise.resolve(null),
+        canViewInputs?api(`/api/talent/educator-inputs?${query({student_id:assessment.student_id,program_id:assessment.program_id})}`):Promise.resolve([]),
+      ]);
+      if(!canViewPrograms) {mount(`<article class="tp-card"><h3>${programLogo(assessmentProgram)} ${esc(assessment.context?.student_name || 'Student name unavailable')}</h3>${context(assessment)}</article>`+note('Program viewing permission is needed to display the competency and rubric labels. Ask your administrator for access.'));return;}
       const editable=assessment.status==='in_progress';
       const saved=new Map(results.map(r=>[r.framework_competency_id,r]));
       const legacyLevels=configuration.levels || [];
@@ -166,9 +172,7 @@
         return !hasAnyGradeScopedDescriptors || gradeScopedDescriptorIds.has(c.id);
       });
       const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===assessmentGrade)?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
-      let inputs=[];
-      if(can('talent_educator_inputs.view')) inputs=await api(`/api/talent/educator-inputs?${query({student_id:assessment.student_id,program_id:assessment.program_id})}`);
-      inputs=inputs.filter(r=>r.academic_year_id===assessment.academic_year_id&&r.assessment_id===assessment.id);
+      let inputs=(loadedInputs||[]).filter(r=>r.academic_year_id===assessment.academic_year_id&&r.assessment_id===assessment.id);
       const educatorFields=(r={})=>select('Input category','category',[['observation','Observation'],['context','Context'],['supporting_evidence','Supporting evidence']],r.category || 'observation')+field('Observed at (your local time)','observed_at',r.observed_at?localDate(r.observed_at):'','datetime-local','required')+area('Educator input','content',r.content || '',2000);
       const reassessmentNotice=assessment.reassessment?.required
         ? note(`The rubric has changed since this assessment was completed. Re-evaluation is required against rubric version ${esc(assessment.reassessment.framework_version_number || '')}.`)
