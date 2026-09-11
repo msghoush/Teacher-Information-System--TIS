@@ -264,7 +264,14 @@ def frameworks_list(program_id: int, request: Request, db: Session = Depends(get
     if denied: return denied
     if get_program(db, group_id, program_id) is None: return JSONResponse({"detail": "Talent Program was not found.", "code": "not_found"}, status_code=404)
     rows = db.query(models.TalentProgramFrameworkVersion).filter_by(school_group_id=group_id, program_id=program_id).order_by(models.TalentProgramFrameworkVersion.version_number).all()
-    return [framework_payload(row) for row in rows]
+    result = []
+    for row in rows:
+        item = framework_payload(row)
+        item["in_use_by_assessments"] = db.query(models.TalentStudentAssessment.id).filter_by(
+            school_group_id=group_id, program_id=program_id, framework_version_id=row.id
+        ).first() is not None
+        result.append(item)
+    return result
 
 
 @router.get("/{program_id}/frameworks/{framework_id}")
@@ -273,7 +280,11 @@ def frameworks_read(program_id: int, framework_id: int, request: Request, db: Se
     if denied: return denied
     row = db.query(models.TalentProgramFrameworkVersion).filter_by(id=framework_id, program_id=program_id, school_group_id=group_id).one_or_none()
     if row is None: return JSONResponse({"detail": "Framework Version was not found.", "code": "not_found"}, status_code=404)
-    result = framework_payload(row); result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "grade_level": m.grade_level, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
+    result = framework_payload(row)
+    result["in_use_by_assessments"] = db.query(models.TalentStudentAssessment.id).filter_by(
+        school_group_id=group_id, program_id=program_id, framework_version_id=row.id
+    ).first() is not None
+    result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "grade_level": m.grade_level, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
     return result
 
 
