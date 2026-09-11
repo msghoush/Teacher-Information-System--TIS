@@ -34,11 +34,13 @@ def client(db):
 
 def test_student_delete_permissions_are_registered_and_configurable():
     import permission_registry as pr
-    for key in ("students.delete", "students.bulk_delete"):
+    for key in ("students.delete", "students.bulk_delete", "students.force_delete_history"):
         assert key in pr.ALL_PERMISSION_KEYS
         assert key in pr.PERMISSION_LABELS
         assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
         assert key in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
+    assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
+    assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
 
 
 def test_list_requires_students_view(db, client):
@@ -110,6 +112,47 @@ def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, 
     db.expire_all()
     assert db.query(models.Student).filter_by(id=safe_id, school_group_id=1).one_or_none() is not None
     assert db.query(models.Student).filter_by(id=protected_id, school_group_id=1).one_or_none() is not None
+
+
+def test_history_delete_preview_and_force_delete_require_dedicated_permission(db, client):
+    permissions(db, "students.view", "students.delete")
+    protected = models.Student(school_group_id=1, first_name="History", last_name="Student", status="active")
+    db.add(protected); db.flush()
+    protected_id = protected.id
+    db.add(models.StudentAcademicPlacement(
+        school_group_id=1, student_id=protected_id, academic_year_id=100,
+        branch_id=10, grade_level="1", section_name="A",
+        effective_from=datetime(2026, 9, 1), status="active",
+    ))
+    db.commit()
+
+    preview = client.get(f"/students/{protected_id}/delete-preview")
+    assert preview.status_code == 200
+    body = preview.json()
+    assert body["has_history"] is True
+    assert body["can_force_delete_history"] is False
+    assert any(item["code"] == "academic_placement" for item in body["blockers"])
+
+    denied = client.post(
+        f"/students/{protected_id}/delete",
+        data={"force_history": "true"},
+        follow_redirects=False,
+    )
+    assert denied.status_code == 403
+    assert db.query(models.Student).filter_by(id=protected_id).one_or_none() is not None
+
+    permissions(db, "students.view", "students.delete", "students.force_delete_history")
+    allowed_preview = client.get(f"/students/{protected_id}/delete-preview")
+    assert allowed_preview.json()["can_force_delete_history"] is True
+    deleted = client.post(
+        f"/students/{protected_id}/delete",
+        data={"force_history": "true"},
+        follow_redirects=False,
+    )
+    assert deleted.status_code == 302
+    db.expire_all()
+    assert db.query(models.Student).filter_by(id=protected_id).one_or_none() is None
+    assert db.query(models.StudentAcademicPlacement).filter_by(student_id=protected_id).count() == 0
 
 
 def test_profile_sections_render(db, client):
