@@ -8,6 +8,7 @@ function fixture(allowed=true) {
   const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>allowed,api:async(path,options)=>{
     calls.push({path,options});
     if(path.startsWith('/api/talent/evaluation-plans?'))return [];
+    if(path==='/api/talent/programs/11')return {id:11,name:'Performing Arts'};
     if(path==='/api/talent/programs')return [{id:11,name:'Performing Arts'}];
     if(path==='/api/talent/assessment-cycles?academic_year_id=100&program_id=11')return [];
     if(path.endsWith('/academic-years'))return [{id:21,academic_year_id:100,is_enabled:true}];
@@ -17,6 +18,14 @@ function fixture(allowed=true) {
   }};
   return {ctx,root,calls,feedback};
 }
+
+test('selected Evaluation Plan loads the Program directly without fetching the full Program catalog',async()=>{
+  const {ctx,calls}=fixture();
+  await render(ctx);
+  assert.ok(calls.some(call=>call.path==='/api/talent/programs/11'),'selected Program endpoint is used');
+  assert.equal(calls.filter(call=>call.path==='/api/talent/programs').length,0,'full Program catalog is not fetched for selected Evaluation Plan');
+});
+
 
 test('authorized empty context offers a free-text evaluation name, not a fixed picklist',async()=>{
   const {ctx,root}=fixture();await render(ctx);
