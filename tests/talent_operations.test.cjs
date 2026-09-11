@@ -145,7 +145,7 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population'))return {members};
+      if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -167,7 +167,7 @@ test('ADR 0034: Assessment Records offers Delete only when the backend-computed 
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population'))return {members};
+      if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -183,7 +183,7 @@ test('ADR 0034: Assessment Records omits Delete when the backend-computed action
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population'))return {members};
+      if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -193,16 +193,16 @@ test('ADR 0034: Assessment Records omits Delete when the backend-computed action
 test('arriving on Student Assessments with a Program but no cycle_id auto-opens the one Open evaluation (no extra click)',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
-  const members=[{id:101,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
+  const members=[{student_id:501,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population'))return {members};
+      if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/Students in this evaluation/);
+  assert.match(root.innerHTML,/Students/);
   assert.match(root.innerHTML,/No Assessment Yet/);
   assert.match(root.innerHTML,/Start Assessment/);
 });
@@ -218,7 +218,7 @@ test('two Open Cycles for the same Program remain an explicit choice, not an aut
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.doesNotMatch(root.innerHTML,/Students in this evaluation/);
+  assert.doesNotMatch(root.innerHTML,/Students/);
   assert.match(root.innerHTML,/<article class="tp-card"><h3>Term 1/);
   assert.match(root.innerHTML,/<article class="tp-card"><h3>Term 2/);
 });
@@ -232,11 +232,11 @@ test('a Program with no Evaluation Cycle at all shows an honest, distinct no-ope
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/No Evaluation Period is open for this Program/);
+  assert.match(root.innerHTML,/No Evaluation Period is available for this Program/);
   assert.match(root.innerHTML,/evaluation-plans\?[^"]*program_id=11/);
   assert.match(root.innerHTML,/No Assessment Records in this context yet\./);
   assert.doesNotMatch(root.innerHTML,/No assessments saved in this context yet\./);
-  assert.doesNotMatch(root.innerHTML,/Students in this evaluation/);
+  assert.doesNotMatch(root.innerHTML,/Students/);
 });
 
 test('an open evaluation with zero frozen Students shows the real reason, not the generic no-assessments message',async()=>{
@@ -246,13 +246,13 @@ test('an open evaluation with zero frozen Students shows the real reason, not th
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population'))return {members:[]};
+      if(path.endsWith('/eligible-students'))return {members:[]};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/Students in this evaluation/);
+  assert.match(root.innerHTML,/Students/);
   assert.match(root.innerHTML,/No Students were included when this evaluation started\./);
-  assert.doesNotMatch(root.innerHTML,/No Evaluation Period is open for this Program/);
+  assert.doesNotMatch(root.innerHTML,/No Evaluation Period is available for this Program/);
 });
 
 test('no Program selected (org-wide) keeps the existing multi-Cycle card chooser and never guesses a Cycle',async()=>{
@@ -265,116 +265,54 @@ test('no Program selected (org-wide) keeps the existing multi-Cycle card chooser
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.doesNotMatch(root.innerHTML,/Students in this evaluation/);
-  assert.doesNotMatch(root.innerHTML,/No Evaluation Period is open for this Program/);
+  assert.doesNotMatch(root.innerHTML,/Students/);
+  assert.doesNotMatch(root.innerHTML,/No Evaluation Period is available for this Program/);
   assert.match(root.innerHTML,/<article class="tp-card"><h3>Term 1/);
 });
 
-test('a Draft Cycle shows the eligible-Student preview with the correct not-opened-yet state, never a false Not Started',async()=>{
+test('a Draft legacy Cycle does not block enrolled Students from assessment',async()=>{
   const root=domRoot();
   const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const preview={cycle_id:71,population_state:'preview',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
+  const eligible={cycle_id:71,eligibility_state:'live_academic_placement',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population/preview'))return preview;
+      if(path.endsWith('/eligible-students'))return eligible;
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/Eligible Students/);
   assert.match(root.innerHTML,/Grade 3 Learner/);
-  assert.match(root.innerHTML,/Eligible — evaluation not opened yet/);
-  assert.doesNotMatch(root.innerHTML,/Students in this evaluation/);
-  assert.doesNotMatch(root.innerHTML,/>Not started</);
+  assert.match(root.innerHTML,/Not started/);
+  assert.match(root.innerHTML,/Start Assessment/);
+  assert.doesNotMatch(root.innerHTML,/Open Evaluation/);
+  assert.doesNotMatch(root.innerHTML,/frozen/i);
 });
 
-test('Student Assessments renders operation feedback at the top so Open Evaluation failures are visible',async()=>{
+test('Start Assessment posts cycle_id plus student_id directly without a population-member prerequisite',async()=>{
   const root=domRoot();
   const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const preview={cycle_id:71,population_state:'preview',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
-  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11&cycle_id=71'),
-    can:key=>['talent_assessment_cycles.view','talent_assessment_cycles.view_population','talent_assessment_cycles.govern'].includes(key),
-    notify:()=>{},navigate:()=>{},api:async path=>{
-      if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population/preview'))return preview;
-      throw new Error(`Unexpected ${path}`);
-    }};
-  await withWindow(()=>render(ctx));
-  const html=root.innerHTML;
-  assert.match(html,/tp-operational"><p id="op-message"/);
-  assert.ok(html.indexOf('id="op-message"') < html.indexOf('Eligible Students'));
-});
-
-test('Open Evaluation is shown only with talent_assessment_cycles.govern, and clicking it opens the Cycle with the correct expected_revision',async()=>{
-  const root=domRoot();
-  const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const preview={cycle_id:71,population_state:'preview',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
-  let openButton,clickHandler;
-  openButton={dataset:{},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
-  root.querySelectorAll=selector=>selector==='[data-action="open-cycle"]'?[openButton]:[];
-  const calls=[];
+  const eligible={cycle_id:71,eligibility_state:'live_academic_placement',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
+  let startButton,clickHandler;
+  startButton={dataset:{student:'501'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
+  root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
+  const calls=[]; let navigated=null;
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
+    navigate:(target,extra)=>{navigated={target,extra};},
     api:async(path,options)=>{
       calls.push({path,options});
       if(path.startsWith('/api/talent/assessments?'))return [];
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population/preview'))return preview;
-      if(path==='/api/talent/assessment-cycles/71/open'&&options?.method==='POST')return {id:71,status:'open',revision:3};
+      if(path.endsWith('/eligible-students'))return eligible;
+      if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:'2026'};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/data-action="open-cycle"/);
   assert.equal(typeof clickHandler,'function');
-  await withWindow(()=>clickHandler());
-  const openCall=calls.find(c=>c.path==='/api/talent/assessment-cycles/71/open');
-  assert.ok(openCall);
-  assert.equal(openCall.options.method,'POST');
-  assert.deepEqual(openCall.options.body,{expected_revision:2});
-});
-
-test('Open Evaluation is not offered without talent_assessment_cycles.govern',async()=>{
-  const root=domRoot();
-  const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const preview={cycle_id:71,population_state:'preview',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
-  const allow=new Set(['talent_assessment_cycles.view','talent_assessment_cycles.view_population']);
-  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:key=>allow.has(key),notify(){},
-    api:async path=>{
-      if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population/preview'))return preview;
-      throw new Error(`Unexpected ${path}`);
-    }};
-  await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/Grade 3 Learner/);
-  assert.doesNotMatch(root.innerHTML,/data-action="open-cycle"/);
-});
-
-test('after Open Evaluation succeeds, the same Students now show Not Started (preview to open-cycle transition)',async()=>{
-  const root=domRoot();
-  let cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const preview={cycle_id:71,population_state:'preview',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
-  const openedPopulation={members:[{id:901,student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
-  let openButton,clickHandler;
-  openButton={dataset:{},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
-  root.querySelectorAll=selector=>selector==='[data-action="open-cycle"]'?[openButton]:[];
-  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
-    api:async(path,options)=>{
-      if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(cycle.status==='draft'&&path.endsWith('/population/preview'))return preview;
-      if(cycle.status==='open'&&path.endsWith('/population'))return openedPopulation;
-      if(path==='/api/talent/assessment-cycles/71/open'&&options?.method==='POST'){cycle={...cycle,status:'open',revision:3};return cycle;}
-      throw new Error(`Unexpected ${path}`);
-    }};
-  await withWindow(()=>render(ctx));
-  assert.match(root.innerHTML,/Eligible — evaluation not opened yet/);
-  await withWindow(()=>clickHandler());
-  assert.match(root.innerHTML,/Students in this evaluation/);
-  assert.match(root.innerHTML,/Grade 3 Learner/);
-  assert.match(root.innerHTML,/Start Assessment/);
-  assert.doesNotMatch(root.innerHTML,/Eligible — evaluation not opened yet/);
+  await clickHandler();
+  const call=calls.find(item=>item.path==='/api/talent/assessments'&&item.options?.method==='POST');
+  assert.deepEqual(call.options.body,{cycle_id:71,student_id:501});
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,academic_year_id:'2026',program_id:'11'}});
 });
 
 test('starting an assessment carries the current Program forward in the resulting navigation (no ribbon/content mismatch)',async()=>{
@@ -382,7 +320,7 @@ test('starting an assessment carries the current Program forward in the resultin
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const members=[{id:101,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
   let startButton,clickHandler;
-  startButton={dataset:{member:'101'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
+  startButton={dataset:{student:'501'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
   root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
   let navigated=null;
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
@@ -390,7 +328,7 @@ test('starting an assessment carries the current Program forward in the resultin
     api:async(path,options)=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
       if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
-      if(path.endsWith('/population'))return {members};
+      if(path.endsWith('/eligible-students'))return {members};
       if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:'2026'};
       throw new Error(`Unexpected ${path}`);
     }};
