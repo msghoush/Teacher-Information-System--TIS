@@ -9,6 +9,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 import models
+from talent_assessment_cycle_service import population_fingerprint, population_member_payload
 
 
 class TalentStudentAssessmentError(ValueError):
