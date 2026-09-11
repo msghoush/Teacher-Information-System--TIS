@@ -24,7 +24,7 @@ from talent_program_service import (
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, complete_assessment, get_assessment,
     mark_non_complete, reassessment_requirement, remove_competency_result, set_competency_result,
-    start_assessment, start_reassessment,
+    start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
 
@@ -520,3 +520,114 @@ def test_framework_with_assessment_history_requires_new_version_before_semantic_
         )
     assert blocked.value.code == "framework_in_use"
     assert get_assessment(session, school_group_id=1, assessment_id=assessment.id).framework_version_id == framework.id
+
+
+def test_new_student_uses_newest_saved_rubric_but_stays_in_original_evaluation_context(db):
+    _, session = db
+    program, framework, cycle, member, _, _, competencies, levels = foundation(session)
+
+    revised = create_framework_draft(
+        session, school_group_id=1, program_id=program.id,
+        title="Revised rubric", clone_from_id=framework.id,
+        supersedes_framework_version_id=framework.id,
+    )
+    new_competency = create_competency(
+        session, school_group_id=1, program_id=program.id,
+        code="NEW", name="New competency",
+    )
+    revised_member, revised = add_framework_competency(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        competency_id=new_competency.id, expected_revision=revised.revision,
+        grade_level="1",
+    )
+    revised_rubric, revised = upsert_rubric(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        framework_competency_id=revised_member.id, expected_revision=revised.revision,
+        name="New competency rubric",
+    )
+    _, revised = add_rubric_level(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        framework_competency_id=revised_member.id, expected_revision=revised.revision,
+        code="LEVEL_1", label="Beginning", description="New level",
+    )
+    session.commit()
+
+    started = start_assessment_for_evaluation(
+        session, school_group_id=1, evaluation_cycle_id=cycle.id,
+        student_id=member.student_id,
+    )
+    assert started.framework_version_id == revised.id
+    assert started.cycle_id != cycle.id
+    assert started.evaluation_context_cycle_id == cycle.id
+
+    rows = session.query(models.TalentStudentAssessment).filter_by(
+        school_group_id=1, student_id=member.student_id, is_current=True
+    ).all()
+    assert [row.id for row in rows] == [started.id]
+
+
+def test_competency_result_rejects_level_from_another_competency_rubric(db):
+    _, session = db
+    program = create_program(session, school_group_id=1, name="Independent Rubrics")
+    transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(
+        session, school_group_id=1, program_id=program.id, title="Framework"
+    )
+    members = []
+    levels = []
+    for code, name in (("READ", "Reading"), ("WRITE", "Writing")):
+        competency = create_competency(
+            session, school_group_id=1, program_id=program.id, code=code, name=name
+        )
+        member_row, framework = add_framework_competency(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            competency_id=competency.id, expected_revision=framework.revision, grade_level="1",
+        )
+        rubric, framework = upsert_rubric(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=member_row.id, expected_revision=framework.revision,
+            name=f"{name} rubric",
+        )
+        level, framework = add_rubric_level(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=member_row.id, expected_revision=framework.revision,
+            code="LEVEL_1", label="Beginning", description=f"{name} description",
+        )
+        members.append(member_row)
+        levels.append(level)
+
+    upsert_annual_configuration(
+        session, school_group_id=1, program_id=program.id, academic_year_id=100,
+        is_enabled=True, eligible_grade_levels=["1"],
+    )
+    student = create_student(session, school_group_id=1, first_name="Scope", last_name="Test")
+    create_placement(
+        session, school_group_id=1, student_id=student.id, academic_year_id=100,
+        branch_id=10, planning_section_id=1000, effective_from=datetime(2026, 9, 1),
+    )
+    cycle = create_cycle(
+        session, school_group_id=1, program_id=program.id, academic_year_id=100,
+        framework_version_id=framework.id, title="Term 1",
+        population_effective_at=datetime(2026, 10, 1),
+    )
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id, student_id=student.id
+    )
+
+    with pytest.raises(TalentStudentAssessmentError) as error:
+        set_competency_result(
+            session, school_group_id=1, assessment_id=assessment.id,
+            framework_competency_id=members[0].id,
+            rubric_level_id=levels[1].id,
+            expected_revision=assessment.revision,
+        )
+    assert error.value.code == "invalid_result_scope"
+
+
+def test_competency_rubric_migration_is_idempotent(db):
+    engine, _ = db
+    with engine.begin() as connection:
+        db_migrations._talent_competency_specific_rubrics(engine, connection)
+        db_migrations._talent_competency_specific_rubrics(engine, connection)
+    columns = {row["name"] for row in inspect(engine).get_columns("talent_rubrics")}
+    assert "framework_competency_id" in columns
