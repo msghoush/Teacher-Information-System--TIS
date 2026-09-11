@@ -211,6 +211,7 @@
     const activeStep=requested.startsWith('#tp-builder')?'assess':Object.entries(hashes).find(([,hash])=>hash===requested)?.[0]||'basics';
     const stepState={basics:basicsComplete,assess:assessComplete,schedule:scheduleComplete,ready:basicsComplete&&assessComplete&&scheduleComplete};
     const setupComplete=program.status==='active'&&framework?.status==='active'&&stepState.ready;
+    // Finish Setup publishes the configured draft through the existing governed\n    // Program/Framework activation contracts so Student Assessments can consume it.\n    const canFinalizeSetup=stepState.ready&&govern&&program.status!=='retired'&&framework&&framework.status!=='retired';
     const explicitSetup=Boolean(requested);
     if(setupComplete&&!explicitSetup){
       const grades=(annualYear?.eligible_grade_levels||[]).map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ');
@@ -241,7 +242,7 @@
       ${activeStep==='basics'?`<section id="tp-basics" class="tp-wizard-panel"><h2>Program Basics</h2>${manage&&program.status!=='retired'&&year?`<form class="tp-card tp-editor tp-basics-form" data-form="basics"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div>${program.status==='draft'?field('name','Program name',program.name,'text',true):`<h3>${esc(program.name)}</h3>`}<div class="tp-actions"><label class="tp-file-action">${icon('upload')}${program.logo_url?'Replace Logo':'Upload Logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" data-logo-input hidden></label>${program.logo_url?button('remove-logo','Remove Logo','','trash'):''}</div></div></div>${program.status==='draft'?area('description','What does this Program assess?',program.description):`<p>${esc(program.description||'No description added.')}</p>`}<p><strong>Academic Year:</strong> ${esc(yearLabel)}</p>${check('is_enabled','Program enabled for this year',annualYear?.is_enabled??true)}${configuredGrades.length?`<fieldset><legend>Grades from Planning</legend>${configuredGrades.map(g=>check(`grade_${g}`,g==='KG'?'KG':`Grade ${g}`,annualYear?.eligible_grade_levels.includes(g))).join('')}</fieldset>`:'<p class="tp-inline-empty">No Grades are configured in Planning for this Academic Year.</p>'}<div class="tp-wizard-actions"><button type="reset">Reset</button><button type="submit">Save &amp; Continue</button></div><p data-feedback role="status" aria-live="polite"></p></form>`:`<div class="tp-card"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div><h3>${esc(program.name)}</h3><p>${esc(program.description||'')}</p></div></div><p><strong>Academic Year:</strong> ${esc(yearLabel||'Not selected')}</p><p>${annualYear?.is_enabled?'Enabled':'Not enabled'} · ${(annualYear?.eligible_grade_levels||[]).join(', ')||'No Grades configured'}</p></div><div class="tp-wizard-actions"><a class="tp-primary-link" href="#tp-builder">Continue</a></div>`}${govern&&program.status!=='retired'?`<div class="tp-actions">${button('program-state',program.status==='draft'?'Activate Program':'Retire Program')}</div>`:''}</section>`:''}
       ${activeStep==='assess'?assessPanel:''}
       ${activeStep==='schedule'?`<section id="tp-schedule" class="tp-wizard-panel"><h2>Evaluation Plan</h2><div data-embedded-schedule><p role="status">Loading Evaluation Plan…</p></div></section>`:''}
-      ${activeStep==='ready'?`<section id="tp-ready" class="tp-wizard-panel"><h2>Ready</h2><ul class="tp-ready-list"><li>${basicsComplete?icon('check'):'○'} Program details complete</li><li>${annualYear?.eligible_grade_levels?.length?icon('check'):'○'} Grades configured</li><li>${members.length?icon('check'):'○'} Competencies configured</li><li>${levels.length?icon('check'):'○'} Rubric configured</li><li>${assessComplete?icon('check'):'○'} Achievement descriptions complete</li><li>${scheduleComplete?icon('check'):'○'} Evaluation Plan configured</li></ul><div class="tp-wizard-actions"><a href="#tp-schedule">Back</a>${setupComplete?button('finish-setup','Finish Setup'): `<a class="tp-primary-link" href="${!basicsComplete?'#tp-basics':!assessComplete?'#tp-builder-competencies':'#tp-schedule'}">Finish Setup</a>`}</div></section>`:''}`;
+      ${activeStep==='ready'?`<section id="tp-ready" class="tp-wizard-panel"><h2>Ready</h2><ul class="tp-ready-list"><li>${basicsComplete?icon('check'):'○'} Program details complete</li><li>${annualYear?.eligible_grade_levels?.length?icon('check'):'○'} Grades configured</li><li>${members.length?icon('check'):'○'} Competencies configured</li><li>${levels.length?icon('check'):'○'} Rubric configured</li><li>${assessComplete?icon('check'):'○'} Achievement descriptions complete</li><li>${scheduleComplete?icon('check'):'○'} Evaluation Plan configured</li></ul><div class="tp-wizard-actions"><a href="#tp-schedule">Back</a>${setupComplete?button('finish-setup','Finish Setup'):canFinalizeSetup?button('finalize-setup','Finish Setup'):`<a class="tp-primary-link" href="${!basicsComplete?'#tp-basics':!assessComplete?'#tp-builder-competencies':'#tp-schedule'}">Finish Setup</a>`}</div></section>`:''}`;
     root.onchange=event=>{
       const fileInput=event.target.closest('[data-logo-input]');
       if(fileInput&&fileInput.files&&fileInput.files[0])uploadLogo(fileInput.files[0]);
@@ -280,6 +281,24 @@
         return;
       }
       const b=event.target.closest('[data-action]');if(!b||busy)return;const a=b.dataset.action;
+      if(a==='finalize-setup'){
+        if(dirty&&!window.confirm('Finish setup and discard unsaved edits?'))return;
+        busy=true;
+        const controls=[...root.querySelectorAll('button')],previous=controls.map(button=>button.disabled);
+        controls.forEach(button=>button.disabled=true);
+        const feedback=root.querySelector('[data-status]');
+        if(feedback)feedback.textContent='Finishing setup…';
+        try{
+          if(program.status==='draft')await api(`${base}/lifecycle/active`,{method:'POST'});
+          if(framework?.status==='draft')await api(`${fp}/activate`,{method:'POST',body:JSON.stringify({expected_revision:framework.revision,expected_fingerprint:framework.semantic_fingerprint})});
+          ctx.navigate('programs');
+        }catch(error){
+          if(feedback){feedback.textContent=error.message||'Unable to finish setup.';feedback.setAttribute('role','alert');}
+        }finally{
+          busy=false;controls.forEach((button,index)=>button.disabled=previous[index]);
+        }
+        return;
+      }
       if(a==='finish-setup'){
         // Exit the wizard to the canonical Programs list - not a re-render
         // of this same ctx (which still carries the current program_id and

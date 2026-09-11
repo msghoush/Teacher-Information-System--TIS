@@ -1,7 +1,8 @@
 knowledge_impact: no
-summary: "Correct the Talent Student Assessment start runtime path by restoring imports for existing compatibility/provenance helpers already required by ADR 0035 implementation. No product, workflow, permission, schema, API, privacy, or architecture decision changes."
+summary: "Fix the Talent Program setup completion path so an already-configured Program and assessment Framework are published through the existing governed activation contracts when Finish Setup is used. This removes an unreachable UI state that caused Start Assessment to reject a configured rubric/tool as inactive; no product scope, schema, API contract, permission model, privacy rule, or ADR decision changes."
 affected_areas:
+  - talent-program-setup
   - talent-student-assessment-runtime
 kms_files_updated:
-no_impact_reason: "Runtime defect correction only. The approved ADR 0035 assessment flow and documented KMS semantics remain unchanged."
+no_impact_reason: "Implementation defect correction only. Existing KMS already requires an Active Program and Active Framework for assessment execution; this change wires the existing Finish Setup action to those already-approved transitions."
 major_change_override: no

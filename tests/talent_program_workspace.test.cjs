@@ -102,6 +102,25 @@ test('Basics renders the Academic Year label instead of its internal ID',async()
   assert.doesNotMatch(root.innerHTML,/Academic Year:<\/strong> 2026<\/p>/);
 });
 
+
+test('Finish Setup publishes a completed draft Program and assessment Framework before leaving the wizard',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
+  let navigated=null;ctx.navigate=target=>{navigated=target;};
+  await render(ctx);
+  assert.match(root.innerHTML,/data-action="finalize-setup"[^>]*>.*Finish Setup/);
+  const oldWindow=global.window;
+  global.window={confirm:()=>true,scrollY:0,scrollTo(){},addEventListener(){},removeEventListener(){},location:{hash:'#tp-ready'}};
+  try{
+    await root.onclick({target:{closest:()=>({dataset:{action:'finalize-setup'}})}});
+  }finally{global.window=oldWindow;}
+  const programActivation=calls.find(c=>c.path==='/api/talent/programs/11/lifecycle/active'&&c.options?.method==='POST');
+  const frameworkActivation=calls.find(c=>c.path==='/api/talent/programs/11/frameworks/31/activate'&&c.options?.method==='POST');
+  assert.ok(programActivation,'expected Finish Setup to activate the configured Program');
+  assert.ok(frameworkActivation,'expected Finish Setup to activate the configured assessment Framework');
+  assert.deepEqual(JSON.parse(frameworkActivation.options.body),{expected_revision:7,expected_fingerprint:'fingerprint'});
+  assert.equal(navigated,'programs');
+});
+
 test('completed Ready state offers Finish Setup to exit the wizard',async()=>{
   const {ctx,root}=fixture(true,'active',{complete:true,hash:'#tp-ready'});await render(ctx);
   assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
