@@ -20,7 +20,7 @@ source_of_truth: true
 ## Students Branch And Learning Style Presentation Flow
 
 1. Add Student, Delete selected, per-row Open, and per-row Delete are compact icon-only controls with accessible names/tooltips.
-2. Cross-Branch Students browsing requires `students.view_all_branches` **and** organization/global access scope. The permission is Administrator-default, not Editor/User-default.
+2. Cross-Branch Students browsing requires `students.view_all_branches` **and** organization/global access scope. The managed-role policy keeps this permission Administrator-only.
 3. Without that authority the list is fixed to the actor's assigned authorized Branch, the Branch selector is replaced by a read-only Branch context, and **All branches** is not offered.
 4. Learning Style distribution continues to use the ADR 0031 privacy provider. If that provider is unavailable, the page explains that aggregate statistics are unavailable and emits no chart/count/percentage. If the selected cohort is suppressed, the privacy-protected state remains the only aggregate presentation.
 
