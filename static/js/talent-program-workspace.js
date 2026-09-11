@@ -224,8 +224,8 @@
     const levelsForCompetency=mid=>rubricForCompetency(mid)?.levels || levels;
     const descriptorFor=(mid,lid,grade)=>config?.descriptors?.find(item=>item.framework_competency_id===mid&&item.rubric_level_id===lid&&String(item.grade_level||'')===String(grade||'')) || config?.descriptors?.find(item=>item.framework_competency_id===mid&&item.rubric_level_id===lid&&!item.grade_level);
     const membersForGrade=grade=>members.filter(m=>!m.grade_level||String(m.grade_level)===String(grade||''));
-    const descriptorCells=(descriptorGrades.length?descriptorGrades:[null]).flatMap(grade=>membersForGrade(grade).flatMap(m=>levelsForCompetency(m.id).map(l=>({grade,m,l,d:descriptorFor(m.id,l.id,grade)}))));
-    const descriptorTotal=descriptorCells.length, descriptorSaved=descriptorCells.filter(cell=>String(cell.d?.descriptor||'').trim()).length;
+    const descriptorCells=(descriptorGrades.length?descriptorGrades:[null]).flatMap(grade=>membersForGrade(grade).flatMap(m=>levelsForCompetency(m.id).map(l=>({grade,m,l,d:descriptorFor(m.id,l.id,grade),text:descriptorFor(m.id,l.id,grade)?.descriptor||l.description||''}))));
+    const descriptorTotal=descriptorCells.length, descriptorSaved=descriptorCells.filter(cell=>String(cell.text||'').trim()).length;
     const basicsComplete=Boolean(annualYear?.is_enabled&&annualYear.eligible_grade_levels?.length);
     const rubricReady=Boolean(members.length&&members.every(m=>rubricForCompetency(m.id)?.levels?.length || levels.length));
     const assessRemaining=(members.length?0:1)+(rubricReady?0:1)+Math.max(0,descriptorTotal-descriptorSaved);
