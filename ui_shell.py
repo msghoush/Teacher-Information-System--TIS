@@ -358,6 +358,7 @@ def _build_nav_items(
             "label": "Talent & Potential",
             "href": "/talent",
             "icon": "sparkles",
+            "brand_logo": "img/talent-ghars-logo.svg",
             "permission_keys": ("talent_programs.view", "talent_evaluation_plans.view", "talent_assessments.view", "talent_review_candidates.view", "talent_learner_profiles.view", "talent_analytics.view"),
             "permission_mode": "any",
         },
