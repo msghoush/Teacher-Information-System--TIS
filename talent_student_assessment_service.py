@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 import models
-from talent_assessment_cycle_service import population_fingerprint, population_member_payload
+from talent_assessment_cycle_service import create_cycle, population_fingerprint, population_member_payload
 
 
 class TalentStudentAssessmentError(ValueError):
@@ -36,6 +36,8 @@ def assessment_payload(row):
         "cycle_population_member_id": row.cycle_population_member_id, "student_id": row.student_id,
         "program_id": row.program_id, "academic_year_id": row.academic_year_id,
         "framework_version_id": row.framework_version_id, "status": row.status,
+        "is_current": bool(getattr(row, "is_current", True)),
+        "reassessment_of_assessment_id": getattr(row, "reassessment_of_assessment_id", None),
         "revision": row.revision, "started_at": row.started_at.isoformat() if row.started_at else None,
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
         "kpi_result": row.kpi_result,
@@ -267,6 +269,114 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
             before={"status": "draft"}, after={"status": "open"},
         )
     return assessment
+
+
+def reassessment_requirement(db: Session, assessment):
+    """Return the newest materially-changed assessable Framework for a completed current Assessment.
+
+    A cloned-but-unchanged draft does not trigger re-evaluation. Historical
+    evidence remains bound to the Assessment's exact Framework; this helper only
+    reports whether a newer saved Framework has a different semantic fingerprint.
+    """
+    if assessment.status != "completed" or not bool(getattr(assessment, "is_current", True)):
+        return None
+    current_framework = db.query(models.TalentProgramFrameworkVersion).filter_by(
+        id=assessment.framework_version_id,
+        school_group_id=assessment.school_group_id,
+        program_id=assessment.program_id,
+    ).one_or_none()
+    if current_framework is None:
+        return None
+    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        id=assessment.cycle_population_member_id,
+        school_group_id=assessment.school_group_id,
+        student_id=assessment.student_id,
+    ).one_or_none()
+    grade = member.grade_level if member is not None else None
+    candidates = db.query(models.TalentProgramFrameworkVersion).filter(
+        models.TalentProgramFrameworkVersion.school_group_id == assessment.school_group_id,
+        models.TalentProgramFrameworkVersion.program_id == assessment.program_id,
+        models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
+    ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all()
+    for framework in candidates:
+        if framework.semantic_fingerprint == current_framework.semantic_fingerprint:
+            continue
+        has_level = db.query(models.TalentRubricLevel.id).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=framework.id,
+        ).first() is not None
+        competency_query = db.query(models.FrameworkCompetency.id).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=framework.id,
+        )
+        if grade:
+            competency_query = competency_query.filter(
+                (models.FrameworkCompetency.grade_level.is_(None))
+                | (models.FrameworkCompetency.grade_level == grade)
+            )
+        if has_level and competency_query.first() is not None:
+            return framework
+    return None
+
+
+def start_reassessment(db: Session, *, school_group_id, assessment_id, actor=None):
+    """Create a new current Assessment against the newest changed Framework.
+
+    The prior completed Assessment and all of its evidence remain immutable.
+    The reassessment receives its own ad-hoc Cycle/population member so existing
+    Cycle/Student uniqueness and historical provenance are preserved.
+    """
+    prior = _assessment(db, school_group_id, assessment_id, lock=True)
+    if prior is None:
+        raise TalentStudentAssessmentError("not_found", "Student Assessment was not found.")
+    if prior.status != "completed":
+        raise TalentStudentAssessmentError("reassessment_not_available", "Only a Completed Assessment can be re-evaluated.")
+    if not bool(getattr(prior, "is_current", True)):
+        raise TalentStudentAssessmentError("reassessment_not_available", "This historical Assessment has already been superseded.")
+    framework = reassessment_requirement(db, prior)
+    if framework is None:
+        raise TalentStudentAssessmentError("reassessment_not_required", "No newer saved rubric requires re-evaluation for this Student.")
+    old_cycle = _cycle(db, school_group_id, prior.cycle_id)
+    if old_cycle is None:
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    cycle = create_cycle(
+        db,
+        school_group_id=school_group_id,
+        program_id=prior.program_id,
+        academic_year_id=prior.academic_year_id,
+        framework_version_id=framework.id,
+        title=f"{old_cycle.title} · Re-evaluation",
+        description="Re-evaluation after rubric update; prior completed evidence remains historical.",
+        population_effective_at=datetime.utcnow(),
+        actor=actor,
+    )
+    replacement = start_assessment(
+        db,
+        school_group_id=school_group_id,
+        cycle_id=cycle.id,
+        student_id=prior.student_id,
+        actor=actor,
+    )
+    before = assessment_payload(prior)
+    prior.is_current = False
+    prior.updated_by_user_id = getattr(actor, "user_id", None)
+    prior.updated_at = datetime.utcnow()
+    replacement.is_current = True
+    replacement.reassessment_of_assessment_id = prior.id
+    replacement.updated_by_user_id = getattr(actor, "user_id", None)
+    replacement.updated_at = datetime.utcnow()
+    db.flush()
+    _audit(
+        db, prior, actor=actor, action="superseded_for_reassessment",
+        before=before, after=assessment_payload(prior),
+    )
+    _audit(
+        db, replacement, actor=actor, action="reassessment_linked",
+        after={"reassessment_of_assessment_id": prior.id, "framework_version_id": framework.id},
+    )
+    return replacement
 
 
 def get_assessment(db, *, school_group_id, assessment_id):
