@@ -289,6 +289,24 @@ test('a Draft Cycle shows the eligible-Student preview with the correct not-open
   assert.doesNotMatch(root.innerHTML,/>Not started</);
 });
 
+test('Student Assessments renders operation feedback at the top so Open Evaluation failures are visible',async()=>{
+  const root=domRoot();
+  const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
+  const preview={cycle_id:71,population_state:'preview',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11&cycle_id=71'),
+    can:key=>['talent_assessment_cycles.view','talent_assessment_cycles.view_population','talent_assessment_cycles.govern'].includes(key),
+    notify:()=>{},navigate:()=>{},api:async path=>{
+      if(path.startsWith('/api/talent/assessments?'))return [];
+      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.endsWith('/population/preview'))return preview;
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  const html=root.innerHTML;
+  assert.match(html,/tp-operational"><p id="op-message"/);
+  assert.ok(html.indexOf('id="op-message"') < html.indexOf('Eligible Students'));
+});
+
 test('Open Evaluation is shown only with talent_assessment_cycles.govern, and clicking it opens the Cycle with the correct expected_revision',async()=>{
   const root=domRoot();
   const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
