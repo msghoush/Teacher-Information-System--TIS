@@ -629,12 +629,59 @@ def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_rev
             raise TalentProgramError("invalid_rubric_scope", "Rubric competency must belong to this exact Framework.")
         framework_competency_id = member.id
     row = _rubric(db, framework.id, framework_competency_id)
+    copied_legacy_levels = {}
     if row is None:
         row = models.TalentRubric(
             school_group_id=school_group_id, program_id=program_id,
             framework_version_id=framework.id,
             framework_competency_id=framework_competency_id,
-        ); db.add(row)
+        ); db.add(row); db.flush()
+        # Compatibility bridge: when an existing Framework still has the old
+        # shared rubric, creating a Competency rubric copies that shared scale
+        # and this Competency's descriptions so the Owner can migrate existing
+        # Programs incrementally without losing visible configuration.
+        if framework_competency_id is not None:
+            legacy = _rubric(db, framework.id)
+            if legacy is not None:
+                for old_level in db.query(models.TalentRubricLevel).filter_by(
+                    rubric_id=legacy.id
+                ).order_by(models.TalentRubricLevel.display_order):
+                    copied = models.TalentRubricLevel(
+                        school_group_id=school_group_id, program_id=program_id,
+                        framework_version_id=framework.id, rubric_id=row.id,
+                        code=old_level.code, label=old_level.label,
+                        description=old_level.description, display_order=old_level.display_order,
+                        numeric_value=old_level.numeric_value,
+                    )
+                    db.add(copied); db.flush()
+                    copied_legacy_levels[old_level.id] = copied.id
+                for old_descriptor in db.query(models.TalentCompetencyRubricDescriptor).filter_by(
+                    framework_version_id=framework.id,
+                    framework_competency_id=framework_competency_id,
+                    rubric_id=legacy.id,
+                ):
+                    if old_descriptor.rubric_level_id in copied_legacy_levels:
+                        db.add(models.TalentCompetencyRubricDescriptor(
+                            school_group_id=school_group_id, program_id=program_id,
+                            framework_version_id=framework.id, rubric_id=row.id,
+                            framework_competency_id=framework_competency_id,
+                            rubric_level_id=copied_legacy_levels[old_descriptor.rubric_level_id],
+                            descriptor=old_descriptor.descriptor,
+                        ))
+                for old_descriptor in db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+                    framework_version_id=framework.id,
+                    framework_competency_id=framework_competency_id,
+                    rubric_id=legacy.id,
+                ):
+                    if old_descriptor.rubric_level_id in copied_legacy_levels:
+                        db.add(models.TalentGradeCompetencyRubricDescriptor(
+                            school_group_id=school_group_id, program_id=program_id,
+                            framework_version_id=framework.id, rubric_id=row.id,
+                            framework_competency_id=framework_competency_id,
+                            rubric_level_id=copied_legacy_levels[old_descriptor.rubric_level_id],
+                            grade_level=old_descriptor.grade_level,
+                            descriptor=old_descriptor.descriptor,
+                        ))
     row.name = _clean(name, "name", required=True); row.description = _clean(description, "description", maximum=4000); row.updated_at = datetime.utcnow(); db.flush()
     _m3_mutation(db, framework, actor=actor, action="rubric_upsert", before=before, resources=[("rubric", row.id)]); return row, framework
 
