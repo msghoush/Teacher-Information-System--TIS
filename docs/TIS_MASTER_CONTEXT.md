@@ -1,6 +1,6 @@
 ---
 title: TIS Master Context
-documentation_version: 3.7
+documentation_version: 3.8
 last_updated: 2026-09-09
 source_of_truth: true
 ---
@@ -9,8 +9,11 @@ source_of_truth: true
 
 ## Talent Guided Setup And Scheduling Authority
 
-The normal M11 Program journey is Basics -> What we assess -> Evaluation
-schedule -> Ready. What we assess is a joined presentation of one exact
+The normal Program journey is Basics -> What we assess -> Evaluation schedule,
+with readiness projected directly on the Program summary rather than through a
+separate Ready step. **Ready** with a positive check appears only when Program
+details/eligible Grades, the assessment criteria, and at least one Evaluation
+Period are complete. What we assess is a joined presentation of one exact
 Framework version's competencies, rubric levels, and achievement descriptions;
 editing continues to use draft versions and preserves active/historical
 immutability internally. Program discovery uses a searchable desktop table
@@ -31,11 +34,44 @@ Academic Placement-derived history. Permission projection is advisory
 presentation only; API authorization, tenant scope, revisions, lifecycle
 validation, and frozen history are final.
 
-The shared `tp-filters` context selector (Academic Year/Program/Branch/Grade/
-Metric/Dimension) used across every Talent page applies a selection change
+The shared `tp-filters` context selector applies selection changes
 automatically (debounced) instead of requiring a separate "Apply context"
-click; the primary Talent nav shows one "Results & Analytics" entry rather
-than duplicating the sticky analytics sub-nav's individual page links.
+click. Talent's main application sidebar tree is the sole primary module
+navigation; the page no longer duplicates Overview/Programs/Student
+Assessments/Talent Review/Results & Analytics. Results & Analytics retains its
+own bounded sub-navigation inside that family. Program assessment authoring
+shows one selected eligible Grade at a time (defaulting to the first configured
+Grade) instead of repeating the same Grade in every Competency row.
+
+## Talent Assessment Recovery And Review UX Authority
+
+Completed Assessment evidence remains immutable. A new Administrator-default
+permission, `talent_assessments.reset_for_reassessment`, provides an
+evidence-preserving operational recovery path when a completed current
+Assessment must be assessed again but automatic rubric-change detection does
+not apply. The action marks the prior attempt non-current and audits the reset;
+it does not delete competency results, Review Candidate/Official Identification
+records, Educator Input, placement provenance, or other history. The Student
+then returns to **Not started / Start Assessment** in the same visible
+Evaluation, and the normal start path creates the new current attempt.
+ADR 0034 hard-delete remains limited to zero-evidence Assessments.
+
+Student Assessments keeps the Evaluation Period visibly selected while the
+user works, nests configured Programs inside that Period, and opens the exact
+Program/Grade assessment criteria when Start/Continue/View Assessment is used.
+Talent Review's primary table no longer presents the internal deterministic
+"Meets criteria" classification as a user-facing category; internal Review
+Candidate policy remains intact for review actions and Official Identification
+remains a separate human decision. Review can be narrowed by authorized Branch,
+Grade, and Section. "All Branches" is offered only when the actor has more than
+one authorized Branch. Analytics failures surface the backend's governed
+reason/action instead of a generic unavailable message.
+
+User-facing Program setup uses **Assessment Criteria** for the competency-owned
+rubric structure so it is not falsely conflated with the separate numeric
+`TalentKpiConfiguration`. The real numeric feature is explicitly labeled
+**Key Performance Indicator (KPI)** and exposes Add/Edit/Delete KPI controls
+when editable. Internal rubric API/schema terminology remains unchanged.
 
 ## Student/Talent Migration Ordering Authority
 
