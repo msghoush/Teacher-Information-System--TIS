@@ -633,19 +633,19 @@ def test_competency_rubric_migration_is_idempotent(db):
     assert "framework_competency_id" in columns
 
 
-def test_overall_program_result_normalizes_competencies_with_different_level_counts(db):
+def test_overall_program_result_requires_one_coherent_rubric_scale(db):
     _, session = db
-    program = create_program(session, school_group_id=1, name="Normalized Talent")
+    program = create_program(session, school_group_id=1, name="Coherent Talent Scale")
     transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
     framework = create_framework_draft(
         session, school_group_id=1, program_id=program.id, title="Grade 1 rubric"
     )
     members = []
     rubric_levels = []
-    for index, (code, name, count) in enumerate((
+    for code, name, count in (
         ("SPEED", "Mental Speed", 3),
         ("STRATEGY", "Strategy Flexibility", 5),
-    ), 1):
+    ):
         competency = create_competency(
             session, school_group_id=1, program_id=program.id, code=code, name=name
         )
@@ -683,15 +683,8 @@ def test_overall_program_result_normalizes_competencies_with_different_level_cou
         framework_version_id=framework.id, title="Term 1",
         population_effective_at=datetime(2026, 10, 1),
     )
-    assessment = start_assessment(
-        session, school_group_id=1, cycle_id=cycle.id, student_id=student.id
-    )
-
-    # 2nd of 3 => 50; 4th of 5 => 75; equal normalized mean => 62.5 -> 63.
-    for member, level in (
-        (members[0], rubric_levels[0][1]),
-        (members[1], rubric_levels[1][3]),
-    ):
+    assessment = start_assessment(session, school_group_id=1, cycle_id=cycle.id, student_id=student.id)
+    for member, level in ((members[0], rubric_levels[0][1]), (members[1], rubric_levels[1][3])):
         _, assessment = set_competency_result(
             session, school_group_id=1, assessment_id=assessment.id,
             framework_competency_id=member.id, rubric_level_id=level.id,
@@ -699,13 +692,14 @@ def test_overall_program_result_normalizes_competencies_with_different_level_cou
         )
 
     overall = overall_program_result(session, assessment)
-    assert overall["score"] == 63
-    assert overall["scale_min"] == 0
-    assert overall["scale_max"] == 100
-    assert overall["competency_count"] == 2
-    assert [item["normalized_score"] for item in overall["components"]] == [50, 75]
-    assert [item["position"] for item in overall["components"]] == [2, 4]
-    assert [item["total_levels"] for item in overall["components"]] == [3, 5]
+    assert overall["available"] is False
+    assert overall["reason"] == "inconsistent_rubric_scale"
+    with pytest.raises(TalentStudentAssessmentError) as error:
+        complete_assessment(
+            session, school_group_id=1, assessment_id=assessment.id,
+            expected_revision=assessment.revision,
+        )
+    assert error.value.code == "inconsistent_rubric_scale"
 
 
 def test_assessment_api_exposes_overall_program_result(db):
@@ -734,5 +728,9 @@ def test_assessment_api_exposes_overall_program_result(db):
     with TestClient(app) as client:
         response = client.get(f"/api/talent/assessments/{assessment.id}")
         assert response.status_code == 200
-        assert response.json()["overall_result"]["score"] == 50
-        assert response.json()["overall_result"]["competency_count"] == 2
+        overall = response.json()["overall_result"]
+        assert overall["available"] is True
+        assert overall["average"] == 1.5
+        assert overall["scale_max"] == 2
+        assert overall["normalized_percent"] == 75
+        assert overall["competency_count"] == 2
