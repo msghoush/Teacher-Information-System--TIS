@@ -1,18 +1,25 @@
 knowledge_impact: yes
-summary: "Owner-directed Talent evaluation refinement. New rubric authoring keeps assessed legacy shared-rubric evidence historical unless explicitly copied, fixes Start Editing to select the newest editable Draft, numbers rubric levels by governed proficiency order, and adds ADR 0037 deterministic Overall Program Result: each applicable competency is normalized within its own rubric to 0-100 and equally averaged for Student Assessment and Talent Review. Official Identification remains a separate authorized human decision; no schema migration is added for the overall result."
+summary: "Owner-approved Talent & Potential consolidation: new competency rubrics no longer auto-copy assessed legacy shared levels; authors can explicitly copy level structure from another current competency; the canonical Overall Program Result is the arithmetic mean of rubric ranks on one coherent Program scale; Student Assessments are grouped Evaluation Period -> Program -> Students with live-placement eligibility and reassessment states; Talent Review includes all current completed Assessments while Review Candidate and Official Identification remain separate; Program settings surface existing Evaluation Periods; organization/Program analytics expose privacy-safe rubric-scale results and separate multi-Program Student results; Talent UI/performance is upgraded without introducing a cross-Program Talent score or new schema migration."
 affected_areas:
-  - talent-rubric-ui
   - talent-program-setup
-  - talent-rubric-legacy-compatibility
+  - talent-rubric-authoring
   - talent-student-assessment
+  - talent-reassessment
+  - talent-evaluation-periods
   - talent-review
   - talent-results
-  - kms-adr
+  - talent-organization-analytics
+  - talent-student-drill
+  - talent-ui-ux
+  - talent-performance
+  - kms-architecture
 kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/engineering/TIS_MODULE_MAP.md
   - docs/adr/README.md
   - docs/adr/0037-talent-overall-program-result.md
+  - docs/adr/0038-talent-evaluation-first-assessment-review.md
 no_impact_reason:
 major_change_override: no
