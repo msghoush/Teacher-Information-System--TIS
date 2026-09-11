@@ -73,33 +73,80 @@
       window.addEventListener('beforeunload',unloadGuard);
     }
     const href = (view,extra={}) => `/talent/${view}?${new URLSearchParams({academic_year_id:year||'',...(pid?{program_id:pid}:{}),...extra})}`;
-    const refresh = () => render(ctx);
+    let program, base, configuredGrades, annual, versions, bank, plans;
+    const fullRefresh = () => render(ctx);
+    const redrawFromCache = async () => {
+      if(pid && bundleCache && bundleCache.key===bundleKey) return render(ctx,{viaHash:true});
+      return fullRefresh();
+    };
+    const refreshSelectedProgram = async (scope='framework') => {
+      if(!pid || !bundleCache || bundleCache.key!==bundleKey || !base) return fullRefresh();
+      const data=bundleCache.data;
+      if(scope==='framework'||scope==='framework-bank'){
+        if(!framework) return fullRefresh();
+        const requests=[
+          api(`${base}/frameworks/${framework.id}`),
+          api(`${base}/frameworks/${framework.id}/configuration`),
+        ];
+        if(scope==='framework-bank') requests.push(api(`${base}/competencies`));
+        const [nextFramework,nextConfig,nextBank]=await Promise.all(requests);
+        data.framework=nextFramework; data.config=nextConfig;
+        framework=nextFramework; config=nextConfig;
+        if(scope==='framework-bank'){data.bank=nextBank;bank=nextBank;}
+      }else if(scope==='program'){
+        const [nextProgram,nextAnnual]=await Promise.all([
+          api(base),
+          api(`${base}/academic-years`),
+        ]);
+        if(nextProgram){data.program=nextProgram;program=nextProgram;}
+        data.annual=nextAnnual;annual=nextAnnual;
+      }else if(scope==='plans'){
+        const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]);
+        const nextPlans=Array.isArray(loaded)?loaded:[];
+        data.plans=nextPlans;plans=nextPlans;
+      }else{
+        return fullRefresh();
+      }
+      return redrawFromCache();
+    };
     const offerReload=feedback=>{
       if(!feedback?.ownerDocument)return;
       const reload=feedback.ownerDocument.createElement('button');reload.type='button';reload.textContent='Reload latest saved version';
-      reload.addEventListener('click',()=>{if(!dirty||window.confirm('Reload the latest version and discard unsaved edits?'))refresh().catch(()=>{feedback.textContent='Unable to reload. Please try refreshing the page.';});});
+      reload.addEventListener('click',()=>{if(!dirty||window.confirm('Reload the latest version and discard unsaved edits?'))fullRefresh().catch(()=>{feedback.textContent='Unable to reload. Please try refreshing the page.';});});
       feedback.append(reload);
     };
-    const mutate = async (path,method,body,target) => {
+    const mutate = async (path,method,body,target,refreshMode='framework') => {
       if(busy) return;
-      if(target&&[...dirtyForms].some(f=>f!==target)&&!window.confirm('Saving reloads this workspace. Other sections have unsaved edits. Discard those other edits and save this section?'))return;
+      if(target&&[...dirtyForms].some(f=>f!==target)&&!window.confirm('Saving this section will discard unsaved edits in another section. Continue?'))return;
       busy=true;
       const controls=[...root.querySelectorAll('button')], previous=controls.map(b=>b.disabled);
       controls.forEach(b=>b.disabled=true);
       const feedback=target?.querySelector('[data-feedback]') || root.querySelector('[data-status]');
       if(feedback) feedback.textContent='Saving…';
-      // Capture scroll position before the workspace re-renders (root.innerHTML
-      // replace) so a save/remove feels local instead of jumping to the top.
       const savedScrollY=typeof window!=='undefined'?window.scrollY:0;
       try {
         const result=await api(path,{method,body:body === undefined?undefined:JSON.stringify(body)});
         dirty=false;dirtyForms.clear();
-        try { await refresh(); ctx.notify?.('Saved successfully.'); if(typeof window!=='undefined')window.scrollTo(0,savedScrollY); }
-        catch {root.innerHTML='<p role="alert">Saved, but the updated workspace could not be loaded. Reload this page to see the saved result.</p>';}
+        try {
+          if(refreshMode==='none'){
+            if(feedback) feedback.textContent='Saved.';
+          }else if(refreshMode==='full'){
+            await fullRefresh();
+          }else{
+            await refreshSelectedProgram(refreshMode);
+          }
+          ctx.notify?.('Saved successfully.');
+          if(typeof window!=='undefined')window.scrollTo(0,savedScrollY);
+        } catch {
+          if(feedback) {
+            feedback.textContent='Saved. The latest data could not be refreshed automatically; use Refresh if needed.';
+            feedback.setAttribute('role','status');
+          }
+        }
         return result;
       } catch(error) {
         if(feedback) { feedback.textContent=`${error.message || 'Unable to save.'} Your entries are preserved. If this version changed elsewhere, reload it before trying again.`; feedback.setAttribute('role','alert'); offerReload(feedback); }
-      } finally {busy=false;controls.forEach((b,i)=>b.disabled=previous[i]);}
+      } finally {busy=false;controls.filter(b=>b.isConnected!==false).forEach((b,i)=>b.disabled=previous[i]);}
     };
     // Upload/replace the Program Identity logo (multipart, so this bypasses the
     // JSON-only `api` helper and posts directly, same permission-gated route).
@@ -116,12 +163,11 @@
         const response=await fetch(`${base}/logo`,{method:'POST',credentials:'same-origin',body});
         const data=await response.json();
         if(!response.ok) throw new Error(typeof data.detail==='string'?data.detail:'Unable to upload this logo.');
-        await refresh(); ctx.notify?.('Program logo saved.'); if(typeof window!=='undefined')window.scrollTo(0,savedScrollY);
+        await refreshSelectedProgram('program'); ctx.notify?.('Program logo saved.'); if(typeof window!=='undefined')window.scrollTo(0,savedScrollY);
       } catch(error) {
         if(feedback) { feedback.textContent=error.message||'Unable to upload this logo.'; feedback.setAttribute('role','alert'); }
       } finally {busy=false;controls.filter(el=>el.isConnected).forEach((el,i)=>el.disabled=previous[i]);}
     };
-    let program, base, configuredGrades, annual, versions, bank, plans;
     // Only a same-page wizard-step (hash-only) navigation - the exact
     // trigger behind the Owner-confirmed repeated "Loading Programs..."
     // defect - may reuse an already-fetched, still-current bundle instead
@@ -144,9 +190,9 @@
       }else{
         root.innerHTML='<p role="status">Loading Programs…</p>';
       }
-      const programs=await api('/api/talent/programs');
-      if (token !== renderToken) return;
       if(!pid) {
+        const programs=await api('/api/talent/programs');
+        if (token !== renderToken) return;
         const [planningGrades,summaryRows]=await Promise.all([
           year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
           year?api(`/api/talent/programs/summaries?academic_year_id=${encodeURIComponent(year)}`).catch(()=>programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))):Promise.resolve(programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))),
@@ -188,23 +234,38 @@
             const created=await api('/api/talent/programs',{method:'POST',body:JSON.stringify({name:d.get('name'),description:d.get('description')})});
             await api(`/api/talent/programs/${created.id}/academic-years/${year}`,{method:'PUT',body:JSON.stringify({is_enabled:true,eligible_grade_levels:grades})});
             ctx.notify?.('Program saved. Add its rubric when you are ready.');
-            await render(ctx);
+            await fullRefresh();
           }catch(error){
             if(feedback){feedback.textContent=error.message||'Unable to save Program.';feedback.setAttribute('role','alert');}
           }
         });
         return;
       }
-      program=programs.find(p=>String(p.id)===pid);
-      if(!program) {if(token===renderToken){bundleCache=null;root.innerHTML='<p class="tp-empty">Program unavailable in your organization.</p>';}return;}
-      base=`/api/talent/programs/${program.id}`;
-      // Real Grades configured in Planning anywhere in the organization for this
-      // Academic Year (Program eligibility has no Branch selection) - never a
-      // fabricated/blanket KG-12 catalog.
-      configuredGrades=year?await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):[];
+      base=`/api/talent/programs/${pid}`;
+      const prefetchedProgram=ctx.programCatalog?.get?.(String(pid)) || null;
+      let [selectedProgram,nextGrades,nextAnnual,nextVersions,nextBank,loadedPlans]=await Promise.all([
+        prefetchedProgram?Promise.resolve(prefetchedProgram):api(base).catch(()=>null),
+        year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
+        api(`${base}/academic-years`),
+        api(`${base}/frameworks`),
+        api(`${base}/competencies`),
+        can('talent_evaluation_plans.view')
+          ? api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[])
+          : Promise.resolve([]),
+      ]);
       if (token !== renderToken) return;
-      [annual,versions,bank]=await Promise.all([api(`${base}/academic-years`),api(`${base}/frameworks`),api(`${base}/competencies`)]);
-      if (token !== renderToken) return;
+      if(!selectedProgram || String(selectedProgram.id)!==String(pid) || !selectedProgram.name){
+        const programs=await api('/api/talent/programs');
+        if (token !== renderToken) return;
+        selectedProgram=programs.find(item=>String(item.id)===String(pid));
+      }
+      if(!selectedProgram){bundleCache=null;root.innerHTML='<p class="tp-empty">Program unavailable in your organization.</p>';return;}
+      program=selectedProgram;
+      configuredGrades=nextGrades;
+      annual=nextAnnual;
+      versions=nextVersions;
+      bank=nextBank;
+      plans=Array.isArray(loadedPlans)?loadedPlans:[];
       const setupRequested=typeof window!=='undefined'?window.location.hash:(ctx.hash||'');
       const drafts=versions.filter(f=>f.status==='draft').sort((a,b)=>(Number(b.version_number)||0)-(Number(a.version_number)||0)||(Number(b.id)||0)-(Number(a.id)||0));
       const chosen=versions.find(f=>String(f.id)===params.get('framework_id'))
@@ -217,9 +278,6 @@
       if(framework && config.revision != null && (framework.revision!==config.revision || framework.semantic_fingerprint!==config.semantic_fingerprint)) {
         bundleCache=null; root.innerHTML='<p role="alert">This version changed while it was loading. Reload the page to open the latest saved version.</p>';return;
       }
-      plans=[];
-      if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
-      if (token !== renderToken) return;
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
       root.removeAttribute?.('aria-busy');
     }
@@ -365,7 +423,7 @@
           const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({code:generatedCode,name,description:d.get('description')})});
           await api(`${fp}/competencies`,{method:'POST',body:JSON.stringify({expected_revision:framework.revision,competency_id:created.id,grade_level:grade,label:d.get('name'),description:d.get('description')})});
           ctx.notify?.('Competency added.');
-          await refresh();
+          await refreshSelectedProgram('framework-bank');
         }catch(error){
           const feedback=f.querySelector('[data-feedback]');
           if(feedback){feedback.textContent=error.message||'Unable to add competency.';feedback.setAttribute('role','alert');}
@@ -396,10 +454,11 @@
         else if(action==='kpi'){path+='/kpi';Object.assign(body,{is_enabled:d.has('is_enabled'),result_scale_min:numeric(d.get('result_scale_min')),result_scale_max:numeric(d.get('result_scale_max')),interpretation:d.get('interpretation'),calculation_method:'weighted_level_average',components:kpiComponents(d,members)});}
         else return;
       }
-      const saved=await mutate(path,method,body,f);
+      const refreshMode=action==='new-version'?'none':(action==='basics'||action==='annual'||action==='edit-program'?'program':action==='create-competency'?'framework-bank':'framework');
+      const saved=await mutate(path,method,body,f,refreshMode);
       if(saved&&action==='new-version'){
         if(typeof window!=='undefined'&&window.location.hash!=='#tp-rubric')window.location.hash='#tp-rubric';
-        await render(ctx);
+        await fullRefresh();
         ctx.notify?.('Rubric is ready to edit.');
         return;
       }
@@ -416,7 +475,7 @@
       const b=event.target.closest('[data-action]');if(!b||busy)return;const a=b.dataset.action;
       if(a==='finish-rubric'){
         if(typeof window!=='undefined'){window.location.hash='';}
-        await render(ctx);
+        await redrawFromCache();
         ctx.notify?.('Rubric saved.');
         return;
       }
@@ -442,7 +501,8 @@
       else if(a==='remove-kpi'){if(!window.confirm('Remove the optional numeric result settings?'))return;path+='/kpi';path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
       else if(a==='move-member'||a==='move-level'){const i=Number(b.dataset.index),items=(a==='move-member'?members.map(m=>m.competency_id):levels.map(l=>l.id));if(i<1)return;[items[i-1],items[i]]=[items[i],items[i-1]];method='PUT';path+=a==='move-member'?'/competencies/order':'/rubric/levels/order';body[a==='move-member'?'competency_ids':'level_ids']=items;}
       else return;
-      await mutate(path,method,body);
+      const refreshMode=a==='program-state'?'full':a==='remove-logo'?'program':'framework';
+      await mutate(path,method,body,undefined,refreshMode);
     };
     if(activeStep==='schedule'&&can('talent_evaluation_plans.view')) {
       const scheduleRoot=root.querySelector('[data-embedded-schedule]');

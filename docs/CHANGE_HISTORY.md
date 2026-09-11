@@ -3679,8 +3679,14 @@ and suppression rules. No universal cross-Program Talent score is introduced.
 
 Performance:
 The Programs list uses one bounded summaries read instead of per-Program
-annual/framework/configuration fan-out. Major Talent refreshes preserve rendered
-content and use localized busy states.
+annual/framework/configuration fan-out. Selected Program initial load uses the
+Program-specific endpoint and parallel setup reads. Routine Program/rubric saves
+refresh only the affected bounded slice and then redraw from cache; Save Rubric
+and hash-only setup navigation require no network reads. Evaluation Plan edits
+retain existing content and refresh only Plan/Cycle data. Student Assessment
+detail and explicit-Evaluation roster loading remove avoidable sequential
+request waterfalls. Full workspace loading remains only for genuine initial or
+context-changing reads and stale-state recovery.
 
 Schema/migrations:
 None introduced by this consolidation.

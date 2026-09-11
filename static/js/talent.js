@@ -247,7 +247,7 @@
         if(!response.ok)throw Object.assign(new Error(typeof data.detail==='string'?data.detail:'Check your entries and try again.'),{status:response.status,code:data.code});
         return data;
       };
-      const ctx={root,view,api:operationApi,can,year,params,notify:message=>{status.textContent=message;},
+      const ctx={root,view,api:operationApi,can,year,params,programCatalog,notify:message=>{status.textContent=message;},
         navigate:(target,extra)=>{location.href=`/talent/${target}?${qs({academic_year_id:year.value,...extra})}`;}};
       // A direct/bookmarked evaluation-plans deep link resolves into the
       // equivalent Program-workspace context (same program_id/academic_year_id,
@@ -547,8 +547,12 @@
       // selector must stay visible regardless of selection state.
       const showProgramField = config.view!=='programs' || Boolean(params.get('program_id'));
       document.getElementById('tp-program-field').hidden=!showProgramField;
-      try {const items=await api('programs');programCatalog=new Map(items.map(item=>[String(item.id),item]));program.innerHTML='<option value="">Choose a Program</option>'+items.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');program.value=resolveProgramSelection(items,params.get('program_id'));}
-      catch {document.getElementById('tp-program-field').hidden=true;}
+      if(showProgramField){
+        try {const items=await api('programs');programCatalog=new Map(items.map(item=>[String(item.id),item]));program.innerHTML='<option value="">Choose a Program</option>'+items.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');program.value=resolveProgramSelection(items,params.get('program_id'));}
+        catch {document.getElementById('tp-program-field').hidden=true;}
+      }else{
+        programCatalog=new Map();
+      }
     }
     syncNavigation();
     await load();

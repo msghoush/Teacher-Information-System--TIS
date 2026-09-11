@@ -2330,9 +2330,19 @@ context only and is not a Talent score input.
 
 The Talent UI has stronger semantic icons/status color, richer Evaluation,
 Student, Review, and result surfaces, and responsive low-to-high result visuals.
-The Programs list now uses a bounded summaries endpoint instead of N+1
-per-Program setup requests, and major Talent views preserve rendered content
-during refreshes rather than repeatedly blanking to full loading states.
+The Programs list uses a bounded summaries endpoint instead of N+1 per-Program
+setup requests. A selected Program is fetched directly, its independent setup
+reads are parallelized, and routine Program/rubric saves perform targeted
+Framework/configuration or Program refreshes rather than a full workspace
+reload. Hash-only wizard navigation and Save Rubric reuse the current bounded
+cache without network reads.
+
+Evaluation Plan mutations keep existing content visible and re-read only
+Plan/Cycle data. Student Assessment detail loading collapses dependent reads into
+one parallel batch after the Assessment is resolved, and an explicitly selected
+Evaluation loads its eligible Student roster in parallel with the operational
+Assessment/context reads. Full loading is reserved for true initial/context
+loads or explicit recovery.
 
 No new schema migration is introduced by this consolidation.
 

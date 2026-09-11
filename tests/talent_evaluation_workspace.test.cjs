@@ -8,6 +8,7 @@ function fixture(allowed=true) {
   const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>allowed,api:async(path,options)=>{
     calls.push({path,options});
     if(path.startsWith('/api/talent/evaluation-plans?'))return [];
+    if(path==='/api/talent/programs/11')return {id:11,name:'Performing Arts'};
     if(path==='/api/talent/programs')return [{id:11,name:'Performing Arts'}];
     if(path==='/api/talent/assessment-cycles?academic_year_id=100&program_id=11')return [];
     if(path.endsWith('/academic-years'))return [{id:21,academic_year_id:100,is_enabled:true}];
@@ -17,6 +18,14 @@ function fixture(allowed=true) {
   }};
   return {ctx,root,calls,feedback};
 }
+
+test('selected Evaluation Plan loads the Program directly without fetching the full Program catalog',async()=>{
+  const {ctx,calls}=fixture();
+  await render(ctx);
+  assert.ok(calls.some(call=>call.path==='/api/talent/programs/11'),'selected Program endpoint is used');
+  assert.equal(calls.filter(call=>call.path==='/api/talent/programs').length,0,'full Program catalog is not fetched for selected Evaluation Plan');
+});
+
 
 test('authorized empty context offers a free-text evaluation name, not a fixed picklist',async()=>{
   const {ctx,root}=fixture();await render(ctx);
@@ -147,6 +156,11 @@ test('saving a Period timeline PATCHes only the two governed date fields, never 
     throw new Error(`Unexpected ${path}`);
   }};
   await render(ctx);
+  const broadBefore={
+    programs:calls.filter(call=>!call.options&&call.path==='/api/talent/programs').length,
+    annual:calls.filter(call=>!call.options&&call.path.endsWith('/academic-years')).length,
+    frameworks:calls.filter(call=>!call.options&&call.path.endsWith('/frameworks')).length,
+  };
   const original=global.FormData;global.FormData=class {constructor(){return new Map([['planned_start_date',''],['planned_end_date','2026-02-01']]);}};
   try {await root.onsubmit({target:{matches:selector=>selector==='form[data-form="period-timeline"]',dataset:{period:'41'},querySelector:()=>feedback},preventDefault(){}});}
   finally {global.FormData=original;}
@@ -156,6 +170,9 @@ test('saving a Period timeline PATCHes only the two governed date fields, never 
   assert.deepEqual(Object.keys(body).sort(),['expected_plan_revision','planned_end_date','planned_start_date']);
   assert.equal(body.planned_start_date,null);
   assert.equal(body.planned_end_date,'2026-02-01');
+  assert.equal(calls.filter(call=>!call.options&&call.path==='/api/talent/programs').length,broadBefore.programs,'Period save does not refetch Programs');
+  assert.equal(calls.filter(call=>!call.options&&call.path.endsWith('/academic-years')).length,broadBefore.annual,'Period save does not refetch annual Program configuration');
+  assert.equal(calls.filter(call=>!call.options&&call.path.endsWith('/frameworks')).length,broadBefore.frameworks,'Period save does not refetch Frameworks');
 });
 
 test('Evaluation Period presentation stays simple and does not expose Draft/Open gating',()=>{

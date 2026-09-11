@@ -23,7 +23,10 @@ source_of_truth: true
 - `static/js/talent-program-workspace.js`: searchable Program table; Program
   identity/eligible-Grade settings; visible Evaluation Period summary; separate
   Grade -> Competency -> competency-owned Rubric -> ordered Levels builder; and
-  explicit Copy Levels From another current-Draft competency.
+  explicit Copy Levels From another current-Draft competency. Selected Program
+  loading uses direct Program reads plus parallel independent setup reads;
+  routine mutations refresh only affected cached slices rather than the entire
+  workspace graph.
 - `talent_student_assessment_service.py`: live-eligibility Assessment start,
   immutable reassessment attempts, coherent-rubric-scale completion guard, and
   deterministic arithmetic-mean Overall Program Result.
@@ -35,7 +38,8 @@ source_of_truth: true
   Students are not hidden from Talent Review.
 - `static/js/talent-evaluation-workspace.js`: continues to own the existing
   Annual Evaluation Plan/Period management without a duplicate Program-period
-  persistence model.
+  persistence model. Post-mutation refreshes re-read only Plan/Cycle data and
+  keep the rendered workspace visible.
 - `static/css/talent-program-workspace.css` and `static/css/talent.css`:
   TIS-token-based light visual hierarchy, Evaluation/Program cards, semantic
   status chips, rubric/result visuals, responsive states, and localized loading.

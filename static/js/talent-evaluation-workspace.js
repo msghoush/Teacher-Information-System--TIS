@@ -10,9 +10,9 @@
     return 'Available';
   };
   const link = (view, year, programId, cycleId) => `/talent/${view}?${new URLSearchParams({academic_year_id:year, program_id:programId, ...(cycleId ? {cycle_id:cycleId} : {})})}`;
-  let unloadGuard;
+  let unloadGuard, workspaceCache=null, renderToken=0;
 
-  async function render(ctx) {
+  async function render(ctx, options={}) {
     const {root, api, can} = ctx, params = ctx.params || new URLSearchParams(), year = ctx.year?.value ?? ctx.year, embedded=Boolean(ctx.embedded);
     root.onclick = null; root.onsubmit = null; root.oninput = null; root.onreset = null;
     root.classList?.add('tp-program-workspace');
@@ -20,21 +20,52 @@
     if (!can('talent_evaluation_plans.view')) { root.innerHTML = '<p>You do not have permission to view the Evaluation Plan.</p>'; return; }
     if (!year) { root.innerHTML = '<p>Select an academic year to plan evaluations.</p>'; return; }
 
-    root.innerHTML = '<p role="status">Loading Evaluation Plan...</p>';
     const programId = params.get('program_id');
     const query = new URLSearchParams({academic_year_id:year, ...(programId ? {program_id:programId} : {})});
-    const [plans, programs, cycles] = await Promise.all([
-      api(`/api/talent/evaluation-plans?${query}`),
-      can('talent_programs.view') ? api('/api/talent/programs') : [],
-      can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : [],
-    ]);
+    const cacheKey=`${year||''}::${programId||''}`;
+    const planOnly=options.planOnly===true && workspaceCache?.key===cacheKey;
+    const token=++renderToken;
+    const alreadyRendered=Boolean(root.querySelector?.('.tp-evaluation-plan,.tp-section-lede,.tp-schedule-table'));
+    if(!alreadyRendered) root.innerHTML = '<p role="status">Loading Evaluation Plan...</p>';
+    else root.setAttribute?.('aria-busy','true');
+
+    let plans, programs, cycles, annual, frameworks;
+    if(planOnly){
+      [plans,cycles]=await Promise.all([
+        api(`/api/talent/evaluation-plans?${query}`),
+        can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : [],
+      ]);
+      ({programs,annual,frameworks}=workspaceCache);
+    }else{
+      const canViewPrograms=can('talent_programs.view');
+      const directBase=programId?`/api/talent/programs/${programId}`:null;
+      const prefetchedProgram=programId?ctx.programCatalog?.get?.(String(programId)):null;
+      const [loadedPlans,loadedPrograms,loadedCycles,loadedAnnual,loadedFrameworks] = await Promise.all([
+        api(`/api/talent/evaluation-plans?${query}`),
+        canViewPrograms
+          ? (prefetchedProgram
+              ? Promise.resolve([prefetchedProgram])
+              : programId
+                ? api(directBase).then(program=>[program]).catch(()=>api('/api/talent/programs'))
+                : api('/api/talent/programs'))
+          : Promise.resolve([]),
+        can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : Promise.resolve([]),
+        canViewPrograms&&programId ? api(`${directBase}/academic-years`) : Promise.resolve([]),
+        canViewPrograms&&programId ? api(`${directBase}/frameworks`) : Promise.resolve([]),
+      ]);
+      plans=loadedPlans;programs=loadedPrograms;cycles=loadedCycles;annual=loadedAnnual;frameworks=loadedFrameworks;
+    }
+    if(token!==renderToken)return;
     const program = programs.find(item => String(item.id) === String(programId));
     if (!program) {
+      workspaceCache=null;
+      root.removeAttribute?.('aria-busy');
       root.innerHTML = `<header class="tp-section-lede"><div><h2>Evaluation Plan</h2><p>Choose a Program to plan its Evaluation Periods for this Academic Year.</p></div></header><nav class="tp-tabs" aria-label="Choose a Program">${programs.map(item => `<a href="${esc(link('evaluation-plans', year, item.id))}">${esc(item.name)}</a>`).join('')}</nav>`;
       return;
     }
     const base = `/api/talent/programs/${program.id}`;
-    const [annual, frameworks] = await Promise.all([api(`${base}/academic-years`), api(`${base}/frameworks`)]);
+    workspaceCache={key:cacheKey,programs,annual,frameworks};
+    root.removeAttribute?.('aria-busy');
     const configuration = annual.find(item => String(item.academic_year_id) === String(year) && item.is_enabled);
     const assessmentFramework = frameworks.find(item => item.status === 'active') || [...frameworks].reverse().find(item => item.status !== 'retired') || null;
     const plan = plans.find(item => item.program_id === program.id) || null;
@@ -89,7 +120,7 @@
 
     const heading=embedded?'<p>Plan when this Program will be evaluated during the Academic Year.</p>':`<a href="${esc(link('programs', year, program.id))}#tp-schedule">Back to Program setup</a><header class="tp-section-lede">${programLogo(program)}<div><p class="tp-eyebrow">${esc(program.name)}</p><h2>Evaluation Plan</h2><p>Plan when this Program will be evaluated during the Academic Year.</p></div></header>`;
     const navigation=embedded?`<div class="tp-wizard-actions"><a href="#tp-builder-review">Back</a><a class="tp-primary-link" href="#tp-ready">Save &amp; Continue</a></div>`:`<div class="tp-wizard-actions"><a href="${esc(link('programs', year, program.id))}#tp-builder-review">Back</a>${periods.length?`<a class="tp-primary-link" href="${esc(link('programs', year, program.id))}#tp-ready">Finish Setup</a>`:''}</div>`;
-    root.innerHTML = `<div data-feedback role="status" aria-live="polite"></div>${heading}${readiness ? `<p class="tp-callout">${esc(readiness)}</p>` : ''}${readOnlyNotice}${warningsNotice}${periods.length ? `<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Evaluation Period</th><th>Status</th><th>Dates</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="tp-empty">${managePlan ? 'Add this year\'s Evaluation Periods below.' : 'No Evaluation Periods have been added for this year.'}</p>`}${addForm}${readyAction}<details class="tp-card"><summary>Plan details</summary><p>${plan ? `Evaluation Plan saved with ${periods.length} Period${periods.length === 1 ? '' : 's'}.` : 'No Evaluation Plan saved yet.'}</p><p>Student Assessments use current Academic Placement for eligibility. Historical placement and assessment-tool context are captured when each Assessment starts.</p></details>${navigation}`;
+    root.innerHTML = `<div class="tp-evaluation-plan" data-feedback role="status" aria-live="polite"></div>${heading}${readiness ? `<p class="tp-callout">${esc(readiness)}</p>` : ''}${readOnlyNotice}${warningsNotice}${periods.length ? `<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Evaluation Period</th><th>Status</th><th>Dates</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="tp-empty">${managePlan ? 'Add this year\'s Evaluation Periods below.' : 'No Evaluation Periods have been added for this year.'}</p>`}${addForm}${readyAction}<details class="tp-card"><summary>Plan details</summary><p>${plan ? `Evaluation Plan saved with ${periods.length} Period${periods.length === 1 ? '' : 's'}.` : 'No Evaluation Plan saved yet.'}</p><p>Student Assessments use current Academic Placement for eligibility. Historical placement and assessment-tool context are captured when each Assessment starts.</p></details>${navigation}`;
 
     let busy = false;
     const dirtyForms = new Set();
@@ -100,7 +131,13 @@
     const setBusy = value => { busy = value; [...root.querySelectorAll('button')].forEach(button => { button.disabled = value; }); };
     const request = (path, method='POST', body) => api(path, {method, body:body === undefined ? undefined : JSON.stringify(body)});
     const fail = (error, target) => { const output = feedback(target); if (output) { const raw=String(error.message||'');const message=error.code==='organization_authority_required'||/organization or global scope/i.test(raw)?"You don't have access to add or change Evaluation Periods for this Program.":raw||'Unable to save the Evaluation Plan.';output.textContent = `${message} Saved steps remain available. Reload before retrying if the Evaluation Plan changed elsewhere.`; output.setAttribute('role', 'alert'); } };
-    const refresh = async message => { const savedScrollY=typeof window!=='undefined'?window.scrollY:0; dirtyForms.clear(); await render(ctx); ctx.notify?.(message); if(typeof window!=='undefined')window.scrollTo(0,savedScrollY); };
+    const refresh = async message => {
+      const savedScrollY=typeof window!=='undefined'?window.scrollY:0;
+      dirtyForms.clear();
+      await render(ctx,{planOnly:true});
+      ctx.notify?.(message);
+      if(typeof window!=='undefined')window.scrollTo(0,savedScrollY);
+    };
 
     root.onsubmit = async event => {
       const form = event.target;
