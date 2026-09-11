@@ -505,6 +505,12 @@ def start_reassessment(db: Session, *, school_group_id, assessment_id, actor=Non
     old_cycle = _cycle(db, school_group_id, prior.cycle_id)
     if old_cycle is None:
         raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    before = assessment_payload(prior)
+    prior.is_current = False
+    prior.updated_by_user_id = getattr(actor, "user_id", None)
+    prior.updated_at = datetime.utcnow()
+    db.flush()
+
     cycle = create_cycle(
         db,
         school_group_id=school_group_id,
@@ -524,10 +530,6 @@ def start_reassessment(db: Session, *, school_group_id, assessment_id, actor=Non
         evaluation_context_cycle_id=prior.evaluation_context_cycle_id or prior.cycle_id,
         actor=actor,
     )
-    before = assessment_payload(prior)
-    prior.is_current = False
-    prior.updated_by_user_id = getattr(actor, "user_id", None)
-    prior.updated_at = datetime.utcnow()
     replacement.is_current = True
     replacement.reassessment_of_assessment_id = prior.id
     replacement.evaluation_context_cycle_id = prior.evaluation_context_cycle_id or prior.cycle_id
