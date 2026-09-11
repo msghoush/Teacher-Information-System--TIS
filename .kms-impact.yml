@@ -1,16 +1,18 @@
 knowledge_impact: yes
-summary: "Owner-directed Talent rubric hierarchy correction. Framework competencies now support optional Grade scope so authoring follows Grade -> Competency -> Rubric Level -> Achievement Description without a parallel rubric model; migration 20260911_002_talent_framework_competency_grade_scope adds the nullable scope. Student Assessment shows only competencies applicable to the recorded historical Grade, Talent Review can display compact ordered level numbers with accessible labels and low-to-high visual intensity, and Evaluation contexts now follow Annual Evaluation Plan Period sequence instead of creation time. Existing Grade-specific descriptor persistence and Student history-delete behavior remain intact."
+summary: "Owner-directed Talent evaluation rebuild. Program authoring is Program + eligible Grades; Rubric is a separate action using Grade -> Competency -> competency-owned Rubric -> ordered Levels. Migration 20260911_004 adds nullable TalentRubric.framework_competency_id with legacy shared-rubric compatibility. Migration 20260911_003 adds current/reassessment and Evaluation-context metadata. Completed evidence stays immutable; materially changed Grade-applicable rubric content produces Re-evaluation required, while no-op clones do not. New/reassessed Students use the newest saved assessable rubric but remain attached to the original Evaluation/Term, and current analytics project only the authoritative current attempt."
 affected_areas:
-  - talent-rubric-data-model
   - talent-program-setup
+  - talent-rubric-data-model
+  - talent-rubric-ui
   - talent-student-assessment
-  - talent-review
-  - talent-evaluation-ordering
+  - talent-reassessment
+  - talent-analytics
   - database-migrations
-  - talent-ui
+  - kms-adr
 kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
+  - docs/adr/0036-talent-rubric-reassessment-attempts.md
 no_impact_reason:
 major_change_override: no
