@@ -401,13 +401,26 @@ def test_mixed_patch_succeeds_with_both_permissions(db):
     assert row.label == "Both" and row.planned_start_date.isoformat() == "2026-09-01"
 
 
+def test_linking_an_evaluation_period_requires_select_period_permission(db):
+    actor = user("1000000015")
+    db.add(actor)
+    grant(db, "Administrator", "talent_evaluation_plans.manage", "talent_assessment_cycles.manage")
+    deny(db, "Administrator", "talent_evaluation_plans.select_period")
+    with client(db, actor) as api:
+        response = api.post(
+            "/api/talent/assessment-cycles/999/link-period",
+            json={"planned_period_id": 888, "expected_plan_revision": 1, "expected_cycle_revision": 1},
+        )
+        assert response.status_code == 403
+
+
 # ---------------------------------------------------------------------------
 # Permission registry shape: additive tuples, no hard-coded role names.
 # ---------------------------------------------------------------------------
 
 def test_new_permission_keys_are_registered_with_the_same_additive_shape():
     import permission_registry as pr
-    for key in ("talent_programs.delete", "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline"):
+    for key in ("talent_programs.delete", "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline", "talent_evaluation_plans.select_period"):
         assert key in pr.ALL_PERMISSION_KEYS
         assert key in pr.PERMISSION_LABELS and isinstance(pr.PERMISSION_LABELS[key], str) and pr.PERMISSION_LABELS[key]
         assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
@@ -417,3 +430,7 @@ def test_new_permission_keys_are_registered_with_the_same_additive_shape():
     assert "talent_programs.delete" not in pr._EDITOR_LIKE_PERMISSIONS
     assert "talent_evaluation_plans.delete_period" not in pr._EDITOR_LIKE_PERMISSIONS
     assert "talent_evaluation_plans.manage_timeline" not in pr._EDITOR_LIKE_PERMISSIONS
+    assert "talent_evaluation_plans.select_period" not in pr._EDITOR_LIKE_PERMISSIONS
+    assert "talent_evaluation_plans.select_period" in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
+    assert "talent_evaluation_plans.select_period" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
+    assert "talent_evaluation_plans.select_period" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
