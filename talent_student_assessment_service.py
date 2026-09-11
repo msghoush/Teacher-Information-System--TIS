@@ -33,6 +33,7 @@ def _clean(value, field, *, maximum=4000):
 def assessment_payload(row):
     return {
         "id": row.id, "school_group_id": row.school_group_id, "cycle_id": row.cycle_id,
+        "evaluation_context_cycle_id": row.evaluation_context_cycle_id or row.cycle_id,
         "cycle_population_member_id": row.cycle_population_member_id, "student_id": row.student_id,
         "program_id": row.program_id, "academic_year_id": row.academic_year_id,
         "framework_version_id": row.framework_version_id, "status": row.status,
@@ -253,7 +254,9 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
         )
 
     assessment = models.TalentStudentAssessment(
-        school_group_id=school_group_id, cycle_id=cycle.id, cycle_population_member_id=member.id,
+        school_group_id=school_group_id, cycle_id=cycle.id,
+        evaluation_context_cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
         student_id=member.student_id, program_id=cycle.program_id,
         academic_year_id=cycle.academic_year_id, framework_version_id=cycle.framework_version_id,
         status="in_progress", revision=1, created_by_user_id=getattr(actor, "user_id", None),
@@ -445,6 +448,7 @@ def start_reassessment(db: Session, *, school_group_id, assessment_id, actor=Non
     prior.updated_at = datetime.utcnow()
     replacement.is_current = True
     replacement.reassessment_of_assessment_id = prior.id
+    replacement.evaluation_context_cycle_id = prior.evaluation_context_cycle_id or prior.cycle_id
     replacement.updated_by_user_id = getattr(actor, "user_id", None)
     replacement.updated_at = datetime.utcnow()
     db.flush()
@@ -469,7 +473,13 @@ def get_assessment(db, *, school_group_id, assessment_id):
 def list_assessments(db, *, school_group_id, cycle_id=None):
     query = db.query(models.TalentStudentAssessment).filter_by(school_group_id=school_group_id)
     if cycle_id is not None:
-        query = query.filter_by(cycle_id=cycle_id)
+        query = query.filter(
+            (models.TalentStudentAssessment.evaluation_context_cycle_id == cycle_id)
+            | (
+                models.TalentStudentAssessment.evaluation_context_cycle_id.is_(None)
+                & (models.TalentStudentAssessment.cycle_id == cycle_id)
+            )
+        )
     return query.order_by(models.TalentStudentAssessment.id).all()
 
 
