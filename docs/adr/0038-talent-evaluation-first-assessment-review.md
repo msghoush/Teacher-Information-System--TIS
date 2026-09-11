@@ -49,7 +49,13 @@ Users may configure labels such as:
 - Audition;
 - or other organization-defined Evaluation labels.
 
-### Student Assessment information architecture
+### Evaluation Period grouping correction
+
+The operational Student Assessment hierarchy is **Evaluation Period -> unique Programs -> Students**. The display grouping key is the user-facing Evaluation label plus its configured sequence for the Academic Year, not a physical Cycle id or a Program-specific Planned Period id. Therefore the same label/sequence (for example `Term 1`) across Mental Math and Qaida Nourania renders as one `Term 1` section containing each Program once.
+
+Multiple physical Cycles for the same Program/Period must never duplicate that Program card. Evaluation Plans are also a display source: a configured Program/Period remains visible before its first internal Cycle has been materialized; opening it directs the user through the existing Evaluation Plan/start-assessment workflow. Cycle remains internal provenance/execution context, not a second user-facing Program occurrence.
+
+## Student Assessment information architecture
 
 The primary Student Assessment chooser is:
 
