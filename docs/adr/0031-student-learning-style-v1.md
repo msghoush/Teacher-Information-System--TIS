@@ -78,8 +78,8 @@ intensity, percentage, tooltip, or ordering.
 ### Student list branch scope and unavailable analytics presentation
 
 Cross-Branch Student browsing is explicitly permissioned. The dedicated
-`students.view_all_branches` permission is Administrator-default and is
-effective only with organization/global access scope. Without both conditions,
+`students.view_all_branches` permission is Administrator-only in the managed
+role policy and is effective only with organization/global access scope. Without both conditions,
 the Students list is fixed to the actor's assigned authorized Branch and does
 not offer an **All branches** choice.
 
