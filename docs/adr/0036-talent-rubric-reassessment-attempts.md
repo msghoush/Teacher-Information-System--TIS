@@ -1,6 +1,6 @@
 ---
 title: Talent Rubric Re-evaluation Attempts
-documentation_version: 1.4
+documentation_version: 1.5
 last_updated: 2026-09-11
 status: accepted
 module: architecture
@@ -65,7 +65,12 @@ immutability. It:
    Identification, Educator Input, placement snapshot, Cycle/Framework context,
    and audit row;
 5. leaves the original visible Evaluation available so the normal Start
-   Assessment flow can create a fresh current attempt with zero results.
+   Assessment flow can create a fresh current attempt with zero results;
+6. preserves the existing physical `UNIQUE(cycle_id, student_id)` contract by
+   creating a private derived Cycle for that fresh attempt when the prior
+   historical Assessment already occupies the visible Evaluation Cycle. The
+   replacement keeps `evaluation_context_cycle_id` pointing at the original
+   visible Evaluation, so users do not see a second Evaluation/Term.
 
 ADR 0034 remains unchanged: physical Assessment deletion is still allowed only
 for zero-evidence Assessments.
