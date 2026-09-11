@@ -1,4 +1,3 @@
-from decimal import ROUND_HALF_UP, Decimal
 """M9 Deterministic Talent Analytics API.
 
 Analytics permission (`talent_analytics.view`) never implies raw access to
@@ -8,6 +7,8 @@ composes only bounded, aggregate, privacy-filtered analytical projections.
 """
 
 from __future__ import annotations
+
+from decimal import ROUND_HALF_UP, Decimal
 
 from dataclasses import replace
 
