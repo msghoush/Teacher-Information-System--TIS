@@ -470,7 +470,25 @@ def _build_nav_items(
                     "label": child["label"],
                     "href": child["href"],
                     "icon": child["icon"],
-                    "active": is_active(child["href"]),
+                    "active": (
+                        (child["href"] == "/talent/overview" and current_path.rstrip("/") == "/talent")
+                        or (
+                            child["href"] == "/talent/analytics"
+                            and any(
+                                is_active(path)
+                                for path in (
+                                    "/talent/analytics",
+                                    "/talent/talent-map",
+                                    "/talent/portfolio",
+                                    "/talent/branch",
+                                    "/talent/overlap",
+                                    "/talent/students",
+                                    "/talent/longitudinal",
+                                )
+                            )
+                        )
+                        or is_active(child["href"])
+                    ),
                 }
                 for child in talent_children
                 if child["allowed"]
