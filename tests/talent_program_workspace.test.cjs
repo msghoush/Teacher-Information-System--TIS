@@ -61,6 +61,12 @@ test('saved descriptor IDs expose the existing precise removal action',async()=>
   assert.match(root.innerHTML,/data-action="remove-descriptor" data-key="91"/);
 });
 
+test('Program setup no longer exposes Program criteria configuration',async()=>{
+  const {ctx,root}=fixture(true,'draft',{step:'assess',hash:'#tp-builder-review'});
+  await render(ctx);
+  assert.doesNotMatch(root.innerHTML,/Program criteria|Enable Program criteria|data-form="policy"/i);
+});
+
 test('Program setup renders one real hash-backed wizard step and one assessment substep',async()=>{
   const {ctx,root}=fixture(true,'draft',{step:'assess',hash:'#tp-builder-review'});await render(ctx);
   assert.equal((root.innerHTML.match(/class="tp-wizard-panel"/g)||[]).length,1);
