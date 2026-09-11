@@ -116,6 +116,16 @@
                         </span>
                         <span class="sidebar-chevron">{{ icon("chevron-right", "shell-icon") }}</span>
                     </a>
+                    {% if item.children and item.active %}
+                    <div class="sidebar-tree" role="group" aria-label="{{ item.label }} navigation">
+                        {% for child in item.children %}
+                        <a class="sidebar-tree-link {% if child.active %}is-active{% endif %}" href="{{ child.href }}">
+                            {{ icon(child.icon, "shell-icon") }}
+                            <span>{{ child.label }}</span>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                     {% endfor %}
                 </nav>
             </section>
