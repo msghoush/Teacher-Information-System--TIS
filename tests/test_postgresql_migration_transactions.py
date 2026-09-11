@@ -1,5 +1,6 @@
 import os
 import uuid
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import create_engine, inspect, text
@@ -375,3 +376,30 @@ def test_postgresql_failed_preledger_create_all_rolls_back_partial_student_table
         with admin_engine.begin() as connection:
             connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
         admin_engine.dispose()
+
+
+def test_talent_reassessment_migration_uses_postgresql_boolean_default(monkeypatch):
+    added_columns = []
+    monkeypatch.setattr(db_migrations, "_table_exists", lambda connection, table: True)
+    monkeypatch.setattr(
+        db_migrations,
+        "_add_column_if_missing",
+        lambda engine, connection, table, column, column_sql: added_columns.append(
+            (table, column, column_sql)
+        ),
+    )
+    monkeypatch.setattr(db_migrations, "_execute", lambda connection, sql, params=None: None)
+    monkeypatch.setattr(
+        db_migrations, "_create_index_if_missing",
+        lambda engine, connection, table, index_name, columns: None,
+    )
+
+    engine = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+    db_migrations._talent_assessment_reassessment_attempts(engine, object())
+
+    is_current = next(
+        sql for table, column, sql in added_columns
+        if table == "talent_student_assessments" and column == "is_current"
+    )
+    assert "BOOLEAN NOT NULL DEFAULT TRUE" in is_current
+    assert "DEFAULT 1" not in is_current
