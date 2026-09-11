@@ -3,7 +3,7 @@ title: Talent Rubric Re-evaluation Attempts
 documentation_version: 1.1
 last_updated: 2026-09-11
 status: accepted
-module: talent-and-potential
+module: architecture
 ---
 
 # ADR 0036: Talent Rubric Re-evaluation Attempts
