@@ -311,10 +311,23 @@ def _require_draft(framework, expected_revision=None, expected_fingerprint=None)
     if expected_fingerprint is not None and framework.semantic_fingerprint != expected_fingerprint: raise TalentProgramError("stale_framework", "Framework Draft changed; refresh before retrying.")
 
 
+def _require_mutable_draft(db, framework, expected_revision=None, expected_fingerprint=None):
+    _require_draft(framework, expected_revision, expected_fingerprint)
+    if db.query(models.TalentStudentAssessment.id).filter_by(
+        school_group_id=framework.school_group_id,
+        program_id=framework.program_id,
+        framework_version_id=framework.id,
+    ).first() is not None:
+        raise TalentProgramError(
+            "framework_in_use",
+            "This rubric has Student Assessment history. Create an updated rubric version instead of changing historical evidence.",
+        )
+
+
 def update_framework_draft(db, *, school_group_id, program_id, framework_id, expected_revision, title=None, summary=None, supersedes_framework_version_id=None, actor=None):
     row = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if row is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(row, expected_revision); before = framework_payload(row)
+    _require_mutable_draft(db, row, expected_revision); before = framework_payload(row)
     if title is not None: row.title = _clean(title, "title", required=True)
     if summary is not None: row.summary = _clean(summary, "summary", maximum=4000)
     if supersedes_framework_version_id is not None:
@@ -355,7 +368,7 @@ def update_competency(db, *, school_group_id, program_id, competency_id, name=No
 def add_framework_competency(db, *, school_group_id, program_id, framework_id, competency_id, expected_revision, label=None, description=None, grade_level=None, display_order=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision)
+    _require_mutable_draft(db, framework, expected_revision)
     competency = db.query(models.TalentCompetency).filter_by(id=competency_id, school_group_id=school_group_id, program_id=program_id).one_or_none()
     if competency is None or competency.status != "active": raise TalentProgramError("invalid_competency", "Competency must be active and belong to the same Program.")
     if db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework_id, talent_competency_id=competency_id).first(): raise TalentProgramError("duplicate_membership", "Competency is already in this Framework Version.")
@@ -375,7 +388,7 @@ def add_framework_competency(db, *, school_group_id, program_id, framework_id, c
 def reorder_framework_competencies(db, *, school_group_id, program_id, framework_id, competency_ids, expected_revision, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
-    _require_draft(framework, expected_revision); members = _framework_members(db, framework_id)
+    _require_mutable_draft(db, framework, expected_revision); members = _framework_members(db, framework_id)
     by_id = {m.talent_competency_id: m for m in members}
     if len(competency_ids) != len(set(competency_ids)) or set(competency_ids) != set(by_id): raise TalentProgramError("invalid_order", "Order must contain every Framework competency exactly once.")
     before = [m.talent_competency_id for m in members]
