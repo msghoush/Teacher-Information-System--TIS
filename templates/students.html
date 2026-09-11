@@ -175,7 +175,7 @@
         {% endif %}
       </div>
       <div class="stu-actions">
-        <a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
+        <a class="stu-btn stu-btn-sm stu-action-btn" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
         {% if can_delete %}
         <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-id="{{ s.id }}" data-student-name="{{ s.display_name }}">
           <input type="hidden" name="force_history" value="" data-force-history>
