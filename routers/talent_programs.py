@@ -444,7 +444,7 @@ def framework_competencies_reorder(program_id: int, framework_id: int, request: 
 
 @router.delete("/{program_id}/frameworks/{framework_id}/competencies/{competency_id}")
 def framework_competencies_remove(program_id: int, framework_id: int, competency_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete_competency")
     if denied: return denied
     return _run(db, lambda: {"framework_revision": remove_framework_competency(db, school_group_id=group_id, program_id=program_id,
         framework_id=framework_id, competency_id=competency_id, expected_revision=expected_revision, actor=user).revision})
@@ -547,7 +547,7 @@ def rubric_levels_reorder(program_id: int, framework_id: int, request: Request, 
 
 @router.delete("/{program_id}/frameworks/{framework_id}/rubric/levels/{level_id}")
 def rubric_level_remove(program_id: int, framework_id: int, level_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.delete_rubric_level")
     if denied: return denied
     return _run(db, lambda: {"framework_revision": remove_rubric_level(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, level_id=level_id, expected_revision=expected_revision, actor=user).revision})
 
