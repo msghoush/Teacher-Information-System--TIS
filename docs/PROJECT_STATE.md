@@ -844,12 +844,12 @@ coverage-shaped sibling field, in addition to the existing static ordering
 guard.
 
 New Administrator-only default permissions are `talent_analytics.view` and
-`talent_analytics.view_students`. No production `TalentAnalyticsPrivacyPolicy`
-is approved - `resolve_privacy_policy_provider()` returns `None` in
-production, so every route fails closed until a governed policy is approved
-and wired in (open gate, by design, not a defect). Live PostgreSQL
-performance/concurrency validation has not been run (open gate, consistent
-with every prior milestone) - only SQLite-backed pytest coverage exists.
+`talent_analytics.view_students`. Production privacy-provider construction is
+configuration-driven through `talent_organization_analytics_providers.py`.
+The provider is returned only when the deployment's governed environment values
+match the approved Release 1 policy values; missing or invalid configuration
+fails closed. Live PostgreSQL performance/concurrency validation remains a
+separate release gate.
 Focused coverage is `tests/test_talent_analytics.py`. M9 is committed and
 pushed on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat:
 add deterministic talent analytics`). It is not deployed, not production-
