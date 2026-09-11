@@ -4,11 +4,10 @@
   const programLogo = program => typeof window !== 'undefined' && window.TalentProgramIdentity ? window.TalentProgramIdentity.logoBadge(program, 'tp-logo-sm') : '';
   const icon = name => typeof window !== 'undefined' && window.TalentProgramWorkspace?.icon ? window.TalentProgramWorkspace.icon(name) : '';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-  const stateFor = (plan, period) => {
-    if (period.cycle?.status === 'open') return 'In progress';
+  const stateFor = (_plan, period) => {
+    if (period.status === 'cancelled') return 'Cancelled';
     if (period.cycle?.status === 'closed') return 'Complete';
-    if (period.cycle?.status === 'draft') return 'Ready to start';
-    return plan.status === 'active' ? 'Ready to start' : 'Setup';
+    return 'Available';
   };
   const link = (view, year, programId, cycleId) => `/talent/${view}?${new URLSearchParams({academic_year_id:year, program_id:programId, ...(cycleId ? {cycle_id:cycleId} : {})})}`;
   let unloadGuard;
@@ -60,7 +59,7 @@
       ? '<p class="tp-callout">This Evaluation Plan is read-only in your current workspace. Ask an organization-authorized Program manager to add or change Evaluation Periods.</p>'
       : '';
     const readiness = !configuration ? 'Enable this Program for the selected academic year first.' : !activeFramework ? 'Finish and activate What we assess before starting an evaluation.' : program.status !== 'active' ? 'Activate the Program before starting an evaluation.' : '';
-    const readyAction = plan?.status === 'draft' && periods.length && governPlan && !managePlan ? '<p><button type="button" data-ready>Make Schedule Ready</button></p>' : '';
+    const readyAction = '';
     const rows = periods.map(period => {
       const state = stateFor(plan, period), cycle = period.cycle;
       const openAssessments = setupReady && can('talent_assessments.view') && (cycle || (manageCycle && managePlan));
@@ -147,13 +146,7 @@
     };
 
     root.onclick = async event => {
-      const button = event.target.closest('button[data-assess],button[data-ready],button[data-remove]'); if (!button || busy) return;
-      if (button.hasAttribute('data-ready')) {
-        setBusy(true);
-        try { await request(`/api/talent/evaluation-plans/${plan.id}/activate`, 'POST', {expected_plan_revision:plan.revision}); await refresh('Schedule is ready.'); }
-        catch (error) { fail(error); } finally { setBusy(false); }
-        return;
-      }
+      const button = event.target.closest('button[data-assess],button[data-remove]'); if (!button || busy) return;
       if (button.hasAttribute('data-remove')) {
         if (typeof window !== 'undefined' && !window.confirm('Remove this evaluation? This cannot be undone.')) return;
         setBusy(true);
