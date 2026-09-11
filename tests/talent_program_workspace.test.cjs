@@ -333,7 +333,7 @@ test('explicit Refresh (a real, non-hash render call) always fetches fresh data 
   const afterRefresh=calls.filter(c=>c.path==='/api/talent/programs').length;
   assert.equal(afterRefresh,beforeRefresh+1,'an explicit (non-hash) render always performs a real Program-list request');
 });
-test('a save (mutate -> refresh) always reflects freshly saved data on the very next hash-only render, never a pre-save cached value',async()=>{
+test('a Program save refreshes only selected Program data and keeps the hash cache current',async()=>{
   const {ctx,root}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
   let currentDescription='Original description';
   const read=ctx.api;
@@ -343,10 +343,14 @@ test('a save (mutate -> refresh) always reflects freshly saved data on the very 
     return read(path,options);
   };
   await render(ctx);
+  let programCatalogReads=0;
+  const counted=ctx.api;
+  ctx.api=async(path,options)=>{if(!options&&path==='/api/talent/programs')programCatalogReads++;return counted(path,options);};
   const old=global.FormData;global.FormData=class extends Map {constructor(){super([['name','Performing Arts'],['description','Updated description']]);}};
   try {await root.onsubmit({preventDefault(){},target:{dataset:{form:'edit-program'},querySelector:()=>({textContent:'',setAttribute(){}})}});}
   finally {global.FormData=old;}
   await render(ctx,{viaHash:true});
+  assert.equal(programCatalogReads,1,'the save performs one targeted Program catalog refresh and the following hash redraw performs no additional reads');
   assert.match(root.innerHTML,/Updated description/);
   assert.doesNotMatch(root.innerHTML,/Original description/);
 });
@@ -606,6 +610,12 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
     return read(path,options);
   };
   await render(ctx);
+  const broadBefore={
+    programs:calls.filter(item=>!item.options&&item.path==='/api/talent/programs').length,
+    grades:calls.filter(item=>!item.options&&item.path.startsWith('/api/talent/programs/planning-grades')).length,
+    plans:calls.filter(item=>!item.options&&item.path.startsWith('/api/talent/evaluation-plans?')).length,
+    versions:calls.filter(item=>!item.options&&item.path.endsWith('/frameworks')).length,
+  };
   assert.match(root.innerHTML,/Rubric Structure/);
   assert.match(root.innerHTML,/Grade 1/);
   assert.match(root.innerHTML,/Reading Fluency/);
@@ -623,6 +633,10 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
   const write=calls.filter(item=>item.options).at(-1);
   assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric');
   assert.equal(JSON.parse(write.options.body).framework_competency_id,71);
+  assert.equal(calls.filter(item=>!item.options&&item.path==='/api/talent/programs').length,broadBefore.programs,'rubric save does not refetch Program catalog');
+  assert.equal(calls.filter(item=>!item.options&&item.path.startsWith('/api/talent/programs/planning-grades')).length,broadBefore.grades,'rubric save does not refetch Planning Grades');
+  assert.equal(calls.filter(item=>!item.options&&item.path.startsWith('/api/talent/evaluation-plans?')).length,broadBefore.plans,'rubric save does not refetch Evaluation Plans');
+  assert.equal(calls.filter(item=>!item.options&&item.path.endsWith('/frameworks')).length,broadBefore.versions,'rubric save does not refetch Framework list');
 });
 
 
