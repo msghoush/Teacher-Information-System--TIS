@@ -93,7 +93,7 @@
       const editable=assessment.status==='in_progress';
       const saved=new Map(results.map(r=>[r.framework_competency_id,r]));
       const competencies=framework.competencies || [],levels=configuration.levels || [];
-      const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid)?.descriptor || '';
+      const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===String(assessment.context?.grade_level||''))?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
       let inputs=[];
       if(can('talent_educator_inputs.view')) inputs=await api(`/api/talent/educator-inputs?${query({student_id:assessment.student_id,program_id:assessment.program_id})}`);
       inputs=inputs.filter(r=>r.academic_year_id===assessment.academic_year_id&&r.assessment_id===assessment.id);
