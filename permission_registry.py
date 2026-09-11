@@ -145,6 +145,7 @@ PERMISSION_GROUPS = (
             ("talent_evaluation_plans.govern", "Activate, cancel periods in, and close annual Talent evaluation plans"),
             ("talent_evaluation_plans.delete_period", "Permanently delete a Draft-status Evaluation Period"),
             ("talent_evaluation_plans.manage_timeline", "Manage Evaluation Period planned dates and reorder/sequence"),
+            ("talent_evaluation_plans.select_period", "Select an Evaluation Period for Student Assessment"),
         ),
     },
     {
