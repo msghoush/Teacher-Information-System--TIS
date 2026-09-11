@@ -57,6 +57,12 @@ def test_build_dataset_produces_a_relationship_valid_seed():
         assert len(summary["cycle_ids"]) == 3
         assert summary["identification_id"] is not None
 
+        seeded_students = session.query(models.Student).filter_by(school_group_id=summary["school_group_id"]).all()
+        assert {student.first_name for student in seeded_students} == {
+            "Layan", "Adam", "Nour", "Karim", "Tala", "Yousef", "Reem", "Omar", "Sara", "Jad"
+        }
+        assert all(student.first_name.isascii() and student.last_name.isascii() for student in seeded_students)
+
         group_id = summary["school_group_id"]
         programs = session.query(models.TalentProgram).filter_by(school_group_id=group_id).all()
         assert {p.status for p in programs} == {"active"}
