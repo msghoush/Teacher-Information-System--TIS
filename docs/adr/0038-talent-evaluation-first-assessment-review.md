@@ -51,7 +51,7 @@ Users may configure labels such as:
 
 ### Evaluation Period grouping correction
 
-The operational Student Assessment hierarchy is **Evaluation Period -> unique Programs -> Students**. The display grouping key is the user-facing Evaluation label plus its configured sequence for the Academic Year, not a physical Cycle id or a Program-specific Planned Period id. Therefore the same label/sequence (for example `Term 1`) across Mental Math and Qaida Nourania renders as one `Term 1` section containing each Program once.
+The operational Student Assessment hierarchy is **Evaluation Period -> unique Programs -> Students**. The display grouping key is the normalized user-facing Evaluation label, not a physical Cycle id or a Program-specific Planned Period id. Configured sequence orders the resulting label groups when available. Therefore a repeated label (for example `Term 1`) across Mental Math and Qaida Nourania renders as one `Term 1` section containing each Program once, even when legacy Cycle metadata lacks matching sequence values.
 
 Multiple physical Cycles for the same Program/Period must never duplicate that Program card. Evaluation Plans are also a display source: a configured Program/Period remains visible before its first internal Cycle has been materialized; opening it directs the user through the existing Evaluation Plan/start-assessment workflow. Cycle remains internal provenance/execution context, not a second user-facing Program occurrence.
 
