@@ -18,7 +18,7 @@ from student_academic_service import create_placement, create_student, transitio
 from talent_assessment_cycle_service import create_cycle, open_cycle
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, add_rubric_level, configure_kpi,
-    create_competency, create_framework_draft, create_program, transition_program,
+    create_competency, create_framework_draft, create_program, remove_framework_competency, transition_program,
     upsert_annual_configuration, upsert_descriptor, upsert_rubric,
 )
 from talent_student_assessment_service import (
@@ -106,6 +106,32 @@ def foundation(session, *, kpi=False, branch=10):
     member = session.query(models.TalentAssessmentCyclePopulationMember).filter_by(cycle_id=cycle.id, student_id=student.id).one()
     return program, framework, cycle, member, student, placement, competencies, levels
 
+
+
+def ensure_competency_owned_rubrics(session, program, framework):
+    """Make a Draft Framework fully assessable under the current canonical rubric model."""
+    members = session.query(models.FrameworkCompetency).filter_by(
+        school_group_id=1, program_id=program.id, framework_version_id=framework.id
+    ).order_by(models.FrameworkCompetency.display_order).all()
+    for member in members:
+        existing = session.query(models.TalentRubric).filter_by(
+            school_group_id=1, program_id=program.id, framework_version_id=framework.id,
+            framework_competency_id=member.id,
+        ).one_or_none()
+        if existing is not None:
+            continue
+        _, framework = upsert_rubric(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=member.id, expected_revision=framework.revision,
+            name=f"{member.label} rubric",
+        )
+        for code, label in (("LEVEL_1", "Beginning"), ("LEVEL_2", "Secure")):
+            _, framework = add_rubric_level(
+                session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+                framework_competency_id=member.id, expected_revision=framework.revision,
+                code=code, label=label, description=f"{member.label} {label}",
+            )
+    return framework
 
 def set_all_results(session, assessment, competencies, levels, *, weights=(None, None)):
     revision = assessment.revision
@@ -447,7 +473,8 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
         title="Updated rubric", clone_from_id=framework.id,
         supersedes_framework_version_id=framework.id,
     )
-    assert reassessment_requirement(session, completed) is None
+    revised = ensure_competency_owned_rubrics(session, program, revised)
+    assert reassessment_requirement(session, completed) is not None
 
     # Adding a new Grade-applicable competency materially changes the rubric.
     lineage = create_competency(
@@ -519,7 +546,34 @@ def test_framework_with_assessment_history_requires_new_version_before_semantic_
             expected_revision=framework.revision,
         )
     assert blocked.value.code == "framework_in_use"
+    existing_member = session.query(models.FrameworkCompetency).filter_by(
+        framework_version_id=framework.id
+    ).order_by(models.FrameworkCompetency.display_order).first()
+    with pytest.raises(TalentProgramError) as blocked_rubric:
+        upsert_rubric(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=existing_member.id, expected_revision=framework.revision,
+            name="Unsafe in-place rubric",
+        )
+    assert blocked_rubric.value.code == "framework_in_use"
+    with pytest.raises(TalentProgramError) as blocked_delete:
+        remove_framework_competency(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            competency_id=existing_member.talent_competency_id, expected_revision=framework.revision,
+        )
+    assert blocked_delete.value.code == "framework_in_use"
     assert get_assessment(session, school_group_id=1, assessment_id=assessment.id).framework_version_id == framework.id
+
+
+def test_normal_evaluation_start_never_uses_legacy_shared_rubric(db):
+    _, session = db
+    _, _, cycle, member, _, _, _, _ = foundation(session)
+    with pytest.raises(TalentStudentAssessmentError) as blocked:
+        start_assessment_for_evaluation(
+            session, school_group_id=1, evaluation_cycle_id=cycle.id,
+            student_id=member.student_id,
+        )
+    assert blocked.value.code == "assessment_tool_unavailable"
 
 
 def test_new_student_uses_newest_saved_rubric_but_stays_in_original_evaluation_context(db):
@@ -531,6 +585,7 @@ def test_new_student_uses_newest_saved_rubric_but_stays_in_original_evaluation_c
         title="Revised rubric", clone_from_id=framework.id,
         supersedes_framework_version_id=framework.id,
     )
+    revised = ensure_competency_owned_rubrics(session, program, revised)
     new_competency = create_competency(
         session, school_group_id=1, program_id=program.id,
         code="NEW", name="New competency",
