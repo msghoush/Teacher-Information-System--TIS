@@ -27,8 +27,16 @@ source_of_truth: true
 1. Opening an active Program with enabled annual Grades, an active complete assessment setup, and at least one Evaluation Period shows its operational summary without the setup stepper.
 2. Edit Program opens `#tp-basics`; Edit What we assess opens the assessment subflow; Manage Evaluation Plan opens `#tp-schedule`. Program and Academic Year query context remain unchanged.
 3. The setup stepper labels Step 3 Evaluation Plan. Its embedded table labels each row an Evaluation Period and supports the existing authorized edit, remove, and Start Evaluation actions.
-4. Ready confirms each prerequisite. Finish Setup clears the setup hash and rerenders the operational summary when the Program is complete.
+4. Ready confirms each prerequisite. For a complete Draft Program, Finish Setup is the governed activation boundary: activate the Program, activate the reviewed Draft Framework with its revision/fingerprint, clear setup state, and open that Program's operational summary. Already-active state is not mutated again.
 5. The renderer obtains the Academic Year display label from the selected shell option and never presents its internal ID as the normal label.
+
+## Talent Re-evaluation Reset And Evaluation Grouping Flow
+
+1. Student Assessments groups one user-facing Evaluation label/sequence across Programs, then renders each Program once; duplicate physical Cycles never create duplicate Program cards.
+2. A configured Program/Period can be shown before its internal Cycle exists. Starting/opening that Program uses the existing Evaluation Plan/Cycle workflow to materialize provenance when needed.
+3. A completed Student whose current rubric has materially changed surfaces **Re-evaluation required**. For forward changes this means a newer assessable Framework Version; for legacy pre-guard data it may also mean that the same Framework now contains a complete competency-owned rubric whose IDs no longer match the completed attempt's persisted rubric/level bindings.
+4. Re-evaluation never edits or deletes the prior evidence. The previous completed attempt becomes non-current; the replacement starts current and In Progress with zero competency results, links to the prior attempt, and remains under the original visible Evaluation through `evaluation_context_cycle_id`.
+5. Untouched legacy shared rubrics and partially configured competency-owned rubrics do not trigger re-evaluation.
 
 ## Talent Guided Program Configuration
 
