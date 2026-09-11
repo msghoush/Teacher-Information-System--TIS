@@ -78,27 +78,38 @@ def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permission
 def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, client):
     permissions(db, "students.view", "students.delete", "students.bulk_delete")
 
-    db.add(models.Student(id=1003, school_group_id=1, first_name="Empty", last_name="Student", status="active"))
+    empty = models.Student(school_group_id=1, first_name="Empty", last_name="Student", status="active")
+    db.add(empty)
     db.commit()
-    single = client.post("/students/1003/delete")
-    assert single.status_code in (200, 302)
+    empty_id = empty.id
+    single = client.post(f"/students/{empty_id}/delete", follow_redirects=False)
+    assert single.status_code == 302
+    assert single.headers["location"] == "/students/?success=deleted-1"
     db.expire_all()
-    assert db.query(models.Student).filter_by(id=1003, school_group_id=1).one_or_none() is None
+    assert db.query(models.Student).filter_by(id=empty_id, school_group_id=1).one_or_none() is None
 
-    db.add(models.Student(id=1004, school_group_id=1, first_name="Safe", last_name="Delete", status="active"))
-    db.add(models.Student(id=1005, school_group_id=1, first_name="Protected", last_name="History", status="active"))
+    safe = models.Student(school_group_id=1, first_name="Safe", last_name="Delete", status="active")
+    protected = models.Student(school_group_id=1, first_name="Protected", last_name="History", status="active")
+    db.add_all([safe, protected])
     db.flush()
+    safe_id, protected_id = safe.id, protected.id
     db.add(models.StudentAcademicPlacement(
-        school_group_id=1, student_id=1005, academic_year_id=100,
+        school_group_id=1, student_id=protected_id, academic_year_id=100,
         branch_id=10, grade_level="1", section_name="A",
         effective_from=datetime(2026, 9, 1), status="active",
     ))
     db.commit()
 
-    bulk = client.post("/students/bulk-delete", data=[("student_ids", "1004"), ("student_ids", "1005")])
-    assert bulk.status_code in (200, 302)
-    assert db.get(models.Student, 1004) is not None
-    assert db.get(models.Student, 1005) is not None
+    bulk = client.post(
+        "/students/bulk-delete",
+        data=[("student_ids", str(safe_id)), ("student_ids", str(protected_id))],
+        follow_redirects=False,
+    )
+    assert bulk.status_code == 302
+    assert "error=" in bulk.headers["location"]
+    db.expire_all()
+    assert db.query(models.Student).filter_by(id=safe_id, school_group_id=1).one_or_none() is not None
+    assert db.query(models.Student).filter_by(id=protected_id, school_group_id=1).one_or_none() is not None
 
 
 def test_profile_sections_render(db, client):
