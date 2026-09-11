@@ -1,6 +1,6 @@
 ---
 title: TIS Project State
-documentation_version: 4.1
+documentation_version: 4.2
 last_updated: 2026-09-11
 source_of_truth: true
 ---
