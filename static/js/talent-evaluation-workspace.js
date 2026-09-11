@@ -36,12 +36,12 @@
     const base = `/api/talent/programs/${program.id}`;
     const [annual, frameworks] = await Promise.all([api(`${base}/academic-years`), api(`${base}/frameworks`)]);
     const configuration = annual.find(item => String(item.academic_year_id) === String(year) && item.is_enabled);
-    const activeFramework = frameworks.find(item => item.status === 'active');
+    const assessmentFramework = frameworks.find(item => item.status === 'active') || [...frameworks].reverse().find(item => item.status !== 'retired') || null;
     const plan = plans.find(item => item.program_id === program.id) || null;
     const periods = plan?.periods || [];
     const managePlan = can('talent_evaluation_plans.manage'), governPlan = can('talent_evaluation_plans.govern');
     const manageCycle = can('talent_assessment_cycles.manage');
-    const setupReady = Boolean(configuration && activeFramework && program.status === 'active');
+    const setupReady = Boolean(configuration && assessmentFramework);
     const canAddPeriod = managePlan && plan?.status !== 'closed' && configuration;
     const addForm = canAddPeriod ? `<form class="tp-card tp-editor tp-schedule-form" data-form="add-period"><h3>Add Evaluation Period</h3><label>Evaluation Period Name<input type="text" name="label" placeholder="e.g., Term 1, Audition, Spring Review, Final Performance" maxlength="80" required></label><div class="tp-actions"><button type="submit">${icon('add')}Add Evaluation Period</button></div><p data-feedback role="status" aria-live="polite"></p></form>` : '';
     // Presentation only: renders exactly the server-computed advisory warnings
@@ -58,7 +58,7 @@
     const readOnlyNotice = !managePlan
       ? '<p class="tp-callout">This Evaluation Plan is read-only in your current workspace. Ask an organization-authorized Program manager to add or change Evaluation Periods.</p>'
       : '';
-    const readiness = !configuration ? 'Enable this Program for the selected academic year first.' : !activeFramework ? 'Finish and activate What we assess before starting an evaluation.' : program.status !== 'active' ? 'Activate the Program before starting an evaluation.' : '';
+    const readiness = !configuration ? 'Enable this Program for the selected academic year first.' : !assessmentFramework ? 'Finish What we assess before starting an evaluation.' : '';
     const readyAction = '';
     const rows = periods.map(period => {
       const state = stateFor(plan, period), cycle = period.cycle;
@@ -165,7 +165,7 @@
           cycle = await request('/api/talent/assessment-cycles', 'POST', {
             program_id:program.id,
             academic_year_id:Number(year),
-            framework_version_id:activeFramework.id,
+            framework_version_id:assessmentFramework.id,
             title:period.label,
             population_effective_at:new Date().toISOString()
           });
