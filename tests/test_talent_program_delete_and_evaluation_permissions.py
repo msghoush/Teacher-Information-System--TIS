@@ -243,8 +243,8 @@ def test_framework_competency_and_rubric_level_delete_require_dedicated_permissi
 
     actor = user("1000000005")
     db.add(actor)
-    grant(db, "Administrator", "talent_programs.view", "talent_programs.manage")
-    deny(db, "Administrator", "talent_programs.delete")
+    grant(db, "Administrator", "talent_programs.view", "talent_programs.manage", "talent_programs.delete")
+    deny(db, "Administrator", "talent_programs.delete_competency", "talent_programs.delete_rubric_level")
     with client(db, actor) as api:
         comp_response = api.delete(
             f"/api/talent/programs/{program.id}/frameworks/{framework.id}/competencies/{competency.id}",
@@ -268,6 +268,15 @@ def test_framework_competency_delete_succeeds_with_new_permission(db):
     competency = create_competency(db, school_group_id=1, program_id=program.id, code="C1", name="Competency")
     member, framework = add_framework_competency(db, school_group_id=1, program_id=program.id, framework_id=framework.id,
                                                    competency_id=competency.id, expected_revision=framework.revision)
+    rubric, framework = upsert_rubric(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, expected_revision=framework.revision, name="Owned Rubric",
+    )
+    level, framework = add_rubric_level(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, expected_revision=framework.revision,
+        code="L1", label="Level One",
+    )
     db.commit()
 
     actor = user("1000000006")
@@ -280,6 +289,8 @@ def test_framework_competency_delete_succeeds_with_new_permission(db):
         )
         assert response.status_code == 200
     assert db.query(models.FrameworkCompetency).filter_by(id=member.id).one_or_none() is None
+    assert db.query(models.TalentRubric).filter_by(id=rubric.id).one_or_none() is None
+    assert db.query(models.TalentRubricLevel).filter_by(id=level.id).one_or_none() is None
 
 
 # ---------------------------------------------------------------------------
