@@ -243,8 +243,11 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
 
     branches = _branches(db, user, group_id)
     accessible_branch_ids = {b.id for b in branches}
+    organization_scope = auth.can_access_all_branches(user)
     branch_filter = request.query_params.get("branch_id") or ""
     branch_id = int(branch_filter) if branch_filter.isdigit() and int(branch_filter) in accessible_branch_ids else None
+    if not organization_scope and len(branches) == 1:
+        branch_id = int(branches[0].id)
 
     scoped_year_id = getattr(current_user, "scope_academic_year_id", None) or getattr(current_user, "academic_year_id", None)
     grade_filter = str(request.query_params.get("grade", "") or "").strip()
@@ -287,7 +290,6 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         students.append(student)
 
     can_create = auth.has_permission(db, user, "students.create", school_group_id=group_id)
-    organization_scope = auth.can_access_all_branches(user)
     can_delete = organization_scope and auth.has_permission(db, user, "students.delete", school_group_id=group_id)
     can_bulk_delete = organization_scope and auth.has_permission(db, user, "students.bulk_delete", school_group_id=group_id)
     can_force_delete_history = organization_scope and auth.has_permission(db, user, "students.force_delete_history", school_group_id=group_id)
@@ -301,7 +303,10 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
     # of publishing raw counts. Search/status are intentionally not applied
     # here - the distribution reflects the Branch/Grade/Section scope, not
     # an incidental text search.
-    learning_style_distribution = None
+    learning_style_distribution = {
+        "state": "unavailable",
+        "reason": "privacy_policy_unavailable",
+    }
     policy = resolve_privacy_policy_provider()
     if policy is not None:
         ls_population = resolve_learning_style_population(
@@ -316,6 +321,8 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "students": students,
         "branches": branches,
         "selected_branch_id": branch_id,
+        "can_switch_branches": organization_scope,
+        "selected_branch_name": next((b.name for b in branches if b.id == branch_id), None),
         "grade_levels": grade_options,
         "selected_grade": grade_level or "",
         "section_options": section_options,
