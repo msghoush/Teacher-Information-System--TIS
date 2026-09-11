@@ -1,17 +1,15 @@
 knowledge_impact: yes
-summary: "Owner-approved urgent Talent UX and recovery correction: remove duplicate in-page primary navigation in favor of the sidebar tree; move Ready into the Program summary and show positive readiness only when Program/Grade, assessment criteria, and Evaluation Plan prerequisites are complete; author one selected Grade at a time; preserve competency/rubric delete permissions; expose the separate real numeric KPI as explicit Add/Edit/Delete KPI controls while keeping competency-owned rubric domain semantics truthful through the Assessment Criteria label; visibly retain selected Evaluation/Program context and carry it through Start Assessment; add Administrator-default evidence-preserving Reset for Re-assessment that makes a completed current attempt historical without deleting evidence and returns the Student to Not started for the same visible Evaluation; add authorized Branch/Grade/Section Talent Review filters, remove Meets criteria as a primary classification, and make analytics validation failures actionable. No schema migration."
+summary: "Owner video/document acceptance correction: configured Programs are selectable directly inside Student Assessments Evaluation Periods, with governed internal Cycle creation/linking when absent; Start Assessment retains Evaluation/Program context and opens the exact persisted Program/Grade assessment criteria, with visible failures instead of apparent no-ops. Immutable Delete Competency is exposed only through clone-new-Draft-then-delete so historical evidence remains unchanged, and KPI has an explicit collapse affordance. Student Add/Delete/Open controls are icon-only with accessible labels. Cross-Branch Students browsing now requires the new Administrator-default students.view_all_branches permission plus organization/global scope; other actors are fixed to their assigned Branch. Learning Style aggregates remain privacy fail-closed, but a missing privacy provider now renders an explicit unavailable explanation without counts, percentages, or bars. No schema migration."
 affected_areas:
-  - talent-navigation
+  - students
+  - student-learning-style
+  - student-branch-scope
+  - permissions
+  - talent-student-assessment
+  - talent-evaluation-periods
   - talent-program-setup
   - talent-rubric-authoring
   - talent-kpi
-  - talent-program-readiness
-  - talent-student-assessment
-  - talent-reassessment
-  - talent-evaluation-periods
-  - talent-review
-  - talent-analytics
-  - talent-permissions
   - talent-ui-ux
   - kms-architecture
 kms_files_updated:
@@ -21,7 +19,7 @@ kms_files_updated:
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/AI_PROJECT_CONTEXT.md
-  - docs/adr/0036-talent-rubric-reassessment-attempts.md
+  - docs/adr/0031-student-learning-style-v1.md
   - docs/adr/0038-talent-evaluation-first-assessment-review.md
 no_impact_reason:
 major_change_override: no
