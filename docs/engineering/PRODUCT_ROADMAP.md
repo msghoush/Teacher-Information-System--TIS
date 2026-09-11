@@ -10,10 +10,14 @@ source_of_truth: true
 ## Talent M11 Program And Evaluation UX Status
 
 The Owner-directed Programs, assessment-setup, and evaluation-schedule
-simplification is implemented on `dev` and ready for independent review.
-Focused browser-module and backend lifecycle/tenant tests pass. The existing
-M2-M8 architecture, frozen population, Framework history, permission gates,
-and revision conflicts remain authoritative. No schema migration is required.
+simplification is implemented on `dev`. ADR 0035 now governs Student
+Assessment eligibility: current effective Academic Placement + Program eligible
+Grade + active assessment framework/tool are the operational prerequisites.
+Draft/Open Cycle state, frozen population, synchronization, reconciliation, and
+population membership are no longer user-facing prerequisites to start an
+Assessment. Existing Cycle/Population records remain only for compatibility and
+historical provenance/analytics where still consumed. No schema migration is
+required for this correction.
 
 ## Production Migration Blocker Status
 
