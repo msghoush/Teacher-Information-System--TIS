@@ -425,13 +425,15 @@ class TalentRubric(Base):
     __tablename__ = "talent_rubrics"
     __table_args__ = (
         ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_rubrics_framework_scope"),
-        UniqueConstraint("framework_version_id", name="uq_talent_rubrics_framework"),
+        ForeignKeyConstraint(["framework_competency_id", "framework_version_id", "program_id", "school_group_id"], ["talent_framework_competencies.id", "talent_framework_competencies.framework_version_id", "talent_framework_competencies.program_id", "talent_framework_competencies.school_group_id"], name="fk_talent_rubrics_competency_scope"),
+        UniqueConstraint("framework_version_id", "framework_competency_id", name="uq_talent_rubrics_framework_competency"),
         UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_rubrics_id_framework_scope"),
     )
     id = Column(Integer, primary_key=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
     program_id = Column(Integer, nullable=False)
     framework_version_id = Column(Integer, nullable=False)
+    framework_competency_id = Column(Integer, nullable=True)
     name = Column(String(180), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
