@@ -6834,6 +6834,31 @@ def _talent_framework_competency_grade_scope(engine, connection):
             )
 
 
+def _talent_assessment_reassessment_attempts(engine, connection):
+    """Add explicit reassessment/current-attempt metadata to Talent Student Assessments.
+
+    Historical completed evidence remains in place. A later reassessment creates a
+    new Assessment on a new Cycle/Framework and marks the prior Assessment
+    non-current; analytics can therefore project one authoritative current
+    attempt without deleting historical evidence.
+    """
+    if not _table_exists(connection, "talent_student_assessments"):
+        return
+    _add_column_if_missing(
+        connection, connection, "talent_student_assessments",
+        "is_current", "is_current BOOLEAN NOT NULL DEFAULT 1",
+    )
+    _add_column_if_missing(
+        connection, connection, "talent_student_assessments",
+        "reassessment_of_assessment_id", "reassessment_of_assessment_id INTEGER",
+    )
+    _create_index_if_missing(
+        connection, connection, "talent_student_assessments",
+        "ix_talent_student_assessments_current",
+        "school_group_id, program_id, academic_year_id, student_id, is_current",
+    )
+
+
 def _student_learning_style_v1(engine, connection):
     """Add an optional single-select primary Learning Style to Student.
 
@@ -7199,6 +7224,11 @@ MIGRATIONS = (
         migration_id="20260911_002_talent_framework_competency_grade_scope",
         description="Add optional Grade scope to Talent Framework competencies",
         apply=_talent_framework_competency_grade_scope,
+    ),
+    Migration(
+        migration_id="20260911_003_talent_assessment_reassessment_attempts",
+        description="Add explicit current/reassessment linkage for Talent Student Assessments",
+        apply=_talent_assessment_reassessment_attempts,
     ),
 )
 
