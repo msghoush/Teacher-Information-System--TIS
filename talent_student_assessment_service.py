@@ -445,12 +445,73 @@ def start_assessment_for_evaluation(
     )
 
 
+
+def _same_framework_results_are_stale(db: Session, assessment, framework, grade):
+    """Detect legacy in-place rubric changes against an already-completed Assessment.
+
+    Before Framework immutability was enforced consistently, a completed
+    Assessment could remain bound to the same Framework Version while that
+    Version moved from a legacy/shared rubric to the current competency-owned
+    rubric structure. The persisted competency-result bindings are the immutable
+    evidence of what the Student actually used. If those bindings no longer
+    match the Framework's current Grade-applicable competency-owned rubrics,
+    the current result must be re-evaluated even though the version number did
+    not change.
+    """
+    members = [
+        row for row in db.query(models.FrameworkCompetency).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=framework.id,
+        ).order_by(models.FrameworkCompetency.display_order, models.FrameworkCompetency.id)
+        if not row.grade_level or str(row.grade_level) == str(grade or "")
+    ]
+    if not members:
+        return False
+
+    results = {
+        row.framework_competency_id: row
+        for row in db.query(models.TalentStudentCompetencyResult).filter_by(
+            school_group_id=assessment.school_group_id,
+            assessment_id=assessment.id,
+        ).all()
+    }
+    member_ids = {row.id for row in members}
+    if set(results) != member_ids:
+        return True
+
+    for member in members:
+        rubric = db.query(models.TalentRubric).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=framework.id,
+            framework_competency_id=member.id,
+        ).one_or_none()
+        if rubric is None:
+            return True
+        level_ids = {
+            row.id for row in db.query(models.TalentRubricLevel).filter_by(
+                school_group_id=assessment.school_group_id,
+                program_id=assessment.program_id,
+                framework_version_id=framework.id,
+                rubric_id=rubric.id,
+            ).all()
+        }
+        result = results.get(member.id)
+        if result is None or result.rubric_id != rubric.id or result.rubric_level_id not in level_ids:
+            return True
+    return False
+
+
 def reassessment_requirement(db: Session, assessment):
     """Return the newest materially-changed assessable Framework for a completed current Assessment.
 
     A cloned-but-unchanged draft does not trigger re-evaluation. Historical
-    evidence remains bound to the Assessment's exact Framework; this helper only
-    reports whether a newer saved Framework has a different semantic fingerprint.
+    evidence remains bound to the Assessment's exact Framework. In addition to
+    newer materially changed Framework Versions, this helper detects legacy
+    same-Version rubric replacement by comparing the completed Assessment's
+    persisted competency/rubric-level bindings with the current canonical
+    competency-owned rubric structure.
     """
     if assessment.status != "completed" or not bool(getattr(assessment, "is_current", True)):
         return None
@@ -475,6 +536,16 @@ def reassessment_requirement(db: Session, assessment):
     current_snapshot = _assessment_semantic_snapshot(
         db, framework=current_framework, grade=grade, allow_legacy=True
     )
+
+    # Compatibility repair for real data created before the immutable-version
+    # guard was applied consistently. A completed Student whose persisted
+    # result bindings no longer match the current competency-owned rubric on
+    # the same Framework must be reset operationally through reassessment.
+    if _same_framework_results_are_stale(
+        db, assessment, current_framework, grade
+    ):
+        return current_framework
+
     for framework in candidates:
         candidate_snapshot = _assessment_semantic_snapshot(
             db, framework=framework, grade=grade, allow_legacy=False
