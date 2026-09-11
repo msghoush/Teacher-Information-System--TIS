@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 3.6
+documentation_version: 3.7
 last_updated: 2026-09-11
 source_of_truth: true
 ---
@@ -23,7 +23,11 @@ source_of_truth: true
   Competency and Rubric Level removal use the dedicated assignable permissions
   `talent_programs.delete_competency` and
   `talent_programs.delete_rubric_level`; whole Program deletion remains
-  separate.
+  separate. `static/js/talent-program-workspace.js` treats Finish Setup as the
+  governed complete-Draft activation boundary (Program then reviewed Framework),
+  keeps operational-summary hash actions live, and leaves generated competency
+  codes to the backend so Unicode/Arabic names cannot collide through client
+  ASCII stripping.
 - `static/js/talent-program-workspace.js`: searchable Program table; Program
   identity/eligible-Grade settings; visible Evaluation Period summary; separate
   Grade -> Competency -> competency-owned Rubric -> ordered Levels builder; and
@@ -34,13 +38,16 @@ source_of_truth: true
 - `talent_student_assessment_service.py`: live-eligibility Assessment start,
   current Evaluation selection restricted to complete competency-owned rubrics,
   historical-only legacy-rubric comparison, immutable reassessment attempts,
+  legacy same-Framework mismatch detection for pre-guard completed evidence,
   coherent-rubric-scale completion guard, and deterministic arithmetic-mean
   Overall Program Result.
 - `routers/talent_assessments.py` and `static/js/talent-operations.js`:
-  Evaluation Period -> Program -> Student current operational workflow, all
-  eligible Student states, reassessment actions, and result presentation. The
-  normal workspace does not render a duplicate Assessment Records/History
-  table.
+  Evaluation Period -> unique Programs -> Students current operational workflow,
+  merging Plan and Cycle display context so configured Periods remain visible
+  before Cycle materialization and duplicate physical Cycles cannot duplicate a
+  Program card. Reassessment actions include the legacy same-Version reset
+  compatibility path. The normal workspace does not render a duplicate
+  Assessment Records/History table.
 - `routers/talent_review_candidates.py`: candidate persistence APIs plus a
   workspace projection over all current completed Assessments so non-candidate
   Students are not hidden from Talent Review.
