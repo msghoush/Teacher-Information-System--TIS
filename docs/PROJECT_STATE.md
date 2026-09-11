@@ -1,11 +1,45 @@
 ---
 title: TIS Project State
-documentation_version: 4.6
+documentation_version: 4.7
 last_updated: 2026-09-12
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Competency -> KPI -> Level Simplification — Owner Correction: Grade Removed From Configuration Gates Too
+
+Per direct Owner instruction, a same-day corrective pass on top of the
+initial ADR 0039 implementation (below) found and fixed three remaining
+places Grade still acted as a gate rather than context, contradicting the
+Owner's governing rule ("Competency+KPI+Level+Save=Ready; Grade must not be
+a readiness gate, Student-list gate, or Start Assessment gate"). See
+`docs/adr/0039-talent-competency-kpi-level-simplification.md`'s "Owner
+correction" section for the exact prior/corrected behavior. Summary:
+`talent_student_assessment_service._current_placement_for_assessment`
+(renamed from `_current_eligible_placement`) no longer filters a Student's
+Placement by the Program's `eligible_grade_levels` - only tenant scope, the
+Program's Academic Year enablement, and a genuinely current effective
+Placement are required. The Student Assessments list
+(`GET /api/talent/assessment-cycles/{id}/eligible-students`) now calls a
+new `current_placements_for_assessment` (in `talent_assessment_cycle_service.py`)
+instead of `derive_eligible_population`, returning every current, validly
+placed Student in the authorized tenant/Branch/Academic-Year scope with no
+Grade filter; `derive_eligible_population` itself is unchanged and remains
+Grade-filtered for its own legacy/frozen-population callers (Cycle
+open/preview/ADR 0033 reconciliation), which are historical population
+mechanics distinct from the normal live Student Assessments roster.
+`static/js/talent-program-workspace.js`'s readiness (`setupComplete`) no
+longer includes `basicsComplete` (Program/Academic-Year eligible-Grade
+configuration) in its gate - Ready is exactly the assessment build itself
+(Competency+KPI+Level, saved); Grade configuration remains available for
+context but never blocks Ready. No schema migration was required. Zero new
+test regressions were introduced (confirmed by direct before/after
+comparison, matching this session's established practice); three
+pre-existing failures in `tests/test_talent_assessment_cycle_frozen_population.py`
+(already present on the pushed commit this corrects, unrelated to Grade
+gating) were confirmed present both before and after this pass and are not
+newly introduced.
 
 ## Talent Competency -> KPI -> Level Simplification — Implemented
 

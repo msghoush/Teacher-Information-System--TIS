@@ -5,7 +5,7 @@ date: 2026-09-12
 decision_owners:
   - Product Owner
 supersedes:
-  - "ADR 0035 (condition 4 of the assessability list, amended below - the rest of ADR 0035 stands unchanged)"
+  - "ADR 0035 (condition 3 of the assessability list, amended below - the rest of ADR 0035 stands unchanged)"
 ---
 
 # Context
@@ -30,18 +30,20 @@ one deliberately minimal model.
 
 ## Grade is context, not an eligibility gate
 
-Amending ADR 0035 condition 4 (the rest of ADR 0035's assessability list and
-its Supersession/Consequences sections are unchanged): a Student is
-assessable once the Evaluation's assessment framework has at least one
-Competency with at least one KPI/criterion and at least one Level - full
-stop. The implementation must NOT additionally require that Competency to be
-scoped to the specific Student's Grade. If Grade-specific content exists for
-the Student's Grade, it may be preferred/shown; if it does not, the
-Program's saved build is used instead of blocking. Grade remains valid as
-display context and as historical provenance captured at assessment-start
+Amending ADR 0035 condition 3 - "the Placement Grade is included in the
+Program's enabled Academic Year configuration" is removed as an
+assessability requirement (the rest of ADR 0035's assessability list and
+its Supersession/Consequences sections are unchanged). Condition 4
+(a usable assessment framework/tool with at least one competency and one
+rubric level) is unaffected by this amendment on its own terms, but the
+implementation must NOT additionally require that framework content to be
+scoped to the specific Student's Grade either. If Grade-specific content
+exists for the Student's Grade, it may be preferred/shown; if it does not,
+the Program's saved build is used instead of blocking. Grade remains valid
+as display context and as historical provenance captured at assessment-start
 time (per ADR 0035's existing snapshot mechanism) - it must never again
-cause `assessment_tool_unavailable` or hide an otherwise-eligible Student
-from the Student Assessments list.
+cause `assessment_tool_unavailable`, `student_not_eligible`, or hide an
+otherwise-eligible Student from the Student Assessments list.
 
 ## User-facing hierarchy: Competency -> KPI -> Level
 
@@ -103,6 +105,43 @@ bound to any already-completed Assessment. It does not resolve the
 KPI-naming-collision question above - that is an explicit, separate,
 flagged follow-up decision point, not something this ADR silently decides
 either way.
+
+## Owner correction (same day): Grade is not a Program-configuration gate either
+
+A first implementation pass of this ADR only partly removed the Grade gate:
+Start Assessment stopped hard-blocking on a Grade mismatch (it fell back to
+the Program's full saved build), but three related surfaces still
+implicitly required the Student's Placement Grade to be a member of the
+Program's own `eligible_grade_levels` configuration - `_current_eligible_placement`
+filtered the Placement query by `grade_level IN eligible_grades`, the
+Student Assessments list (`GET .../eligible-students`) called
+`derive_eligible_population`, which applies the identical Grade filter,
+and the readiness banner still required `eligible_grade_levels` to be
+non-empty (`basicsComplete`) before showing Ready. The Owner has now
+directly, explicitly corrected this: none of the three may gate on Program
+Grade configuration at all. Restated precisely:
+
+- **Start Assessment**: a Student's current effective Placement is
+  sufficient once tenant/Academic-Year scope and the Program's Academic
+  Year enablement (`is_enabled`) are satisfied - the Student's Placement
+  Grade is never checked against the Program's `eligible_grade_levels`.
+  Grade remains captured on the resulting population member/Assessment as
+  historical/context data only.
+- **Student Assessments list**: for the selected Academic Year and
+  authorized tenant/Branch scope, every Student with a valid current
+  Academic Placement appears - never filtered by Program Grade
+  configuration. This is served by a new function,
+  `current_placements_for_assessment`, deliberately separate from
+  `derive_eligible_population` (which remains unchanged and still Grade-filters
+  for its own legacy/frozen-population callers - Cycle open/preview/ADR 0033
+  reconciliation - since those are historical population mechanics, not the
+  normal Student Assessments list, and are out of this ADR's scope to
+  rewrite).
+- **Readiness**: Program/Academic-Year Grade configuration
+  (`eligible_grade_levels`) may remain available for context/configuration
+  but is never part of the Ready/Not-Ready gate. Readiness is exactly the
+  assessment build itself: at least one Competency, with at least one KPI,
+  with at least one Level, saved.
 
 # Status
 

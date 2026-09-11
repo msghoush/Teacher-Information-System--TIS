@@ -103,7 +103,14 @@ def _assert_editable(db, assessment, expected_revision):
     return cycle
 
 
-def _current_eligible_placement(db, *, cycle, student_id, at):
+def _current_placement_for_assessment(db, *, cycle, student_id, at):
+    """Resolve the Student's current placement for Start Assessment (Owner correction).
+
+    Grade is never an eligibility gate here - only tenant scope, the
+    Program's Academic Year enablement, and a genuinely current effective
+    Placement are required. Grade is still captured on the resulting
+    population member/Assessment as historical/context data (unchanged).
+    """
     config = db.query(models.TalentProgramAcademicYearConfiguration).filter_by(
         school_group_id=cycle.school_group_id,
         program_id=cycle.program_id,
@@ -115,25 +122,23 @@ def _current_eligible_placement(db, *, cycle, student_id, at):
             "annual_configuration_unavailable",
             "This Program is not enabled for the selected Academic Year.",
         )
-    eligible_grades = {value for value in (config.eligible_grade_levels_csv or "").split(",") if value}
     placement = db.query(models.StudentAcademicPlacement).filter(
         models.StudentAcademicPlacement.school_group_id == cycle.school_group_id,
         models.StudentAcademicPlacement.student_id == int(student_id),
         models.StudentAcademicPlacement.academic_year_id == cycle.academic_year_id,
-        models.StudentAcademicPlacement.grade_level.in_(eligible_grades or {"__none__"}),
         models.StudentAcademicPlacement.effective_from <= at,
         (models.StudentAcademicPlacement.effective_to.is_(None) | (models.StudentAcademicPlacement.effective_to > at)),
     ).order_by(models.StudentAcademicPlacement.effective_from.desc()).one_or_none()
     if placement is None:
         raise TalentStudentAssessmentError(
             "student_not_eligible",
-            "Student must have a current Academic Placement in a Grade included in this Program.",
+            "Student must have a current Academic Placement for the selected Academic Year.",
         )
     return placement
 
 
 def _assessment_member_from_current_placement(db, *, cycle, student_id, at):
-    placement = _current_eligible_placement(db, cycle=cycle, student_id=student_id, at=at)
+    placement = _current_placement_for_assessment(db, cycle=cycle, student_id=student_id, at=at)
     member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
         school_group_id=cycle.school_group_id, cycle_id=cycle.id, student_id=int(student_id)
     ).with_for_update().one_or_none()
@@ -433,7 +438,7 @@ def start_assessment_for_evaluation(
     root_cycle = _cycle(db, school_group_id, evaluation_cycle_id, lock=True)
     if root_cycle is None:
         raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
-    placement = _current_eligible_placement(
+    placement = _current_placement_for_assessment(
         db, cycle=root_cycle, student_id=int(student_id), at=datetime.utcnow()
     )
     newest = _newest_assessable_framework(

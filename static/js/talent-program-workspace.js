@@ -314,17 +314,21 @@
     const assessRemaining=(members.length?0:1)+(rubricReady?0:1)+Math.max(0,descriptorTotal-descriptorSaved);
     const assessComplete=Boolean(members.length&&rubricReady);
     const scheduleComplete=plans.some(item=>item.periods?.length);
-    // The single plain-language missing requirement, per ADR 0039 - never a
-    // vague Draft/Ready binary with no explanation.
-    const missingRequirement=!basicsComplete?'Add at least one eligible Grade.'
-      :!members.length?'Add at least one Competency.'
+    // The single plain-language missing requirement, per ADR 0039 (Owner
+    // correction): readiness is exactly Competency+KPI+Level, saved. Academic
+    // Year/Grade configuration remains available for context but is never a
+    // Ready/Not-Ready gate.
+    const missingRequirement=!members.length?'Add at least one Competency.'
       :!rubricReady?'Add a KPI with at least one Level for this Competency.'
       :'';
     const hashes={basics:'#tp-basics',assess:'#tp-builder',schedule:'#tp-schedule'};
     const requested=typeof window!=='undefined'?window.location.hash:(ctx.hash||(params.get('step')?hashes[params.get('step')]:''));
     const rubricMode=requested==='#tp-rubric';
     const activeStep=rubricMode?'rubric':requested.startsWith('#tp-builder')?'assess':Object.entries(hashes).find(([,hash])=>hash===requested)?.[0]||'basics';
-    const setupComplete=Boolean(basicsComplete&&assessComplete);
+    // Owner correction: Program/Academic-Year Grade configuration (basicsComplete)
+    // remains a useful step indicator but is never part of the Ready gate -
+    // Ready is exactly the assessment build itself (Competency+KPI+Level, saved).
+    const setupComplete=Boolean(assessComplete);
     const stepState={basics:basicsComplete,assess:assessComplete,schedule:scheduleComplete};
     const explicitSetup=Boolean(requested);
     if(typeof window!=='undefined') {
