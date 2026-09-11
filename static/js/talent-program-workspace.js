@@ -316,6 +316,10 @@
     const stepState={basics:basicsComplete,assess:assessComplete,schedule:scheduleComplete,ready:basicsComplete&&assessComplete&&scheduleComplete};
     const setupComplete=stepState.ready;
     const explicitSetup=Boolean(requested);
+    if(typeof window!=='undefined') {
+      hashGuard=()=>render(ctx,{viaHash:true});
+      window.addEventListener('hashchange',hashGuard);
+    }
     if(!explicitSetup){
       const grades=(annualYear?.eligible_grade_levels||[]).map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ');
       const periodCount=plans.reduce((count,item)=>count+(item.periods?.length||0),0);
@@ -335,7 +339,6 @@
     }
     const stepReason={assess:assessRemaining?`${assessRemaining} item${assessRemaining===1?'':'s'} remaining`:''};
     const nav=(activeStep==='basics'||activeStep==='rubric')?'':[['assess','What we assess'],['schedule','Evaluation Plan'],['ready','Ready']].map(([key,label],index)=>`<a href="${hashes[key]}" data-step="${key}" class="tp-step ${key===activeStep?'tp-step-current':stepState[key]?'tp-step-complete':'tp-step-pending'}" ${key===activeStep?'aria-current="step"':''}><span>${stepState[key]?icon('check'):index+1}</span><b>${label}</b>${stepReason[key]?`<small>${esc(stepReason[key])}</small>`:''}</a>`).join('');
-    if(typeof window!=='undefined') { hashGuard=()=>render(ctx,{viaHash:true}); window.addEventListener('hashchange',hashGuard); }
     const substeps={competencies:'#tp-builder-competencies',rubric:'#tp-builder-rubric',descriptions:'#tp-builder-descriptions',review:'#tp-builder-review'};
     const activeSub=Object.entries(substeps).find(([,hash])=>hash===requested)?.[0]||'competencies';
     const subState={competencies:Boolean(members.length),rubric:Boolean(levels.length),descriptions:Boolean(descriptorTotal&&descriptorTotal===descriptorSaved),review:assessComplete};
@@ -425,8 +428,7 @@
         const grade=action.split(':')[1];
         try{
           const name=String(d.get('name')||'').trim();
-          const generatedCode=`${grade}_${name}`.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,80);
-          const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({code:generatedCode,name,description:d.get('description')})});
+          const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({name,description:d.get('description')})});
           await api(`${fp}/competencies`,{method:'POST',body:JSON.stringify({expected_revision:framework.revision,competency_id:created.id,grade_level:grade,label:d.get('name'),description:d.get('description')})});
           ctx.notify?.('Competency added.');
           await refreshSelectedProgram('framework-bank');
@@ -486,15 +488,28 @@
         return;
       }
       if(a==='finish-setup'){
-        // Exit the wizard to the canonical Programs list - not a re-render
-        // of this same ctx (which still carries the current program_id and
-        // would just redraw the operational summary/wizard again). Reuses
-        // the same ctx.navigate(...) full-navigation helper every other
-        // "return to list"/cross-view action in this workspace family uses
-        // (e.g. talent-operations.js's post-start navigate('assessments',...)),
-        // rather than a bespoke history.replaceState that only edits the
-        // visible URL without changing what gets rendered.
-        ctx.navigate('programs');
+        const status=root.querySelector('[data-status]');
+        try{
+          if(program.status==='draft'){
+            if(!govern)throw new Error('You need Program governance permission to finish and activate this setup.');
+            if(status)status.textContent='Activating Program…';
+            await api(`${base}/lifecycle/active`,{method:'POST'});
+          }
+          if(framework?.status==='draft'){
+            if(!govern)throw new Error('You need Program governance permission to activate this rubric.');
+            if(status)status.textContent='Activating rubric…';
+            await api(`${fp}/activate`,{method:'POST',body:JSON.stringify({
+              expected_revision:framework.revision,
+              expected_fingerprint:framework.semantic_fingerprint,
+            })});
+          }
+          ctx.notify?.('Program setup finished and activated.');
+          if(typeof window!=='undefined')window.location.hash='';
+          if(ctx.navigate)ctx.navigate('programs',{program_id:pid});
+          else await fullRefresh();
+        }catch(error){
+          if(status){status.textContent=error.message||'Unable to finish setup.';status.setAttribute('role','alert');}
+        }
         return;
       }
       if(dirty&&!window.confirm('This action reloads the workspace. Discard unsaved edits?'))return;
