@@ -252,10 +252,11 @@
       const a=assessmentFor(m.student_id,cycle);
       const studentName=esc(m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ') || 'Student name unavailable');
       const statusLabel=a?.reassessment?.required?'Re-evaluation required':a?words(a.status):'Not started';
+      const resetAllowed=a?.status==='completed'&&(a.actions||[]).includes('reset_for_reassessment');
       const action=a?.reassessment?.required&&(a.actions||[]).includes('reassess')
         ?button('reassess-row','Re-evaluate Student',`data-id="${a.id}"`)
         :a
-          ?`<a class="tp-action-link" href="${esc(url('assessments',{assessment_id:a.id}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'} →</a>`
+          ?`<div class="tp-row-actions"><a class="tp-action-link" href="${esc(url('assessments',{assessment_id:a.id,cycle_id:cycle?.id||'',program_id:a.program_id||pid||''}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'} →</a>${resetAllowed?button('reset-reassessment','Reset for Re-assessment',`data-id="${a.id}"`):''}</div>`
         :can('talent_assessments.manage')
           ?button('start','Start Assessment',`data-student="${m.student_id}"`)
           :'<span>Not started</span>';
@@ -321,10 +322,11 @@
       const bs=Number.isFinite(Number(b.sequence))?Number(b.sequence):9999;
       return as-bs || a.label.localeCompare(b.label);
     });
+    const selectedLabel=cycle?(cycle.evaluation_label||cycle.title||'').trim().toLowerCase():'';
     const cardsHtml=evaluationGroups.length
-      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>`<section class="tp-evaluation-group"><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Evaluation Period</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));const title=esc(p?.name || `Program ${context.program_id}`);return context.id
-        ?`<a class="tp-evaluation-program-card" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`
-        :`<a class="tp-evaluation-program-card" href="${esc(url('evaluation-plans',{program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · open the plan to start Student Assessments</small></span><span aria-hidden="true">→</span></a>`;}).join('')}</div></section>`).join('')}</div>`
+      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>{const selected=Boolean(selectedLabel&&group.label.trim().toLowerCase()===selectedLabel);return `<section class="tp-evaluation-group${selected?' is-selected':''}" ${selected?'aria-current="true"':''}><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">${selected?'Selected Evaluation Period':'Evaluation Period'}</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}${selected?' · active':''}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));const title=esc(p?.name || `Program ${context.program_id}`);return context.id
+        ?`<a class="tp-evaluation-program-card${String(context.id)===String(cycle?.id)?' is-selected':''}" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>${String(context.id)===String(cycle?.id)?'Selected Program · ':''}View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`
+        :`<a class="tp-evaluation-program-card" href="${esc(url('evaluation-plans',{program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · open the plan to start Student Assessments</small></span><span aria-hidden="true">→</span></a>`;}).join('')}</div></section>`;}).join('')}</div>`
       :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
 
     const selectedHeading=cycle?`<div class="tp-selected-evaluation"><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Selected Evaluation</p><h3>${esc(cycle.evaluation_label||cycle.title)}</h3><p>${esc(programById.get(String(cycle.program_id))?.name||'Program')}</p></div></div>`:'';
@@ -334,13 +336,20 @@
     // as eligibility authority. The backend captures the historical Placement
     // snapshot when the Assessment is created; no Open Evaluation step exists.
     on('start',async el=>{
+      if(!cycle?.id)throw new Error('Choose an Evaluation Period and Program before starting an Assessment.');
       const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,student_id:Number(el.dataset.student)}});
-      navigate('assessments',{assessment_id:result.id,academic_year_id:result.academic_year_id,program_id:pid});
+      navigate('assessments',{assessment_id:result.id,cycle_id:cycle.id,academic_year_id:result.academic_year_id,program_id:result.program_id||cycle.program_id||pid});
     });
     on('reassess-row',async el=>{
       if(!window.confirm('Start a new re-evaluation using the updated rubric? The prior completed result will remain preserved.'))return;
       const replacement=await api(`/api/talent/assessments/${el.dataset.id}/reassess`,{method:'POST'});
       navigate('assessments',{assessment_id:replacement.id,academic_year_id:replacement.academic_year_id,program_id:replacement.program_id});
+    });
+    on('reset-reassessment',async el=>{
+      if(!window.confirm('Reset this completed Assessment for re-assessment? The completed evidence will be preserved as historical and the Student will return to Not started for this Evaluation.'))return;
+      await api(`/api/talent/assessments/${el.dataset.id}/reset-for-reassessment`,{method:'POST'});
+      await reload();
+      notify('Assessment reset for re-assessment. Prior evidence remains historical.');
     });
     on('delete-assessment',async el=>{
       if(!window.confirm('Permanently delete this Assessment? This cannot be undone.'))return;
