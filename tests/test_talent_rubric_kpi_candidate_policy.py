@@ -595,7 +595,7 @@ def test_competencies_can_own_independent_rubrics_and_level_scopes(db):
     assert mismatch.value.code == "invalid_descriptor_scope"
 
 
-def test_legacy_shared_rubric_migrates_only_when_a_competency_is_edited(db):
+def test_legacy_shared_rubric_remains_historical_when_competency_rubric_is_created(db):
     program, framework, _, first_member, _ = foundation(db, name="Legacy Mental Math")
     second = create_competency(
         db, school_group_id=1, program_id=program.id,
@@ -644,12 +644,11 @@ def test_legacy_shared_rubric_migrates_only_when_a_competency_is_edited(db):
         if item["framework_competency_id"] == clone_member.id
     )
     assert migrated.framework_competency_id == clone_member.id
-    assert len(owned["levels"]) == 1
-    assert owned["levels"][0]["description"] == "Beginning description"
+    assert owned["levels"] == []
 
 
 def test_competency_rubric_creation_never_auto_copies_legacy_shared_levels(db):
-    _, session = db
+    session = db
     program = create_program(session, school_group_id=1, name="No Legacy Auto Copy")
     framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Draft")
     legacy, framework = upsert_rubric(
@@ -674,7 +673,7 @@ def test_competency_rubric_creation_never_auto_copies_legacy_shared_levels(db):
 
 
 def test_explicit_copy_levels_from_competency_is_one_time_and_optional_descriptions(db):
-    _, session = db
+    session = db
     program = create_program(session, school_group_id=1, name="Explicit Copy")
     framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Draft")
     members = []
