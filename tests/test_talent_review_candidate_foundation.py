@@ -22,7 +22,7 @@ import models
 from auth import get_current_user
 from database import Base
 from dependencies import get_db
-from routers.talent_review_candidates import router
+from routers.talent_review_candidates import _display_payload as review_display_payload, router
 from student_academic_service import create_placement, create_student, transition_placement
 from talent_assessment_cycle_service import create_cycle, open_cycle
 from talent_program_service import (
@@ -521,3 +521,22 @@ def test_migration_is_idempotent_and_widens_audit_check(db):
         db_migrations._talent_review_candidate_foundation(engine, connection)
     assert "talent_review_candidates" in inspect(engine).get_table_names()
     assert any(row.migration_id == "20260904_006_talent_review_candidate_foundation" for row in db_migrations.MIGRATIONS)
+
+
+def test_review_payload_includes_normalized_overall_program_result(db):
+    _, session = db
+    _, _, _, members, competencies, levels = foundation(
+        session,
+        policy_fn=lambda c, l: [rubric_rule(c[0], l[0])],
+    )
+    _, _, member = members[0]
+    completed = complete_with_levels(session, member, competencies, [levels[0], levels[2]])
+    candidate, outcome = evaluate_review_candidate(
+        session, school_group_id=1, assessment_id=completed.id
+    )
+    assert outcome == "qualified"
+    payload = review_display_payload(session, candidate)
+    # Shared 3-level rubric: position 1 -> 0, position 3 -> 100; equal mean = 50.
+    assert payload["overall_result"]["score"] == 50
+    assert payload["overall_result"]["competency_count"] == 2
+    assert payload["overall_result"]["calculation_method"] == "equal_competency_normalized_rubric_position"
