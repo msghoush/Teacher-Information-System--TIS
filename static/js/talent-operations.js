@@ -73,6 +73,9 @@
         cycle_id:params.get('cycle_id'),
         program_id:params.get('program_id'),
         academic_year_id:year,
+        branch_id:params.get('branch_id'),
+        grade_level:params.get('grade_level'),
+        planning_section_id:params.get('planning_section_id'),
       });
       const [rows,programs,decisions]=await Promise.all([
         api(`/api/talent/review-candidates/workspace?${workspaceQuery}`),
@@ -101,7 +104,6 @@
             ${r.reassessment?.required?note('A newer rubric requires re-evaluation. This completed result remains historical evidence until the replacement assessment is completed.'):''}
             <div class="tp-review-overall"><span>Overall Program Result</span>${overallResultVisual(r.overall_result)}</div>
             <div class="tp-review-state-grid">
-              <div><small>Review Candidate</small><strong>${esc(candidate?'Meets configured criteria':'No candidate record')}</strong></div>
               <div><small>Review status</small><strong>${esc(candidateLabel(r))}</strong></div>
               <div><small>Official Identification</small><strong>${esc(d?words(d.decision):'Not yet decided')}</strong></div>
             </div>
@@ -118,11 +120,9 @@
       const resultRows=rows.filter(r=>r.overall_result?.available!==false&&Number.isFinite(Number(r.overall_result?.average)));
       const avg=resultRows.length?(resultRows.reduce((sum,r)=>sum+Number(r.overall_result.average),0)/resultRows.length):null;
       const commonScale=resultRows.length&&resultRows.every(r=>Number(r.overall_result.scale_max)===Number(resultRows[0].overall_result.scale_max))?Number(resultRows[0].overall_result.scale_max):null;
-      const candidateCount=rows.filter(r=>r.candidate).length;
       const identifiedCount=rows.filter(r=>decisionFor(r)?.decision==='identified').length;
       const kpis=`<div class="tp-kpi-grid tp-review-kpis">
         <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✓</span><span class="tp-kpi-label">Completed Assessments</span><div class="tp-kpi-value">${completedCount}</div></article>
-        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">★</span><span class="tp-kpi-label">Review Candidates</span><div class="tp-kpi-value">${candidateCount}</div></article>
         <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">◎</span><span class="tp-kpi-label">Average Program Result</span><div class="tp-kpi-value">${avg!=null&&commonScale?`${avg.toFixed(1)}<small>/${commonScale}</small>`:'—'}</div></article>
         <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✦</span><span class="tp-kpi-label">Officially Identified</span><div class="tp-kpi-value">${identifiedCount}</div></article>
       </div>`;
@@ -131,9 +131,9 @@
         const candidate=r.candidate;
         const d=decisionFor(r);
         const status=r.reassessment?.required?'Re-evaluation required':candidateLabel(r);
-        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${esc(c.student_name || 'Student name unavailable')}<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small></span></span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td><span class="tp-status-chip ${candidate?'is-candidate':'is-neutral'}">${esc(candidate?'Meets criteria':'No candidate')}</span></td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open Review →</a></td></tr>`;
+        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${esc(c.student_name || 'Student name unavailable')}<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small></span></span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open Review →</a></td></tr>`;
       }).join('');
-      mount(`${kpis}${note('Talent Review includes every current Completed Assessment. Review Candidate and Official Identification are separate states; an assessment never disappears because it did not materialize a Candidate row.')}${!rows.length?note('No completed Student Assessments are available in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table tp-review-table"><thead><tr><th>Student</th><th>Program / Evaluation</th><th>Overall result</th><th>Review Candidate</th><th>Review status</th><th>Identification</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`}`);
+      mount(`${kpis}${note('Talent Review includes every current Completed Assessment. Review status and Official Identification are separate states. Deterministic candidate policy stays internal unless it creates a review action.')}${!rows.length?note('No completed Student Assessments are available in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table tp-review-table"><thead><tr><th>Student</th><th>Program / Evaluation</th><th>Overall result</th><th>Review status</th><th>Identification</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`}`);
       return;
     }
     if(params.get('assessment_id')) {
