@@ -8,6 +8,10 @@ affected_areas:
   - assessment-historical-provenance
   - talent-cycle-backward-compatibility
 kms_files_updated:
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/engineering/PRODUCT_ROADMAP.md
+  - docs/engineering/TIS_MODULE_MAP.md
   - docs/PROJECT_STATE.md
   - docs/adr/0033-open-talent-cycle-additive-roster-synchronization.md
   - docs/adr/0035-live-academic-placement-assessment-eligibility.md
