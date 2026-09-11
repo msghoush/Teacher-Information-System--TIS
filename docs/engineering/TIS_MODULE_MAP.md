@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 3.7
+documentation_version: 3.8
 last_updated: 2026-09-11
 source_of_truth: true
 ---
@@ -28,7 +28,7 @@ source_of_truth: true
   keeps operational-summary hash actions live, and leaves generated competency
   codes to the backend so Unicode/Arabic names cannot collide through client
   ASCII stripping.
-- `static/js/talent-program-workspace.js`: searchable Program table; Program
+- `static/js/talent-program-workspace.js`: searchable Program table with one normal Open Program row action (plus separately authorized delete where applicable); Program
   identity/eligible-Grade settings; visible Evaluation Period summary; separate
   Grade -> Competency -> competency-owned Rubric -> ordered Levels builder; and
   explicit Copy Levels From another current-Draft competency. Selected Program
@@ -85,7 +85,15 @@ source_of_truth: true
 - `routers/talent_organization_analytics.py`: retains tenant/scope,
   permission, breadth, and privacy gating for organization Student drill and
   aggregate intelligence.
+- `ui_shell.py`, `templates/base.html`, and `static/css/app-shell.css`:
+  permission-aware Talent & Potential child tree in the main application
+  sidebar. The tree is expanded only while Talent is active and links to clean
+  top-level destinations.
 - `templates/talent/workspace.html`: shared Talent shell and filters.
+- `static/js/talent.js`: top-level Talent links retain Academic Year only and
+  clear stale Program/Cycle/Assessment/Branch/Grade/Section/metric/dimension
+  context; Student Assessments owns its Program selector. Results-family
+  sub-navigation alone preserves analysis context intentionally.
 - `static/js/talent.js`: organization/Branch/Grade analytics, selected-Program
   result story, competency averages, governed Student preview, Students Across
   Programs matrix, longitudinal and Talent Map navigation. It never combines
