@@ -234,8 +234,11 @@ def population_query(db: Session, ctx: AnalyticsContext, filters: ResolvedFilter
         models.TalentAssessmentCyclePopulationMember.school_group_id == ctx.school_group_id,
         models.TalentAssessmentCyclePopulationMember.cycle_id.in_(cycle_ids or [-1]),
         ~exists().where(and_(
-            models.TalentStudentAssessment.cycle_population_member_id == models.TalentAssessmentCyclePopulationMember.id,
-            models.TalentStudentAssessment.is_current.is_(False),
+            models.TalentStudentAssessment.cycle_population_member_id
+                == models.TalentAssessmentCyclePopulationMember.id,
+            models.TalentStudentAssessment.evaluation_context_cycle_id.is_not(None),
+            models.TalentStudentAssessment.evaluation_context_cycle_id
+                != models.TalentStudentAssessment.cycle_id,
         )),
     )
     if visible_branch_ids is not None:
@@ -308,14 +311,22 @@ def build_period_timeline(ctx: AnalyticsContext, *, cycle_view_permission: bool)
 
 
 def raw_coverage_counts(db: Session, pop_query) -> dict:
-    base = pop_query.with_entities(models.TalentAssessmentCyclePopulationMember.id.label("member_id")).subquery()
+    base = pop_query.with_entities(
+        models.TalentAssessmentCyclePopulationMember.id.label("member_id"),
+        models.TalentAssessmentCyclePopulationMember.cycle_id.label("cycle_id"),
+        models.TalentAssessmentCyclePopulationMember.student_id.label("student_id"),
+    ).subquery()
     rows = db.query(
         func.coalesce(models.TalentStudentAssessment.status, "unassessed").label("status"),
         func.count(base.c.member_id),
     ).select_from(base).outerjoin(
         models.TalentStudentAssessment,
         and_(
-            models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+            models.TalentStudentAssessment.student_id == base.c.student_id,
+            func.coalesce(
+                models.TalentStudentAssessment.evaluation_context_cycle_id,
+                models.TalentStudentAssessment.cycle_id,
+            ) == base.c.cycle_id,
             models.TalentStudentAssessment.is_current.is_(True),
         ),
     ).group_by("status").all()
@@ -343,6 +354,8 @@ def raw_coverage_by_dimension(db: Session, pop_query, dimension_type: str) -> di
     dim_col = _dimension_column(dimension_type)
     base = pop_query.with_entities(
         models.TalentAssessmentCyclePopulationMember.id.label("member_id"),
+        models.TalentAssessmentCyclePopulationMember.cycle_id.label("cycle_id"),
+        models.TalentAssessmentCyclePopulationMember.student_id.label("student_id"),
         dim_col.label("dim_key"),
     ).subquery()
     rows = db.query(
@@ -351,7 +364,14 @@ def raw_coverage_by_dimension(db: Session, pop_query, dimension_type: str) -> di
         func.count(base.c.member_id),
     ).select_from(base).outerjoin(
         models.TalentStudentAssessment,
-        models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+        and_(
+            models.TalentStudentAssessment.student_id == base.c.student_id,
+            func.coalesce(
+                models.TalentStudentAssessment.evaluation_context_cycle_id,
+                models.TalentStudentAssessment.cycle_id,
+            ) == base.c.cycle_id,
+            models.TalentStudentAssessment.is_current.is_(True),
+        ),
     ).group_by(base.c.dim_key, "status").all()
     per_dim = defaultdict(lambda: {key: 0 for key in COVERAGE_STATUS_KEYS})
     for dim_key, status, count in rows:
@@ -386,11 +406,19 @@ def section_labels(db: Session, pop_query) -> dict:
 
 
 def _assessment_ids_subquery(db: Session, pop_query):
+    base = pop_query.with_entities(
+        models.TalentAssessmentCyclePopulationMember.cycle_id.label("cycle_id"),
+        models.TalentAssessmentCyclePopulationMember.student_id.label("student_id"),
+    ).subquery()
     return db.query(models.TalentStudentAssessment.id).filter(
         models.TalentStudentAssessment.is_current.is_(True),
-        models.TalentStudentAssessment.cycle_population_member_id.in_(
-            pop_query.with_entities(models.TalentAssessmentCyclePopulationMember.id)
-        )
+        exists().where(and_(
+            base.c.student_id == models.TalentStudentAssessment.student_id,
+            base.c.cycle_id == func.coalesce(
+                models.TalentStudentAssessment.evaluation_context_cycle_id,
+                models.TalentStudentAssessment.cycle_id,
+            ),
+        )),
     )
 
 
