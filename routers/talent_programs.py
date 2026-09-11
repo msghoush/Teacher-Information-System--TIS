@@ -137,6 +137,71 @@ def programs_planning_sections(request: Request, academic_year_id: int = Query(.
     return [{"id": row.id, "section_name": row.section_name} for row in items]
 
 
+@router.get("/summaries")
+def programs_summaries(
+    request: Request,
+    academic_year_id: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Bounded Programs-list projection used by the Talent workspace.
+
+    Replaces per-Program annual/framework/configuration fetch fan-out with one
+    tenant-scoped read.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.view")
+    if denied:
+        return denied
+    programs = list_programs(db, school_group_id=group_id)
+    program_ids = [row.id for row in programs]
+    annual_rows = db.query(models.TalentProgramAcademicYearConfiguration).filter(
+        models.TalentProgramAcademicYearConfiguration.school_group_id == group_id,
+        models.TalentProgramAcademicYearConfiguration.academic_year_id == academic_year_id,
+        models.TalentProgramAcademicYearConfiguration.program_id.in_(program_ids or [-1]),
+    ).all()
+    annual_by_program = {row.program_id: row for row in annual_rows}
+    frameworks = db.query(models.TalentProgramFrameworkVersion).filter(
+        models.TalentProgramFrameworkVersion.school_group_id == group_id,
+        models.TalentProgramFrameworkVersion.program_id.in_(program_ids or [-1]),
+    ).order_by(
+        models.TalentProgramFrameworkVersion.program_id,
+        models.TalentProgramFrameworkVersion.version_number.desc(),
+        models.TalentProgramFrameworkVersion.id.desc(),
+    ).all()
+    framework_by_program = {}
+    for row in frameworks:
+        current = framework_by_program.get(row.program_id)
+        if current is None or (row.status == "active" and current.status != "active"):
+            framework_by_program[row.program_id] = row
+    framework_ids = [row.id for row in framework_by_program.values()]
+    numeric_frameworks = {row[0] for row in db.query(models.TalentKpiConfiguration.framework_version_id).filter(
+        models.TalentKpiConfiguration.school_group_id == group_id,
+        models.TalentKpiConfiguration.framework_version_id.in_(framework_ids or [-1]),
+        models.TalentKpiConfiguration.is_enabled.is_(True),
+    ).all()}
+    result = []
+    for program in programs:
+        annual = annual_by_program.get(program.id)
+        framework = framework_by_program.get(program.id)
+        payload = _with_actions(db, user, group_id, program)
+        payload["annual"] = None if annual is None else {
+            "academic_year_id": annual.academic_year_id,
+            "is_enabled": annual.is_enabled,
+            "eligible_grade_levels": annual.eligible_grade_levels or [],
+        }
+        payload["assessment_type"] = (
+            "Numeric + rubric" if framework is not None and framework.id in numeric_frameworks
+            else "Rubric" if framework is not None else "Not set"
+        )
+        payload["framework"] = None if framework is None else {
+            "id": framework.id,
+            "version_number": framework.version_number,
+            "status": framework.status,
+        }
+        result.append(payload)
+    return result
+
+
 @router.post("")
 def programs_create(request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
