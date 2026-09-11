@@ -2261,3 +2261,7 @@ Then run `.\.venv\Scripts\python.exe scripts\kms.py check` for final read-only v
 - Do not let automation rewrite authoritative Markdown.
 - Do not place customer, personal, production, billing-record, transaction, invoice, webhook payload, credential, secret, environment, or database-row data in KMS docs.
 - Do not commit or push unless explicitly requested.
+
+## Talent Program Criteria UI Simplification
+
+Owner direction removes Program Criteria from the normal Talent setup and Student Assessment workflow. The Program setup UI no longer exposes Program Criteria configuration, and a completed Student Assessment no longer exposes a manual "Check Program Criteria" action. Existing backend Review Candidate/Official Identification records and historical data are preserved; this change does not delete schema or historical evidence.
