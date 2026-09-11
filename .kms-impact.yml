@@ -10,6 +10,9 @@ affected_areas:
   - database-migrations
   - kms-adr
 kms_files_updated:
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
   - docs/AI_PROJECT_CONTEXT.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/adr/0036-talent-rubric-reassessment-attempts.md
