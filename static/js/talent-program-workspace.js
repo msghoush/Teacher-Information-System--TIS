@@ -139,7 +139,7 @@
       const alreadyRendered=Boolean(root.querySelector?.('.tp-wizard-panel,.tp-program-summary,[data-program-row]'));
       const existingStatus=root.querySelector?.('[data-status]');
       if(alreadyRendered){
-        root.setAttribute('aria-busy','true');
+        root.setAttribute?.('aria-busy','true');
         if(existingStatus) existingStatus.textContent='Refreshing Program data…';
       }else{
         root.innerHTML='<p role="status">Loading Programs…</p>';
@@ -149,7 +149,7 @@
       if(!pid) {
         const [planningGrades,summaryRows]=await Promise.all([
           year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
-          year?api(`/api/talent/programs/summaries?academic_year_id=${encodeURIComponent(year)}`):Promise.resolve(programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))),
+          year?api(`/api/talent/programs/summaries?academic_year_id=${encodeURIComponent(year)}`).catch(()=>programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))):Promise.resolve(programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))),
         ]);
         const summaries=summaryRows.map(program=>({
           program,
@@ -221,7 +221,7 @@
       if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
       if (token !== renderToken) return;
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
-      root.removeAttribute('aria-busy');
+      root.removeAttribute?.('aria-busy');
     }
     members=framework?.competencies || [];
     const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft' && !framework?.in_use_by_assessments;
