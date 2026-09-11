@@ -87,7 +87,7 @@
       const decisionFor=row=>row.candidate?decisions.find(item=>item.review_candidate_id===row.candidate.id):null;
       const candidateLabel=row=>row.candidate
         ? (row.candidate.status==='reviewed'?'Reviewed':'Pending review')
-        : 'No Review Candidate';
+        : 'Not reviewed';
       const identificationLabel=row=>{
         const decision=decisionFor(row);
         return decision?words(decision.decision):'Not yet decided';
