@@ -729,14 +729,17 @@ def test_admin_reset_for_reassessment_preserves_completed_evidence_and_allows_fr
         assessment_id=completed.id, action="reset_for_reassessment"
     ).count() == 1
 
-    restarted = start_assessment(
-        session, school_group_id=1, cycle_id=cycle.id,
-        cycle_population_member_id=member.id,
+    restarted = start_assessment_for_evaluation(
+        session, school_group_id=1, evaluation_cycle_id=cycle.id,
+        student_id=completed.student_id,
     )
     session.flush()
     assert restarted.status == "in_progress"
     assert restarted.is_current is True
     assert restarted.student_id == completed.student_id
+    assert restarted.cycle_id != cycle.id
+    assert restarted.evaluation_context_cycle_id == cycle.id
+    assert restarted.framework_version_id == completed.framework_version_id
     assert session.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=restarted.id
     ).count() == 0
