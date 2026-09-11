@@ -140,7 +140,18 @@ def test_start_assessment_uses_configured_evaluation_framework_without_active_st
 def test_start_assessment_requires_real_assessable_framework_content(db):
     _, session = db
     program, framework, cycle, member, _, _, _, _ = foundation(session)
-    session.query(models.TalentRubricLevel).filter_by(framework_version_id=framework.id).delete()
+    # Remove dependent descriptor rows before deleting rubric levels so the
+    # test creates a valid "configured framework with no rubric levels" state
+    # without violating the schema's foreign-key integrity.
+    session.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+        framework_version_id=framework.id
+    ).delete()
+    session.query(models.TalentCompetencyRubricDescriptor).filter_by(
+        framework_version_id=framework.id
+    ).delete()
+    session.query(models.TalentRubricLevel).filter_by(
+        framework_version_id=framework.id
+    ).delete()
     session.flush()
     with pytest.raises(TalentStudentAssessmentError) as error:
         start_assessment(
