@@ -107,6 +107,7 @@ PERMISSION_GROUPS = (
         "label": "Students",
         "permissions": (
             ("students.view", "View students and academic placement history"),
+            ("students.view_all_branches", "View and switch Student records across all authorized organization Branches"),
             ("students.create", "Create students"),
             ("students.edit", "Edit student identity details"),
             ("students.activate_deactivate", "Activate/deactivate students"),
