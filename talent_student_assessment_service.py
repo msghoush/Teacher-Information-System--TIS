@@ -180,10 +180,30 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     framework = db.query(models.TalentProgramFrameworkVersion).filter_by(
         id=cycle.framework_version_id, school_group_id=school_group_id, program_id=cycle.program_id
     ).one_or_none()
-    if program is None or framework is None or program.status != "active" or framework.status != "active":
+    if program is None or framework is None:
         raise TalentStudentAssessmentError(
             "assessment_tool_unavailable",
-            "This Program needs an active assessment tool/framework before Students can be assessed.",
+            "This Evaluation does not have an assessment tool/framework.",
+        )
+
+    # Owner-directed simple assessment flow: the Evaluation's exact Framework
+    # is the assessment authority. Draft/Active lifecycle labels are not an
+    # additional gate to starting a Student Assessment. What matters here is
+    # whether the referenced tool is actually assessable.
+    has_competency = db.query(models.FrameworkCompetency.id).filter_by(
+        school_group_id=school_group_id,
+        program_id=cycle.program_id,
+        framework_version_id=cycle.framework_version_id,
+    ).first() is not None
+    has_rubric_level = db.query(models.TalentRubricLevel.id).filter_by(
+        school_group_id=school_group_id,
+        program_id=cycle.program_id,
+        framework_version_id=cycle.framework_version_id,
+    ).first() is not None
+    if not has_competency or not has_rubric_level:
+        raise TalentStudentAssessmentError(
+            "assessment_tool_unavailable",
+            "This Evaluation needs at least one competency and one rubric level before Students can be assessed.",
         )
 
     if student_id is not None:
