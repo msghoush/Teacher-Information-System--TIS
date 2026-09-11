@@ -102,7 +102,7 @@ test('Program setup renders one real hash-backed wizard step and one assessment 
   assert.match(root.innerHTML,/id="tp-builder" class="tp-wizard-panel"/);
   assert.doesNotMatch(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"|id="tp-ready" class="tp-wizard-panel"/);
   assert.doesNotMatch(root.innerHTML,/<h3>Grades<\/h3>|<h3>Build your evaluation<\/h3>|tp-step-label/);
-  assert.match(root.innerHTML,/href="#tp-basics"[^>]*data-step="basics"/);
+  assert.doesNotMatch(root.innerHTML,/href="#tp-basics"[^>]*data-step="basics"/);
   assert.match(root.innerHTML,/href="#tp-schedule"[^>]*data-step="schedule"/);
   assert.equal((root.innerHTML.match(/data-assess-panel=/g)||[]).length,1);
   assert.match(root.innerHTML,/data-assess-panel="review"/);
@@ -530,17 +530,25 @@ test('Rubric action renders eligible Grades as independent collapsible Grade acc
       {id:62,name:'Number Flexibility',status:'active'}
     ];
     if(!options&&path.endsWith('/configuration'))return {
-      levels:[
-        {id:81,code:'L1',label:'Beginning',description:'Level one',display_order:1},
-        {id:82,code:'L2',label:'Meets',description:'Level two',display_order:2}
+      levels:[],
+      rubrics:[
+        {
+          id:301,framework_competency_id:71,name:'Mental Calculation Scale',
+          levels:[
+            {id:401,code:'L1',label:'Beginning',description:'Grade 1 beginning',order:1},
+            {id:402,code:'L2',label:'Meets',description:'Grade 1 meets',order:2}
+          ]
+        },
+        {
+          id:302,framework_competency_id:72,name:'Number Flexibility Scale',
+          levels:[
+            {id:403,code:'L1',label:'Beginning',description:'Grade 2 beginning',order:1},
+            {id:404,code:'L2',label:'Meets',description:'Grade 2 meets',order:2}
+          ]
+        }
       ],
-      descriptors:[
-        {id:91,framework_competency_id:71,rubric_level_id:81,grade_level:'1',descriptor:'Grade 1 beginning'},
-        {id:92,framework_competency_id:71,rubric_level_id:82,grade_level:'1',descriptor:'Grade 1 meets'},
-        {id:93,framework_competency_id:72,rubric_level_id:81,grade_level:'2',descriptor:'Grade 2 beginning'},
-        {id:94,framework_competency_id:72,rubric_level_id:82,grade_level:'2',descriptor:'Grade 2 meets'}
-      ],
-      rubric:{name:'Mental Math rubric'},kpi:null,review_candidate_policy:null,
+      descriptors:[],
+      rubric:null,kpi:null,review_candidate_policy:null,
       revision:7,semantic_fingerprint:'fingerprint'
     };
     return read(path,options);
