@@ -94,11 +94,10 @@
         framework=nextFramework; config=nextConfig;
         if(scope==='framework-bank'){data.bank=nextBank;bank=nextBank;}
       }else if(scope==='program'){
-        const [programs,nextAnnual]=await Promise.all([
-          api('/api/talent/programs'),
+        const [nextProgram,nextAnnual]=await Promise.all([
+          api(base),
           api(`${base}/academic-years`),
         ]);
-        const nextProgram=programs.find(item=>String(item.id)===String(pid));
         if(nextProgram){data.program=nextProgram;program=nextProgram;}
         data.annual=nextAnnual;annual=nextAnnual;
       }else if(scope==='plans'){
@@ -243,8 +242,8 @@
         return;
       }
       base=`/api/talent/programs/${pid}`;
-      const [selectedProgram,nextGrades,nextAnnual,nextVersions,nextBank,loadedPlans]=await Promise.all([
-        api(base),
+      let [selectedProgram,nextGrades,nextAnnual,nextVersions,nextBank,loadedPlans]=await Promise.all([
+        api(base).catch(()=>null),
         year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
         api(`${base}/academic-years`),
         api(`${base}/frameworks`),
@@ -254,6 +253,12 @@
           : Promise.resolve([]),
       ]);
       if (token !== renderToken) return;
+      if(!selectedProgram || String(selectedProgram.id)!==String(pid) || !selectedProgram.name){
+        const programs=await api('/api/talent/programs');
+        if (token !== renderToken) return;
+        selectedProgram=programs.find(item=>String(item.id)===String(pid));
+      }
+      if(!selectedProgram){bundleCache=null;root.innerHTML='<p class="tp-empty">Program unavailable in your organization.</p>';return;}
       program=selectedProgram;
       configuredGrades=nextGrades;
       annual=nextAnnual;
