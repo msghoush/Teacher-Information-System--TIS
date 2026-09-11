@@ -172,7 +172,8 @@ def _assessment_member_from_current_placement(db, *, cycle, student_id, at):
 
 
 def start_assessment(db: Session, *, school_group_id, cycle_id,
-                     cycle_population_member_id=None, student_id=None, actor=None):
+                     cycle_population_member_id=None, student_id=None,
+                     evaluation_context_cycle_id=None, actor=None):
     cycle = _cycle(db, school_group_id, cycle_id, lock=True)
     if cycle is None:
         raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
@@ -225,8 +226,21 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
                 "Student Assessment context is unavailable. Reload the eligible Students list and try again.",
             )
 
-    if db.query(models.TalentStudentAssessment).filter_by(cycle_id=cycle.id, student_id=member.student_id).first():
-        raise TalentStudentAssessmentError("duplicate_assessment", "Student already has an Assessment for this Evaluation.")
+    root_cycle_id = int(evaluation_context_cycle_id or cycle.id)
+    existing_query = db.query(models.TalentStudentAssessment).filter(
+        models.TalentStudentAssessment.school_group_id == school_group_id,
+        models.TalentStudentAssessment.student_id == member.student_id,
+        models.TalentStudentAssessment.is_current.is_(True),
+        (
+            (models.TalentStudentAssessment.evaluation_context_cycle_id == root_cycle_id)
+            | (
+                models.TalentStudentAssessment.evaluation_context_cycle_id.is_(None)
+                & (models.TalentStudentAssessment.cycle_id == root_cycle_id)
+            )
+        ),
+    )
+    if existing_query.first() is not None:
+        raise TalentStudentAssessmentError("duplicate_assessment", "Student already has a current Assessment for this Evaluation.")
 
     # Existing schema keeps Cycle status for backward compatibility and analytics.
     # First Assessment activity may mark a legacy Draft context Open internally,
@@ -255,7 +269,7 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
 
     assessment = models.TalentStudentAssessment(
         school_group_id=school_group_id, cycle_id=cycle.id,
-        evaluation_context_cycle_id=cycle.id,
+        evaluation_context_cycle_id=root_cycle_id,
         cycle_population_member_id=member.id,
         student_id=member.student_id, program_id=cycle.program_id,
         academic_year_id=cycle.academic_year_id, framework_version_id=cycle.framework_version_id,
@@ -360,6 +374,73 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade):
     return result
 
 
+def _newest_assessable_framework(db: Session, *, cycle, grade):
+    candidates = db.query(models.TalentProgramFrameworkVersion).filter_by(
+        school_group_id=cycle.school_group_id,
+        program_id=cycle.program_id,
+    ).order_by(
+        models.TalentProgramFrameworkVersion.version_number.desc(),
+        models.TalentProgramFrameworkVersion.id.desc(),
+    ).all()
+    for framework in candidates:
+        snapshot = _assessment_semantic_snapshot(db, framework=framework, grade=grade)
+        if snapshot and any(
+            item.get("rubric") and item["rubric"].get("levels")
+            for item in snapshot
+        ):
+            return framework
+    return None
+
+
+def start_assessment_for_evaluation(
+    db: Session, *, school_group_id, evaluation_cycle_id, student_id, actor=None
+):
+    """Start a Student against the newest saved assessable rubric for one Evaluation.
+
+    The visible Evaluation/Term identity remains the original Cycle. When its
+    frozen Framework is older than the newest rubric, a private derived Cycle
+    captures the newer Framework while the Assessment keeps
+    evaluation_context_cycle_id pointing to the original Evaluation.
+    """
+    root_cycle = _cycle(db, school_group_id, evaluation_cycle_id, lock=True)
+    if root_cycle is None:
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    placement = _current_eligible_placement(
+        db, cycle=root_cycle, student_id=int(student_id), at=datetime.utcnow()
+    )
+    newest = _newest_assessable_framework(
+        db, cycle=root_cycle, grade=placement.grade_level
+    )
+    if newest is None:
+        raise TalentStudentAssessmentError(
+            "assessment_tool_unavailable",
+            "This Evaluation needs at least one Grade-applicable Competency rubric with levels.",
+        )
+    if newest.id == root_cycle.framework_version_id:
+        return start_assessment(
+            db, school_group_id=school_group_id, cycle_id=root_cycle.id,
+            student_id=int(student_id), evaluation_context_cycle_id=root_cycle.id,
+            actor=actor,
+        )
+
+    derived_cycle = create_cycle(
+        db,
+        school_group_id=school_group_id,
+        program_id=root_cycle.program_id,
+        academic_year_id=root_cycle.academic_year_id,
+        framework_version_id=newest.id,
+        title=f"{root_cycle.title} · Current rubric",
+        description="Internal rubric-version context for the visible Evaluation.",
+        population_effective_at=datetime.utcnow(),
+        actor=actor,
+    )
+    return start_assessment(
+        db, school_group_id=school_group_id, cycle_id=derived_cycle.id,
+        student_id=int(student_id), evaluation_context_cycle_id=root_cycle.id,
+        actor=actor,
+    )
+
+
 def reassessment_requirement(db: Session, assessment):
     """Return the newest materially-changed assessable Framework for a completed current Assessment.
 
@@ -440,6 +521,7 @@ def start_reassessment(db: Session, *, school_group_id, assessment_id, actor=Non
         school_group_id=school_group_id,
         cycle_id=cycle.id,
         student_id=prior.student_id,
+        evaluation_context_cycle_id=prior.evaluation_context_cycle_id or prior.cycle_id,
         actor=actor,
     )
     before = assessment_payload(prior)
