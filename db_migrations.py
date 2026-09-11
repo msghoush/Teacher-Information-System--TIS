@@ -6782,6 +6782,28 @@ def _talent_program_logo_foundation(engine, connection):
     _add_column_if_missing(connection, connection, "talent_programs", "logo_content_type", "logo_content_type VARCHAR(80)")
 
 
+def _talent_grade_specific_rubric_descriptors(engine, connection):
+    """Add Grade-specific Talent rubric descriptor overrides.
+
+    Purely additive. Existing generic Competency x Level descriptors remain
+    valid and continue to act as the fallback for Frameworks that do not need
+    Grade-specific wording.
+    """
+    from database import Base
+    import models  # noqa: F401
+
+    required = (
+        "talent_framework_competencies",
+        "talent_rubric_levels",
+        "talent_competency_rubric_descriptors",
+    )
+    if not all(_table_exists(connection, name) for name in required):
+        return
+    Base.metadata.tables["talent_grade_competency_rubric_descriptors"].create(
+        bind=connection, checkfirst=True
+    )
+
+
 def _student_learning_style_v1(engine, connection):
     """Add an optional single-select primary Learning Style to Student.
 
@@ -7137,6 +7159,11 @@ MIGRATIONS = (
         migration_id="20260910_002_student_learning_style_v1",
         description="Add an optional single-select primary Learning Style to Student (ADR 0031)",
         apply=_student_learning_style_v1,
+    ),
+    Migration(
+        migration_id="20260911_001_talent_grade_specific_rubric_descriptors",
+        description="Add optional Grade-specific Competency x Rubric Level descriptors",
+        apply=_talent_grade_specific_rubric_descriptors,
     ),
 )
 
