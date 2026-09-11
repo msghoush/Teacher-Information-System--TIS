@@ -27,7 +27,7 @@ The approved user-facing annual concept is **Evaluation Plan**, containing **Eva
 
 ## Talent Evaluation Grouping And Legacy Reassessment Compatibility
 
-Student Assessments presents Evaluation Period -> unique Programs -> Students. Same-label/same-sequence Periods across Programs share one user-facing section; multiple physical Cycles for one Program/Period never duplicate that Program. Evaluation Plan data keeps a configured Program/Period visible even before the internal Cycle is materialized.
+Student Assessments presents Evaluation Period -> unique Programs -> Students. Repeated Evaluation labels across Programs share one user-facing section, with configured sequence used to order label groups when available; multiple physical Cycles for one Program/Period never duplicate that Program. Evaluation Plan data keeps a configured Program/Period visible even before the internal Cycle is materialized.
 
 Re-evaluation remains append-only. In addition to the normal newer-Framework trigger, legacy data created before consistent assessed-Framework immutability is checked against persisted completed competency-result rubric/level bindings. If those bindings no longer match a complete competency-owned rubric now present on the same Framework, the Student is shown as Re-evaluation required. The old completed attempt becomes non-current and a fresh current in-progress attempt starts with zero results in the same visible Evaluation. Untouched legacy or incomplete current rubrics do not trigger this compatibility rule.
 
