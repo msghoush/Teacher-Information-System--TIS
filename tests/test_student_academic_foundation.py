@@ -16,8 +16,8 @@ from auth import get_current_user
 from routers.students import router as students_router
 from student_academic_service import (
     StudentAcademicError, add_external_identifier, correct_placement, create_placement, create_student,
-    deactivate_external_identifier, end_placement, get_student, list_placements, list_students,
-    resolve_placement, transition_placement, update_student,
+    deactivate_external_identifier, delete_student, delete_students, end_placement, get_student, list_placements,
+    list_students, resolve_placement, transition_placement, update_student,
 )
 
 
@@ -63,6 +63,51 @@ def test_student_crud_search_status_audit_and_tenant_non_enumeration(database):
     assert [row.id for row in list_students(db, school_group_id=1, search="mia", status="inactive")] == [student.id]
     assert list_students(db, school_group_id=2, search="mia") == []
     assert [row.action for row in db.query(models.StudentAudit).order_by(models.StudentAudit.id)] == ["create", "status_change"]
+
+
+def test_student_delete_is_permanent_only_before_academic_or_talent_history(database):
+    _, db = database
+    student = _student(db)
+    add_external_identifier(db, school_group_id=1, student_id=student.id, namespace="sis", value="TEMP-1")
+    db.commit()
+    assert db.query(models.StudentAudit).filter_by(student_id=student.id, school_group_id=1).count() >= 1
+
+    delete_student(db, school_group_id=1, student_id=student.id)
+    db.commit()
+    assert db.get(models.Student, student.id) is None
+    assert db.query(models.StudentExternalIdentifier).filter_by(student_id=student.id, school_group_id=1).count() == 0
+    assert db.query(models.StudentAudit).filter_by(student_id=student.id, school_group_id=1).count() == 0
+
+    protected = _student(db, first="Protected")
+    create_placement(
+        db, school_group_id=1, student_id=protected.id, branch_id=10,
+        academic_year_id=100, planning_section_id=1000,
+        effective_from=datetime(2026, 9, 1),
+    )
+    db.commit()
+    with pytest.raises(StudentAcademicError) as error:
+        delete_student(db, school_group_id=1, student_id=protected.id)
+    assert error.value.code == "student_delete_blocked"
+    db.rollback()
+    assert db.get(models.Student, protected.id) is not None
+
+
+def test_student_bulk_delete_is_atomic_when_any_selected_student_is_protected(database):
+    _, db = database
+    safe = _student(db, first="Safe")
+    protected = _student(db, first="Protected")
+    create_placement(
+        db, school_group_id=1, student_id=protected.id, branch_id=10,
+        academic_year_id=100, planning_section_id=1000,
+        effective_from=datetime(2026, 9, 1),
+    )
+    db.commit()
+    with pytest.raises(StudentAcademicError) as error:
+        delete_students(db, school_group_id=1, student_ids=[safe.id, protected.id])
+    assert error.value.code == "student_delete_blocked"
+    db.rollback()
+    assert db.get(models.Student, safe.id) is not None
+    assert db.get(models.Student, protected.id) is not None
 
 
 def test_external_identifier_uniqueness_is_tenant_scoped_and_relation_is_guarded(database):
