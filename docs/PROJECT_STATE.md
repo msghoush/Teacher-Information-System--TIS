@@ -1,11 +1,45 @@
 ---
 title: TIS Project State
-documentation_version: 4.2
+documentation_version: 4.3
 last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Urgent UX And Recovery Adjustment Batch
+
+The Owner-approved urgent adjustment batch is implemented on `dev` with no
+schema migration. Talent's sidebar tree is now the only primary module
+navigation; the duplicate in-page module ribbon is removed. Program setup
+projects readiness on the Program summary and no longer owns a separate Ready
+step. A positive **Ready** state is shown only when eligible Grades, assessment
+criteria, and Evaluation Period configuration are complete. Competency
+authoring uses one selected Grade at a time, defaulting to the first configured
+Grade, while dedicated delete permissions continue to govern Competency/Level
+destructive actions.
+
+A new Administrator-default permission
+`talent_assessments.reset_for_reassessment` provides safe operational
+recovery for a current completed Assessment. Reset marks the prior completed
+attempt non-current and writes an audit event while preserving every dependent
+evidence/history row. The Student therefore returns to Not started in the same
+visible Evaluation and may start a fresh current Assessment. This is not ADR
+0034 hard-delete; completed evidence is never physically deleted by this path.
+
+Student Assessments now emphasizes the selected Evaluation Period and selected
+Program, and Start Assessment carries the selected Cycle/Program into the
+opened assessment workspace so the Program's exact competencies and persisted
+assessment criteria load immediately. Talent Review accepts authorized
+Branch/Grade/Section filters and no longer presents "Meets criteria" as a
+primary user classification; deterministic Candidate policy remains internal
+and Official Identification remains distinct. Analytics error surfaces now
+reuse the backend's specific governed reason where available.
+
+Program setup uses the neutral user-facing phrase **Assessment Criteria** for
+the competency-owned rubric structure. The separate real numeric feature is
+shown explicitly as **Key Performance Indicator (KPI)** with Add/Edit/Delete
+controls. Internal rubric persistence/API terminology is unchanged.
 
 ## Talent Assessment Eligibility — Owner Simplification
 
