@@ -534,9 +534,9 @@
   async function refreshPlanningBranches() {
     const previous=params.get('branch_id')||branch.value;
     try {
-      const map=await api(`organization-analytics/talent-map?${qs({academic_year_id:year.value,metric:'frozen_eligible',dimension:'program_branch'})}`);
-      branch.innerHTML='<option value="">All Branches</option>'+(map.columns||[]).map(item=>`<option value="${esc(item.id)}">${esc(item.label)}</option>`).join('');
-      if(previous&&(map.columns||[]).some(item=>String(item.id)===String(previous)))branch.value=previous;else params.delete('branch_id');
+      const items=await api(`programs/planning-branches?${qs({academic_year_id:year.value})}`);
+      branch.innerHTML='<option value="">All Branches</option>'+items.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+      if(previous&&items.some(item=>String(item.id)===String(previous)))branch.value=previous;else params.delete('branch_id');
     } catch {branch.innerHTML='<option value="">All Branches</option>';params.delete('branch_id');}
     if(!grade.parentElement.hidden)await refreshPlanningGrades();
   }
@@ -556,13 +556,13 @@
       document.getElementById('tp-dimension-field').hidden=false;
       dimension.value=params.get('dimension')==='program_grade'?'program_grade':'program_branch';
     }
-    if(['talent-map','overlap','longitudinal','students'].includes(config.view)) {
+    if(['talent-map','overlap','longitudinal','students','reviews'].includes(config.view)) {
       document.getElementById('tp-branch-field').hidden=false;
       await refreshPlanningBranches();
     }
-    if(['talent-map','longitudinal','students'].includes(config.view)) {
+    if(['talent-map','longitudinal','students','reviews'].includes(config.view)) {
       document.getElementById('tp-grade-field').hidden=false;
-      if(config.view==='longitudinal')document.getElementById('tp-section-field').hidden=false;
+      if(['longitudinal','reviews'].includes(config.view))document.getElementById('tp-section-field').hidden=false;
       await refreshPlanningGrades();
     }
     if(['programs','evaluation-plans','assessments','reviews','analytics','branch','longitudinal','portfolio','talent-map','students','learner-profile'].includes(config.view)&&can('talent_programs.view')) {
