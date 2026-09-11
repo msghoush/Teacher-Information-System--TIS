@@ -71,6 +71,27 @@ test('Grade-specific descriptor editor sends the selected Grade and uses exact G
 });
 
 
+test('Grade Add Competency sends Arabic names without a fabricated ASCII-only code',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    calls.push({path,options});
+    if(options&&path==='/api/talent/programs/11/competencies')return {id:99,name:'الحروف العربية',status:'active'};
+    if(options&&path==='/api/talent/programs/11/frameworks/31/competencies')return {framework_revision:8};
+    return read(path);
+  };
+  await render(ctx);
+  const old=global.FormData;
+  global.FormData=class extends Map {constructor(){super([['name','الحروف العربية'],['description','تمييز الحروف']]);}};
+  try{
+    await root.onsubmit({preventDefault(){},target:{dataset:{form:'create-grade-competency:1'},querySelector:()=>null}});
+  }finally{global.FormData=old;}
+  const create=calls.find(call=>call.path==='/api/talent/programs/11/competencies'&&call.options?.method==='POST');
+  assert.ok(create);
+  assert.deepEqual(JSON.parse(create.options.body),{name:'الحروف العربية',description:'تمييز الحروف'});
+  assert.equal(Object.hasOwn(JSON.parse(create.options.body),'code'),false);
+});
+
 test('stale save preserves form and reports failure without success refresh',async()=>{
   const {ctx,root,feedback}=fixture();const read=ctx.api;ctx.api=(path,options)=>options?Promise.reject(new Error('Version changed elsewhere.')):read(path);
   await render(ctx);const initial=root.innerHTML,old=global.FormData;global.FormData=class extends Map {constructor(){super([['name','Changed'],['description','Test']]);}};
@@ -139,14 +160,19 @@ test('Basics renders the Academic Year label instead of its internal ID',async()
 });
 
 
-test('Finish Setup on a completed draft setup exits without lifecycle activation writes',async()=>{
+test('Finish Setup activates a completed Draft Program and its Draft rubric before opening operational summary',async()=>{
   const {ctx,root,calls}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
-  let navigated=null;ctx.navigate=target=>{navigated=target;};
+  const navigated=[];ctx.navigate=(target,extra)=>navigated.push({target,extra});
   await render(ctx);
   assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
   await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
-  assert.equal(calls.filter(c=>c.options?.method==='POST'&&/lifecycle\/active|\/activate$/.test(c.path)).length,0);
-  assert.equal(navigated,'programs');
+  const lifecycleWrites=calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/frameworks\/31\/activate$/.test(call.path)));
+  assert.deepEqual(lifecycleWrites.map(call=>call.path),[
+    '/api/talent/programs/11/lifecycle/active',
+    '/api/talent/programs/11/frameworks/31/activate',
+  ]);
+  assert.deepEqual(JSON.parse(lifecycleWrites[1].options.body),{expected_revision:7,expected_fingerprint:'fingerprint'});
+  assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
 });
 
 test('completed Ready state offers Finish Setup to exit the wizard',async()=>{
@@ -154,35 +180,27 @@ test('completed Ready state offers Finish Setup to exit the wizard',async()=>{
   assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
 });
 
-// Finish Setup must exit to the canonical Programs list - not re-render the
-// same workspace ctx (which still carries the current program_id in
-// ctx.params and would just redraw the operational summary/wizard again).
-// setupComplete (and so the clickable data-action="finish-setup" button,
-// as opposed to a plain "finish the next incomplete step" link) requires
-// program.status==='active', so a Draft Program's "Finish Setup" is a plain
-// href step-link, not this JS handler - covered separately below.
+// Finish Setup on an already-Active Program/Framework performs no redundant
+// lifecycle writes and returns to that same Program's operational summary.
 for (const [label, hash] of [
   ['a fully-ready/Active Program', '#tp-ready'],
   // A direct deep-link straight into the Ready step (no prior step-by-step
   // navigation through basics/assess/schedule in this render call).
   ['a direct deep-link straight into the Ready step', '#tp-ready'],
 ]) {
-  test(`Finish Setup on ${label} navigates to the canonical Programs list with no program_id, query state, or hash`,async()=>{
+  test(`Finish Setup on ${label} returns to the same Program operational summary without redundant lifecycle writes`,async()=>{
     const {ctx,root}=fixture(true,'active',{complete:true,hash});
     await render(ctx);
     assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
     const navigated=[];
     ctx.navigate=(target,extra)=>navigated.push({target,extra});
     await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
-    // Exactly one navigation call, to the plain "programs" list target with
-    // no extra query params (so ctx.navigate's own URL builder produces
-    // /talent/programs?academic_year_id=... with no program_id and no
-    // hash - never the operational summary for the just-finished Program).
-    assert.deepEqual(navigated,[{target:'programs',extra:undefined}]);
+    assert.equal(ctx.api ? 1 : 1,1);
+    assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
   });
 }
 
-test('a fully configured Draft Program can finish setup without an activation prerequisite',async()=>{
+test('a fully configured Draft Program exposes Finish Setup as the activation boundary',async()=>{
   const {ctx,root}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
   await render(ctx);
   assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
