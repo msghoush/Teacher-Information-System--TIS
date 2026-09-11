@@ -471,6 +471,11 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
     )
     session.commit()
 
+    # A completed legacy/shared-rubric Assessment is not stale merely because
+    # the old representation exists; re-evaluation begins only after a complete
+    # current competency-owned rubric actually supersedes its persisted binding.
+    assert reassessment_requirement(session, completed) is None
+
     # An unchanged legacy-compatible clone alone must not force re-evaluation.
     revised = create_framework_draft(
         session, school_group_id=1, program_id=program.id,
@@ -524,6 +529,76 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
     assert session.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=completed.id
     ).count() == len(competencies)
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=replacement.id
+    ).count() == 0
+
+
+def test_legacy_same_framework_rubric_replacement_resets_completed_student_for_reassessment(db):
+    _, session = db
+    program, framework, cycle, member, student, _, competencies, levels = foundation(session)
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    assessment = set_all_results(session, assessment, competencies, levels)
+    completed = complete_assessment(
+        session, school_group_id=1, assessment_id=assessment.id,
+        expected_revision=assessment.revision,
+    )
+    session.commit()
+
+    # Reproduce the real legacy defect: before the assessed-Framework mutation
+    # guard was consistently enforced, the same Framework Version could acquire
+    # the new competency-owned rubric structure after Students had already
+    # completed against its legacy shared rubric. Insert the current canonical
+    # structure directly to model that historical database state.
+    for index, competency in enumerate(competencies, 1):
+        rubric = models.TalentRubric(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            framework_competency_id=competency.id,
+            name=f"Current rubric {index}",
+        )
+        session.add(rubric)
+        session.flush()
+        session.add_all([
+            models.TalentRubricLevel(
+                school_group_id=1, program_id=program.id,
+                framework_version_id=framework.id, rubric_id=rubric.id,
+                code="LEVEL_1", label="Beginning", description="Current beginning",
+                display_order=1,
+            ),
+            models.TalentRubricLevel(
+                school_group_id=1, program_id=program.id,
+                framework_version_id=framework.id, rubric_id=rubric.id,
+                code="LEVEL_2", label="Secure", description="Current secure",
+                display_order=2,
+            ),
+        ])
+    session.commit()
+
+    required = reassessment_requirement(session, completed)
+    assert required is not None
+    assert required.id == framework.id
+
+    replacement = start_reassessment(
+        session, school_group_id=1, assessment_id=completed.id,
+    )
+    session.flush()
+
+    historical = get_assessment(
+        session, school_group_id=1, assessment_id=completed.id,
+    )
+    assert historical.status == "completed"
+    assert historical.is_current is False
+    assert replacement.status == "in_progress"
+    assert replacement.is_current is True
+    assert replacement.reassessment_of_assessment_id == completed.id
+    assert replacement.framework_version_id == framework.id
+    assert replacement.evaluation_context_cycle_id == cycle.id
+    assert replacement.student_id == student.id
     assert session.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=replacement.id
     ).count() == 0

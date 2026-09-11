@@ -214,7 +214,7 @@
         // destructive action in this module (remove-logo, remove-member,
         // remove-level, remove-descriptor, remove-kpi, remove-policy) so
         // confirmation and error-feedback behavior stay consistent.
-        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Overview</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit Program</a><a href="${esc(href('programs',{program_id:program.id}))}#tp-rubric">${icon('edit')}Rubric</a>`:''}${(program.actions||[]).includes('delete')?button('delete-program','Delete',`data-id="${program.id}"`,'trash'):''}</div></td></tr>`).join('');
+        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Open Program</a>${(program.actions||[]).includes('delete')?button('delete-program','Delete',`data-id="${program.id}"`,'trash'):''}</div></td></tr>`).join('');
         const newProgramFields=field('name','Program name','', 'text',true)+area('description','Program description')+(planningGrades.length?`<fieldset><legend>Eligible Grades</legend>${planningGrades.map(g=>check(`grade_${g}`,g==='KG'?'KG':`Grade ${g}`,false)).join('')}</fieldset>`:'<p class="tp-inline-empty">No Grades are configured in Planning for this Academic Year.</p>');
         root.innerHTML=`<div data-status role="status" aria-live="polite"></div><div class="tp-section-lede"><div><h2>Programs</h2><p>Create the Program and align it with eligible Grades. Configure the rubric separately from the Program row.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',newProgramFields,'Save Program')}</div>`:''}`;
         root.oninput=event=>{if(event.target.matches('[data-program-search]')){const term=event.target.value.trim().toLowerCase();root.querySelectorAll('[data-program-row]').forEach(row=>{row.hidden=!row.dataset.search.includes(term);});return;}const edited=event.target.closest('form');if(edited){dirtyForms.add(edited);edited.dataset.dirty='true';showDirty();}};
@@ -316,6 +316,10 @@
     const stepState={basics:basicsComplete,assess:assessComplete,schedule:scheduleComplete,ready:basicsComplete&&assessComplete&&scheduleComplete};
     const setupComplete=stepState.ready;
     const explicitSetup=Boolean(requested);
+    if(typeof window!=='undefined') {
+      hashGuard=()=>render(ctx,{viaHash:true});
+      window.addEventListener('hashchange',hashGuard);
+    }
     if(!explicitSetup){
       const grades=(annualYear?.eligible_grade_levels||[]).map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ');
       const periodCount=plans.reduce((count,item)=>count+(item.periods?.length||0),0);
@@ -335,7 +339,6 @@
     }
     const stepReason={assess:assessRemaining?`${assessRemaining} item${assessRemaining===1?'':'s'} remaining`:''};
     const nav=(activeStep==='basics'||activeStep==='rubric')?'':[['assess','What we assess'],['schedule','Evaluation Plan'],['ready','Ready']].map(([key,label],index)=>`<a href="${hashes[key]}" data-step="${key}" class="tp-step ${key===activeStep?'tp-step-current':stepState[key]?'tp-step-complete':'tp-step-pending'}" ${key===activeStep?'aria-current="step"':''}><span>${stepState[key]?icon('check'):index+1}</span><b>${label}</b>${stepReason[key]?`<small>${esc(stepReason[key])}</small>`:''}</a>`).join('');
-    if(typeof window!=='undefined') { hashGuard=()=>render(ctx,{viaHash:true}); window.addEventListener('hashchange',hashGuard); }
     const substeps={competencies:'#tp-builder-competencies',rubric:'#tp-builder-rubric',descriptions:'#tp-builder-descriptions',review:'#tp-builder-review'};
     const activeSub=Object.entries(substeps).find(([,hash])=>hash===requested)?.[0]||'competencies';
     const subState={competencies:Boolean(members.length),rubric:Boolean(levels.length),descriptions:Boolean(descriptorTotal&&descriptorTotal===descriptorSaved),review:assessComplete};
@@ -425,8 +428,7 @@
         const grade=action.split(':')[1];
         try{
           const name=String(d.get('name')||'').trim();
-          const generatedCode=`${grade}_${name}`.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,80);
-          const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({code:generatedCode,name,description:d.get('description')})});
+          const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({name,description:d.get('description')})});
           await api(`${fp}/competencies`,{method:'POST',body:JSON.stringify({expected_revision:framework.revision,competency_id:created.id,grade_level:grade,label:d.get('name'),description:d.get('description')})});
           ctx.notify?.('Competency added.');
           await refreshSelectedProgram('framework-bank');
@@ -486,15 +488,28 @@
         return;
       }
       if(a==='finish-setup'){
-        // Exit the wizard to the canonical Programs list - not a re-render
-        // of this same ctx (which still carries the current program_id and
-        // would just redraw the operational summary/wizard again). Reuses
-        // the same ctx.navigate(...) full-navigation helper every other
-        // "return to list"/cross-view action in this workspace family uses
-        // (e.g. talent-operations.js's post-start navigate('assessments',...)),
-        // rather than a bespoke history.replaceState that only edits the
-        // visible URL without changing what gets rendered.
-        ctx.navigate('programs');
+        const status=root.querySelector('[data-status]');
+        try{
+          if(program.status==='draft'){
+            if(!govern)throw new Error('You need Program governance permission to finish and activate this setup.');
+            if(status)status.textContent='Activating Program…';
+            await api(`${base}/lifecycle/active`,{method:'POST'});
+          }
+          if(framework?.status==='draft'){
+            if(!govern)throw new Error('You need Program governance permission to activate this rubric.');
+            if(status)status.textContent='Activating rubric…';
+            await api(`${fp}/activate`,{method:'POST',body:JSON.stringify({
+              expected_revision:framework.revision,
+              expected_fingerprint:framework.semantic_fingerprint,
+            })});
+          }
+          ctx.notify?.('Program setup finished and activated.');
+          if(typeof window!=='undefined')window.location.hash='';
+          if(ctx.navigate)ctx.navigate('programs',{program_id:pid});
+          else await fullRefresh();
+        }catch(error){
+          if(status){status.textContent=error.message||'Unable to finish setup.';status.setAttribute('role','alert');}
+        }
         return;
       }
       if(dirty&&!window.confirm('This action reloads the workspace. Discard unsaved edits?'))return;

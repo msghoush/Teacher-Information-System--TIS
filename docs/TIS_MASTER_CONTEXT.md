@@ -1618,8 +1618,19 @@ historical Assessment state. Competency removal and Rubric Level true-delete
 use the dedicated assignable permissions `talent_programs.delete_competency`
 and `talent_programs.delete_rubric_level`; whole Draft Program delete remains
 separate under `talent_programs.delete`. Assessed Frameworks remain semantically
-immutable and require a new Framework version before any Student-facing rubric
-change.
+immutable and require a new Framework version before any future Student-facing
+rubric change. For legacy data created before that guard was consistently
+enforced, a completed Assessment whose persisted rubric/level bindings no
+longer match a complete competency-owned rubric now present on the same
+Framework surfaces **Re-evaluation required**. This compatibility repair never
+deletes the prior evidence: the prior attempt becomes non-current and the
+replacement starts empty/current in the same visible Evaluation.
+
+A fully configured Draft Program now crosses its user-facing lifecycle boundary at **Finish Setup**: the authorized organization-governance action activates the Program first, then activates its completed Draft Framework with revision/fingerprint protection, and returns to that Program's operational summary. Already-active Program/Framework state is not redundantly mutated. Operational summary actions for Edit Program, Build/Edit Rubric, and Manage Evaluation Plan remain live hash-backed navigation rather than inert links.
+
+Student Assessments render Evaluation Period -> unique Programs -> Students. Repeated Evaluation labels across Programs are presented as one Period section, with configured sequence used for ordering when available; duplicate physical Cycles cannot duplicate a Program card, and configured Program/Period combinations may be shown before their internal Cycle exists. Normal Grade-level Competency creation keeps technical codes internal; the browser sends the Unicode name/description and the backend allocates a unique Program-scoped code, avoiding Arabic/non-ASCII code collisions.
+
+Talent & Potential is exposed as an active-module tree in the main sidebar with clean top-level destinations for Overview, Programs, Student Assessments, Talent Review, and Results & Analytics. Top-level navigation is a context-reset boundary: it carries only the selected Academic Year and never silently inherits Program, Cycle, Assessment, Branch, Grade, Section, metric, or dimension state from the page being left. Student Assessments therefore owns its own Program filter; entering it from a selected Program does not preselect that Program unless the user uses the Program's explicit Open Assessments action. The Programs node always opens the searchable Programs list, where each row has one explicit Open Program action (plus any separately authorized destructive action). Program-specific Edit Program, Build/Edit Rubric, Manage Evaluation Plan, Open Assessments, and View Results actions remain inside the opened Program workspace.
 
 The Programs list uses a bounded summary read instead of per-Program
 annual/framework/configuration fan-out. A selected Program is loaded directly

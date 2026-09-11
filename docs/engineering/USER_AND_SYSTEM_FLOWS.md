@@ -27,8 +27,25 @@ source_of_truth: true
 1. Opening an active Program with enabled annual Grades, an active complete assessment setup, and at least one Evaluation Period shows its operational summary without the setup stepper.
 2. Edit Program opens `#tp-basics`; Edit What we assess opens the assessment subflow; Manage Evaluation Plan opens `#tp-schedule`. Program and Academic Year query context remain unchanged.
 3. The setup stepper labels Step 3 Evaluation Plan. Its embedded table labels each row an Evaluation Period and supports the existing authorized edit, remove, and Start Evaluation actions.
-4. Ready confirms each prerequisite. Finish Setup clears the setup hash and rerenders the operational summary when the Program is complete.
+4. Ready confirms each prerequisite. For a complete Draft Program, Finish Setup is the governed activation boundary: activate the Program, activate the reviewed Draft Framework with its revision/fingerprint, clear setup state, and open that Program's operational summary. Already-active state is not mutated again.
 5. The renderer obtains the Academic Year display label from the selected shell option and never presents its internal ID as the normal label.
+
+## Talent Module Navigation And Context Reset Flow
+
+1. While a Talent & Potential page is active, the main application sidebar expands a permission-aware child tree for Overview, Programs, Student Assessments, Talent Review, and Results & Analytics.
+2. Choosing any of those top-level destinations is a context reset boundary. The selected Academic Year may carry forward; Program, Cycle, Assessment, Branch, Grade, Section, metric, dimension, and setup hash state do not.
+3. Programs opens the searchable Programs collection. Selecting **Open Program** is the explicit transition into one Program workspace; row-level Edit/Rubric shortcuts are not duplicated on the collection screen.
+4. Student Assessments opens neutral and shows its own Program filter. A Program is preselected only through an explicit Program-context action such as Open Assessments from inside that Program workspace.
+5. Results & Analytics top-level entry also starts from clean module context, while navigation *within* the Results & Analytics family may preserve the active analysis filters.
+6. Inside an opened Program, Edit Program, Build/Edit Rubric, Manage Evaluation Plan, Open Assessments, and View Results remain Program-context actions and retain that Program and Academic Year intentionally.
+
+## Talent Re-evaluation Reset And Evaluation Grouping Flow
+
+1. Student Assessments groups each repeated user-facing Evaluation label across Programs, uses configured sequence to order label groups when available, and renders each Program once; duplicate physical Cycles never create duplicate Program cards.
+2. A configured Program/Period can be shown before its internal Cycle exists. Starting/opening that Program uses the existing Evaluation Plan/Cycle workflow to materialize provenance when needed.
+3. A completed Student whose current rubric has materially changed surfaces **Re-evaluation required**. For forward changes this means a newer assessable Framework Version; for legacy pre-guard data it may also mean that the same Framework now contains a complete competency-owned rubric whose IDs no longer match the completed attempt's persisted rubric/level bindings.
+4. Re-evaluation never edits or deletes the prior evidence. The previous completed attempt becomes non-current; the replacement starts current and In Progress with zero competency results, links to the prior attempt, and remains under the original visible Evaluation through `evaluation_context_cycle_id`.
+5. Untouched legacy shared rubrics and partially configured competency-owned rubrics do not trigger re-evaluation.
 
 ## Talent Guided Program Configuration
 

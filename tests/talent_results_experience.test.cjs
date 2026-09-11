@@ -120,6 +120,23 @@ test('the shared Grade filter is Planning-driven, not a blanket hardcoded KG-12 
   assert.match(fs.readFileSync(path.join(__dirname,'..','templates','talent','workspace.html'),'utf8'),/for="tp-section"/);
 });
 
+test('Talent module expands as a permission-aware sidebar tree with clean top-level destinations', () => {
+  const shellSource = fs.readFileSync(path.join(__dirname, '..', 'ui_shell.py'), 'utf8');
+  const base = fs.readFileSync(path.join(__dirname, '..', 'templates', 'base.html'), 'utf8');
+  const shellCss = fs.readFileSync(path.join(__dirname, '..', 'static', 'css', 'app-shell.css'), 'utf8');
+  for (const destination of ['/talent/overview','/talent/programs','/talent/assessments','/talent/reviews','/talent/analytics']) {
+    assert.match(shellSource, new RegExp(destination.replaceAll('/','\\/')));
+  }
+  assert.match(shellSource, /talent_programs\.view/);
+  assert.match(shellSource, /talent_assessments\.view/);
+  assert.match(shellSource, /talent_review_candidates\.view/);
+  assert.match(shellSource, /talent_analytics\.view/);
+  assert.match(base, /class="sidebar-tree"/);
+  assert.match(base, /class="sidebar-tree-link/);
+  assert.match(shellCss, /\.sidebar-tree\s*\{/);
+  assert.match(shellCss, /\.sidebar-tree-link\.is-active/);
+});
+
 test('Talent navigation has one primary module entry, not a duplicated analytics list', () => {
   const template = fs.readFileSync(path.join(__dirname, '..', 'templates', 'talent', 'workspace.html'), 'utf8');
   const navMatch = template.match(/<nav class="tp-nav"[\s\S]*?<\/nav>/);
@@ -137,6 +154,15 @@ test('Talent navigation has one primary module entry, not a duplicated analytics
     assert.doesNotMatch(primaryKeys, new RegExp(`'${key}'`));
   }
   assert.match(template, /aria-label="Results and Analytics views"/);
+});
+
+test('top-level Talent navigation resets child context while analytics sub-navigation preserves analysis context', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /document\.querySelectorAll\('\.tp-nav a, \.sidebar-tree a\[href\*="\/talent\/"\]'\)/);
+  assert.match(source, /next\.search=qs\(\{academic_year_id:year\.value\}\)/);
+  assert.match(source, /document\.querySelectorAll\('\.tp-results-nav a'\)/);
+  assert.match(source, /program_id:params\.get\('program_id'\)/);
+  assert.match(source, /\['programs','evaluation-plans','assessments','analytics'/);
 });
 
 test('Apply-context ceremony is removed: selections auto-apply, no required confirm click', () => {

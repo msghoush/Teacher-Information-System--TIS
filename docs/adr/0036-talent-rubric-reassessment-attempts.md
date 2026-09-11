@@ -1,6 +1,6 @@
 ---
 title: Talent Rubric Re-evaluation Attempts
-documentation_version: 1.1
+documentation_version: 1.2
 last_updated: 2026-09-11
 status: accepted
 module: architecture
@@ -28,6 +28,14 @@ historical evidence and violate the existing exact-Framework provenance contract
 At the same time, leaving the completed Assessment as the only current result
 would hide the fact that the Student has not yet been evaluated against the
 new rubric.
+
+## Legacy same-Version compatibility repair
+
+The forward rule remains unchanged: once a Framework has Student Assessment evidence, Student-facing rubric semantics are immutable and any later material change belongs in a newer Framework Version.
+
+A bounded compatibility exception exists only for data created before that immutability guard was consistently enforced. If a current completed Assessment remains bound to a Framework Version whose persisted competency-result rubric/level bindings no longer match that same Framework's now-complete competency-owned rubric structure for the Student's recorded Grade, the Assessment is treated as **Re-evaluation required**. An untouched legacy shared-rubric Framework, or a partially configured competency-owned rubric, never triggers this repair.
+
+The repair is operational reset, not evidence deletion: the prior completed attempt becomes non-current and remains immutable; the replacement attempt is current, in progress, contains zero competency results, is linked by `reassessment_of_assessment_id`, and keeps the original visible Evaluation/Term through `evaluation_context_cycle_id`. The same Framework Version may be the replacement target only for this historical compatibility case because the current canonical rubric branch already exists there. No future in-place rubric mutation is authorized by this exception.
 
 ## Decision
 

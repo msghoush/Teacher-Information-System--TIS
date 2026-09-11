@@ -210,8 +210,33 @@
   const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
   const link = (view, text, extra={}) => `<a target="_self" href="/talent/${view}?${esc(qs({academic_year_id:year.value,...extra}))}">${esc(text)} →</a>`;
   function syncNavigation() {
-    document.querySelectorAll('.tp-nav a, .tp-results-nav a').forEach(a=>{
-      const next=new URL(a.href); next.search=qs({academic_year_id:year.value,program_id:params.get('program_id'),branch_id:params.get('branch_id'),grade_level:params.get('grade_level'),planning_section_id:params.get('planning_section_id'),metric:params.get('metric'),dimension:params.get('dimension')});a.href=next.href;a.target='_self';
+    // Top-level Talent navigation is a context reset boundary. Moving from a
+    // selected Program (for example Mental Math) to Programs, Student
+    // Assessments, Talent Review, or Results must not silently carry that
+    // Program/cycle/assessment context into the destination.
+    document.querySelectorAll('.tp-nav a, .sidebar-tree a[href*="/talent/"]').forEach(a=>{
+      const next=new URL(a.href,location.origin);
+      next.search=qs({academic_year_id:year.value});
+      next.hash='';
+      a.href=next.href;
+      a.target='_self';
+    });
+    // Inside Results & Analytics, the compact analytics sub-navigation is the
+    // one place where staying in the same analysis context is intentional.
+    document.querySelectorAll('.tp-results-nav a').forEach(a=>{
+      const next=new URL(a.href,location.origin);
+      next.search=qs({
+        academic_year_id:year.value,
+        program_id:params.get('program_id'),
+        branch_id:params.get('branch_id'),
+        grade_level:params.get('grade_level'),
+        planning_section_id:params.get('planning_section_id'),
+        metric:params.get('metric'),
+        dimension:params.get('dimension'),
+      });
+      next.hash='';
+      a.href=next.href;
+      a.target='_self';
     });
   }
   async function api(path, signal) {
@@ -535,16 +560,12 @@
       if(config.view==='longitudinal')document.getElementById('tp-section-field').hidden=false;
       await refreshPlanningGrades();
     }
-    if(['programs','evaluation-plans','analytics','branch','longitudinal','portfolio','talent-map','students','learner-profile'].includes(config.view)&&can('talent_programs.view')) {
-      // On the Programs page itself, the compact searchable Program table
-      // (rendered in-content when no Program is selected) already is the
-      // Program-selection mechanism and carries Program identity/logo; the
-      // top compact context selector is redundant until a Program is chosen,
-      // so exactly one mechanism is visible at a time. A URL that already
-      // carries program_id lands directly in the "selected" state (the field
-      // becomes visible before the workspace fetch, so no grid ever flashes
-      // first). Every other view has no in-content chooser, so its compact
-      // selector must stay visible regardless of selection state.
+    if(['programs','evaluation-plans','assessments','analytics','branch','longitudinal','portfolio','talent-map','students','learner-profile'].includes(config.view)&&can('talent_programs.view')) {
+      // Programs uses its in-content searchable list as the selection surface
+      // until a Program is explicitly opened. Student Assessments and the
+      // other Program-aware views use this compact selector as their own local
+      // filter; top-level navigation never inherits a Program from a previous
+      // page.
       const showProgramField = config.view!=='programs' || Boolean(params.get('program_id'));
       document.getElementById('tp-program-field').hidden=!showProgramField;
       if(showProgramField){

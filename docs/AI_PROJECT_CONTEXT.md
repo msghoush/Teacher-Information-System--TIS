@@ -21,9 +21,19 @@ The sanctioned Talent local-test seed defines `local_test_admin` as organization
 
 ## Talent Program Operational Mode And Evaluation Plan Terminology
 
-An active Program whose annual configuration, active assessment setup, achievement descriptions, and Evaluation Periods are complete opens in Operational/Summary mode by default. It shows the Program identity, real Academic Year label, enablement, Grades, competency/rubric/Period counts, assessment setup status, and permission-gated Edit Program, Edit What we assess, Manage Evaluation Plan, Open Assessments, and View Results actions. Any explicit setup hash re-enters the same four-step wizard; Finish Setup clears that edit state and returns a completed Program to its operational summary.
+An active Program whose annual configuration, active assessment setup, achievement descriptions, and Evaluation Periods are complete opens in Operational/Summary mode by default. It shows the Program identity, real Academic Year label, enablement, Grades, competency/rubric/Period counts, assessment setup status, and permission-gated Edit Program, Edit What we assess, Manage Evaluation Plan, Open Assessments, and View Results actions. Any explicit setup hash re-enters the same four-step wizard. For a fully configured Draft Program, Finish Setup is the governed activation boundary: Program activation runs first, then the reviewed Draft Framework is activated with expected revision/fingerprint protection, and the same Program opens in operational summary. Already-active state is not redundantly activated.
 
 The approved user-facing annual concept is **Evaluation Plan**, containing **Evaluation Periods**. Program setup keeps the Evaluation Plan embedded in Step 3. Backend `EvaluationPlan` identifiers and routes remain unchanged. Branch-scoped payloads no longer advertise Plan management that the API's existing organization-authority gate would reject, and any such API error is translated into an action-specific access message rather than exposing scope-policy jargon.
+
+## Talent Evaluation Grouping And Legacy Reassessment Compatibility
+
+Student Assessments presents Evaluation Period -> unique Programs -> Students. Repeated Evaluation labels across Programs share one user-facing section, with configured sequence used to order label groups when available; multiple physical Cycles for one Program/Period never duplicate that Program. Evaluation Plan data keeps a configured Program/Period visible even before the internal Cycle is materialized.
+
+Re-evaluation remains append-only. In addition to the normal newer-Framework trigger, legacy data created before consistent assessed-Framework immutability is checked against persisted completed competency-result rubric/level bindings. If those bindings no longer match a complete competency-owned rubric now present on the same Framework, the Student is shown as Re-evaluation required. The old completed attempt becomes non-current and a fresh current in-progress attempt starts with zero results in the same visible Evaluation. Untouched legacy or incomplete current rubrics do not trigger this compatibility rule.
+
+Normal Grade-level Competency authoring does not fabricate ASCII-only codes in the browser. Unicode names are submitted directly and the backend generates the existing unique Program-scoped internal code.
+
+Talent & Potential now expands as a permission-aware child tree in the main application sidebar. Overview, Programs, Student Assessments, Talent Review, and Results & Analytics are clean top-level destinations: moving between them retains Academic Year only and drops stale Program/Cycle/Assessment and analytics filter context. Programs therefore reopens its collection view unless the user explicitly opens a Program, while Student Assessments owns its own Program selector instead of inheriting the Program previously being edited. Program-context buttons inside an opened Program intentionally keep that Program when opening Assessments or Results.
 
 ## Talent Guided Configuration Owner Recheck
 

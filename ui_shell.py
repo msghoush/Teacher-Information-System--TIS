@@ -448,14 +448,52 @@ def _build_nav_items(
             allowed = all(can(permission_key) for permission_key in permission_keys)
         if not allowed:
             continue
-        items.append(
-            {
-                key: value
-                for key, value in item.items()
-                if key not in {"permission_keys", "permission_mode", "teacher_only"}
-            }
-            | {"active": is_active(item["href"].rstrip("/")) if item["href"] != "/dashboard" else is_active("/dashboard")}
-        )
+        nav_item = {
+            key: value
+            for key, value in item.items()
+            if key not in {"permission_keys", "permission_mode", "teacher_only"}
+        } | {
+            "active": is_active(item["href"].rstrip("/"))
+            if item["href"] != "/dashboard"
+            else is_active("/dashboard")
+        }
+        if item["href"] == "/talent":
+            talent_children = [
+                {"label": "Overview", "href": "/talent/overview", "icon": "dashboard", "allowed": True},
+                {"label": "Programs", "href": "/talent/programs", "icon": "degree", "allowed": can("talent_programs.view")},
+                {"label": "Student Assessments", "href": "/talent/assessments", "icon": "exam", "allowed": can("talent_assessments.view")},
+                {"label": "Talent Review", "href": "/talent/reviews", "icon": "clipboard-check", "allowed": can("talent_review_candidates.view")},
+                {"label": "Results & Analytics", "href": "/talent/analytics", "icon": "insights", "allowed": can("talent_analytics.view")},
+            ]
+            nav_item["children"] = [
+                {
+                    "label": child["label"],
+                    "href": child["href"],
+                    "icon": child["icon"],
+                    "active": (
+                        (child["href"] == "/talent/overview" and current_path.rstrip("/") == "/talent")
+                        or (
+                            child["href"] == "/talent/analytics"
+                            and any(
+                                is_active(path)
+                                for path in (
+                                    "/talent/analytics",
+                                    "/talent/talent-map",
+                                    "/talent/portfolio",
+                                    "/talent/branch",
+                                    "/talent/overlap",
+                                    "/talent/students",
+                                    "/talent/longitudinal",
+                                )
+                            )
+                        )
+                        or is_active(child["href"])
+                    ),
+                }
+                for child in talent_children
+                if child["allowed"]
+            ]
+        items.append(nav_item)
 
     return items
 

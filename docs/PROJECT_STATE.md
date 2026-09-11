@@ -21,6 +21,21 @@ context at the time the Assessment starts. ADR 0033 is superseded as an
 eligibility/workflow model.
 
 
+
+## Talent Program Finalization, Evaluation Grouping, And Re-evaluation Reset Correction
+
+Per Owner acceptance on 2026-09-11, a fully configured Draft Program no longer remains Draft after the user completes setup. **Finish Setup** is the governed lifecycle boundary: with organization/global authority and `talent_programs.govern`, the UI activates the Program first and then the completed Draft Framework using its current revision and semantic fingerprint, after which the same Program opens in operational summary mode. Already-active state is not activated again.
+
+The Program operational summary's Edit Program, Build/Edit Rubric, and Manage Evaluation Plan links now participate in the same hash-backed renderer before the summary's early return, so those controls actually reopen their intended panels. Open Assessments and View Results continue to use their canonical cross-view routes with Program/Academic Year context.
+
+Student Assessments now projects the configured Evaluation Plan together with physical Cycle contexts. It groups by normalized user-facing Evaluation label, orders those groups by configured sequence when available, then renders unique Programs, so one Program cannot appear twice under the same Period merely because multiple Cycles exist or legacy sequence metadata differs. Programs with a configured Period remain visible before the first internal Cycle is created.
+
+The reassessment compatibility boundary is also closed for legacy data created before assessed-Framework immutability was consistently enforced. A completed Assessment is marked **Re-evaluation required** when its persisted competency-result rubric/level bindings no longer match a complete current competency-owned rubric on the same Framework Version. Untouched legacy or partially configured rubrics do not trigger this rule. Starting re-evaluation makes the old completed attempt non-current and opens a fresh current in-progress replacement with zero results in the original visible Evaluation; prior evidence is preserved internally rather than deleted.
+
+Normal Grade-level Competency creation no longer synthesizes an ASCII-only code in the browser. Unicode names such as Arabic Competencies are sent without a technical code, and the backend allocates the existing unique Program-scoped internal code. No schema migration was added.
+
+Talent navigation now also follows an explicit module-tree/context-boundary rule. While Talent & Potential is active, the main sidebar expands Overview, Programs, Student Assessments, Talent Review, and Results & Analytics as permission-aware child destinations. Those top-level destinations carry the selected Academic Year only and clear stale Program/Cycle/Assessment and analytics filter context from the page being left. Programs therefore always re-enters the searchable Program list unless an explicit Program-opening link is used, and Student Assessments opens neutral with its own Program selector rather than inheriting a previously selected Program. The Programs table now exposes one normal Open Program entry point per row; Program-specific Edit Program, Build/Edit Rubric, Manage Evaluation Plan, Open Assessments, and View Results remain inside the opened Program workspace.
+
 ## Talent Current Rubric, Re-evaluation, And Rubric-Delete Correction
 
 Per direct Owner instruction on 2026-09-11, the normal Student Assessment
@@ -241,7 +256,7 @@ The sanctioned Local Test Admin source remains organization-scoped with North Ca
 
 ## Talent Completed Program Operational Workspace
 
-Completed active Programs now open as a compact operational summary instead of remaining permanently in onboarding. Explicit Edit Program, Edit What we assess, and Manage Evaluation Plan actions reopen the same hash-backed wizard at Steps 1, 2, and 3. Finish Setup exits the wizard for a completed Program. Incomplete or draft Programs continue to open in setup mode.
+Completed active Programs open as a compact operational summary instead of remaining permanently in onboarding. Explicit Edit Program, Edit What we assess, and Manage Evaluation Plan actions reopen the same hash-backed wizard at Steps 1, 2, and 3. A fully configured Draft Program crosses into Active state when an authorized user chooses Finish Setup: Program activation occurs before Framework activation, then the Program returns to operational summary. Incomplete Programs remain in setup mode.
 
 The UI now uses Evaluation Plan and Evaluation Period terminology consistently. Step 3 remains embedded. Program Basics reads the selected Academic Year option text rather than displaying its database ID. Organization-authority failures are mapped to clear Evaluation Period access language, and Branch-scoped users are not shown Plan-management controls the API cannot execute.
 
