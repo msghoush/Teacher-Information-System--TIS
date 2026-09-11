@@ -443,10 +443,12 @@
   async function load() {
     const run=++generation; controller?.abort(); controller=new AbortController();
     updateBreadcrumb();
-    root.innerHTML=empty('Loading this view…'); root.setAttribute('aria-busy','true'); status.textContent='';
+    const hasRenderedContent=Boolean(root.children?.length && !root.querySelector?.('.tp-empty[data-initial-loading]'));
+    if(!hasRenderedContent) root.innerHTML='<div class="tp-empty" data-initial-loading>Loading this view…</div>';
+    root.setAttribute('aria-busy','true'); root.classList.add('is-refreshing'); status.textContent='Refreshing view…';
     try {const html=await render(controller.signal);if(run===generation){if(html!==null)root.innerHTML=html;status.textContent='View loaded.';}}
     catch(error){if(error.name!=='AbortError'&&run===generation){root.innerHTML=errorPanel(error);document.getElementById('tp-retry').addEventListener('click',load);status.textContent='View could not be loaded.';}}
-    finally {if(run===generation)root.setAttribute('aria-busy','false');}
+    finally {if(run===generation){root.setAttribute('aria-busy','false');root.classList.remove('is-refreshing');}}
   }
   // Selections auto-apply (no required "Apply context" click); a short debounce
   // collapses rapid multi-dropdown changes into one reload. The visible Refresh
