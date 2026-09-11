@@ -145,8 +145,11 @@ test('a completed Program opens operational summary while Edit reopens the same 
   const operational=fixture(true,'active',{complete:true,step:'',yearLabel:'2026–2027'});await render(operational.ctx);
   assert.match(operational.root.innerHTML,/class="tp-program-summary"/);
   assert.match(operational.root.innerHTML,/2026–2027/);
-  assert.match(operational.root.innerHTML,/Edit Program/);
-  assert.match(operational.root.innerHTML,/Manage Evaluation Plan/);
+  assert.match(operational.root.innerHTML,/href="#tp-basics"[^>]*>[\s\S]*Edit Program/);
+  assert.match(operational.root.innerHTML,/href="#tp-rubric"[^>]*>[\s\S]*Build \/ Edit Rubric/);
+  assert.match(operational.root.innerHTML,/href="#tp-schedule"[^>]*>Manage Evaluation Plan/);
+  assert.match(operational.root.innerHTML,/href="\/talent\/assessments\?[^"]*academic_year_id=2026[^"]*program_id=11[^"]*"[^>]*>[\s\S]*Open Assessments/);
+  assert.match(operational.root.innerHTML,/href="\/talent\/portfolio\?[^"]*academic_year_id=2026[^"]*program_id=11[^"]*"[^>]*>[\s\S]*View Results/);
   assert.doesNotMatch(operational.root.innerHTML,/class="tp-tabs"|class="tp-wizard-panel"/);
   const editing=fixture(true,'active',{complete:true,hash:'#tp-basics'});await render(editing.ctx);
   assert.match(editing.root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
@@ -250,10 +253,8 @@ test('Program index is a compact searchable table with primary actions',async()=
   assert.doesNotMatch(root.innerHTML,/<th>Type<\/th>/);
   assert.match(root.innerHTML,/Search Programs/);
   assert.match(root.innerHTML,/New Program/);
-  assert.match(root.innerHTML,/>Overview<\/a>/);
-  assert.match(root.innerHTML,/>Edit Program<\/a>/);
-  assert.match(root.innerHTML,/>Rubric<\/a>/);
-  assert.doesNotMatch(root.innerHTML,/Open Program →/);
+  assert.match(root.innerHTML,/>Open Program<\/a>/);
+  assert.doesNotMatch(root.innerHTML,/>Overview<\/a>|>Edit Program<\/a>|>Rubric<\/a>/);
   // The Create-Program form must not be permanently expanded on the landing
   // screen; it opens only via the "New Program" action (Students' "Add Student"
   // separate-entry-point precedent, applied here as a collapsed panel).
