@@ -1112,6 +1112,39 @@ def delete_assessment(db, *, school_group_id, assessment_id, actor=None):
     return assessment.id
 
 
+
+def reset_completed_assessment_for_reassessment(db, *, school_group_id, assessment_id, actor=None):
+    """Make one Completed current Assessment historical so the same Evaluation can start again.
+
+    This is an operational recovery action, not a hard delete. All competency
+    results, review/identification records, educator input, placement context,
+    and audit history remain attached to the prior Assessment. Only its current
+    pointer is cleared, allowing the normal start path to create a fresh current
+    Assessment for the same visible Evaluation.
+    """
+    assessment = _assessment(db, school_group_id, assessment_id, lock=True)
+    if assessment is None:
+        raise TalentStudentAssessmentError("not_found", "Student Assessment was not found.")
+    if assessment.status != "completed":
+        raise TalentStudentAssessmentError(
+            "reset_not_available", "Only a Completed Assessment can be reset for re-assessment."
+        )
+    if not bool(getattr(assessment, "is_current", True)):
+        raise TalentStudentAssessmentError(
+            "reset_not_available", "This Assessment is already historical."
+        )
+    before = assessment_payload(assessment)
+    assessment.is_current = False
+    assessment.updated_by_user_id = getattr(actor, "user_id", None)
+    assessment.updated_at = datetime.utcnow()
+    db.flush()
+    _audit(
+        db, assessment, actor=actor, action="reset_for_reassessment",
+        before=before, after=assessment_payload(assessment),
+    )
+    return assessment
+
+
 def mark_non_complete(db, *, school_group_id, assessment_id, expected_revision, status, actor=None):
     if status not in {"incomplete", "insufficient_evidence"}:
         raise TalentStudentAssessmentError("invalid_status", "Assessment status must be Incomplete or Insufficient Evidence.")
