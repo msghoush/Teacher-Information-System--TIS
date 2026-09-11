@@ -32,7 +32,7 @@ source_of_truth: true
 
 ## Talent Re-evaluation Reset And Evaluation Grouping Flow
 
-1. Student Assessments groups one user-facing Evaluation label/sequence across Programs, then renders each Program once; duplicate physical Cycles never create duplicate Program cards.
+1. Student Assessments groups each repeated user-facing Evaluation label across Programs, uses configured sequence to order label groups when available, and renders each Program once; duplicate physical Cycles never create duplicate Program cards.
 2. A configured Program/Period can be shown before its internal Cycle exists. Starting/opening that Program uses the existing Evaluation Plan/Cycle workflow to materialize provenance when needed.
 3. A completed Student whose current rubric has materially changed surfaces **Re-evaluation required**. For forward changes this means a newer assessable Framework Version; for legacy pre-guard data it may also mean that the same Framework now contains a complete competency-owned rubric whose IDs no longer match the completed attempt's persisted rubric/level bindings.
 4. Re-evaluation never edits or deletes the prior evidence. The previous completed attempt becomes non-current; the replacement starts current and In Progress with zero competency results, links to the prior attempt, and remains under the original visible Evaluation through `evaluation_context_cycle_id`.
