@@ -13,7 +13,7 @@ from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
     TalentAssessmentCycleError, close_cycle, create_cycle, cycle_payload,
-    frozen_population, get_cycle, list_cycles, open_cycle, population_fingerprint,
+    derive_eligible_population, frozen_population, get_cycle, list_cycles, open_cycle, population_fingerprint,
     population_member_payload, preview_population, reconcile_open_cycle_population,
     update_cycle,
 )
@@ -150,6 +150,39 @@ def cycles_update(cycle_id: int, request: Request, payload: dict = Body(...), db
         description=payload.get("description") if "description" in payload else None,
         population_effective_at=effective_at, actor=user,
     ), include_integrity=False))
+
+
+@router.get("/{cycle_id}/eligible-students")
+def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Current assessable Students for an Evaluation context (ADR 0035).
+
+    This is live Academic Placement eligibility, not a frozen roster and not a
+    lifecycle gate. Historical Placement context is captured only when an
+    Assessment is actually started.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "talent_assessment_cycles.view_population")
+    if denied:
+        return denied
+    try:
+        cycle = get_cycle(db, school_group_id=group_id, cycle_id=cycle_id)
+        population = derive_eligible_population(db, cycle=cycle, effective_at=datetime.utcnow())
+    except TalentAssessmentCycleError as exc:
+        return _error(exc)
+    organization = _organization_authorized(user)
+    if not organization:
+        visible = _visible_branch_ids(db, user)
+        population = [row for row in population if row["branch_id"] in visible]
+    names = _student_names(db, group_id, [row["student_id"] for row in population])
+    branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
+    members = [{**row, **names.get(row["student_id"], {}), "branch_name": branches.get(row["branch_id"])} for row in population]
+    return jsonable_encoder({
+        "cycle_id": cycle.id,
+        "eligibility_state": "live_academic_placement",
+        "scope": "organization" if organization else "authorized_branches",
+        "is_filtered": not organization,
+        "count": len(members),
+        "members": members,
+    })
 
 
 @router.get("/{cycle_id}/population/preview")
