@@ -18,8 +18,8 @@ from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
     complete_assessment, competency_result_payload, delete_assessment,
     get_assessment, list_assessments, list_competency_results,
-    mark_non_complete, remove_competency_result, set_competency_result,
-    start_assessment,
+    mark_non_complete, reassessment_requirement, remove_competency_result, set_competency_result,
+    start_assessment, start_reassessment,
 )
 
 router = APIRouter(prefix="/api/talent/assessments", tags=["Talent Student Assessments"])
@@ -34,6 +34,15 @@ def _with_actions(db, user, row, payload):
     actions = []
     if auth.has_permission(db, user, "talent_assessments.delete") and can_delete_assessment(db, assessment_id=row.id):
         actions.append("delete")
+    newer_framework = reassessment_requirement(db, row)
+    payload["reassessment"] = {
+        "required": newer_framework is not None,
+        "framework_version_id": newer_framework.id if newer_framework is not None else None,
+        "framework_version_number": newer_framework.version_number if newer_framework is not None else None,
+        "historical": not bool(getattr(row, "is_current", True)),
+    }
+    if newer_framework is not None and auth.has_permission(db, user, "talent_assessments.manage"):
+        actions.append("reassess")
     payload["actions"] = actions
     return payload
 
@@ -272,6 +281,25 @@ def competency_results_remove(assessment_id: int, framework_competency_id: int, 
         framework_competency_id=framework_competency_id,
         expected_revision=expected_revision, actor=user,
     )))
+
+
+@router.post("/{assessment_id}/reassess")
+def assessments_reassess(assessment_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_assessments.manage")
+    if denied:
+        return denied
+    assessment, error = _read_assessment(db, group_id, user, assessment_id)
+    if error:
+        return error
+    return _run(
+        db,
+        lambda: _display_payload(
+            db, user, start_reassessment(
+                db, school_group_id=group_id, assessment_id=assessment.id, actor=user
+            )
+        ),
+        created=True,
+    )
 
 
 @router.post("/{assessment_id}/complete")
