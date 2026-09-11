@@ -52,7 +52,7 @@ source_of_truth: true
 1. Opening an active Program with enabled annual Grades, an active complete assessment setup, and at least one Evaluation Period shows its operational summary without the setup stepper.
 2. Edit Program opens `#tp-basics`; Edit What we assess opens the assessment subflow; Manage Evaluation Plan opens `#tp-schedule`. Program and Academic Year query context remain unchanged.
 3. The setup stepper labels Step 3 Evaluation Plan. Its embedded table labels each row an Evaluation Period and supports the existing authorized edit, remove, and Start Evaluation actions.
-4. Ready confirms each prerequisite. For a complete Draft Program, Finish Setup is the governed activation boundary: activate the Program, activate the reviewed Draft Framework with its revision/fingerprint, clear setup state, and open that Program's operational summary. Already-active state is not mutated again.
+4. The Program summary confirms prerequisites. For a complete Draft Program, Finish Setup is the governed activation boundary: activate the Program, activate the reviewed Draft Framework with its revision/fingerprint, clear setup state, and open that Program's operational summary. Already-active state is not mutated again.
 5. The renderer obtains the Academic Year display label from the selected shell option and never presents its internal ID as the normal label.
 
 ## Talent Module Navigation And Context Reset Flow
@@ -83,11 +83,11 @@ source_of_truth: true
 
 ## Talent Program Guided Setup
 
-1. The user opens a Program and sees its identity header and the Basics, What we assess, Evaluation Schedule, and Ready progress steps.
-2. The browser reads the URL hash and renders only that step's panel; changing the hash updates the active panel and refresh returns to it.
+1. The user opens a Program and sees its identity plus focused Basics, What we assess, and Evaluation Plan entry points; readiness is summarized on the Program itself.
+2. The browser reads supported URL hashes and renders the requested edit panel; refresh returns to that panel.
 3. Basics saves Program identity/configuration through existing Program and academic-year routes. What we assess edits the selected draft framework through existing revision-guarded competency, rubric, level, and descriptor routes.
-4. Evaluation Schedule hands off to the existing guided Plan/Period/Cycle workspace, which previews eligible Students before opening and freezing the population. Ready links to that operational workspace after the prerequisite steps are complete.
-5. The UI shows edit/remove actions only when the permission payload and entity lifecycle support them. Program lifecycle uses activate/retire; historical versions and terminal assessment results stay read-only.
+4. Evaluation Plan reuses the existing guided Plan/Period/Cycle workspace. When prerequisites are complete, Finish Setup is offered from the Program summary rather than from a separate Ready step.
+5. The UI shows edit/remove actions only when the permission payload and entity lifecycle support them. Program lifecycle uses activate/retire; historical versions and terminal assessment evidence stay immutable.
 
 ## Talent Program Identity, Planning Scope, And Result Clearing
 
