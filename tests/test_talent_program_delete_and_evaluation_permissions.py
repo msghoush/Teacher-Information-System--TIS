@@ -4,8 +4,9 @@ Covers:
 - ADR 0032's scoped Draft Talent Program hard-delete exception
   (routers/talent_programs.py DELETE /{program_id}, talent_program_service.py
   delete_program/program_delete_blockers).
-- The new talent_programs.delete permission narrowing the existing Competency
-  and Rubric Level true-delete routes.
+- Dedicated talent_programs.delete_competency and
+  talent_programs.delete_rubric_level permissions narrowing the existing
+  Competency and Rubric Level true-delete routes.
 - The new talent_evaluation_plans.delete_period and
   talent_evaluation_plans.manage_timeline permissions gating Period delete,
   reorder, and mixed timeline/content PATCH requests.
@@ -172,8 +173,8 @@ def test_program_delete_route_requires_new_permission_not_manage(db):
     db.commit()
     actor = user("1000000001")
     db.add(actor)
-    grant(db, "Administrator", "talent_programs.view", "talent_programs.manage")
-    deny(db, "Administrator", "talent_programs.delete")
+    grant(db, "Administrator", "talent_programs.view", "talent_programs.manage", "talent_programs.delete")
+    deny(db, "Administrator", "talent_programs.delete_competency", "talent_programs.delete_rubric_level")
     with client(db, actor) as api:
         response = api.delete(f"/api/talent/programs/{program.id}")
         assert response.status_code == 403
@@ -227,7 +228,7 @@ def test_program_actions_omit_delete_when_program_has_dependents(db):
 # Level, from talent_programs.manage to talent_programs.delete.
 # ---------------------------------------------------------------------------
 
-def test_framework_competency_and_rubric_level_delete_require_new_permission(db):
+def test_framework_competency_and_rubric_level_delete_require_dedicated_permissions(db):
     program = create_program(db, school_group_id=1, name="Setup Program")
     transition_program(db, school_group_id=1, program_id=program.id, target_status="active")
     framework = create_framework_draft(db, school_group_id=1, program_id=program.id, title="Setup")
@@ -271,7 +272,7 @@ def test_framework_competency_delete_succeeds_with_new_permission(db):
 
     actor = user("1000000006")
     db.add(actor)
-    grant(db, "Administrator", "talent_programs.view", "talent_programs.delete")
+    grant(db, "Administrator", "talent_programs.view", "talent_programs.delete_competency")
     with client(db, actor) as api:
         response = api.delete(
             f"/api/talent/programs/{program.id}/frameworks/{framework.id}/competencies/{competency.id}",
@@ -420,7 +421,7 @@ def test_linking_an_evaluation_period_requires_select_period_permission(db):
 
 def test_new_permission_keys_are_registered_with_the_same_additive_shape():
     import permission_registry as pr
-    for key in ("talent_programs.delete", "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline", "talent_evaluation_plans.select_period"):
+    for key in ("talent_programs.delete", "talent_programs.delete_competency", "talent_programs.delete_rubric_level", "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline", "talent_evaluation_plans.select_period"):
         assert key in pr.ALL_PERMISSION_KEYS
         assert key in pr.PERMISSION_LABELS and isinstance(pr.PERMISSION_LABELS[key], str) and pr.PERMISSION_LABELS[key]
         assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
@@ -428,6 +429,8 @@ def test_new_permission_keys_are_registered_with_the_same_additive_shape():
     # Administrator "all permissions" default, mirroring every existing
     # talent_programs.*/talent_evaluation_plans.* key.
     assert "talent_programs.delete" not in pr._EDITOR_LIKE_PERMISSIONS
+    assert "talent_programs.delete_competency" not in pr._EDITOR_LIKE_PERMISSIONS
+    assert "talent_programs.delete_rubric_level" not in pr._EDITOR_LIKE_PERMISSIONS
     assert "talent_evaluation_plans.delete_period" not in pr._EDITOR_LIKE_PERMISSIONS
     assert "talent_evaluation_plans.manage_timeline" not in pr._EDITOR_LIKE_PERMISSIONS
     assert "talent_evaluation_plans.select_period" not in pr._EDITOR_LIKE_PERMISSIONS
