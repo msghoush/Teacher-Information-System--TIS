@@ -2290,21 +2290,49 @@ ADR 0036 governs re-evaluation semantics. `TalentStudentAssessment` carries `is_
 
 Production Results & Analytics still depends on governed external provider configuration under ADR 0028. The implementation already contains configuration-driven privacy-provider resolution and approved-value validation; missing Render environment configuration continues to fail closed rather than exposing unsuppressed indicators.
 
-## Talent Overall Program Result
+## Talent Evaluation Workflow, Review, Results, And UI Consolidation
 
-ADR 0037 is implemented on `dev`. New competency-owned rubric levels display
-their governed ordered number beside the level name. Student Assessments expose a
-deterministic `overall_result` once all applicable competency results exist.
+The Owner-approved Talent consolidation is implemented on `dev` under ADR
+0036, ADR 0037, and ADR 0038.
 
-The result is normalized per competency to 0-100 using the selected level's
-position within that competency's own rubric, then averaged equally across
-competencies. This supports Programs whose competencies have different rubric
-lengths without scale-length bias. The calculation is read-only and requires no
-migration.
+Rubric authoring is Grade -> Competency -> competency-owned Rubric -> ordered
+Levels. New competency rubrics do not inherit assessed legacy shared-rubric
+levels automatically. Authors may explicitly copy level structure from another
+competency in the same Draft, with optional descriptions; copied data is
+independent afterward.
 
-Student Assessment and Talent Review show the Overall Program Result numerically
-and with a continuous accessible low-to-high visual. Talent Review no longer
-uses a single "highest rubric level" as the cross-competency summary because raw
-positions from differently-sized rubrics are not comparable. Review Candidate
-policy and Official Identification remain separate; no automatic talented/not
-talented classification is introduced.
+The canonical Overall Program Result is now the arithmetic mean of selected
+rubric ranks on one coherent Program scale (for example `4.4 / 5`). All
+applicable competency rubrics must use the same level count before completion.
+A normalized percentage may be derived for visual bars only. Different Programs
+remain separate and are never combined into one universal Student Talent score.
+
+Student Assessments are organized as Evaluation Period -> Programs -> Students.
+Repeated Evaluation labels are grouped once. The selected Program/Evaluation
+shows all live-placement eligible Students in authorized scope with Not started,
+In progress, Completed, or Re-evaluation required states. Re-evaluation continues
+to preserve immutable historical evidence and original Evaluation identity.
+
+Talent Review now includes all current completed Assessments, with Review
+Candidate, review status, and Official Identification shown independently.
+Assessment completion evaluates any existing deterministic Review Candidate
+policy, while no-policy/non-qualifying completed Assessments remain visible.
+
+Program settings surface the existing Annual Evaluation Plan Periods alongside
+eligible Grades. No duplicate scheduling persistence is introduced.
+
+Results & Analytics adds privacy-safe competency rank averages and selected
+Program average summaries, keeps Branch/Grade/Program organization analytics on
+the existing M9/M10 privacy-closed providers, and exposes separate per-Program
+Student results through the governed Student drill/Students Across Programs
+matrix. Official Identification remains a human decision; Learning Style remains
+context only and is not a Talent score input.
+
+The Talent UI has stronger semantic icons/status color, richer Evaluation,
+Student, Review, and result surfaces, and responsive low-to-high result visuals.
+The Programs list now uses a bounded summaries endpoint instead of N+1
+per-Program setup requests, and major Talent views preserve rendered content
+during refreshes rather than repeatedly blanking to full loading states.
+
+No new schema migration is introduced by this consolidation.
+
