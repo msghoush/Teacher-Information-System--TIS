@@ -140,6 +140,9 @@
       const programs=await api('/api/talent/programs');
       if (token !== renderToken) return;
       if(!pid) {
+        const planningGrades=year
+          ? await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[])
+          : [];
         const summaries=await Promise.all(programs.map(async program=>{
           const programBase=`/api/talent/programs/${program.id}`;
           const [years,frameworks]=await Promise.all([api(`${programBase}/academic-years`),api(`${programBase}/frameworks`)]);
@@ -159,8 +162,9 @@
         // destructive action in this module (remove-logo, remove-member,
         // remove-level, remove-descriptor, remove-kpi, remove-policy) so
         // confirmation and error-feedback behavior stay consistent.
-        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Open</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit</a>`:''}${(program.actions||[]).includes('delete')?button('delete-program','Delete',`data-id="${program.id}"`,'trash'):''}</div></td></tr>`).join('');
-        root.innerHTML=`<div data-status role="status" aria-live="polite"></div><div class="tp-section-lede"><div><h2>Programs</h2><p>Open a Program to set its grades, assessment rubric, and evaluation schedule.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',field('name','Program name','', 'text',true)+area('description','What does this Program evaluate?'))}</div>`:''}`;
+        const rows=summaries.map(({program,current,type})=>`<tr data-program-row data-search="${esc(program.name.toLowerCase())}"><th scope="row">${logoBadge(program,'tp-logo-sm')} ${esc(program.name)}</th><td>${current?.eligible_grade_levels?.map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ')||'Not set'}</td><td>${esc(type)}</td><td>${current?.is_enabled?'Enabled':'Not set'}</td><td><span class="tp-badge">${esc(program.status)}</span></td><td><div class="tp-row-actions"><a href="${esc(href('programs',{program_id:program.id}))}">${icon('eye')}Overview</a>${manage&&program.status!=='retired'?`<a href="${esc(href('programs',{program_id:program.id}))}#tp-basics">${icon('edit')}Edit Program</a><a href="${esc(href('programs',{program_id:program.id}))}#tp-rubric">${icon('edit')}Rubric</a>`:''}${(program.actions||[]).includes('delete')?button('delete-program','Delete',`data-id="${program.id}"`,'trash'):''}</div></td></tr>`).join('');
+        const newProgramFields=field('name','Program name','', 'text',true)+area('description','Program description')+(planningGrades.length?`<fieldset><legend>Eligible Grades</legend>${planningGrades.map(g=>check(`grade_${g}`,g==='KG'?'KG':`Grade ${g}`,false)).join('')}</fieldset>`:'<p class="tp-inline-empty">No Grades are configured in Planning for this Academic Year.</p>');
+        root.innerHTML=`<div data-status role="status" aria-live="polite"></div><div class="tp-section-lede"><div><h2>Programs</h2><p>Create the Program and align it with eligible Grades. Configure the rubric separately from the Program row.</p></div>${manage?'<button type="button" data-action="new-program">New Program</button>':''}</div><label class="tp-search">Search Programs<input type="search" data-program-search placeholder="Search by Program name"></label><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Program</th><th>Grades</th><th>Scoring Mode</th><th>Current Year</th><th>Status</th><th>Actions</th></tr></thead><tbody>${rows||'<tr><td colspan="6">No Programs yet.</td></tr>'}</tbody></table></div>${manage?`<div data-new-program hidden>${form('create-program','New Program',newProgramFields,'Save Program')}</div>`:''}`;
         root.oninput=event=>{if(event.target.matches('[data-program-search]')){const term=event.target.value.trim().toLowerCase();root.querySelectorAll('[data-program-row]').forEach(row=>{row.hidden=!row.dataset.search.includes(term);});return;}const edited=event.target.closest('form');if(edited){dirtyForms.add(edited);edited.dataset.dirty='true';showDirty();}};
         root.onclick=async event=>{
           if(event.target.closest('[data-action="new-program"]')){root.querySelector('[data-new-program]').hidden=false;return;}
@@ -170,7 +174,21 @@
             await mutate(`/api/talent/programs/${del.dataset.id}`,'DELETE',undefined);
           }
         };
-        root.querySelector('form')?.addEventListener('submit',async event=>{event.preventDefault();const d=new FormData(event.target);await mutate('/api/talent/programs','POST',{name:d.get('name'),description:d.get('description')},event.target);});
+        root.querySelector('form')?.addEventListener('submit',async event=>{
+          event.preventDefault();
+          const formEl=event.target,d=new FormData(formEl);
+          const feedback=formEl.querySelector('[data-feedback]');
+          const grades=planningGrades.filter(g=>d.has(`grade_${g}`));
+          if(!grades.length){if(feedback){feedback.textContent='Choose at least one eligible Grade.';feedback.setAttribute('role','alert');}return;}
+          try{
+            const created=await api('/api/talent/programs',{method:'POST',body:JSON.stringify({name:d.get('name'),description:d.get('description')})});
+            await api(`/api/talent/programs/${created.id}/academic-years/${year}`,{method:'PUT',body:JSON.stringify({is_enabled:true,eligible_grade_levels:grades})});
+            ctx.notify?.('Program saved. Add its rubric when you are ready.');
+            await render(ctx);
+          }catch(error){
+            if(feedback){feedback.textContent=error.message||'Unable to save Program.';feedback.setAttribute('role','alert');}
+          }
+        });
         return;
       }
       program=programs.find(p=>String(p.id)===pid);
