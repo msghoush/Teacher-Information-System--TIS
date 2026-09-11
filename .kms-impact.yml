@@ -1,8 +1,9 @@
 knowledge_impact: no
-summary: "Talent Rubric Start Editing UI fix. Rubric mode now selects the newest Draft Framework after creating/cloning an editable version so Grade sections immediately expose Add Competency. No product requirements, data model, API contract, permissions, analytics semantics, or governed architecture change."
+summary: "Talent Rubric compatibility/UI defect fixes. Rubric mode selects the newest Draft after Start Editing, and legacy all-Grade competencies plus legacy shared rubric levels are projected into the new Grade -> Competency -> Rubric -> Levels tree so existing Mental Math data remains visible and editable. No product requirements, schema intent, API contract, permissions, analytics semantics, or governed architecture change."
 affected_areas:
   - talent-rubric-ui
   - talent-program-setup
+  - talent-rubric-legacy-compatibility
 kms_files_updated:
-no_impact_reason: "Implementation defect correction only. The approved Grade -> Competency -> competency-owned Rubric -> Levels workflow is unchanged; this patch makes the existing Start Editing action open the newest editable Draft instead of reselecting an older in-use Draft."
+no_impact_reason: "Implementation compatibility correction only. The approved Grade -> Competency -> competency-owned Rubric -> Levels workflow is unchanged. This patch fixes Draft selection and renders pre-existing all-Grade/shared-rubric data inside that already-approved hierarchy; editing the legacy rubric continues to use the existing backend compatibility bridge that copies it into a competency-owned rubric."
 major_change_override: no
