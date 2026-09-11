@@ -401,6 +401,7 @@ class FrameworkCompetency(Base):
     __tablename__ = "talent_framework_competencies"
     __table_args__ = (
         CheckConstraint("display_order >= 1", name="ck_talent_framework_competencies_order"),
+        CheckConstraint("grade_level IS NULL OR grade_level IN ('KG','1','2','3','4','5','6','7','8','9','10','11','12')", name="ck_talent_framework_competencies_grade"),
         ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_framework_competencies_framework_scope"),
         ForeignKeyConstraint(["talent_competency_id", "program_id", "school_group_id"], ["talent_competencies.id", "talent_competencies.program_id", "talent_competencies.school_group_id"], name="fk_talent_framework_competencies_competency_scope"),
         UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_framework_competencies_id_scope"),
@@ -413,6 +414,7 @@ class FrameworkCompetency(Base):
     framework_version_id = Column(Integer, nullable=False)
     talent_competency_id = Column(Integer, nullable=False)
     display_order = Column(Integer, nullable=False)
+    grade_level = Column(String(8), nullable=True)
     label = Column(String(160), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
