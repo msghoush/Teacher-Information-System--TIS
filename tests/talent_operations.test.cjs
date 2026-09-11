@@ -367,3 +367,23 @@ test('starting an assessment carries the current Program forward in the resultin
   await clickHandler();
   assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,academic_year_id:'2026',program_id:'11'}});
 });
+
+
+test('assessment renders only competencies assigned to the Student historical Grade',async()=>{
+  const root=domRoot();
+  const base=assessmentApi({assessment:{context:{cycle_status:'open',student_name:'Alya',cycle_id:5,grade_level:'2'}},results:[]});
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:async path=>{
+      if(path==='/api/talent/programs/11/frameworks/21')return {competencies:[
+        {id:101,label:'Grade 1 Mental Calculation',grade_level:'1'},
+        {id:102,label:'Grade 2 Mental Calculation',grade_level:'2'},
+        {id:103,label:'Shared Strategy',grade_level:null}
+      ]};
+      if(path==='/api/talent/programs/11/frameworks/21/configuration')return {levels:[{id:201,label:'Level 1'}],descriptors:[]};
+      return base(path);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/Grade 1 Mental Calculation/);
+  assert.match(root.innerHTML,/Grade 2 Mental Calculation/);
+  assert.match(root.innerHTML,/Shared Strategy/);
+});
