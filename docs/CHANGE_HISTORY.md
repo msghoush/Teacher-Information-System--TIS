@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-11 — Talent setup finalization, Period grouping, and reassessment reset correction
+
+- `Finish Setup` now performs the real governed lifecycle completion for a fully configured Draft Program: activate the Program first, activate the reviewed Draft Framework with revision/fingerprint protection, then open that Program's operational summary. Already-active state is not activated again.
+- Fixed Program operational-summary navigation so Edit Program, Build/Edit Rubric, and Manage Evaluation Plan actually reopen their intended hash-backed panels instead of changing the URL without rerendering.
+- Student Assessments now combines configured Evaluation Plan Periods with Cycle contexts, groups the same user-facing Evaluation label/sequence across Programs, and renders each Program once. Duplicate physical Cycles no longer duplicate a Program card, and a configured Program/Period stays visible before its internal Cycle exists.
+- Closed the legacy reassessment gap for completed Students whose rubric was changed in place before assessed-Framework immutability was consistently enforced. When persisted completed rubric/level bindings no longer match a complete current competency-owned rubric on that same Framework, the Student surfaces **Re-evaluation required**. The prior completed attempt becomes non-current and the replacement starts empty/current/In Progress in the original visible Evaluation; evidence is preserved internally.
+- Untouched legacy shared rubrics and partially configured competency-owned rubrics do not produce false reassessment requirements.
+- Fixed Arabic/non-ASCII Grade-level Competency creation by removing the browser's ASCII-only generated-code path. The backend now assigns its existing unique Program-scoped internal code when the normal Rubric tool submits only name/description.
+- No schema migration, pricing, AI, analytics privacy, or tenant-isolation contract changed.
+
 ## 2026-09-11 — Talent current-rubric, reassessment, and granular delete correction
 
 - Removed the separate Assessment Records/History table from the normal Student Assessment workspace; the current eligible Student row, status, and action are now the sole operational surface while superseded attempts remain preserved evidence internally.
