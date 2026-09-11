@@ -196,3 +196,23 @@ test('Open Student Assessments creates/links only the internal context and navig
   assert.ok(!calls.some(call=>call.path.endsWith('/open')));
   assert.deepEqual(navigated,{target:'assessments',extra:{program_id:11,cycle_id:61,academic_year_id:100}});
 });
+
+
+test('configured draft Framework can open Student Assessments without a separate lifecycle activation gate',async()=>{
+  const feedback={textContent:'',setAttribute(){}};
+  const period={id:41,label:'Term 1',status:'planned',cycle:null,actions:['edit']};
+  const plan={id:21,program_id:11,status:'draft',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,api:async(path,options)=>{
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'draft'}];
+    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+    if(path.endsWith('/frameworks'))return [{id:31,status:'draft',title:'Configured rubric'}];
+    if(options)return {};
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  assert.match(root.innerHTML,/data-assess="41"/);
+  assert.doesNotMatch(root.innerHTML,/activate What we assess|Activate the Program/);
+});
