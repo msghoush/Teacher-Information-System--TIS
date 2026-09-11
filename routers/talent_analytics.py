@@ -1,3 +1,4 @@
+from decimal import ROUND_HALF_UP, Decimal
 """M9 Deterministic Talent Analytics API.
 
 Analytics permission (`talent_analytics.view`) never implies raw access to
@@ -439,6 +440,25 @@ def analytics_rubric_distribution(program_id: int, academic_year_id: int, reques
                         else None
                     ),
                 })
+            all_level_counts_visible = (
+                group.total.state == VISIBLE
+                and total_raw > 0
+                and all(item["state"] == VISIBLE for item in levels_payload)
+            )
+            average_rank = None
+            normalized_percent = None
+            if all_level_counts_visible:
+                count_by_level = {level_id: children_raw[level_id] for level_id in level_ids}
+                weighted_rank = sum(
+                    (index + 1) * count_by_level.get(level.id, 0)
+                    for index, level in enumerate(levels)
+                )
+                average_rank = (
+                    Decimal(weighted_rank) / Decimal(total_raw)
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                normalized_percent = (
+                    average_rank * Decimal(100) / Decimal(len(levels))
+                ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
             distributions.append({
                 "framework_version_id": framework_version_id,
                 "framework_title": framework.title if framework else None,
@@ -450,14 +470,47 @@ def analytics_rubric_distribution(program_id: int, academic_year_id: int, reques
                     "state": group.total.state,
                     "value": group.total.value,
                 },
+                "average_rank": average_rank,
+                "scale_max": len(levels) if all_level_counts_visible else None,
+                "normalized_percent": normalized_percent,
                 "levels": levels_payload,
                 "coverage": coverage,
             })
+    visible_averages = [
+        item for item in distributions
+        if item.get("average_rank") is not None and item.get("scale_max") is not None
+    ]
+    scale_values = {item["scale_max"] for item in visible_averages}
+    if visible_averages and len(visible_averages) == len(distributions) and len(scale_values) == 1:
+        scale_max = next(iter(scale_values))
+        program_average = (
+            sum((item["average_rank"] for item in visible_averages), Decimal("0"))
+            / Decimal(len(visible_averages))
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        program_result_summary = {
+            "state": VISIBLE,
+            "average": program_average,
+            "scale_max": scale_max,
+            "normalized_percent": (
+                program_average * Decimal(100) / Decimal(scale_max)
+            ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP),
+            "competency_count": len(visible_averages),
+            "calculation_method": "mean_of_privacy_visible_competency_rank_averages",
+        }
+    elif distributions:
+        program_result_summary = {"state": RESTRICTED}
+    else:
+        program_result_summary = {"state": NO_DATA}
     fingerprint = svc.compute_request_context_fingerprint(
         program_id=program_id, academic_year_id=academic_year_id, scope_signature=svc.scope_signature(visible_branch_ids),
         filters=filters, permission_projection=_projection_list(perms), privacy_policy_version=policy.privacy_policy_version,
     )
-    return jsonable_encoder({"distributions": distributions, "privacy_policy_version": policy.privacy_policy_version, "request_context_fingerprint": fingerprint})
+    return jsonable_encoder({
+        "distributions": distributions,
+        "program_result_summary": program_result_summary,
+        "privacy_policy_version": policy.privacy_policy_version,
+        "request_context_fingerprint": fingerprint,
+    })
 
 
 @router.get("/programs/{program_id}/academic-years/{academic_year_id}/kpi-distribution")
