@@ -113,6 +113,28 @@ test('an editable assessment shows Clear Result only for competencies with a sav
   assert.match(root.innerHTML,/tp-rubric-level/);
 });
 
+test('assessment rubric uses the descriptor for the Student historical Grade',async()=>{
+  const root=domRoot();
+  const base=assessmentApi({assessment:{context:{cycle_status:'open',student_name:'Alya',cycle_id:5,grade_level:'2'}}});
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:async path=>{
+      if(path==='/api/talent/programs/11/frameworks/21/configuration')return {
+        levels:[{id:201,label:'Level 1'}],
+        descriptors:[
+          {framework_competency_id:101,rubric_level_id:201,grade_level:'1',descriptor:'Grade 1 wording'},
+          {framework_competency_id:101,rubric_level_id:201,grade_level:'2',descriptor:'Grade 2 wording'},
+          {framework_competency_id:102,rubric_level_id:201,grade_level:null,descriptor:'General fallback'}
+        ]
+      };
+      return base(path);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/Grade 2 wording/);
+  assert.doesNotMatch(root.innerHTML,/Grade 1 wording/);
+  assert.match(root.innerHTML,/General fallback/);
+});
+
+
 test('completed assessment does not expose the removed Check Program Criteria action',async()=>{
   const root=domRoot();
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
