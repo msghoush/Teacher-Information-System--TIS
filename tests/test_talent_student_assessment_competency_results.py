@@ -24,7 +24,8 @@ from talent_program_service import (
 )
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, complete_assessment, get_assessment,
-    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result, set_competency_result,
+    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result,
+    reset_completed_assessment_for_reassessment, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
@@ -694,6 +695,50 @@ def test_legacy_same_framework_rubric_replacement_resets_completed_student_for_r
     assert replacement.student_id == student.id
     assert session.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=replacement.id
+    ).count() == 0
+
+
+def test_admin_reset_for_reassessment_preserves_completed_evidence_and_allows_fresh_start(db):
+    _, session = db
+    _, _, cycle, member, _, _, competencies, levels = foundation(session)
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    assessment = set_all_results(session, assessment, competencies, levels)
+    completed = complete_assessment(
+        session, school_group_id=1, assessment_id=assessment.id,
+        expected_revision=assessment.revision,
+    )
+    session.commit()
+
+    prior_result_count = session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=completed.id
+    ).count()
+    reset = reset_completed_assessment_for_reassessment(
+        session, school_group_id=1, assessment_id=completed.id
+    )
+    session.commit()
+
+    assert reset.status == "completed"
+    assert reset.is_current is False
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=completed.id
+    ).count() == prior_result_count
+    assert session.query(models.TalentAssessmentAudit).filter_by(
+        assessment_id=completed.id, action="reset_for_reassessment"
+    ).count() == 1
+
+    restarted = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    session.flush()
+    assert restarted.status == "in_progress"
+    assert restarted.is_current is True
+    assert restarted.student_id == completed.student_id
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=restarted.id
     ).count() == 0
 
 
