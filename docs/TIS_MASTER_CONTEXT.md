@@ -1618,8 +1618,17 @@ historical Assessment state. Competency removal and Rubric Level true-delete
 use the dedicated assignable permissions `talent_programs.delete_competency`
 and `talent_programs.delete_rubric_level`; whole Draft Program delete remains
 separate under `talent_programs.delete`. Assessed Frameworks remain semantically
-immutable and require a new Framework version before any Student-facing rubric
-change.
+immutable and require a new Framework version before any future Student-facing
+rubric change. For legacy data created before that guard was consistently
+enforced, a completed Assessment whose persisted rubric/level bindings no
+longer match a complete competency-owned rubric now present on the same
+Framework surfaces **Re-evaluation required**. This compatibility repair never
+deletes the prior evidence: the prior attempt becomes non-current and the
+replacement starts empty/current in the same visible Evaluation.
+
+A fully configured Draft Program now crosses its user-facing lifecycle boundary at **Finish Setup**: the authorized organization-governance action activates the Program first, then activates its completed Draft Framework with revision/fingerprint protection, and returns to that Program's operational summary. Already-active Program/Framework state is not redundantly mutated. Operational summary actions for Edit Program, Build/Edit Rubric, and Manage Evaluation Plan remain live hash-backed navigation rather than inert links.
+
+Student Assessments render Evaluation Period -> unique Programs -> Students. Same-label/same-sequence Periods across Programs are presented as one Period section, duplicate physical Cycles cannot duplicate a Program card, and configured Program/Period combinations may be shown before their internal Cycle exists. Normal Grade-level Competency creation keeps technical codes internal; the browser sends the Unicode name/description and the backend allocates a unique Program-scoped code, avoiding Arabic/non-ASCII code collisions.
 
 The Programs list uses a bounded summary read instead of per-Program
 annual/framework/configuration fan-out. A selected Program is loaded directly
