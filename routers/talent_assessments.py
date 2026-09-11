@@ -18,7 +18,7 @@ from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
     complete_assessment, competency_result_payload, delete_assessment,
     get_assessment, list_assessments, list_competency_results,
-    mark_non_complete, reassessment_requirement, remove_competency_result, set_competency_result,
+    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
@@ -48,7 +48,9 @@ def _with_actions(db, user, row, payload):
 
 
 def _display_payload(db, user, row):
-    return _with_actions(db, user, row, authorized_payload(db, row, assessment_payload))
+    payload = authorized_payload(db, row, assessment_payload)
+    payload["overall_result"] = overall_program_result(db, row)
+    return _with_actions(db, user, row, payload)
 
 
 def _scope(db, user):
@@ -225,7 +227,11 @@ def assessments_list(request: Request, cycle_id: int | None = Query(None), db: S
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
     contexts = authorized_contexts(db, group_id, rows)
-    return [_with_actions(db, user, row, {**assessment_payload(row), "context": contexts[row.id]}) for row in rows]
+    return [_with_actions(db, user, row, {
+        **assessment_payload(row),
+        "context": contexts[row.id],
+        "overall_result": overall_program_result(db, row),
+    }) for row in rows]
 
 
 @router.get("/{assessment_id}")

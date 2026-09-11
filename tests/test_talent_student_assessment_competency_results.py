@@ -23,7 +23,7 @@ from talent_program_service import (
 )
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, complete_assessment, get_assessment,
-    mark_non_complete, reassessment_requirement, remove_competency_result, set_competency_result,
+    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
@@ -631,3 +631,108 @@ def test_competency_rubric_migration_is_idempotent(db):
         db_migrations._talent_competency_specific_rubrics(engine, connection)
     columns = {row["name"] for row in inspect(engine).get_columns("talent_rubrics")}
     assert "framework_competency_id" in columns
+
+
+def test_overall_program_result_normalizes_competencies_with_different_level_counts(db):
+    _, session = db
+    program = create_program(session, school_group_id=1, name="Normalized Talent")
+    transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(
+        session, school_group_id=1, program_id=program.id, title="Grade 1 rubric"
+    )
+    members = []
+    rubric_levels = []
+    for index, (code, name, count) in enumerate((
+        ("SPEED", "Mental Speed", 3),
+        ("STRATEGY", "Strategy Flexibility", 5),
+    ), 1):
+        competency = create_competency(
+            session, school_group_id=1, program_id=program.id, code=code, name=name
+        )
+        member, framework = add_framework_competency(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            competency_id=competency.id, expected_revision=framework.revision, grade_level="1",
+        )
+        _, framework = upsert_rubric(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=member.id, expected_revision=framework.revision,
+            name=f"{name} rubric",
+        )
+        levels = []
+        for level_no in range(1, count + 1):
+            level, framework = add_rubric_level(
+                session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+                framework_competency_id=member.id, expected_revision=framework.revision,
+                code=f"L{level_no}", label=f"Level {level_no}",
+            )
+            levels.append(level)
+        members.append(member)
+        rubric_levels.append(levels)
+
+    upsert_annual_configuration(
+        session, school_group_id=1, program_id=program.id, academic_year_id=100,
+        is_enabled=True, eligible_grade_levels=["1"],
+    )
+    student = create_student(session, school_group_id=1, first_name="Overall", last_name="Result")
+    create_placement(
+        session, school_group_id=1, student_id=student.id, academic_year_id=100,
+        branch_id=10, planning_section_id=1000, effective_from=datetime(2026, 9, 1),
+    )
+    cycle = create_cycle(
+        session, school_group_id=1, program_id=program.id, academic_year_id=100,
+        framework_version_id=framework.id, title="Term 1",
+        population_effective_at=datetime(2026, 10, 1),
+    )
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id, student_id=student.id
+    )
+
+    # 2nd of 3 => 50; 4th of 5 => 75; equal normalized mean => 62.5 -> 63.
+    for member, level in (
+        (members[0], rubric_levels[0][1]),
+        (members[1], rubric_levels[1][3]),
+    ):
+        _, assessment = set_competency_result(
+            session, school_group_id=1, assessment_id=assessment.id,
+            framework_competency_id=member.id, rubric_level_id=level.id,
+            expected_revision=assessment.revision,
+        )
+
+    overall = overall_program_result(session, assessment)
+    assert overall["score"] == 63
+    assert overall["scale_min"] == 0
+    assert overall["scale_max"] == 100
+    assert overall["competency_count"] == 2
+    assert [item["normalized_score"] for item in overall["components"]] == [50, 75]
+    assert [item["position"] for item in overall["components"]] == [2, 4]
+    assert [item["total_levels"] for item in overall["components"]] == [3, 5]
+
+
+def test_assessment_api_exposes_overall_program_result(db):
+    _, session = db
+    _, _, cycle, member, _, _, competencies, levels = foundation(session)
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    # Shared two-level legacy rubric: first competency low=0, second high=100 => 50.
+    for competency, level in zip(competencies, (levels[0], levels[1])):
+        _, assessment = set_competency_result(
+            session, school_group_id=1, assessment_id=assessment.id,
+            framework_competency_id=competency.id, rubric_level_id=level.id,
+            expected_revision=assessment.revision,
+        )
+    session.commit()
+
+    admin = _user("1000000098", branch=None, scope="ORGANIZATION")
+    session.add(admin)
+    session.commit()
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_current_user] = lambda: admin
+    with TestClient(app) as client:
+        response = client.get(f"/api/talent/assessments/{assessment.id}")
+        assert response.status_code == 200
+        assert response.json()["overall_result"]["score"] == 50
+        assert response.json()["overall_result"]["competency_count"] == 2

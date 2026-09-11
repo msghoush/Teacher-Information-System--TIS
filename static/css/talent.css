@@ -286,6 +286,15 @@
 .tp-rubric-compact {display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 8px;border:1px solid color-mix(in srgb,var(--app-brand) calc(25% + var(--tp-rubric-intensity,0) * 45%),var(--app-line));border-radius:999px;background:color-mix(in srgb,var(--app-brand) calc(8% + var(--tp-rubric-intensity,0) * 48%),var(--app-surface-strong));color:var(--app-brand-deep);font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
 .tp-rubric-compact.tp-rubric-level-empty {background:var(--app-surface-muted);border-color:var(--app-line);color:var(--app-text-muted)}
 
+.tp-overall-result {--tp-overall-hue:calc(var(--tp-overall-score,0) * 1.2);display:inline-grid;grid-template-columns:auto auto minmax(80px,140px);align-items:center;gap:6px;min-width:170px;color:hsl(var(--tp-overall-hue) 52% 34%);font-variant-numeric:tabular-nums}
+.tp-overall-result strong {font-size:20px;line-height:1}
+.tp-overall-result>span:not(.tp-overall-result-track) {font-size:12px;font-weight:700;color:var(--app-muted)}
+.tp-overall-result-track {height:8px;border-radius:999px;background:var(--app-surface-muted);border:1px solid var(--app-line);overflow:hidden}
+.tp-overall-result-track i {display:block;height:100%;border-radius:inherit;background:hsl(var(--tp-overall-hue) 55% 42%);transition:width 180ms ease}
+.tp-overall-result-empty {color:var(--app-muted);font-size:var(--tp-text-sm)}
+.tp-assessment-overall,.tp-review-overall {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:12px 0;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+.tp-assessment-overall>span:first-child,.tp-review-overall>span:first-child {font-weight:800;color:var(--app-brand-deep)}
+
 .tp-rubric-chart {display:grid;gap:12px;padding:8px 0}
 .tp-rubric-row {display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:14px}
 .tp-rubric-label {font-size:var(--tp-text-sm);font-weight:700;padding:4px 10px;border-radius:999px;background:color-mix(in srgb, var(--app-brand) calc(var(--tp-rubric-intensity, 0) * 55%), var(--app-surface-muted));color:var(--app-brand-deep);text-align:center}

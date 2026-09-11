@@ -1,8 +1,18 @@
-knowledge_impact: no
-summary: "PostgreSQL compatibility hotfix for the already-governed Talent reassessment migration. The migration now emits a PostgreSQL-native TRUE boolean default instead of integer 1; no product behavior, architecture, schema intent, permissions, analytics semantics, or approved KMS decisions change."
+knowledge_impact: yes
+summary: "Owner-directed Talent evaluation refinement. New rubric authoring keeps assessed legacy shared-rubric evidence historical unless explicitly copied, fixes Start Editing to select the newest editable Draft, numbers rubric levels by governed proficiency order, and adds ADR 0037 deterministic Overall Program Result: each applicable competency is normalized within its own rubric to 0-100 and equally averaged for Student Assessment and Talent Review. Official Identification remains a separate authorized human decision; no schema migration is added for the overall result."
 affected_areas:
-  - database-migrations
+  - talent-rubric-ui
+  - talent-program-setup
+  - talent-rubric-legacy-compatibility
   - talent-student-assessment
+  - talent-review
+  - talent-results
+  - kms-adr
 kms_files_updated:
-no_impact_reason: "db_migrations.py is a major-change path, but this patch does not alter migration intent or schema semantics; it only expresses the already-approved is_current BOOLEAN NOT NULL default using PostgreSQL-valid TRUE instead of integer 1, while SQLite retains DEFAULT 1. Product behavior and the resulting schema meaning are unchanged."
-major_change_override: yes
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/adr/README.md
+  - docs/adr/0037-talent-overall-program-result.md
+no_impact_reason:
+major_change_override: no

@@ -10,6 +10,7 @@ import models
 from auth import get_current_user
 from dependencies import get_db
 from talent_operational_context import authorized_contexts, authorized_payload
+from talent_student_assessment_service import overall_program_result
 from talent_review_candidate_service import (
     TalentReviewCandidateError, candidate_payload, evaluate_review_candidate,
     get_candidate, list_candidates, mark_reviewed,
@@ -19,7 +20,12 @@ router = APIRouter(prefix="/api/talent/review-candidates", tags=["Talent Review 
 
 
 def _display_payload(db, row):
-    return {**authorized_payload(db, row, candidate_payload), "rubric_level": _rubric_level(db, row)}
+    payload = {**authorized_payload(db, row, candidate_payload), "rubric_level": _rubric_level(db, row)}
+    assessment = db.query(models.TalentStudentAssessment).filter_by(
+        id=row.assessment_id, school_group_id=row.school_group_id
+    ).one_or_none()
+    payload["overall_result"] = overall_program_result(db, assessment) if assessment is not None else None
+    return payload
 
 
 def _rubric_level(db, row):
@@ -171,7 +177,18 @@ def review_candidates_list(request: Request, cycle_id: int | None = Query(None),
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
     contexts = authorized_contexts(db, group_id, rows)
-    return [{**candidate_payload(row), "context": contexts[row.id], "rubric_level": _rubric_level(db, row)} for row in rows]
+    result = []
+    for row in rows:
+        assessment = db.query(models.TalentStudentAssessment).filter_by(
+            id=row.assessment_id, school_group_id=row.school_group_id
+        ).one_or_none()
+        result.append({
+            **candidate_payload(row),
+            "context": contexts[row.id],
+            "rubric_level": _rubric_level(db, row),
+            "overall_result": overall_program_result(db, assessment) if assessment is not None else None,
+        })
+    return result
 
 
 @router.get("/{candidate_id}")

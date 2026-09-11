@@ -57,7 +57,7 @@ test('Talent Review renders a compact table, not one large card per Student',asy
   const root=domRoot();
   const ctx={root,year:'2026',view:'reviews',params:new URLSearchParams('cycle_id=5&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
-      if(path.startsWith('/api/talent/review-candidates?'))return [{id:1,academic_year_id:'2026',program_id:'11',status:'pending_review',evaluated_at:'2026-01-01',assessment_id:9,rubric_level:{id:3,label:'Inventive',display_order:40,position:4,total_levels:5},context:{student_name:'Alya <X>',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}}];
+      if(path.startsWith('/api/talent/review-candidates?'))return [{id:1,academic_year_id:'2026',program_id:'11',status:'pending_review',evaluated_at:'2026-01-01',assessment_id:9,overall_result:{score:78,scale_min:0,scale_max:100,competency_count:3},rubric_level:{id:3,label:'Inventive',display_order:40,position:4,total_levels:5},context:{student_name:'Alya <X>',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}}];
       if(path.startsWith('/api/talent/official-identifications'))return [];
       throw new Error(`Unexpected ${path}`);
     }};
@@ -65,10 +65,10 @@ test('Talent Review renders a compact table, not one large card per Student',asy
   assert.match(root.innerHTML,/<table class="tp-compact-table">/);
   assert.doesNotMatch(root.innerHTML,/<article class="tp-card">/);
   assert.match(root.innerHTML,/Alya &lt;X&gt;/);
-  assert.match(root.innerHTML,/Meets Program Criteria/);
-  assert.match(root.innerHTML,/aria-label="Level 4 of 5 — Inventive"/);
-  assert.match(root.innerHTML,/data-rubric-order="4"[^>]*>4<\/span>/);
-  assert.doesNotMatch(root.innerHTML,/>4\/5</);
+  assert.match(root.innerHTML,/Overall result/);
+  assert.match(root.innerHTML,/Overall Program Result 78 out of 100/);
+  assert.match(root.innerHTML,/>78<\/strong><span>\/100<\/span>/);
+  assert.match(root.innerHTML,/Review Candidate criteria satisfied/);
   assert.doesNotMatch(root.innerHTML,/Review Candidate/);
   assert.doesNotMatch(root.innerHTML,/>Candidate</);
   assert.match(root.innerHTML,/review_id=1/);
@@ -76,7 +76,7 @@ test('Talent Review renders a compact table, not one large card per Student',asy
 
 test('opening one Talent Review row (review_id) shows full per-Student detail, not the list',async()=>{
   const root=domRoot();
-  const row={id:1,academic_year_id:'2026',program_id:'11',status:'reviewed',evaluated_at:'2026-01-01',assessment_id:9,rubric_level:{id:3,label:'Inventive',display_order:40,position:4,total_levels:5},context:{student_name:'Alya',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}};
+  const row={id:1,academic_year_id:'2026',program_id:'11',status:'reviewed',evaluated_at:'2026-01-01',assessment_id:9,overall_result:{score:84,scale_min:0,scale_max:100,competency_count:4},rubric_level:{id:3,label:'Inventive',display_order:40,position:4,total_levels:5},context:{student_name:'Alya',program_name:'Arts',grade_level:'3',section_name:'A',cycle_title:'Term 1'}};
   const ctx={root,year:'2026',view:'reviews',params:new URLSearchParams('cycle_id=5&program_id=11&review_id=1'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/review-candidates?'))return [row];
@@ -87,12 +87,13 @@ test('opening one Talent Review row (review_id) shows full per-Student detail, n
   assert.doesNotMatch(root.innerHTML,/<table class="tp-compact-table">/);
   assert.match(root.innerHTML,/Back to Talent Review/);
   assert.match(root.innerHTML,/<article class="tp-card">/);
-  assert.match(root.innerHTML,/Highest recorded rubric level/);
-  assert.match(root.innerHTML,/Rubric evidence, Program Criteria, and Official Identification remain separate records/);
+  assert.match(root.innerHTML,/Overall Program Result/);
+  assert.match(root.innerHTML,/Overall Program Result 84 out of 100/);
+  assert.match(root.innerHTML,/Official Identification remains a separate authorized human decision/);
 });
 
 function assessmentApi(overrides={}) {
-  const assessment={id:9,status:'in_progress',revision:3,program_id:11,framework_version_id:21,student_id:31,academic_year_id:'2026',kpi_result:null,context:{cycle_status:'open',student_name:'Alya',cycle_id:5},cycle_id:5,...overrides.assessment};
+  const assessment={id:9,status:'in_progress',revision:3,program_id:11,framework_version_id:21,student_id:31,academic_year_id:'2026',kpi_result:null,overall_result:null,context:{cycle_status:'open',student_name:'Alya',cycle_id:5},cycle_id:5,...overrides.assessment};
   const results=overrides.results ?? [{framework_competency_id:101,rubric_level_id:201,evidence:'Solid work'}];
   return async path=>{
     if(path===`/api/talent/assessments/${assessment.id}`)return assessment;
@@ -412,4 +413,15 @@ test('assessment renders only competencies assigned to the Student historical Gr
   assert.doesNotMatch(root.innerHTML,/Grade 1 Mental Calculation/);
   assert.match(root.innerHTML,/Grade 2 Mental Calculation/);
   assert.match(root.innerHTML,/Shared Strategy/);
+});
+
+
+test('completed assessment shows normalized overall Program result without implying identification',async()=>{
+  const root=domRoot();
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:assessmentApi({assessment:{status:'completed',overall_result:{score:72,scale_min:0,scale_max:100,competency_count:3},context:{cycle_status:'open',student_name:'Alya',cycle_id:5}}})};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/Overall Program Result/);
+  assert.match(root.innerHTML,/Overall Program Result 72 out of 100/);
+  assert.doesNotMatch(root.innerHTML,/Officially identified/);
 });

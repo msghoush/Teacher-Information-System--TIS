@@ -1544,3 +1544,30 @@ Completed Student Assessment evidence remains immutable. Re-evaluation is requir
 New, not-yet-assessed Students also start against the newest saved Grade-applicable assessable Framework while remaining in the selected original Evaluation context. Current-result analytics project only the current attempt back to that Evaluation's historical population dimension and do not double-count the physical reassessment Cycle. Migration `20260911_003_talent_assessment_reassessment_attempts` adds current/reassessment/Evaluation-context metadata and indexes.
 
 Any Framework Version already referenced by a Student Assessment is semantically immutable even if its lifecycle label is still Draft. Further semantic changes require a new/cloned Framework Version.
+
+## Talent Overall Program Result Authority
+
+ADR 0037 governs the deterministic cross-competency result for one Talent
+Student Assessment. Rubric level number is the level's ordered proficiency
+position (`TalentRubricLevel.display_order`) within that competency-owned
+rubric and is rendered beside the level name; it is not a second manually
+entered numeric score.
+
+When every Grade-applicable competency has a saved result, TIS derives one
+**Overall Program Result** on a 0-100 scale. Each competency contributes equally.
+Its selected level is normalized from first level = 0 to last level = 100 using
+that competency's own rubric length, then the normalized competency scores are
+averaged and rounded half-up. This prevents a five-level competency from
+outweighing a three-level competency merely because its scale is longer.
+
+The calculation is a read projection
+(`equal_competency_normalized_rubric_position`) over the exact immutable
+Assessment/Framework/results; it adds no schema or migration. Existing optional
+Framework KPI configuration remains separate and unchanged.
+
+Talent Review surfaces this Overall Program Result as the primary
+cross-competency numeric summary with an accessible low-to-high visual treatment.
+The score may support Review Candidate review but does not itself create a
+Review Candidate and never records Official Identification. Official
+Identification remains a separate authorized human decision. No hidden
+low/medium/high or talented/not-talented thresholds are introduced.
