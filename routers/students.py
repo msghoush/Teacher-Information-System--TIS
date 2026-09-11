@@ -13,8 +13,9 @@ from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import (
     StudentAcademicError, add_external_identifier, audit_event_payload, correct_placement, create_placement,
-    create_student, deactivate_external_identifier, end_placement, get_student, list_audit_events, list_placements,
-    list_students, placement_payload, resolve_placement, transition_placement, update_student,
+    create_student, deactivate_external_identifier, delete_student, delete_students, end_placement, get_student,
+    list_audit_events, list_placements, list_students, placement_payload, resolve_placement, transition_placement,
+    update_student,
 )
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
@@ -129,6 +130,38 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
         db.commit(); db.refresh(row); return _student_json(row)
     except StudentAcademicError as exc:
         db.rollback(); return _error(exc)
+
+
+@router.delete("/{student_id}")
+def student_delete(student_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.delete")
+    if denied:
+        return denied
+    if not auth.can_access_all_branches(user):
+        return JSONResponse({"detail": "Organization scope is required to permanently delete a Student."}, status_code=403)
+    try:
+        delete_student(db, school_group_id=group_id, student_id=student_id)
+        db.commit()
+        return {"deleted": True, "student_id": student_id}
+    except StudentAcademicError as exc:
+        db.rollback()
+        return _error(exc, status=409 if exc.code == "student_delete_blocked" else 400)
+
+
+@router.post("/bulk-delete")
+def student_bulk_delete(request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.bulk_delete")
+    if denied:
+        return denied
+    if not auth.can_access_all_branches(user):
+        return JSONResponse({"detail": "Organization scope is required to permanently delete Students."}, status_code=403)
+    try:
+        count = delete_students(db, school_group_id=group_id, student_ids=payload.get("student_ids"))
+        db.commit()
+        return {"deleted": count}
+    except StudentAcademicError as exc:
+        db.rollback()
+        return _error(exc, status=409 if exc.code == "student_delete_blocked" else 400)
 
 
 @router.get("/{student_id}/audit")
