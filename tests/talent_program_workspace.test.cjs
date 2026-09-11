@@ -572,3 +572,47 @@ test('Program creation form asks for eligible Grades and keeps rubric as a separ
   assert.match(root.innerHTML,/Grade 3/);
   assert.doesNotMatch(root.innerHTML,/Rubric Levels|Evaluation Plan/);
 });
+
+
+test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Reading Fluency',description:'Reads connected text'}]
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],
+      rubrics:[{
+        id:301,framework_competency_id:71,name:'Oral Reading',description:'Reading rubric',
+        levels:[
+          {id:401,rubric_id:301,framework_competency_id:71,code:'L1',label:'Beginning',description:'Reads with limited accuracy.',order:1},
+          {id:402,rubric_id:301,framework_competency_id:71,code:'L2',label:'Approaching',description:'Reads with some support.',order:2}
+        ]
+      }],
+      descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Rubric Structure/);
+  assert.match(root.innerHTML,/Grade 1/);
+  assert.match(root.innerHTML,/Reading Fluency/);
+  assert.match(root.innerHTML,/Oral Reading/);
+  assert.match(root.innerHTML,/Beginning/);
+  assert.match(root.innerHTML,/Reads with limited accuracy/);
+  assert.match(root.innerHTML,/\+ Add Competency/);
+  assert.doesNotMatch(root.innerHTML,/<h3>Rubric Levels<\/h3>/);
+
+  const old=global.FormData;
+  global.FormData=class extends Map {constructor(){super([['name','Updated Oral Reading'],['description','Updated rubric']]);}};
+  try{
+    await root.onsubmit({preventDefault(){},target:{dataset:{form:'competency-rubric:71'},querySelector:()=>null}});
+  }finally{global.FormData=old;}
+  const write=calls.filter(item=>item.options).at(-1);
+  assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric');
+  assert.equal(JSON.parse(write.options.body).framework_competency_id,71);
+});
