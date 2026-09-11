@@ -469,8 +469,17 @@ def retire_framework(db, *, school_group_id, program_id, framework_id, organizat
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="framework_version", resource_id=row.id, action="retire", before=before, after=framework_payload(row)); return row
 
 
-def _rubric(db, framework_id):
-    return db.query(models.TalentRubric).filter_by(framework_version_id=framework_id).one_or_none()
+def _rubrics(db, framework_id):
+    return db.query(models.TalentRubric).filter_by(
+        framework_version_id=framework_id
+    ).order_by(models.TalentRubric.id).all()
+
+
+def _rubric(db, framework_id, framework_competency_id=None):
+    query = db.query(models.TalentRubric).filter_by(framework_version_id=framework_id)
+    if framework_competency_id is None:
+        return query.filter(models.TalentRubric.framework_competency_id.is_(None)).one_or_none()
+    return query.filter_by(framework_competency_id=framework_competency_id).one_or_none()
 
 
 def _enforce_enabled_kpi_numeric_scale(db, framework_id, numeric_value):
@@ -484,25 +493,96 @@ def _enforce_enabled_kpi_numeric_scale(db, framework_id, numeric_value):
 
 
 def _m3_semantic_payload(db, framework_id, *, include_ids=False):
-    rubric = _rubric(db, framework_id)
-    levels = db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework_id).order_by(models.TalentRubricLevel.display_order).all()
-    descriptors = db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_version_id=framework_id).order_by(models.TalentCompetencyRubricDescriptor.framework_competency_id, models.TalentCompetencyRubricDescriptor.rubric_level_id).all()
-    grade_descriptors = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_version_id=framework_id).order_by(models.TalentGradeCompetencyRubricDescriptor.grade_level, models.TalentGradeCompetencyRubricDescriptor.framework_competency_id, models.TalentGradeCompetencyRubricDescriptor.rubric_level_id).all()
+    rubrics = _rubrics(db, framework_id)
+    levels = db.query(models.TalentRubricLevel).filter_by(
+        framework_version_id=framework_id
+    ).order_by(models.TalentRubricLevel.rubric_id, models.TalentRubricLevel.display_order).all()
+    levels_by_rubric = {}
+    for level in levels:
+        levels_by_rubric.setdefault(level.rubric_id, []).append(level)
+    descriptors = db.query(models.TalentCompetencyRubricDescriptor).filter_by(
+        framework_version_id=framework_id
+    ).order_by(
+        models.TalentCompetencyRubricDescriptor.framework_competency_id,
+        models.TalentCompetencyRubricDescriptor.rubric_level_id,
+    ).all()
+    grade_descriptors = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+        framework_version_id=framework_id
+    ).order_by(
+        models.TalentGradeCompetencyRubricDescriptor.grade_level,
+        models.TalentGradeCompetencyRubricDescriptor.framework_competency_id,
+        models.TalentGradeCompetencyRubricDescriptor.rubric_level_id,
+    ).all()
     kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework_id).one_or_none()
-    components = db.query(models.TalentKpiComponent).filter_by(framework_version_id=framework_id).order_by(models.TalentKpiComponent.framework_competency_id).all()
+    components = db.query(models.TalentKpiComponent).filter_by(framework_version_id=framework_id).order_by(
+        models.TalentKpiComponent.framework_competency_id
+    ).all()
     policy = db.query(models.TalentReviewCandidatePolicy).filter_by(framework_version_id=framework_id).one_or_none()
-    rules = db.query(models.TalentReviewCandidateRule).filter_by(framework_version_id=framework_id).order_by(models.TalentReviewCandidateRule.display_order).all()
+    rules = db.query(models.TalentReviewCandidateRule).filter_by(framework_version_id=framework_id).order_by(
+        models.TalentReviewCandidateRule.display_order
+    ).all()
+    rubric_payloads = [{
+        **({"id": rubric.id} if include_ids else {}),
+        "framework_competency_id": rubric.framework_competency_id,
+        "name": rubric.name,
+        "description": rubric.description,
+        "levels": [{
+            **({"id": level.id} if include_ids else {}),
+            "rubric_id": rubric.id if include_ids else None,
+            "framework_competency_id": rubric.framework_competency_id,
+            "code": level.code,
+            "label": level.label,
+            "description": level.description,
+            "order": level.display_order,
+            "numeric_value": level.numeric_value,
+        } for level in levels_by_rubric.get(rubric.id, [])],
+    } for rubric in rubrics]
+    legacy_rubric = next((item for item in rubrics if item.framework_competency_id is None), None)
+    legacy_levels = levels_by_rubric.get(legacy_rubric.id, []) if legacy_rubric else []
     return {
-        "rubric": None if rubric is None else {"name": rubric.name, "description": rubric.description},
-        "levels": [{**({"id": r.id} if include_ids else {}), "code": r.code, "label": r.label, "description": r.description, "order": r.display_order, "numeric_value": r.numeric_value} for r in levels],
+        # Backward-compatible legacy fields remain for existing Framework-wide
+        # rubrics. New Grade-first authoring consumes the rubrics collection.
+        "rubric": None if legacy_rubric is None else {
+            "name": legacy_rubric.name, "description": legacy_rubric.description
+        },
+        "levels": [{
+            **({"id": level.id} if include_ids else {}),
+            "rubric_id": level.rubric_id if include_ids else None,
+            "code": level.code, "label": level.label, "description": level.description,
+            "order": level.display_order, "numeric_value": level.numeric_value,
+        } for level in legacy_levels],
+        "rubrics": rubric_payloads,
         "descriptors": [
-            *[{**({"id": r.id, "descriptor_scope": "general"} if include_ids else {}), "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "grade_level": None, "descriptor": r.descriptor} for r in descriptors],
-            *[{**({"id": r.id, "descriptor_scope": "grade"} if include_ids else {}), "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "grade_level": r.grade_level, "descriptor": r.descriptor} for r in grade_descriptors],
+            *[{**({"id": row.id, "descriptor_scope": "general"} if include_ids else {}),
+               "framework_competency_id": row.framework_competency_id,
+               "rubric_id": row.rubric_id,
+               "rubric_level_id": row.rubric_level_id,
+               "grade_level": None, "descriptor": row.descriptor} for row in descriptors],
+            *[{**({"id": row.id, "descriptor_scope": "grade"} if include_ids else {}),
+               "framework_competency_id": row.framework_competency_id,
+               "rubric_id": row.rubric_id,
+               "rubric_level_id": row.rubric_level_id,
+               "grade_level": row.grade_level, "descriptor": row.descriptor} for row in grade_descriptors],
         ],
-        "kpi": None if kpi is None else {"enabled": kpi.is_enabled, "method": kpi.calculation_method, "scale_min": kpi.result_scale_min, "scale_max": kpi.result_scale_max, "interpretation": kpi.interpretation,
-            "components": [{"framework_competency_id": r.framework_competency_id, "weight_basis_points": r.weight_basis_points} for r in components]},
-        "review_candidate_policy": None if policy is None else {"enabled": policy.is_enabled, "match_mode": policy.match_mode, "description": policy.description,
-            "rules": [{"type": r.rule_type, "order": r.display_order, "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "threshold_value": r.threshold_value} for r in rules]},
+        "kpi": None if kpi is None else {
+            "enabled": kpi.is_enabled, "method": kpi.calculation_method,
+            "scale_min": kpi.result_scale_min, "scale_max": kpi.result_scale_max,
+            "interpretation": kpi.interpretation,
+            "components": [{
+                "framework_competency_id": row.framework_competency_id,
+                "weight_basis_points": row.weight_basis_points
+            } for row in components],
+        },
+        "review_candidate_policy": None if policy is None else {
+            "enabled": policy.is_enabled, "match_mode": policy.match_mode,
+            "description": policy.description,
+            "rules": [{
+                "type": row.rule_type, "order": row.display_order,
+                "framework_competency_id": row.framework_competency_id,
+                "rubric_level_id": row.rubric_level_id,
+                "threshold_value": row.threshold_value
+            } for row in rules],
+        },
     }
 
 
