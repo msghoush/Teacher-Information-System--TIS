@@ -300,9 +300,10 @@ test('no Program selected keeps the Evaluation card chooser and never guesses a 
 test('same Evaluation label groups multiple Programs under one Period section',async()=>{
   const root=domRoot();
   const contexts=[
-    {id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',evaluation_sequence:1},
-    {id:71,program_id:12,title:'Term 1',evaluation_label:'Term 1',evaluation_sequence:1},
-    {id:62,program_id:11,title:'Term 2',evaluation_label:'Term 2',evaluation_sequence:2},
+    {id:61,program_id:11,title:'Term 1',evaluation_period_id:501,evaluation_label:'Term 1',evaluation_sequence:1},
+    {id:63,program_id:11,title:'Term 1 duplicate physical cycle',evaluation_period_id:501,evaluation_label:'Term 1',evaluation_sequence:1},
+    {id:71,program_id:12,title:'Term 1',evaluation_period_id:601,evaluation_label:'Term 1',evaluation_sequence:1},
+    {id:62,program_id:11,title:'Term 2',evaluation_period_id:502,evaluation_label:'Term 2',evaluation_sequence:2},
   ];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams(),can:()=>true,notify(){},
     api:async path=>{
@@ -313,9 +314,34 @@ test('same Evaluation label groups multiple Programs under one Period section',a
     }};
   await withWindow(()=>render(ctx));
   assert.equal((root.innerHTML.match(/<h3>Term 1<\/h3>/g)||[]).length,1);
-  assert.match(root.innerHTML,/Mental Math/);
+  assert.equal((root.innerHTML.match(/<strong>Mental Math<\/strong>/g)||[]).length,2,'Mental Math appears once in Term 1 and once in Term 2, never twice in the same Period');
   assert.match(root.innerHTML,/Performing Arts/);
   assert.match(root.innerHTML,/2 Programs/);
+});
+
+test('configured Evaluation Periods appear once per Program even before a physical Cycle exists',async()=>{
+  const root=domRoot();
+  const contexts=[
+    {id:61,program_id:11,title:'Term 1',evaluation_period_id:501,evaluation_label:'Term 1',evaluation_sequence:1},
+  ];
+  const plans=[
+    {id:41,program_id:11,academic_year_id:2026,status:'active',revision:3,periods:[{id:501,label:'Term 1',sequence:1,status:'planned'}]},
+    {id:42,program_id:12,academic_year_id:2026,status:'active',revision:2,periods:[{id:601,label:'Term 1',sequence:1,status:'planned'}]},
+  ];
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams(),can:()=>true,notify(){},
+    api:async path=>{
+      if(path.startsWith('/api/talent/assessments?'))return [];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return contexts;
+      if(path.startsWith('/api/talent/evaluation-plans?'))return plans;
+      if(path==='/api/talent/programs')return [{id:11,name:'Mental Math'},{id:12,name:'Qaida Nourania'}];
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.equal((root.innerHTML.match(/<h3>Term 1<\/h3>/g)||[]).length,1);
+  assert.equal((root.innerHTML.match(/<strong>Mental Math<\/strong>/g)||[]).length,1);
+  assert.equal((root.innerHTML.match(/<strong>Qaida Nourania<\/strong>/g)||[]).length,1);
+  assert.match(root.innerHTML,/2 Programs/);
+  assert.match(root.innerHTML,/Qaida Nourania[\s\S]*Evaluation configured · open the plan to start Student Assessments/);
 });
 
 test('a Draft legacy Cycle does not block enrolled Students from assessment',async()=>{
