@@ -2265,3 +2265,7 @@ Then run `.\.venv\Scripts\python.exe scripts\kms.py check` for final read-only v
 ## Talent Program Criteria UI Simplification
 
 Owner direction removes Program Criteria from the normal Talent setup and Student Assessment workflow. The Program setup UI no longer exposes Program Criteria configuration, and a completed Student Assessment no longer exposes a manual "Check Program Criteria" action. Existing backend Review Candidate/Official Identification records and historical data are preserved; this change does not delete schema or historical evidence.
+
+## Student Single And Bulk Delete
+
+The Students list now exposes permission-gated single Delete and checkbox-based Bulk Delete. Both use the canonical Student service; no client-side deletion authority exists. Hard deletion is allowed only before Academic Placement or Talent history exists, and bulk deletion is all-or-nothing when any selected Student is blocked. The new permissions are `students.delete` and `students.bulk_delete`; organization/global scope is required for the destructive action. Historical Student/Talent evidence is never cascaded away.
