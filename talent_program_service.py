@@ -446,7 +446,35 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
             or db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
             or db.query(models.TalentReviewCandidateRule).filter_by(framework_competency_id=row.id).first()):
         raise TalentProgramError("competency_in_use", "Remove rubric descriptors, KPI weighting, and candidate rules referencing this competency first.")
-    before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description}
+    owned_rubric = db.query(models.TalentRubric).filter_by(
+        school_group_id=school_group_id,
+        program_id=program_id,
+        framework_version_id=framework_id,
+        framework_competency_id=row.id,
+    ).one_or_none()
+    owned_level_ids = []
+    if owned_rubric is not None:
+        owned_level_ids = [
+            item.id for item in db.query(models.TalentRubricLevel).filter_by(
+                school_group_id=school_group_id,
+                program_id=program_id,
+                framework_version_id=framework_id,
+                rubric_id=owned_rubric.id,
+            ).all()
+        ]
+    before = {
+        "competency_id": row.talent_competency_id,
+        "display_order": row.display_order,
+        "grade_level": row.grade_level,
+        "label": row.label,
+        "description": row.description,
+        "owned_rubric_id": owned_rubric.id if owned_rubric is not None else None,
+        "owned_rubric_level_ids": owned_level_ids,
+    }
+    if owned_rubric is not None:
+        db.query(models.TalentRubricLevel).filter_by(rubric_id=owned_rubric.id).delete(synchronize_session=False)
+        db.delete(owned_rubric)
+        db.flush()
     db.delete(row); db.flush()
     for index, member in enumerate(_framework_members(db, framework_id), 1): member.display_order = index
     framework.revision += 1; _refresh_framework(db, framework)
