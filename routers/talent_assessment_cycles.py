@@ -160,7 +160,7 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
     lifecycle gate. Historical Placement context is captured only when an
     Assessment is actually started.
     """
-    user, group_id, denied = _authorize(request, db, current_user, "talent_assessment_cycles.view_population")
+    user, group_id, denied = _authorize(request, db, current_user, "talent_assessments.view")
     if denied:
         return denied
     try:
