@@ -367,7 +367,7 @@ test('a Program save refreshes only selected Program data and keeps the hash cac
 test('a failed initial fetch never populates the cache, so a subsequent hash-only render safely falls back to a real fetch instead of throwing or reusing a broken bundle',async()=>{
   const {ctx,root}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
   const read=ctx.api;
-  ctx.api=async(path,options)=>{if(!options&&path==='/api/talent/programs/11')throw new Error('Network error');return read(path,options);};
+  ctx.api=async(path,options)=>{if(!options&&(path==='/api/talent/programs/11'||path==='/api/talent/programs'))throw new Error('Network error');return read(path,options);};
   await assert.rejects(render(ctx));
   ctx.api=read;
   await render(ctx,{viaHash:true});
