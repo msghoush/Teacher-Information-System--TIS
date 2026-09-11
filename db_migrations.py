@@ -6804,6 +6804,36 @@ def _talent_grade_specific_rubric_descriptors(engine, connection):
     )
 
 
+def _talent_framework_competency_grade_scope(engine, connection):
+    """Add optional Grade scope to Framework competencies.
+
+    Existing Framework competencies remain unscoped (NULL) for backward
+    compatibility. Grade-scoped competencies let one Framework express the
+    intended Grade -> Competency -> Level -> Description hierarchy without
+    introducing a parallel rubric model.
+    """
+    if not _table_exists(connection, "talent_framework_competencies"):
+        return
+    _add_column_if_missing(
+        connection, connection, "talent_framework_competencies",
+        "grade_level", "grade_level VARCHAR(8)",
+    )
+    if engine.dialect.name == "postgresql":
+        if not _check_constraint_exists(connection, "talent_framework_competencies", "ck_talent_framework_competencies_grade"):
+            _execute(
+                connection,
+                "ALTER TABLE talent_framework_competencies ADD CONSTRAINT "
+                "ck_talent_framework_competencies_grade CHECK "
+                "(grade_level IS NULL OR grade_level IN "
+                "('KG','1','2','3','4','5','6','7','8','9','10','11','12')) NOT VALID",
+            )
+            _execute(
+                connection,
+                "ALTER TABLE talent_framework_competencies VALIDATE CONSTRAINT "
+                "ck_talent_framework_competencies_grade",
+            )
+
+
 def _student_learning_style_v1(engine, connection):
     """Add an optional single-select primary Learning Style to Student.
 
@@ -7164,6 +7194,11 @@ MIGRATIONS = (
         migration_id="20260911_001_talent_grade_specific_rubric_descriptors",
         description="Add optional Grade-specific Competency x Rubric Level descriptors",
         apply=_talent_grade_specific_rubric_descriptors,
+    ),
+    Migration(
+        migration_id="20260911_002_talent_framework_competency_grade_scope",
+        description="Add optional Grade scope to Talent Framework competencies",
+        apply=_talent_framework_competency_grade_scope,
     ),
 )
 
