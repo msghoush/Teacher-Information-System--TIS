@@ -21,6 +21,36 @@ context at the time the Assessment starts. ADR 0033 is superseded as an
 eligibility/workflow model.
 
 
+## Talent Current Rubric, Re-evaluation, And Rubric-Delete Correction
+
+Per direct Owner instruction on 2026-09-11, the normal Student Assessment
+workspace is current-only: the selected Evaluation shows the current eligible
+Students with Grade, Section, Assessment status, and Action, and no separate
+Assessment Records/History table is rendered. Superseded attempts remain
+preserved evidence internally.
+
+The canonical current assessment structure is Grade -> Competency ->
+competency-owned Rubric -> ordered Levels. Legacy NULL-owned shared rubrics
+remain compatibility evidence only; `start_assessment_for_evaluation` selects
+only the newest saved Framework that has a complete competency-owned rubric
+with levels for every applicable Competency. A completed current Student whose
+newer complete rubric is materially different surfaces **Re-evaluation
+required**. Re-evaluation creates a new current Assessment against that newer
+Framework, links it to the prior attempt, retains the original visible
+Evaluation/Term through `evaluation_context_cycle_id`, and opens the replacement
+Assessment directly.
+
+All Student-facing Framework mutations for competency/rubric/level/description
+authoring are blocked once that exact Framework has Assessment history. The
+Rubric tool exposes legal Competency and Rubric Level deletion only when the
+actor has the dedicated assignable permission. `talent_programs.delete_competency`
+and `talent_programs.delete_rubric_level` are independent from
+`talent_programs.delete`; `talent_programs.manage` alone does not imply either
+delete authority. Deleting an eligible Competency branch also removes its
+owned Rubric and owned Levels in the same mutation after descriptor/KPI/policy
+dependency checks, and never applies to an assessed Framework.
+
+
 ## Talent Assessment Delete — Zero-Evidence Governance Exception Recorded
 
 Per direct Owner instruction on 2026-09-11, a narrow Administrator-only
@@ -68,9 +98,10 @@ gained a hard-delete path; the activate/retire invariant is otherwise
 unchanged.
 
 The existing Competency framework-membership and Rubric Level true-delete
-routes are narrowed from `talent_programs.manage` to the new
-`talent_programs.delete`, preserving every existing lifecycle/history guard
-unchanged. Evaluation Period true-delete is narrowed from
+routes now use dedicated permissions: `talent_programs.delete_competency` and
+`talent_programs.delete_rubric_level`. Whole Draft Program deletion remains
+separately governed by `talent_programs.delete`; lifecycle/history guards remain
+server-enforced. Evaluation Period true-delete is narrowed from
 `talent_evaluation_plans.manage` to the new
 `talent_evaluation_plans.delete_period`. The new
 `talent_evaluation_plans.manage_timeline` permission gates exactly
