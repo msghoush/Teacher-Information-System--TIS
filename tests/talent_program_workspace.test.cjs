@@ -562,6 +562,7 @@ test('Program creation form asks for eligible Grades and keeps rubric as a separ
   const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
     if(path==='/api/talent/programs')return [];
     if(path.startsWith('/api/talent/programs/planning-grades'))return ['1','2','3'];
+    if(path.startsWith('/api/talent/programs/summaries'))return [];
     throw new Error(`Unexpected ${path}`);
   }};
   await render(ctx);
