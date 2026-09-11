@@ -516,6 +516,93 @@ def _same_framework_results_are_stale(db: Session, assessment, framework, grade)
     return False
 
 
+
+_SAME_VERSION_SEMANTIC_AUDIT_RESOURCES = {
+    "framework_version",
+    "framework_competency",
+    "rubric",
+    "rubric_level",
+    "rubric_descriptor",
+    "kpi_configuration",
+    "kpi_component",
+    "review_candidate_policy",
+    "review_candidate_rule",
+}
+
+
+def _audit_payload_framework_id(payload):
+    if not isinstance(payload, dict):
+        return None
+    value = payload.get("framework_id")
+    if value is not None:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+    configuration = payload.get("configuration")
+    if isinstance(configuration, dict):
+        value = configuration.get("framework_id")
+        if value is not None:
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _framework_semantically_changed_after_completion(db: Session, assessment, framework):
+    """Detect audited legacy in-place semantic edits after Assessment completion.
+
+    Stable rubric/level IDs are insufficient for pre-immutability data because
+    labels, descriptions, ordering, or other Student-facing semantics could have
+    been edited in place. TalentConfigurationAudit is the durable evidence of
+    those mutations. Only semantic resource types on this exact Framework are
+    considered; lifecycle/branding/annual-plan changes do not trigger
+    reassessment.
+    """
+    completed_at = getattr(assessment, "completed_at", None)
+    if completed_at is None:
+        return False
+
+    audits = db.query(models.TalentConfigurationAudit).filter(
+        models.TalentConfigurationAudit.school_group_id == assessment.school_group_id,
+        models.TalentConfigurationAudit.program_id == assessment.program_id,
+        models.TalentConfigurationAudit.created_at > completed_at,
+        models.TalentConfigurationAudit.resource_type.in_(
+            _SAME_VERSION_SEMANTIC_AUDIT_RESOURCES
+        ),
+    ).order_by(models.TalentConfigurationAudit.created_at.asc(), models.TalentConfigurationAudit.id.asc()).all()
+
+    for audit in audits:
+        if audit.resource_type == "framework_version":
+            if audit.resource_id == framework.id and audit.action == "reorder":
+                return True
+            continue
+
+        if audit.resource_type == "framework_competency":
+            member = db.query(models.FrameworkCompetency.id).filter_by(
+                id=audit.resource_id,
+                school_group_id=assessment.school_group_id,
+                program_id=assessment.program_id,
+                framework_version_id=framework.id,
+            ).first()
+            if member is not None:
+                return True
+            continue
+
+        for raw in (audit.after_json, audit.before_json):
+            if not raw:
+                continue
+            try:
+                payload = json.loads(raw)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                continue
+            if _audit_payload_framework_id(payload) == framework.id:
+                return True
+    return False
+
+
+
 def reassessment_requirement(db: Session, assessment):
     """Return the newest materially-changed assessable Framework for a completed current Assessment.
 
@@ -554,10 +641,28 @@ def reassessment_requirement(db: Session, assessment):
     # guard was applied consistently. A completed Student whose persisted
     # result bindings no longer match the current competency-owned rubric on
     # the same Framework must be reset operationally through reassessment.
-    if _same_framework_results_are_stale(
+    same_version_stale = _same_framework_results_are_stale(
         db, assessment, current_framework, grade
-    ):
+    )
+    if same_version_stale:
         return current_framework
+
+    # Legacy in-place edits can preserve every rubric/level ID while changing
+    # Student-facing labels, descriptions, ordering, or policy semantics. The
+    # configuration audit timestamp closes that gap: if an audited semantic
+    # mutation occurred after this Student completed, the result is stale even
+    # when its persisted bindings still point at the same IDs.
+    if _framework_semantically_changed_after_completion(
+        db, assessment, current_framework
+    ):
+        current_complete = _assessment_semantic_snapshot(
+            db, framework=current_framework, grade=grade, allow_legacy=False
+        )
+        if current_complete and all(
+            item.get("rubric") and item["rubric"].get("levels")
+            for item in current_complete
+        ):
+            return current_framework
 
     for framework in candidates:
         candidate_snapshot = _assessment_semantic_snapshot(

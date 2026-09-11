@@ -1,6 +1,6 @@
 ---
 title: Talent Rubric Re-evaluation Attempts
-documentation_version: 1.2
+documentation_version: 1.3
 last_updated: 2026-09-11
 status: accepted
 module: architecture
@@ -28,6 +28,12 @@ historical evidence and violate the existing exact-Framework provenance contract
 At the same time, leaving the completed Assessment as the only current result
 would hide the fact that the Student has not yet been evaluated against the
 new rubric.
+
+## Same-ID semantic-edit compatibility
+
+The legacy compatibility rule is not limited to changed rubric/level identifiers. Before assessed-Framework immutability was consistently enforced, Student-facing rubric semantics such as labels, descriptions, ordering, descriptors, KPI/policy configuration, or other governed Framework content could be edited in place while preserving stable row IDs. Therefore a completed current Assessment is also **Re-evaluation required** when Talent configuration audit evidence shows a semantic Framework/rubric mutation on that exact Framework after the Assessment's `completed_at`, provided the current Grade-applicable competency-owned rubric is complete and assessable.
+
+Lifecycle-only, branding, annual-plan, and unrelated Program changes do not trigger this rule. The replacement attempt remains append-only/current and starts with zero competency results; the prior completed attempt remains immutable historical evidence.
 
 ## Legacy same-Version compatibility repair
 
