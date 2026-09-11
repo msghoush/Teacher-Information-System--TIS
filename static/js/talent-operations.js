@@ -219,40 +219,60 @@
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
-    // Load the Program/Academic-Year assessment history, not only the selected
-    // Cycle, so a Student whose current result moved to a reassessment Cycle
-    // never falls back to "Not started" when the original Evaluation is open.
-    const rows=(await api(`/api/talent/assessments?${query({})}`)).filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
+    const [allRows,cycles,programs]=await Promise.all([
+      api(`/api/talent/assessments?${query({})}`),
+      api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`),
+      can('talent_programs.view')?api('/api/talent/programs').catch(()=>[]):Promise.resolve([]),
+    ]);
+    const rows=allRows.filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
     const currentRows=rows.filter(r=>r.is_current!==false);
-    const cycles=await api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`);
+    const programById=new Map(programs.map(item=>[String(item.id),item]));
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
-    // ADR 0035: Evaluation Period/Cycle state is context, not an assessment
-    // eligibility gate. When one context is unambiguous, show its Students
-    // directly regardless of legacy Draft/Open status.
     const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
     const eligible=cycle?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null;
+    const assessmentFor=(studentId,context)=>{
+      if(!context)return null;
+      return currentRows.find(r=>
+        String(r.student_id)===String(studentId)
+        && String(r.program_id)===String(context.program_id)
+        && String(r.evaluation_context_cycle_id || r.cycle_id)===String(context.id)
+      ) || null;
+    };
 
     const eligibleRows=eligible?eligible.members.map(m=>{
-      const a=currentRows.find(r=>String(r.student_id)===String(m.student_id));
+      const a=assessmentFor(m.student_id,cycle);
       const studentName=esc(m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ') || 'Student name unavailable');
       const statusLabel=a?.reassessment?.required?'Re-evaluation required':a?words(a.status):'Not started';
       const action=a?.reassessment?.required&&(a.actions||[]).includes('reassess')
-        ?button('reassess-row','Re-evaluate',`data-id="${a.id}"`)
+        ?button('reassess-row','Re-evaluate Student',`data-id="${a.id}"`)
         :a
-          ?`<a href="${esc(url('assessments',{assessment_id:a.id}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'}</a>`
+          ?`<a class="tp-action-link" href="${esc(url('assessments',{assessment_id:a.id}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'} →</a>`
         :can('talent_assessments.manage')
           ?button('start','Start Assessment',`data-student="${m.student_id}"`)
           :'<span>Not started</span>';
-      return `<tr><th scope="row">${studentName}</th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td>${esc(statusLabel)}</td><td>${action}</td></tr>`;
+      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${studentName}<small>${esc(m.branch_name||'')} · ${esc(m.section_name||'')}</small></span></span></th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${action}</td></tr>`;
     }).join(''):'';
 
-    const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${r.reassessment?.required?badge('re-evaluation required'):r.is_current===false?badge('historical'):badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('reassess')?button('reassess-row','Re-evaluate',`data-id="${r.id}"`):''} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
+    const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${r.reassessment?.required?badge('re-evaluation required'):r.is_current===false?badge('historical'):badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('reassess')?button('reassess-row','Re-evaluate Student',`data-id="${r.id}"`):''} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
 
-    const cardsHtml=cycles.length
-      ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)}</h3>${link('assessments','View Students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
+    const groups=new Map();
+    cycles.forEach(context=>{
+      const label=context.evaluation_label || context.title || 'Evaluation';
+      const key=label.trim().toLowerCase();
+      if(!groups.has(key))groups.set(key,{label,sequence:context.evaluation_sequence,contexts:[]});
+      groups.get(key).contexts.push(context);
+    });
+    const evaluationGroups=[...groups.values()].sort((a,b)=>{
+      const as=Number.isFinite(Number(a.sequence))?Number(a.sequence):9999;
+      const bs=Number.isFinite(Number(b.sequence))?Number(b.sequence):9999;
+      return as-bs || a.label.localeCompare(b.label);
+    });
+    const cardsHtml=evaluationGroups.length
+      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>`<section class="tp-evaluation-group"><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Evaluation Period</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));return `<a class="tp-evaluation-program-card" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${esc(p?.name || `Program ${context.program_id}`)}</strong><small>View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`;}).join('')}</div></section>`).join('')}</div>`
       :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
 
-    mount(`${cardsHtml}${cycle?`<h3>${esc(cycle.title)}</h3>`:''}${eligible?`<h3>Students</h3>${note('Students are shown from their current Academic Placement. If the Program includes their Grade and an assessment tool is ready, they can be assessed directly.')}${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}<h3>Assessment Records</h3>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
+    const selectedHeading=cycle?`<div class="tp-selected-evaluation"><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Selected Evaluation</p><h3>${esc(cycle.evaluation_label||cycle.title)}</h3><p>${esc(programById.get(String(cycle.program_id))?.name||'Program')}</p></div></div>`:'';
+    mount(`${cardsHtml}${selectedHeading}${eligible?`<div class="tp-section-heading"><div><p class="tp-eyebrow">Eligible Students</p><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}<div class="tp-section-heading"><div><p class="tp-eyebrow">History</p><h3>Assessment Records</h3></div></div>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
 
     // ADR 0035: Start Assessment uses the Student's current Academic Placement
     // as eligibility authority. The backend captures the historical Placement
