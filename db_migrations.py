@@ -6888,10 +6888,24 @@ def _talent_assessment_reassessment_attempts(engine, connection):
         connection, connection, "talent_student_assessments",
         "reassessment_of_assessment_id", "reassessment_of_assessment_id INTEGER",
     )
+    _add_column_if_missing(
+        connection, connection, "talent_student_assessments",
+        "evaluation_context_cycle_id", "evaluation_context_cycle_id INTEGER",
+    )
+    _execute(
+        connection,
+        "UPDATE talent_student_assessments SET evaluation_context_cycle_id = cycle_id "
+        "WHERE evaluation_context_cycle_id IS NULL",
+    )
     _create_index_if_missing(
         connection, connection, "talent_student_assessments",
         "ix_talent_student_assessments_current",
         "school_group_id, program_id, academic_year_id, student_id, is_current",
+    )
+    _create_index_if_missing(
+        connection, connection, "talent_student_assessments",
+        "ix_talent_student_assessments_evaluation_context",
+        "school_group_id, evaluation_context_cycle_id, student_id, is_current",
     )
 
 
