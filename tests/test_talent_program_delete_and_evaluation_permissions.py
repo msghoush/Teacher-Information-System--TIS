@@ -173,8 +173,8 @@ def test_program_delete_route_requires_new_permission_not_manage(db):
     db.commit()
     actor = user("1000000001")
     db.add(actor)
-    grant(db, "Administrator", "talent_programs.view", "talent_programs.manage", "talent_programs.delete")
-    deny(db, "Administrator", "talent_programs.delete_competency", "talent_programs.delete_rubric_level")
+    grant(db, "Administrator", "talent_programs.view", "talent_programs.manage")
+    deny(db, "Administrator", "talent_programs.delete")
     with client(db, actor) as api:
         response = api.delete(f"/api/talent/programs/{program.id}")
         assert response.status_code == 403
@@ -278,6 +278,9 @@ def test_framework_competency_delete_succeeds_with_new_permission(db):
         code="L1", label="Level One",
     )
     db.commit()
+    member_id = member.id
+    rubric_id = rubric.id
+    level_id = level.id
 
     actor = user("1000000006")
     db.add(actor)
@@ -288,9 +291,9 @@ def test_framework_competency_delete_succeeds_with_new_permission(db):
             params={"expected_revision": framework.revision},
         )
         assert response.status_code == 200
-    assert db.query(models.FrameworkCompetency).filter_by(id=member.id).one_or_none() is None
-    assert db.query(models.TalentRubric).filter_by(id=rubric.id).one_or_none() is None
-    assert db.query(models.TalentRubricLevel).filter_by(id=level.id).one_or_none() is None
+    assert db.query(models.FrameworkCompetency).filter_by(id=member_id).one_or_none() is None
+    assert db.query(models.TalentRubric).filter_by(id=rubric_id).one_or_none() is None
+    assert db.query(models.TalentRubricLevel).filter_by(id=level_id).one_or_none() is None
 
 
 def test_rubric_level_delete_succeeds_with_dedicated_permission(db):
