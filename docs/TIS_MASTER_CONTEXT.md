@@ -1510,3 +1510,5 @@ The generated booklet output is:
 - Always include a Knowledge Impact Assessment in implementation final reports.
 - Always keep `.kms-impact.yml` aligned with the task and actual Git diff.
 - Never put customer, personal, production, credential, secret, environment, transaction, invoice, webhook payload, or database-row data into KMS documentation.
+
+Owner-directed Talent simplification: Program Criteria configuration is not part of the normal Program setup UI, and completed Student Assessments do not expose a manual "Check Program Criteria" action. Existing Review Candidate/Official Identification persistence and historical records remain intact for backward compatibility/history unless separately governed for retirement.
