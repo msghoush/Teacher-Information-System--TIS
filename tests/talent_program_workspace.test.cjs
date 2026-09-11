@@ -153,6 +153,35 @@ test('a completed Program opens operational summary while Edit reopens the same 
   assert.doesNotMatch(editing.root.innerHTML,/class="tp-program-summary"/);
 });
 
+test('operational summary hash actions re-render into Edit Program and Evaluation Plan instead of becoming dead links',async()=>{
+  const listeners={};
+  const oldWindow=global.window;
+  global.window={
+    location:{hash:''},
+    addEventListener:(name,cb)=>{listeners[name]=cb;},
+    removeEventListener(){},
+    scrollY:0,
+    scrollTo(){},
+    confirm:()=>true,
+  };
+  try{
+    const {ctx,root}=fixture(true,'active',{complete:true,step:'',hash:''});
+    await render(ctx);
+    assert.match(root.innerHTML,/class="tp-program-summary"/);
+    assert.equal(typeof listeners.hashchange,'function');
+
+    global.window.location.hash='#tp-basics';
+    await listeners.hashchange();
+    assert.match(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
+
+    global.window.location.hash='#tp-schedule';
+    await listeners.hashchange();
+    assert.match(root.innerHTML,/id="tp-schedule" class="tp-wizard-panel"/);
+  }finally{
+    global.window=oldWindow;
+  }
+});
+
 test('Basics renders the Academic Year label instead of its internal ID',async()=>{
   const {ctx,root}=fixture(true,'draft',{yearLabel:'2026–2027'});await render(ctx);
   assert.match(root.innerHTML,/Academic Year:<\/strong> 2026–2027/);
@@ -189,13 +218,13 @@ for (const [label, hash] of [
   ['a direct deep-link straight into the Ready step', '#tp-ready'],
 ]) {
   test(`Finish Setup on ${label} returns to the same Program operational summary without redundant lifecycle writes`,async()=>{
-    const {ctx,root}=fixture(true,'active',{complete:true,hash});
+    const {ctx,root,calls}=fixture(true,'active',{complete:true,hash});
     await render(ctx);
     assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
     const navigated=[];
     ctx.navigate=(target,extra)=>navigated.push({target,extra});
     await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
-    assert.equal(ctx.api ? 1 : 1,1);
+    assert.equal(calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/activate$/.test(call.path))).length,0);
     assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
   });
 }
