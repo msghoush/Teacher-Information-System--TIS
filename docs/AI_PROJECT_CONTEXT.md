@@ -1,11 +1,44 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.7
+documentation_version: 3.8
 last_updated: 2026-09-09
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Operational Recovery And UX Correction
+
+Talent's application sidebar tree is now the only primary module navigation;
+the page-level duplicate navigation is removed. Program setup no longer uses a
+separate Ready step. Readiness is a derived Program-summary state and is
+positive only when Program/Grade, assessment criteria, and Evaluation Plan
+configuration are complete. Grade-first authoring displays one selected Grade
+at a time.
+
+Completed evidence remains immutable. Administrator receives the new default
+permission `talent_assessments.reset_for_reassessment`, which may mark a
+Completed current Assessment non-current so the same visible Evaluation can be
+started again. This is an audited pointer/state recovery only: competency
+results, Candidate/Identification state, Educator Input, placement provenance,
+and all history remain intact. Physical delete remains the ADR 0034
+zero-evidence exception.
+
+Student Assessments visibly retains the selected Evaluation Period and Program
+and carries that context into Start Assessment, whose workspace resolves the
+exact saved Grade-scoped competencies and assessment criteria. Talent Review
+supports authorized Branch/Grade/Section filtering and does not show the
+internal deterministic "Meets criteria" outcome as a primary classification;
+the Candidate mechanism itself remains deterministic and separate from
+Official Identification.
+
+For terminology, competency-owned rubrics remain rubric domain objects
+internally but are presented as **Assessment Criteria** to avoid falsely
+conflating them with the separate numeric KPI model. The actual
+`TalentKpiConfiguration` is explicitly presented as **Key Performance
+Indicator (KPI)** with Add/Edit/Delete controls. Analytics errors surface
+specific governed backend reasons when available instead of generic
+environment-unavailable wording.
 
 ## Talent Corrective Batches 3 And 4
 
