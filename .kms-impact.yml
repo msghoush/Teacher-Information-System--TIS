@@ -1,14 +1,13 @@
 knowledge_impact: yes
-summary: "Owner-directed Talent rubric and Student deletion authority update. Talent Frameworks now support optional Grade-specific Competency x Rubric Level x Grade descriptors with generic descriptor fallback; Student Assessment resolves the descriptor for the Assessment's recorded historical Grade. The additive schema change is migration 20260911_001_talent_grade_specific_rubric_descriptors. Student deletion gains separately permissioned students.force_delete_history, Administrator-default through System Configuration, with backend history preview, explicit irreversible confirmation, and dependency-ordered removal of Student-owned Academic Placement/Talent history; normal Delete and Bulk Delete remain history-protecting. Student row Open/Delete icons are compacted."
+summary: "Owner-directed Talent rubric hierarchy correction. Framework competencies now support optional Grade scope so authoring follows Grade -> Competency -> Rubric Level -> Achievement Description without a parallel rubric model; migration 20260911_002_talent_framework_competency_grade_scope adds the nullable scope. Student Assessment shows only competencies applicable to the recorded historical Grade, Talent Review can display compact ordered level numbers with accessible labels and low-to-high visual intensity, and Evaluation contexts now follow Annual Evaluation Plan Period sequence instead of creation time. Existing Grade-specific descriptor persistence and Student history-delete behavior remain intact."
 affected_areas:
   - talent-rubric-data-model
   - talent-program-setup
   - talent-student-assessment
+  - talent-review
+  - talent-evaluation-ordering
   - database-migrations
-  - student-lifecycle
-  - student-permissions
-  - student-destructive-actions
-  - student-ui
+  - talent-ui
 kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
