@@ -745,13 +745,12 @@ def _applicable_competencies(db, assessment):
 
 
 def overall_program_result(db: Session, assessment):
-    """Deterministic normalized 0-100 result across all applicable competencies.
+    """Deterministic arithmetic mean of rubric ranks on the Program scale.
 
-    Each competency contributes equally. Its selected rubric level is normalized
-    by position within that competency's own ordered rubric, so competencies
-    with different level counts remain comparable. This is a result projection,
-    not an Official Identification decision and not a replacement for governed
-    Review Candidate policy.
+    The canonical educational result is the mean selected level position, for
+    example 4.4 / 5. A percentage is derived only for presentation/analytics.
+    All applicable competency rubrics must use the same ordered level count so
+    raw rubric ranks have one coherent meaning inside the Program.
     """
     competencies = _applicable_competencies(db, assessment)
     if not competencies:
@@ -767,7 +766,8 @@ def overall_program_result(db: Session, assessment):
         return None
 
     components = []
-    total_basis_points = 0
+    total_positions = 0
+    scale_max = None
     for competency in competencies:
         result = results[competency.id]
         levels = db.query(models.TalentRubricLevel).filter_by(
@@ -781,12 +781,20 @@ def overall_program_result(db: Session, assessment):
         ).all()
         if not levels:
             return None
+        if scale_max is None:
+            scale_max = len(levels)
+        elif len(levels) != scale_max:
+            return {
+                "available": False,
+                "reason": "inconsistent_rubric_scale",
+                "competency_count": len(competencies),
+                "calculation_method": "arithmetic_mean_rubric_rank",
+            }
         index = next((idx for idx, level in enumerate(levels) if level.id == result.rubric_level_id), None)
         if index is None:
             return None
-        count = len(levels)
-        normalized_basis_points = 10000 if count == 1 else _round_half_up(index * 10000, count - 1)
-        total_basis_points += normalized_basis_points
+        position = index + 1
+        total_positions += position
         level = levels[index]
         components.append({
             "framework_competency_id": competency.id,
@@ -794,19 +802,24 @@ def overall_program_result(db: Session, assessment):
             "rubric_id": result.rubric_id,
             "rubric_level_id": level.id,
             "level_label": level.label,
-            "position": index + 1,
-            "total_levels": count,
-            "normalized_score": _round_half_up(normalized_basis_points, 100),
+            "position": position,
+            "scale_max": len(levels),
         })
 
-    average_basis_points = _round_half_up(total_basis_points, len(components))
+    if not scale_max:
+        return None
+    average_tenths = _round_half_up(total_positions * 10, len(components))
+    average = average_tenths / 10
+    normalized_percent = _round_half_up(average_tenths * 100, scale_max * 10)
     return {
-        "score": _round_half_up(average_basis_points, 100),
-        "scale_min": 0,
-        "scale_max": 100,
+        "available": True,
+        "average": average,
+        "scale_min": 1,
+        "scale_max": scale_max,
+        "normalized_percent": normalized_percent,
         "competency_count": len(components),
         "components": components,
-        "calculation_method": "equal_competency_normalized_rubric_position",
+        "calculation_method": "arithmetic_mean_rubric_rank",
     }
 
 
