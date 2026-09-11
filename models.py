@@ -818,7 +818,7 @@ class TalentStudentAssessment(Base):
     framework_version_id = Column(Integer, nullable=False)
     status = Column(String(32), nullable=False, default="in_progress")
     is_current = Column(Boolean, nullable=False, default=True)
-    reassessment_of_assessment_id = Column(Integer, ForeignKey("talent_student_assessments.id"), nullable=True)
+    reassessment_of_assessment_id = Column(Integer, nullable=True)
     revision = Column(Integer, nullable=False, default=1)
     started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
