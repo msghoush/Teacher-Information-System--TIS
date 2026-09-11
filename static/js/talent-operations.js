@@ -300,7 +300,8 @@
     const groups=new Map();
     displayContexts.forEach(context=>{
       const label=context.evaluation_label || context.title || 'Evaluation';
-      const periodKey=context.evaluation_period_id!=null?`period:${context.evaluation_period_id}`:`label:${label.trim().toLowerCase()}`;
+      const sequence=Number.isFinite(Number(context.evaluation_sequence))?Number(context.evaluation_sequence):'';
+      const periodKey=`label:${sequence}:${label.trim().toLowerCase()}`;
       if(!groups.has(periodKey))groups.set(periodKey,{label,sequence:context.evaluation_sequence,programs:new Map()});
       const group=groups.get(periodKey);
       const programKey=String(context.program_id);
