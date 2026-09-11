@@ -109,21 +109,13 @@ test('Basics renders the Academic Year label instead of its internal ID',async()
 });
 
 
-test('Finish Setup publishes a completed draft Program and assessment Framework before leaving the wizard',async()=>{
+test('Finish Setup on a completed draft setup exits without lifecycle activation writes',async()=>{
   const {ctx,root,calls}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
   let navigated=null;ctx.navigate=target=>{navigated=target;};
   await render(ctx);
-  assert.match(root.innerHTML,/data-action="finalize-setup"[^>]*>.*Finish Setup/);
-  const oldWindow=global.window;
-  global.window={confirm:()=>true,scrollY:0,scrollTo(){},addEventListener(){},removeEventListener(){},location:{hash:'#tp-ready'}};
-  try{
-    await root.onclick({target:{closest:()=>({dataset:{action:'finalize-setup'}})}});
-  }finally{global.window=oldWindow;}
-  const programActivation=calls.find(c=>c.path==='/api/talent/programs/11/lifecycle/active'&&c.options?.method==='POST');
-  const frameworkActivation=calls.find(c=>c.path==='/api/talent/programs/11/frameworks/31/activate'&&c.options?.method==='POST');
-  assert.ok(programActivation,'expected Finish Setup to activate the configured Program');
-  assert.ok(frameworkActivation,'expected Finish Setup to activate the configured assessment Framework');
-  assert.deepEqual(JSON.parse(frameworkActivation.options.body),{expected_revision:7,expected_fingerprint:'fingerprint'});
+  assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
+  await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
+  assert.equal(calls.filter(c=>c.options?.method==='POST'&&/lifecycle\/active|\/activate$/.test(c.path)).length,0);
   assert.equal(navigated,'programs');
 });
 
@@ -160,11 +152,11 @@ for (const [label, hash] of [
   });
 }
 
-test('a Draft Program\'s "Finish Setup" is a plain step link, not the finish-setup JS action, until the Program is Active',async()=>{
+test('a fully configured Draft Program can finish setup without an activation prerequisite',async()=>{
   const {ctx,root}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
   await render(ctx);
-  assert.doesNotMatch(root.innerHTML,/data-action="finish-setup"/);
-  assert.match(root.innerHTML,/class="tp-primary-link" href="#tp-(?:basics|builder-competencies|schedule)">Finish Setup/);
+  assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
+  assert.doesNotMatch(root.innerHTML,/data-action="finalize-setup"/);
 });
 
 test('Program index is a compact searchable table with primary actions',async()=>{
