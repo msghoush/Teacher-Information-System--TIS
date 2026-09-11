@@ -3508,3 +3508,30 @@ No; this change affects deterministic Talent rubric persistence/presentation and
 
 Reviewer/approval notes:
 Owner-directed. No production data was deleted or seeded by this repository change. Production execution of force deletion or demo-data seeding remains a separate explicit operational action.
+
+
+## 2026-09-11 - Corrected Talent rubric hierarchy, result display, and Evaluation ordering
+
+Area/module:
+Talent & Potential rubric configuration, Student Assessments, Talent Review, migrations
+
+Previous state:
+Grade-specific achievement wording existed, but Framework competencies were still effectively framework-wide. The authoring UI therefore rendered a flat Grade/Competency/Level matrix and could repeat the same competency across every Grade. Student Assessment inferred Grade applicability from descriptor presence. Talent Review showed a verbose rubric badge such as "3/5 Level 3 - Meets". Student Assessment Evaluation contexts were ordered by Cycle creation time, so a later-created Term 2 could appear before Term 1 despite the Evaluation Plan sequence.
+
+New state:
+Framework competency membership now has an optional Grade scope, introduced by migration `20260911_002_talent_framework_competency_grade_scope`. Program authoring follows the owner-directed hierarchy Grade -> Competency -> Level -> Achievement Description and groups rubric authoring/review accordingly. Student Assessment uses competencies matching the Assessment's recorded historical Grade, while intentionally unscoped competencies remain shared. Existing Grade-specific descriptors remain the achievement-description persistence authority and generic descriptors remain backward-compatible fallback. Compact Talent result surfaces can render the ordered level as a single number with accessible label text and low-to-high order-derived visual intensity. Student Assessment Evaluation contexts now use linked Evaluation Period `sequence` as the canonical order, with creation/id fallback only for legacy unlinked Cycles.
+
+Reason:
+Match the Mental Math rubric structure supplied by the Owner, remove unnecessary repetition in assessment/result views, and ensure configured Term order is respected.
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Pending local KMS synchronization after GitHub implementation sync.
+
+AI project context updated:
+No; this is deterministic Talent configuration/presentation behavior, not AI architecture.
+
+Reviewer/approval notes:
+Owner-directed correction. No production deployment or production/demo data mutation was performed by this repository change.

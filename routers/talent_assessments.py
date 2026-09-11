@@ -3,6 +3,7 @@ from datetime import datetime
 from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from sqlalchemy import case
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -124,7 +125,18 @@ def assessment_contexts(request: Request, program_id: int | None = Query(None),
         query = query.filter_by(program_id=program_id)
     if academic_year_id is not None:
         query = query.filter_by(academic_year_id=academic_year_id)
-    rows = query.order_by(models.TalentAssessmentCycle.created_at.desc(), models.TalentAssessmentCycle.id.desc()).all()
+    # Evaluation Plan sequence is the canonical display order. Fall back to
+    # deterministic creation/id order only for legacy unlinked Cycles.
+    query = query.outerjoin(
+        models.TalentPlannedEvaluationPeriod,
+        models.TalentAssessmentCycle.planned_evaluation_period_id == models.TalentPlannedEvaluationPeriod.id,
+    )
+    rows = query.order_by(
+        case((models.TalentPlannedEvaluationPeriod.sequence.is_(None), 1), else_=0),
+        models.TalentPlannedEvaluationPeriod.sequence.asc(),
+        models.TalentAssessmentCycle.created_at.asc(),
+        models.TalentAssessmentCycle.id.asc(),
+    ).all()
     return [{
         "id": row.id,
         "program_id": row.program_id,

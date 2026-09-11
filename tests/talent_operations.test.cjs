@@ -66,8 +66,9 @@ test('Talent Review renders a compact table, not one large card per Student',asy
   assert.doesNotMatch(root.innerHTML,/<article class="tp-card">/);
   assert.match(root.innerHTML,/Alya &lt;X&gt;/);
   assert.match(root.innerHTML,/Meets Program Criteria/);
-  assert.match(root.innerHTML,/Inventive/);
-  assert.match(root.innerHTML,/4\/5/);
+  assert.match(root.innerHTML,/aria-label="Level 4 of 5 — Inventive"/);
+  assert.match(root.innerHTML,/data-rubric-order="4"[^>]*>4<\/span>/);
+  assert.doesNotMatch(root.innerHTML,/>4\/5</);
   assert.doesNotMatch(root.innerHTML,/Review Candidate/);
   assert.doesNotMatch(root.innerHTML,/>Candidate</);
   assert.match(root.innerHTML,/review_id=1/);
@@ -131,7 +132,9 @@ test('assessment rubric uses the descriptor for the Student historical Grade',as
   await withWindow(()=>render(ctx));
   assert.match(root.innerHTML,/Grade 2 wording/);
   assert.doesNotMatch(root.innerHTML,/Grade 1 wording/);
-  assert.match(root.innerHTML,/General fallback/);
+  // The exact historical-Grade descriptor wins; unrelated fallback content
+  // from another competency is intentionally not rendered.
+  assert.doesNotMatch(root.innerHTML,/General fallback/);
 });
 
 
@@ -366,4 +369,24 @@ test('starting an assessment carries the current Program forward in the resultin
   assert.equal(typeof clickHandler,'function');
   await clickHandler();
   assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,academic_year_id:'2026',program_id:'11'}});
+});
+
+
+test('assessment renders only competencies assigned to the Student historical Grade',async()=>{
+  const root=domRoot();
+  const base=assessmentApi({assessment:{context:{cycle_status:'open',student_name:'Alya',cycle_id:5,grade_level:'2'}},results:[]});
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:async path=>{
+      if(path==='/api/talent/programs/11/frameworks/21')return {competencies:[
+        {id:101,label:'Grade 1 Mental Calculation',grade_level:'1'},
+        {id:102,label:'Grade 2 Mental Calculation',grade_level:'2'},
+        {id:103,label:'Shared Strategy',grade_level:null}
+      ]};
+      if(path==='/api/talent/programs/11/frameworks/21/configuration')return {levels:[{id:201,label:'Level 1'}],descriptors:[]};
+      return base(path);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/Grade 1 Mental Calculation/);
+  assert.match(root.innerHTML,/Grade 2 Mental Calculation/);
+  assert.match(root.innerHTML,/Shared Strategy/);
 });

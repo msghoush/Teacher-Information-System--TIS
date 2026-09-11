@@ -78,7 +78,7 @@
       const tableRows=rows.map(r=>{
         const c=r.context || {};
         const canOpen=r.status==='pending_review'&&can('talent_review_candidates.manage');
-        return `<tr><th scope="row">${esc(c.student_name || 'Student name unavailable')}</th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}</td><td>${esc(c.grade_level || 'Unavailable')}</td><td>${esc(c.section_name || 'Unavailable')}</td><td>${esc(c.cycle_title || 'Evaluation name unavailable')}</td><td><span>Meets Program Criteria</span>${rubricVisual.badge(r.rubric_level)}</td><td>${badge(r.status)}</td><td>${identLabel(r)}</td><td><div class="tp-row-actions"><a href="${esc(url('reviews',{review_id:r.id}))}">${canOpen?'Review':'Open'}</a></div></td></tr>`;
+        return `<tr><th scope="row">${esc(c.student_name || 'Student name unavailable')}</th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}</td><td>${esc(c.grade_level || 'Unavailable')}</td><td>${esc(c.section_name || 'Unavailable')}</td><td>${esc(c.cycle_title || 'Evaluation name unavailable')}</td><td><span>Meets Program Criteria</span> ${rubricVisual.compactBadge(r.rubric_level)}</td><td>${badge(r.status)}</td><td>${identLabel(r)}</td><td><div class="tp-row-actions"><a href="${esc(url('reviews',{review_id:r.id}))}">${canOpen?'Review':'Open'}</a></div></td></tr>`;
       }).join('');
       mount(note('A Student appears in Talent Review when they meet the Program’s configured evaluation criteria. Appearing here does not identify the Student. Official Identification is a separate, permanent human decision.')+(!rows.length?note('No Students meeting Program criteria in this context.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Evaluation</th><th>Result</th><th>Review status</th><th>Identification status</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`));
       return;
@@ -92,8 +92,24 @@
       const [framework,configuration]=await Promise.all([api(base),api(`${base}/configuration`)]);
       const editable=assessment.status==='in_progress';
       const saved=new Map(results.map(r=>[r.framework_competency_id,r]));
-      const competencies=framework.competencies || [],levels=configuration.levels || [];
-      const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===String(assessment.context?.grade_level||''))?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
+      const levels=configuration.levels || [];
+      const assessmentGrade=String(assessment.context?.grade_level || '');
+      const allCompetencies=framework.competencies || [];
+      const hasExplicitGradeScope=allCompetencies.some(c=>String(c.grade_level || '').trim());
+      const gradeScopedDescriptorIds=new Set(
+        (configuration.descriptors || [])
+          .filter(d=>String(d.grade_level || '')===assessmentGrade)
+          .map(d=>d.framework_competency_id)
+      );
+      const hasAnyGradeScopedDescriptors=(configuration.descriptors || []).some(d=>String(d.grade_level || '').trim());
+      // Explicit Framework competency Grade is authoritative. The descriptor
+      // inference below is retained only for pre-migration Frameworks that have
+      // Grade-specific descriptors but no explicit competency Grade yet.
+      const competencies=allCompetencies.filter(c=>{
+        if(hasExplicitGradeScope) return !c.grade_level || String(c.grade_level)===assessmentGrade;
+        return !hasAnyGradeScopedDescriptors || gradeScopedDescriptorIds.has(c.id);
+      });
+      const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===assessmentGrade)?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
       let inputs=[];
       if(can('talent_educator_inputs.view')) inputs=await api(`/api/talent/educator-inputs?${query({student_id:assessment.student_id,program_id:assessment.program_id})}`);
       inputs=inputs.filter(r=>r.academic_year_id===assessment.academic_year_id&&r.assessment_id===assessment.id);

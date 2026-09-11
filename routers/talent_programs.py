@@ -273,7 +273,7 @@ def frameworks_read(program_id: int, framework_id: int, request: Request, db: Se
     if denied: return denied
     row = db.query(models.TalentProgramFrameworkVersion).filter_by(id=framework_id, program_id=program_id, school_group_id=group_id).one_or_none()
     if row is None: return JSONResponse({"detail": "Framework Version was not found.", "code": "not_found"}, status_code=404)
-    result = framework_payload(row); result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
+    result = framework_payload(row); result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "grade_level": m.grade_level, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
     return result
 
 
@@ -342,8 +342,8 @@ def framework_competencies_add(program_id: int, framework_id: int, request: Requ
     if denied: return denied
     def work():
         row, framework = add_framework_competency(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id,
-            competency_id=int(payload.get("competency_id")), expected_revision=int(payload.get("expected_revision")), label=payload.get("label"), description=payload.get("description"), actor=user)
-        return {"id": row.id, "competency_id": row.talent_competency_id, "display_order": row.display_order, "label": row.label, "description": row.description, "framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
+            competency_id=int(payload.get("competency_id")), expected_revision=int(payload.get("expected_revision")), label=payload.get("label"), description=payload.get("description"), grade_level=payload.get("grade_level"), actor=user)
+        return {"id": row.id, "competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description, "framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
     return _run(db, work, created=True)
 
 
@@ -353,8 +353,8 @@ def framework_competencies_update(program_id: int, framework_id: int, competency
     if denied: return denied
     def work():
         row, framework = update_framework_competency(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, competency_id=competency_id,
-            expected_revision=int(payload.get("expected_revision")), label=payload.get("label") if "label" in payload else None, description=payload.get("description") if "description" in payload else None, actor=user)
-        return {"id": row.id, "competency_id": row.talent_competency_id, "display_order": row.display_order, "label": row.label, "description": row.description, "framework_revision": framework.revision}
+            expected_revision=int(payload.get("expected_revision")), label=payload.get("label") if "label" in payload else None, description=payload.get("description") if "description" in payload else None, grade_level=payload.get("grade_level") if "grade_level" in payload else "__unchanged__", actor=user)
+        return {"id": row.id, "competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description, "framework_revision": framework.revision}
     return _run(db, work)
 
 

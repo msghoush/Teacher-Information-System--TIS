@@ -283,6 +283,9 @@
    position among its siblings (never a value/magnitude), so it stays safe to
    draw for a suppressed/restricted level. Bar length still comes only from a
    visible backend percentage, matching .tp-grade-track. */
+.tp-rubric-compact {display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 8px;border:1px solid color-mix(in srgb,var(--app-brand) calc(25% + var(--tp-rubric-intensity,0) * 45%),var(--app-line));border-radius:999px;background:color-mix(in srgb,var(--app-brand) calc(8% + var(--tp-rubric-intensity,0) * 48%),var(--app-surface-strong));color:var(--app-brand-deep);font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.tp-rubric-compact.tp-rubric-level-empty {background:var(--app-surface-muted);border-color:var(--app-line);color:var(--app-text-muted)}
+
 .tp-rubric-chart {display:grid;gap:12px;padding:8px 0}
 .tp-rubric-row {display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:14px}
 .tp-rubric-label {font-size:var(--tp-text-sm);font-weight:700;padding:4px 10px;border-radius:999px;background:color-mix(in srgb, var(--app-brand) calc(var(--tp-rubric-intensity, 0) * 55%), var(--app-surface-muted));color:var(--app-brand-deep);text-align:center}

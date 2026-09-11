@@ -252,7 +252,7 @@ def compute_framework_fingerprint(db, framework):
     payload = {"program_id": framework.program_id, "version_number": framework.version_number,
         "title": framework.title, "summary": framework.summary,
         "supersedes": framework.supersedes_framework_version_id,
-        "competencies": [{"competency_id": m.talent_competency_id, "order": m.display_order, "label": m.label, "description": m.description} for m in _framework_members(db, framework.id)],
+        "competencies": [{"competency_id": m.talent_competency_id, "order": m.display_order, "grade_level": m.grade_level, "label": m.label, "description": m.description} for m in _framework_members(db, framework.id)],
         "m3_configuration": _m3_semantic_payload(db, framework.id)}
     return hashlib.sha256(_json(payload).encode()).hexdigest()
 
@@ -296,7 +296,8 @@ def create_framework_draft(db, *, school_group_id, program_id, title, summary=No
         for member in _framework_members(db, source.id):
             db.add(models.FrameworkCompetency(school_group_id=school_group_id, program_id=program_id,
                 framework_version_id=row.id, talent_competency_id=member.talent_competency_id,
-                display_order=member.display_order, label=member.label, description=member.description))
+                display_order=member.display_order, grade_level=member.grade_level,
+                label=member.label, description=member.description))
         db.flush()
         _clone_m3_configuration(db, source=source, target=row)
     _refresh_framework(db, row)
@@ -351,7 +352,7 @@ def update_competency(db, *, school_group_id, program_id, competency_id, name=No
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="competency", resource_id=row.id, action="retire" if before["status"] != after["status"] else "update", before=before, after=after); return row
 
 
-def add_framework_competency(db, *, school_group_id, program_id, framework_id, competency_id, expected_revision, label=None, description=None, display_order=None, actor=None):
+def add_framework_competency(db, *, school_group_id, program_id, framework_id, competency_id, expected_revision, label=None, description=None, grade_level=None, display_order=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
     _require_draft(framework, expected_revision)
@@ -359,12 +360,15 @@ def add_framework_competency(db, *, school_group_id, program_id, framework_id, c
     if competency is None or competency.status != "active": raise TalentProgramError("invalid_competency", "Competency must be active and belong to the same Program.")
     if db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework_id, talent_competency_id=competency_id).first(): raise TalentProgramError("duplicate_membership", "Competency is already in this Framework Version.")
     order = display_order or int(db.query(func.max(models.FrameworkCompetency.display_order)).filter_by(framework_version_id=framework_id).scalar() or 0) + 1
+    normalized_grade = normalize_grade_level(grade_level) if str(grade_level or "").strip() else None
+    if grade_level is not None and str(grade_level).strip() and not normalized_grade:
+        raise TalentProgramError("invalid_grade", "Framework competency Grade is invalid.")
     row = models.FrameworkCompetency(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework_id,
-        talent_competency_id=competency_id, display_order=order,
+        talent_competency_id=competency_id, display_order=order, grade_level=normalized_grade,
         label=_clean(label, "label", maximum=160) or competency.name,
         description=_clean(description, "description", maximum=4000) if description is not None else competency.description)
     db.add(row); db.flush(); framework.revision += 1; _refresh_framework(db, framework)
-    after = {"competency_id": competency_id, "display_order": row.display_order, "label": row.label, "description": row.description}
+    after = {"competency_id": competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description}
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="framework_competency", resource_id=row.id, action="add", after=after); return row, framework
 
 
@@ -384,7 +388,7 @@ def reorder_framework_competencies(db, *, school_group_id, program_id, framework
 
 
 def update_framework_competency(db, *, school_group_id, program_id, framework_id, competency_id,
-                                expected_revision, label=None, description=None, actor=None):
+                                expected_revision, label=None, description=None, grade_level="__unchanged__", actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
     _require_draft(framework, expected_revision)
@@ -392,11 +396,16 @@ def update_framework_competency(db, *, school_group_id, program_id, framework_id
         framework_version_id=framework_id, talent_competency_id=competency_id
     ).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Framework competency was not found.")
-    before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "label": row.label, "description": row.description}
+    before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description}
     if label is not None: row.label = _clean(label, "label", required=True, maximum=160)
     if description is not None: row.description = _clean(description, "description", maximum=4000)
+    if grade_level != "__unchanged__":
+        normalized_grade = normalize_grade_level(grade_level) if str(grade_level or "").strip() else None
+        if grade_level is not None and str(grade_level).strip() and not normalized_grade:
+            raise TalentProgramError("invalid_grade", "Framework competency Grade is invalid.")
+        row.grade_level = normalized_grade
     row.updated_at = datetime.utcnow(); framework.revision += 1; _refresh_framework(db, framework)
-    after = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "label": row.label, "description": row.description}
+    after = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description}
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="framework_competency", resource_id=row.id, action="update", before=before, after=after)
     return row, framework
 
@@ -412,7 +421,7 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
             or db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
             or db.query(models.TalentReviewCandidateRule).filter_by(framework_competency_id=row.id).first()):
         raise TalentProgramError("competency_in_use", "Remove rubric descriptors, KPI weighting, and candidate rules referencing this competency first.")
-    before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "label": row.label, "description": row.description}
+    before = {"competency_id": row.talent_competency_id, "display_order": row.display_order, "grade_level": row.grade_level, "label": row.label, "description": row.description}
     db.delete(row); db.flush()
     for index, member in enumerate(_framework_members(db, framework_id), 1): member.display_order = index
     framework.revision += 1; _refresh_framework(db, framework)
