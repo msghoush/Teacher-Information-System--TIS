@@ -293,6 +293,38 @@ def test_framework_competency_delete_succeeds_with_new_permission(db):
     assert db.query(models.TalentRubricLevel).filter_by(id=level.id).one_or_none() is None
 
 
+def test_rubric_level_delete_succeeds_with_dedicated_permission(db):
+    program = create_program(db, school_group_id=1, name="Level Delete Program")
+    transition_program(db, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(db, school_group_id=1, program_id=program.id, title="Setup")
+    competency = create_competency(db, school_group_id=1, program_id=program.id, code="C1", name="Competency")
+    member, framework = add_framework_competency(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=competency.id, expected_revision=framework.revision,
+    )
+    _, framework = upsert_rubric(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, expected_revision=framework.revision, name="Owned Rubric",
+    )
+    level, framework = add_rubric_level(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, expected_revision=framework.revision,
+        code="L1", label="Level One",
+    )
+    db.commit()
+
+    actor = user("1000000016")
+    db.add(actor)
+    grant(db, "Administrator", "talent_programs.view", "talent_programs.delete_rubric_level")
+    with client(db, actor) as api:
+        response = api.delete(
+            f"/api/talent/programs/{program.id}/frameworks/{framework.id}/rubric/levels/{level.id}",
+            params={"expected_revision": framework.revision},
+        )
+        assert response.status_code == 200
+    assert db.query(models.TalentRubricLevel).filter_by(id=level.id).one_or_none() is None
+
+
 # ---------------------------------------------------------------------------
 # Evaluation Period: delete_period, manage_timeline (reorder + mixed PATCH).
 # ---------------------------------------------------------------------------
