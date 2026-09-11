@@ -202,7 +202,11 @@
       [annual,versions,bank]=await Promise.all([api(`${base}/academic-years`),api(`${base}/frameworks`),api(`${base}/competencies`)]);
       if (token !== renderToken) return;
       const setupRequested=typeof window!=='undefined'?window.location.hash:(ctx.hash||'');
-      const chosen=versions.find(f=>String(f.id)===params.get('framework_id')) || (setupRequested?versions.find(f=>f.status==='draft'):versions.find(f=>f.status==='active')) || versions.find(f=>f.status==='draft') || versions.at(-1);
+      const drafts=versions.filter(f=>f.status==='draft').sort((a,b)=>(Number(b.version_number)||0)-(Number(a.version_number)||0)||(Number(b.id)||0)-(Number(a.id)||0));
+      const chosen=versions.find(f=>String(f.id)===params.get('framework_id'))
+        || (setupRequested?drafts[0]:versions.find(f=>f.status==='active'))
+        || drafts[0]
+        || versions.at(-1);
       framework=null; config=null;
       if(chosen) [framework,config]=await Promise.all([api(`${base}/frameworks/${chosen.id}`),api(`${base}/frameworks/${chosen.id}/configuration`)]);
       if (token !== renderToken) return;
@@ -372,6 +376,12 @@
         else return;
       }
       const saved=await mutate(path,method,body,f);
+      if(saved&&action==='new-version'){
+        if(typeof window!=='undefined'&&window.location.hash!=='#tp-rubric')window.location.hash='#tp-rubric';
+        await render(ctx);
+        ctx.notify?.('Rubric is ready to edit.');
+        return;
+      }
       if(saved&&(action==='annual'||action==='basics')&&typeof window!=='undefined')window.location.hash='';
     };
     root.onclick=async event=>{
