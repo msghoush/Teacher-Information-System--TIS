@@ -191,9 +191,9 @@
       }else{
         root.innerHTML='<p role="status">Loading Programs…</p>';
       }
-      const programs=await api('/api/talent/programs');
-      if (token !== renderToken) return;
       if(!pid) {
+        const programs=await api('/api/talent/programs');
+        if (token !== renderToken) return;
         const [planningGrades,summaryRows]=await Promise.all([
           year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
           year?api(`/api/talent/programs/summaries?academic_year_id=${encodeURIComponent(year)}`).catch(()=>programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))):Promise.resolve(programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))),
@@ -242,16 +242,24 @@
         });
         return;
       }
-      program=programs.find(p=>String(p.id)===pid);
-      if(!program) {if(token===renderToken){bundleCache=null;root.innerHTML='<p class="tp-empty">Program unavailable in your organization.</p>';}return;}
-      base=`/api/talent/programs/${program.id}`;
-      // Real Grades configured in Planning anywhere in the organization for this
-      // Academic Year (Program eligibility has no Branch selection) - never a
-      // fabricated/blanket KG-12 catalog.
-      configuredGrades=year?await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):[];
+      base=`/api/talent/programs/${pid}`;
+      const [selectedProgram,nextGrades,nextAnnual,nextVersions,nextBank,loadedPlans]=await Promise.all([
+        api(base),
+        year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
+        api(`${base}/academic-years`),
+        api(`${base}/frameworks`),
+        api(`${base}/competencies`),
+        can('talent_evaluation_plans.view')
+          ? api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[])
+          : Promise.resolve([]),
+      ]);
       if (token !== renderToken) return;
-      [annual,versions,bank]=await Promise.all([api(`${base}/academic-years`),api(`${base}/frameworks`),api(`${base}/competencies`)]);
-      if (token !== renderToken) return;
+      program=selectedProgram;
+      configuredGrades=nextGrades;
+      annual=nextAnnual;
+      versions=nextVersions;
+      bank=nextBank;
+      plans=Array.isArray(loadedPlans)?loadedPlans:[];
       const setupRequested=typeof window!=='undefined'?window.location.hash:(ctx.hash||'');
       const drafts=versions.filter(f=>f.status==='draft').sort((a,b)=>(Number(b.version_number)||0)-(Number(a.version_number)||0)||(Number(b.id)||0)-(Number(a.id)||0));
       const chosen=versions.find(f=>String(f.id)===params.get('framework_id'))
@@ -264,9 +272,6 @@
       if(framework && config.revision != null && (framework.revision!==config.revision || framework.semantic_fingerprint!==config.semantic_fingerprint)) {
         bundleCache=null; root.innerHTML='<p role="alert">This version changed while it was loading. Reload the page to open the latest saved version.</p>';return;
       }
-      plans=[];
-      if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
-      if (token !== renderToken) return;
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
       root.removeAttribute?.('aria-busy');
     }
