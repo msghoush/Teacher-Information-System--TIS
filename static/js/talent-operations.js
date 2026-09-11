@@ -163,7 +163,10 @@
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
-    const rows=(await api(`/api/talent/assessments?${query({cycle_id:cycleId})}`)).filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
+    // Load the Program/Academic-Year assessment history, not only the selected
+    // Cycle, so a Student whose current result moved to a reassessment Cycle
+    // never falls back to "Not started" when the original Evaluation is open.
+    const rows=(await api(`/api/talent/assessments?${query({})}`)).filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
     const currentRows=rows.filter(r=>r.is_current!==false);
     const cycles=await api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`);
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
