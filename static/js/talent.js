@@ -535,8 +535,10 @@
     const previous=params.get('branch_id')||branch.value;
     try {
       const items=await api(`programs/planning-branches?${qs({academic_year_id:year.value})}`);
-      branch.innerHTML='<option value="">All Branches</option>'+items.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
-      if(previous&&items.some(item=>String(item.id)===String(previous)))branch.value=previous;else params.delete('branch_id');
+      branch.innerHTML=(items.length>1?'<option value="">All Branches</option>':'')+items.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+      if(previous&&items.some(item=>String(item.id)===String(previous)))branch.value=previous;
+      else if(items.length===1){branch.value=String(items[0].id);params.set('branch_id',String(items[0].id));}
+      else params.delete('branch_id');
     } catch {branch.innerHTML='<option value="">All Branches</option>';params.delete('branch_id');}
     if(!grade.parentElement.hidden)await refreshPlanningGrades();
   }
