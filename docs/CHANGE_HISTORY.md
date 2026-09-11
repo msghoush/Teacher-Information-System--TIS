@@ -1,11 +1,22 @@
 ---
 title: TIS Change History
-documentation_version: 4.0
+documentation_version: 4.1
 last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-11 — Owner video acceptance immediate corrections
+
+- Fixed Evaluation-first Student Assessments so a configured Program without a materialized Cycle is selectable directly inside its Term/Period. Authorized selection creates and links the internal Cycle through existing governed APIs and stays on Student Assessments.
+- Strengthened Start Assessment failure visibility and preserved selected Evaluation/Program routing; a successful start opens the exact saved Program/Grade competencies and assessment criteria.
+- Restored a safe Delete Competency path for immutable/assessed setup by cloning a new editable Framework Version and deleting there; historical evidence is never mutated.
+- Added an explicit KPI expand/collapse affordance.
+- Changed Student list Add Student, Delete selected, Open, and Delete actions to icon-only controls with accessible labels.
+- Added Administrator-default `students.view_all_branches`; cross-Branch switching/All branches requires this permission plus organization/global scope, while other actors remain on their assigned Branch.
+- Kept Learning Style analytics fail closed but replaced the hidden-panel failure with an explicit unavailable message when the privacy provider is missing; no protected aggregate values are exposed.
+
 
 ## 2026-09-11 — Talent urgent navigation, readiness, review, and recovery adjustments
 
