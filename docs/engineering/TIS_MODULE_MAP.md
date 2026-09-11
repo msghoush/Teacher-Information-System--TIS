@@ -20,7 +20,7 @@ source_of_truth: true
 - `static/js/talent-operations.js`: selects configured Programs directly inside Evaluation Periods, materializes/links an internal Cycle when absent, keeps Evaluation/Program context through Start Assessment, and surfaces action failures visibly.
 - `talent_student_assessment_service.py` + `routers/talent_assessments.py`: normal Assessment start remains the authority for newest complete Grade-applicable competency-owned criteria and current Assessment creation; the returned Assessment carries exact Framework provenance.
 - `static/js/talent-program-workspace.js`: immutable Delete Competency becomes clone-new-Draft-then-delete, preserving assessed history; KPI disclosure owns explicit collapse affordance.
-- `permission_registry.py`: adds `students.view_all_branches`, Administrator-default through the normal role model and not Editor/User-default.
+- `permission_registry.py`: adds `students.view_all_branches` and constrains it to the Administrator managed role.
 - `routers/students_ui.py`: enforces Students list Branch selection against `students.view_all_branches` plus organization/global scope and projects explicit Learning Style analytics-unavailable state without weakening privacy.
 - `templates/students.html` + `static/css/students.css`: accessible icon-only Student management actions, fixed Branch context for actors without cross-Branch authority, and fail-closed Learning Style availability messaging.
 
