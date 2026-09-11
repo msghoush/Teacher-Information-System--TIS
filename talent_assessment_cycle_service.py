@@ -191,13 +191,12 @@ def derive_eligible_population(db, *, cycle, effective_at=None):
         models.StudentAcademicPlacement.grade_level.in_(eligible_grades),
         models.StudentAcademicPlacement.effective_from <= as_of,
         or_(models.StudentAcademicPlacement.effective_to.is_(None), models.StudentAcademicPlacement.effective_to > as_of),
-        # Eligibility is derived at the historical population_effective_at instant.
-        # Student.status is only current mutable state with no effective-dated
-        # history (see models.py Student / student_academic_service.py), so it
-        # must never gate a historical derivation: a Student later deactivated
-        # (or reactivated) today must not silently alter an already-defined
-        # historical population. The join above still enforces stable tenant/
-        # identity scope alignment between Student and Placement.
+        # Eligibility is derived at the caller-selected effective instant.
+        # Opening uses the Cycle's configured population_effective_at; Draft
+        # preview and ADR 0033 Open-roster reconciliation use the current
+        # synchronization instant. Student.status is only current mutable state
+        # with no effective-dated history, so it must never gate this
+        # effective-dated Placement derivation.
     ).order_by(models.StudentAcademicPlacement.student_id, models.StudentAcademicPlacement.id).all()
     return [{
         "student_id": row.student_id,
@@ -417,7 +416,7 @@ def close_cycle(db, *, school_group_id, cycle_id, expected_revision,
 
 
 def reconcile_open_cycle_population(db, *, school_group_id, cycle_id, expected_revision,
-                                    organization_authorized, actor=None):
+                                    organization_authorized, actor=None, effective_at=None):
     """Additive-only roster synchronization for an Open Cycle (ADR 0033).
 
     Derives currently eligible canonical placements via ``derive_eligible_population``
@@ -436,7 +435,7 @@ def reconcile_open_cycle_population(db, *, school_group_id, cycle_id, expected_r
     if cycle.revision != int(expected_revision):
         raise TalentAssessmentCycleError("stale_cycle", "Cycle changed since it was read.")
 
-    sync_at = datetime.utcnow()
+    sync_at = effective_at or datetime.utcnow()
     eligible = derive_eligible_population(db, cycle=cycle, effective_at=sync_at)
     existing_student_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.student_id).filter_by(
         school_group_id=school_group_id, cycle_id=cycle.id
