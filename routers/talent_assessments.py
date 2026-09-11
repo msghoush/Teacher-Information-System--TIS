@@ -19,7 +19,7 @@ from talent_student_assessment_service import (
     complete_assessment, competency_result_payload, delete_assessment,
     get_assessment, list_assessments, list_competency_results,
     mark_non_complete, reassessment_requirement, remove_competency_result, set_competency_result,
-    start_assessment, start_reassessment,
+    start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
 router = APIRouter(prefix="/api/talent/assessments", tags=["Talent Student Assessments"])
@@ -189,8 +189,8 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
         )
         if placement is not None and not auth.can_access_all_branches(user) and placement.branch_id not in _visible_branch_ids(db, user):
             return JSONResponse({"detail": "Assessment is outside your authorized Branch scope."}, status_code=403)
-        return _run(db, lambda: _display_payload(db, user, start_assessment(
-            db, school_group_id=group_id, cycle_id=cycle_id,
+        return _run(db, lambda: _display_payload(db, user, start_assessment_for_evaluation(
+            db, school_group_id=group_id, evaluation_cycle_id=cycle_id,
             student_id=student_id, actor=user,
         )), created=True)
 
