@@ -113,6 +113,14 @@ test('an editable assessment shows Clear Result only for competencies with a sav
   assert.match(root.innerHTML,/tp-rubric-level/);
 });
 
+test('completed assessment does not expose the removed Check Program Criteria action',async()=>{
+  const root=domRoot();
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:assessmentApi({assessment:{status:'completed',context:{cycle_status:'open',student_name:'Alya',cycle_id:5}}})};
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/Check Program Criteria|data-action="evaluate"/);
+});
+
 test('a completed (read-only) assessment never shows Clear Result even with a saved result',async()=>{
   const root=domRoot();
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
