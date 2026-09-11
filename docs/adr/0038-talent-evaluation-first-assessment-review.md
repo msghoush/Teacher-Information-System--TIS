@@ -1,6 +1,6 @@
 ---
 title: Talent Evaluation-First Assessment and Review Workspace
-documentation_version: 1.0
+documentation_version: 1.1
 last_updated: 2026-09-11
 status: accepted
 module: architecture
@@ -68,6 +68,15 @@ their existing title/order behavior.
 A repeated Evaluation label is shown once, with participating Programs nested
 inside it.
 
+### Selected Evaluation interaction
+
+When the user selects an Evaluation Period/Program, that section remains
+visibly selected while its Student roster is shown. Start Assessment carries
+the selected Evaluation context and Program into the Student assessment route;
+the opened workspace reads the exact saved Framework/Grade competencies and
+assessment criteria. A Start/Continue/View action must never appear inert or
+silently lose the selected Evaluation context.
+
 ### Eligible Student completeness
 
 For a selected Program/Evaluation, the operational list is driven by the
@@ -95,6 +104,19 @@ A materially changed newer Grade-applicable rubric causes a current completed
 Assessment to surface **Re-evaluation required**. The prior completed attempt
 remains immutable historical evidence; reassessment creates a new current
 attempt tied to the original visible Evaluation context.
+
+### Review filtering and presentation
+
+Talent Review may be narrowed by authorized Branch, Grade, and Planning
+Section. Filter options come only from the actor's authorized organization/
+Branch scope and operational Planning context; **All Branches** is shown only
+when more than one Branch is authorized.
+
+The deterministic Review Candidate policy remains part of the domain and may
+still create review actions, but the normal Review table does not present
+"Meets criteria" / "No candidate" as a primary learner classification.
+Review status, Overall Program Result, and Official Identification remain
+separate visible facts.
 
 ### Talent Review
 
