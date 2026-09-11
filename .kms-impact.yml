@@ -1,20 +1,7 @@
-knowledge_impact: yes
-summary: "Owner-directed Talent & Potential simplification. ADR 0035 supersedes ADR 0033 and the M4 frozen-population rule wherever Draft/Open Cycle state, frozen roster membership, synchronization, reconciliation, or population membership acted as prerequisites to start/edit a Student Assessment. Current effective Academic Placement in the selected Academic Year plus Program eligible Grade and an active assessment framework/tool are now the operational eligibility authority. Student Assessments reads live eligible Students directly, shows Start Assessment without an Open Evaluation step, and posts cycle_id + student_id. The backend validates current Placement/Grade/Branch scope, captures the existing Cycle Population Member row only as a historical placement/framework snapshot at Assessment creation, and keeps legacy Cycle state as internal compatibility metadata rather than a user-facing gate. Evaluation Plan UI now opens Student Assessments directly; it no longer previews/freezes/opens a roster or exposes Draft/Open gating as the normal workflow. Existing completed evidence remains immutable, tenant isolation and permissions remain enforced, and no schema migration is introduced."
+knowledge_impact: no
+summary: "Correct the Talent Student Assessment start runtime path by restoring imports for existing compatibility/provenance helpers already required by ADR 0035 implementation. No product, workflow, permission, schema, API, privacy, or architecture decision changes."
 affected_areas:
-  - talent-assessment-product-flow
-  - student-assessment-eligibility
-  - academic-placement-as-eligibility-authority
-  - evaluation-period-workflow
-  - assessment-historical-provenance
-  - talent-cycle-backward-compatibility
+  - talent-student-assessment-runtime
 kms_files_updated:
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/engineering/PRODUCT_ROADMAP.md
-  - docs/engineering/TIS_MODULE_MAP.md
-  - docs/PROJECT_STATE.md
-  - docs/adr/0033-open-talent-cycle-additive-roster-synchronization.md
-  - docs/adr/0035-live-academic-placement-assessment-eligibility.md
-  - docs/adr/README.md
-no_impact_reason:
+no_impact_reason: "Runtime defect correction only. The approved ADR 0035 assessment flow and documented KMS semantics remain unchanged."
 major_change_override: no
