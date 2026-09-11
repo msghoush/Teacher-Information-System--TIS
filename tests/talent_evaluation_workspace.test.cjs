@@ -167,6 +167,27 @@ test('Evaluation Period presentation stays simple and does not expose Draft/Open
   assert.equal(stateFor({status:'active'},{status:'cancelled',cycle:null}),'Cancelled');
 });
 
+test('Evaluation Period selection is disabled when the dedicated permission is not granted',async()=>{
+  const feedback={textContent:'',setAttribute(){}};
+  const period={id:41,label:'Baseline',status:'planned',cycle:{id:61,status:'open'},actions:['edit']};
+  const plan={id:21,program_id:11,status:'active',revision:5,periods:[period]};
+  const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),
+    can:key=>key!=='talent_evaluation_plans.select_period',
+    api:async path=>{
+      if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+      if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+      if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+      if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+      if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await render(ctx);
+  assert.doesNotMatch(root.innerHTML,/data-assess="41"/);
+  assert.match(root.innerHTML,/disabled title="Evaluation Period selection is not permitted for your role"/);
+});
+
+
 test('Open Student Assessments creates/links only the internal context and navigates without Open Evaluation',async()=>{
   const calls=[],feedback={textContent:'',setAttribute(){}},period={id:41,label:'Baseline',status:'planned',cycle:null};
   const plan={id:21,program_id:11,status:'active',revision:5,periods:[period]};
