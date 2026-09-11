@@ -219,17 +219,18 @@
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
-    const [allRows,cycles,programs]=await Promise.all([
+    const [allRows,cycles,programs,explicitEligible]=await Promise.all([
       api(`/api/talent/assessments?${query({})}`),
       api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`),
       can('talent_programs.view')?api('/api/talent/programs').catch(()=>[]):Promise.resolve([]),
+      cycleId?api(`/api/talent/assessment-cycles/${cycleId}/eligible-students`).catch(()=>null):Promise.resolve(null),
     ]);
     const rows=allRows.filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
     const currentRows=rows.filter(r=>r.is_current!==false);
     const programById=new Map(programs.map(item=>[String(item.id),item]));
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
     const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
-    const eligible=cycle?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null;
+    const eligible=explicitEligible || (cycle&&!cycleId?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null);
     const assessmentFor=(studentId,context)=>{
       if(!context)return null;
       return currentRows.find(r=>{
