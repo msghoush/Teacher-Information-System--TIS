@@ -17,17 +17,28 @@ source_of_truth: true
 
 ## Talent Program And Evaluation UX Orchestration
 
-- `routers/talent_ui.py`: projects Program, Plan, Cycle, Assessment, and related
-  action permissions into the browser; Evaluation Plan manage/govern keys are
-  included, and Branch scope suppresses organization-only govern presentation.
-- `static/js/talent-program-workspace.js`: searchable Program table and the
-  Basics -> What we assess -> Evaluation schedule -> Ready setup journey over
-  existing Program/Framework APIs.
-- `static/js/talent-evaluation-workspace.js`: standard schedule and simple
-  evaluation states; sequences existing Plan, Period, Cycle, population-preview,
-  and open APIs without owning domain state.
-- `static/css/talent-program-workspace.css`: compact table, guided-step,
-  competency/achievement, and schedule presentation.
+- `routers/talent_programs.py`: Program/Framework authoring API plus bounded
+  Program-list summaries and explicit competency-to-competency rubric-level
+  copy. New rubric creation does not auto-import legacy shared levels.
+- `static/js/talent-program-workspace.js`: searchable Program table; Program
+  identity/eligible-Grade settings; visible Evaluation Period summary; separate
+  Grade -> Competency -> competency-owned Rubric -> ordered Levels builder; and
+  explicit Copy Levels From another current-Draft competency.
+- `talent_student_assessment_service.py`: live-eligibility Assessment start,
+  immutable reassessment attempts, coherent-rubric-scale completion guard, and
+  deterministic arithmetic-mean Overall Program Result.
+- `routers/talent_assessments.py` and `static/js/talent-operations.js`:
+  Evaluation Period -> Program -> Student operational workflow, all eligible
+  Student states, reassessment actions, and result presentation.
+- `routers/talent_review_candidates.py`: candidate persistence APIs plus a
+  workspace projection over all current completed Assessments so non-candidate
+  Students are not hidden from Talent Review.
+- `static/js/talent-evaluation-workspace.js`: continues to own the existing
+  Annual Evaluation Plan/Period management without a duplicate Program-period
+  persistence model.
+- `static/css/talent-program-workspace.css` and `static/css/talent.css`:
+  TIS-token-based light visual hierarchy, Evaluation/Program cards, semantic
+  status chips, rubric/result visuals, responsive states, and localized loading.
 
 ## Student/Talent Migration Prerequisite
 
@@ -47,14 +58,24 @@ source_of_truth: true
 
 ## Talent Results & Analytics UI (M11 Phase C)
 
-- `routers/talent_ui.py`: permission-gated server-rendered routes and public Results titles.
-- `templates/talent/workspace.html`: shared Talent shell, sticky Results subnavigation, Academic Year/Program/metric/dimension controls, and live status region.
-- `static/js/talent.js`: consumes only existing M10 API projections and renders Organization, Program, Branch, Talent Map, Students Across Programs, Students, and Progress Over Time views. It owns presentation and navigation only; no metric calculation or authorization.
-- `static/css/talent.css`: scoped responsive cards, progress visuals, accessible matrices, categorical privacy/no-data states, focus treatments, sticky context navigation, and reduced-motion behavior using shared TIS design tokens.
-- `tests/talent_results_experience.test.cjs`: presentation, friendly-language, privacy-leak, matrix, error-state, responsive, and accessibility invariants.
-
-The UI does not own analytics semantics. M9/M10 privacy closure, access, paging, and comparison rules remain authoritative. Historical Cycle/Population snapshots remain valid analytics provenance where those existing projections consume them, but ADR 0035 supersedes frozen population as the operational eligibility gate for starting Student Assessments.
-
+- `routers/talent_analytics.py`: existing M9 privacy-closed Program analytics
+  plus privacy-safe average rubric rank and selected-Program result summary
+  derived only when all required level cells are visible.
+- `talent_org_student_drill.py`: existing P7 Student drill extended to expose
+  each current completed Assessment's separate Program-scale Overall Result.
+- `routers/talent_organization_analytics.py`: retains tenant/scope,
+  permission, breadth, and privacy gating for organization Student drill and
+  aggregate intelligence.
+- `templates/talent/workspace.html`: shared Talent shell and filters.
+- `static/js/talent.js`: organization/Branch/Grade analytics, selected-Program
+  result story, competency averages, governed Student preview, Students Across
+  Programs matrix, longitudinal and Talent Map navigation. It never combines
+  different Programs into one Student Talent score and never reconstructs
+  suppressed organization values in the browser.
+- `static/css/talent.css`: responsive KPI/result cards, bars, matrices,
+  semantic status states, and accessible low-to-high presentation.
+- Existing M9/M10 privacy closure, access, paging, comparison, production
+  provider, and B11 qualification rules remain authoritative.
 
 ## B11 Production Qualification Boundary
 
