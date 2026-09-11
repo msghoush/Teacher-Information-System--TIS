@@ -232,11 +232,12 @@
     const eligible=cycle?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null;
     const assessmentFor=(studentId,context)=>{
       if(!context)return null;
-      return currentRows.find(r=>
-        String(r.student_id)===String(studentId)
-        && String(r.program_id)===String(context.program_id)
-        && String(r.evaluation_context_cycle_id || r.cycle_id)===String(context.id)
-      ) || null;
+      return currentRows.find(r=>{
+        const rowContextId=r.evaluation_context_cycle_id || r.cycle_id;
+        return String(r.student_id)===String(studentId)
+          && String(r.program_id)===String(context.program_id)
+          && (rowContextId==null || String(rowContextId)===String(context.id));
+      }) || null;
     };
 
     const eligibleRows=eligible?eligible.members.map(m=>{
@@ -253,7 +254,7 @@
       return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${studentName}<small>${esc(m.branch_name||'')} · ${esc(m.section_name||'')}</small></span></span></th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${action}</td></tr>`;
     }).join(''):'';
 
-    const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${r.reassessment?.required?badge('re-evaluation required'):r.is_current===false?badge('historical'):badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('reassess')?button('reassess-row','Re-evaluate Student',`data-id="${r.id}"`):''} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
+    const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${r.reassessment?.required?badge('Re-evaluation required'):r.is_current===false?badge('Historical'):badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('reassess')?button('reassess-row','Re-evaluate Student',`data-id="${r.id}"`):''} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
 
     const groups=new Map();
     cycles.forEach(context=>{
