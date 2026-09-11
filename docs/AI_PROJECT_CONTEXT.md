@@ -76,7 +76,7 @@ The Program wizard embeds the existing Evaluation Schedule renderer and its perm
 
 ## Talent Program Setup Wizard Visual Acceptance
 
-Program setup is a real four-step, hash-backed wizard. The Program identity header and compact progress indicator remain visible, while the page renders only the active Basics, What we assess, Evaluation Schedule, or Ready panel. Completed steps show a check, incomplete assessment setup shows a compact remaining-item reason, prior steps remain directly editable, and refresh restores the selected hash step. The former permanent Grades and Build your evaluation summary cards are removed.
+Program setup is hash-backed for its editable panels but no longer has a separate Ready step. The Program identity remains visible, What we assess and Evaluation Plan stay focused, and readiness is projected on the operational Program summary. Positive Ready appears only when all required Program/Grade, assessment-criteria, and Evaluation Plan prerequisites are complete.
 
 The wizard continues to call the existing permission-gated, revision-aware Program, annual configuration, framework, rubric, descriptor, Evaluation Plan, Period, and Cycle contracts. Program removal is intentionally absent because the governed Program lifecycle is activate/retire; supported logo, draft setup item, schedule-period, and in-progress assessment-result removal actions retain their existing permission and lifecycle checks.
 
