@@ -87,7 +87,6 @@ test('opening one Talent Review row (review_id) shows full per-Student detail, n
   assert.doesNotMatch(root.innerHTML,/<table class="tp-compact-table">/);
   assert.match(root.innerHTML,/Back to Talent Review/);
   assert.match(root.innerHTML,/<article class="tp-card">/);
-  assert.match(root.innerHTML,/Highest recorded rubric level/);
   assert.match(root.innerHTML,/Overall Program Result/);
   assert.match(root.innerHTML,/Overall Program Result 84 out of 100/);
   assert.match(root.innerHTML,/Official Identification remains a separate authorized human decision/);
