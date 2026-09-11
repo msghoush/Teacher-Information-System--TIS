@@ -244,12 +244,17 @@
     if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) throw Object.assign(new Error('Your session may have ended. Sign in again, then reopen this view.'),{status:401});
     const data = await response.json();
     if (!response.ok) {
-      const message = response.status === 403 ? 'This view is not available for your permissions or selected scope.' :
-        response.status === 404 ? 'This record is unavailable in your authorized scope.' :
-        response.status === 503 ? 'Analytics is not available in this environment. Its governed policy configuration must be completed before data can be shown.' :
-        response.status === 400 || response.status === 422 ? 'This context cannot be displayed. Check the selected Program and Academic Year.' :
-        'This view could not be loaded. Retry, or contact your administrator if the problem continues.';
-      throw Object.assign(new Error(message),{status:response.status});
+      const detail = typeof data?.detail === 'string' ? data.detail.trim() : '';
+      const message = response.status === 403 ? (detail || 'This view is not available for your permissions or selected scope.') :
+        response.status === 404 ? (detail || 'This record is unavailable in your authorized scope.') :
+        response.status === 503 ? (detail
+          ? `Analytics cannot be displayed yet: ${detail}`
+          : 'Analytics cannot be displayed yet because its governed privacy/configuration prerequisites are incomplete. Ask an administrator to complete the required analytics configuration, then retry.') :
+        response.status === 400 || response.status === 422 ? (detail
+          ? `This analytics context needs attention: ${detail}`
+          : 'This context cannot be displayed. Check the selected Academic Year, Program, and available assessment data.') :
+        (detail || 'This view could not be loaded. Retry, or contact your administrator if the problem continues.');
+      throw Object.assign(new Error(message),{status:response.status,code:data?.code});
     }
     return data;
   }
@@ -560,7 +565,7 @@
       if(config.view==='longitudinal')document.getElementById('tp-section-field').hidden=false;
       await refreshPlanningGrades();
     }
-    if(['programs','evaluation-plans','assessments','analytics','branch','longitudinal','portfolio','talent-map','students','learner-profile'].includes(config.view)&&can('talent_programs.view')) {
+    if(['programs','evaluation-plans','assessments','reviews','analytics','branch','longitudinal','portfolio','talent-map','students','learner-profile'].includes(config.view)&&can('talent_programs.view')) {
       // Programs uses its in-content searchable list as the selection surface
       // until a Program is explicitly opened. Student Assessments and the
       // other Program-aware views use this compact selector as their own local
