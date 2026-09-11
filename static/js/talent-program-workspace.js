@@ -136,7 +136,14 @@
       framework = bundleCache.data.framework; config = bundleCache.data.config;
     } else {
       const token = ++renderToken;
-      root.innerHTML='<p role="status">Loading Programs…</p>';
+      const alreadyRendered=Boolean(root.querySelector?.('.tp-wizard-panel,.tp-program-summary,[data-program-row]'));
+      const existingStatus=root.querySelector?.('[data-status]');
+      if(alreadyRendered){
+        root.setAttribute('aria-busy','true');
+        if(existingStatus) existingStatus.textContent='Refreshing Program data…';
+      }else{
+        root.innerHTML='<p role="status">Loading Programs…</p>';
+      }
       const programs=await api('/api/talent/programs');
       if (token !== renderToken) return;
       if(!pid) {
@@ -214,6 +221,7 @@
       if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
       if (token !== renderToken) return;
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
+      root.removeAttribute('aria-busy');
     }
     members=framework?.competencies || [];
     const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft' && !framework?.in_use_by_assessments;
