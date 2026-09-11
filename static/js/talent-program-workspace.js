@@ -282,8 +282,12 @@
             ${editable?`<div class="tp-row-actions">${button('reveal-editor','Edit',`data-editor-key="level-${l.id}"`,'edit')}${button('remove-level','Remove',`data-key="${l.id}"`,'trash')}</div><div data-editor="level-${l.id}" hidden>${form(`level:${l.id}`,'Edit Level',field('label','Level name',l.label,'text',true)+area('description','Level description',l.description),'Save Level')}</div>`:''}
           </div>`
         ).join('');
+        const copySources=members.filter(source=>source.id!==m.id&&(rubricForCompetency(source.id)?.levels||[]).length).map(source=>[source.id,`${memberName(source)}${source.grade_level?` · ${source.grade_level==='KG'?'KG':`Grade ${source.grade_level}`}`:''}`]);
+        const copyLevelForm=editable&&memberLevels.length===0&&copySources.length
+          ? `<button type="button" data-reveal="level-copy-${m.id}">${icon('copy')}Copy Levels From…</button><div data-editor="level-copy-${m.id}" hidden>${form(`copy-levels:${m.id}`,'Copy Level Structure',select('source_framework_competency_id','Copy from Competency',copySources,'')+check('include_descriptions','Copy level descriptions too',false),'Copy Levels')}</div>`
+          : '';
         const rubricBody=rubric
-          ? `<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">Rubric</span><strong>${esc(rubric.name)}</strong>${rubric.description?`<p>${esc(rubric.description)}</p>`:''}</div>${editable?button('reveal-editor','Edit Rubric',`data-editor-key="rubric-${m.id}"`,'edit'):''}</div>${editable?`<div data-editor="rubric-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Edit Rubric',field('name','Rubric name',rubric.name,'text',true)+area('description','Rubric description',rubric.description),'Save Rubric')}</div>`:''}<div class="tp-rubric-level-list">${levelRows||'<p class="tp-empty">No levels yet.</p>'}</div>${editable?`<button type="button" data-reveal="level-add-${m.id}">+ Add Level</button><div data-editor="level-add-${m.id}" hidden>${form(`competency-level:${m.id}`,'Add Level',field('label','Level name','','text',true)+area('description','Level description'),'Add Level')}</div>`:''}</div>`
+          ? `<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">Rubric</span><strong>${esc(rubric.name)}</strong>${rubric.description?`<p>${esc(rubric.description)}</p>`:''}</div>${editable?button('reveal-editor','Edit Rubric',`data-editor-key="rubric-${m.id}"`,'edit'):''}</div>${editable?`<div data-editor="rubric-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Edit Rubric',field('name','Rubric name',rubric.name,'text',true)+area('description','Rubric description',rubric.description),'Save Rubric')}</div>`:''}<div class="tp-rubric-level-list">${levelRows||'<p class="tp-empty">No levels yet. Add them manually or copy a completed level structure from another Competency.</p>'}</div>${editable?`<div class="tp-rubric-build-actions"><button type="button" data-reveal="level-add-${m.id}">+ Add Level</button>${copyLevelForm}</div><div data-editor="level-add-${m.id}" hidden>${form(`competency-level:${m.id}`,'Add Level',field('label','Level name','','text',true)+area('description','Level description'),'Add Level')}</div>`:''}</div>`
           : editable
             ? `<button type="button" data-reveal="rubric-add-${m.id}">+ Add Rubric</button><div data-editor="rubric-add-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Add Rubric',field('name','Rubric name','', 'text',true)+area('description','Rubric description'),'Add Rubric')}</div>`
             : '<p class="tp-empty">No rubric configured.</p>';
@@ -369,6 +373,13 @@
         }
         else if(action.startsWith('competency-level:')){
           const memberId=Number(action.split(':')[1]);path+='/rubric/levels';method='POST';Object.assign(body,{framework_competency_id:memberId,code:`LEVEL_${Date.now()}`,label:d.get('label'),description:d.get('description')});
+        }
+        else if(action.startsWith('copy-levels:')){
+          const memberId=Number(action.split(':')[1]);path+='/rubric/levels/copy';method='POST';Object.assign(body,{
+            source_framework_competency_id:Number(d.get('source_framework_competency_id')),
+            target_framework_competency_id:memberId,
+            include_descriptions:d.has('include_descriptions'),
+          });
         }
         else if(action==='add-level'||action.startsWith('level:')){path+='/rubric/levels';method=action==='add-level'?'POST':'PATCH';if(method==='PATCH')path+=`/${action.split(':')[1]}`;Object.assign(body,{label:d.get('label'),description:d.get('description'),numeric_value:numeric(d.get('numeric_value'))});if(method==='POST')body.code=d.get('code');}
         else if(action.startsWith('descriptor:')){const [,m,l,g]=action.split(':');path+='/rubric/descriptors';Object.assign(body,{framework_competency_id:Number(m),rubric_level_id:Number(l),descriptor:d.get('descriptor'),grade_level:g||null});}
