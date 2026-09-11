@@ -417,6 +417,21 @@ def set_competency_result(db, *, school_group_id, assessment_id, framework_compe
     ).one_or_none()
     if competency is None or level is None:
         raise TalentStudentAssessmentError("invalid_result_scope", "Competency and rubric level must belong to the Assessment's exact Framework.")
+    applicable_ids = {row.id for row in _applicable_competencies(db, assessment)}
+    if competency.id not in applicable_ids:
+        raise TalentStudentAssessmentError("invalid_result_scope", "Competency is not applicable to the Student's recorded Grade.")
+    rubric = db.query(models.TalentRubric).filter_by(
+        id=level.rubric_id, school_group_id=school_group_id,
+        program_id=assessment.program_id, framework_version_id=assessment.framework_version_id,
+    ).one_or_none()
+    if rubric is None or (
+        rubric.framework_competency_id is not None
+        and rubric.framework_competency_id != competency.id
+    ):
+        raise TalentStudentAssessmentError(
+            "invalid_result_scope",
+            "Rubric level must belong to this exact Competency rubric.",
+        )
     result = db.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=assessment.id, framework_competency_id=competency.id,
     ).one_or_none()
@@ -432,6 +447,7 @@ def set_competency_result(db, *, school_group_id, assessment_id, framework_compe
         )
         db.add(result)
     else:
+        result.rubric_id = level.rubric_id
         result.rubric_level_id = level.id
         if evidence is not None:
             result.evidence = _clean(evidence, "evidence")
@@ -530,13 +546,32 @@ def _calculate_kpi(db, assessment):
     return {**payload, "calculation_fingerprint": hashlib.sha256(_json(payload).encode()).hexdigest()}
 
 
+def _assessment_grade(db, assessment):
+    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        id=assessment.cycle_population_member_id,
+        school_group_id=assessment.school_group_id,
+        student_id=assessment.student_id,
+    ).one_or_none()
+    return member.grade_level if member is not None else None
+
+
+def _applicable_competencies(db, assessment):
+    query = db.query(models.FrameworkCompetency).filter_by(
+        school_group_id=assessment.school_group_id,
+        program_id=assessment.program_id,
+        framework_version_id=assessment.framework_version_id,
+    )
+    grade = _assessment_grade(db, assessment)
+    if grade:
+        query = query.filter(
+            (models.FrameworkCompetency.grade_level.is_(None))
+            | (models.FrameworkCompetency.grade_level == grade)
+        )
+    return query.all()
+
+
 def _validate_completeness(db, assessment):
-    required = {
-        row.id for row in db.query(models.FrameworkCompetency).filter_by(
-            school_group_id=assessment.school_group_id, program_id=assessment.program_id,
-            framework_version_id=assessment.framework_version_id,
-        ).all()
-    }
+    required = {row.id for row in _applicable_competencies(db, assessment)}
     results = db.query(models.TalentStudentCompetencyResult).filter_by(
         school_group_id=assessment.school_group_id, assessment_id=assessment.id,
     ).all()
