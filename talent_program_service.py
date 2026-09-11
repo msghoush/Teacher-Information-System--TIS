@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 
 from sqlalchemy import func
@@ -339,8 +340,19 @@ def update_framework_draft(db, *, school_group_id, program_id, framework_id, exp
 
 def create_competency(db, *, school_group_id, program_id, code, name, description=None, actor=None):
     if get_program(db, school_group_id, program_id) is None: raise TalentProgramError("not_found", "Talent Program was not found.")
+    clean_name = _clean(name, "name", required=True, maximum=160)
+    clean_code = _clean(code, "code", maximum=80)
+    if not clean_code:
+        base_code = re.sub(r"[^A-Z0-9]+", "_", clean_name.upper()).strip("_")[:64] or "COMPETENCY"
+        clean_code = base_code
+        suffix = 2
+        while db.query(models.TalentCompetency.id).filter_by(
+            school_group_id=school_group_id, program_id=program_id, code=clean_code
+        ).first() is not None:
+            clean_code = f"{base_code[:72]}_{suffix}"
+            suffix += 1
     row = models.TalentCompetency(school_group_id=school_group_id, program_id=program_id,
-        code=_clean(code, "code", required=True, maximum=80).upper(), name=_clean(name, "name", required=True, maximum=160),
+        code=clean_code.upper(), name=clean_name,
         description=_clean(description, "description", maximum=4000), status="active",
         created_by_user_id=getattr(actor, "user_id", None), updated_by_user_id=getattr(actor, "user_id", None))
     db.add(row)
