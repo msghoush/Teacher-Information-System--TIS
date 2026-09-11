@@ -120,6 +120,36 @@ def set_all_results(session, assessment, competencies, levels, *, weights=(None,
     return assessment
 
 
+def test_start_assessment_uses_configured_evaluation_framework_without_active_status_gate(db):
+    _, session = db
+    program, framework, cycle, member, _, _, _, _ = foundation(session)
+    # Reproduce the Owner-reported state: the Evaluation already points at a
+    # configured Framework with competencies/rubric, but lifecycle labels are
+    # still Draft. These labels are not assessment eligibility authority.
+    program.status = "draft"
+    framework.status = "draft"
+    session.commit()
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    assert assessment.status == "in_progress"
+    assert assessment.framework_version_id == framework.id
+
+
+def test_start_assessment_requires_real_assessable_framework_content(db):
+    _, session = db
+    program, framework, cycle, member, _, _, _, _ = foundation(session)
+    session.query(models.TalentRubricLevel).filter_by(framework_version_id=framework.id).delete()
+    session.flush()
+    with pytest.raises(TalentStudentAssessmentError) as error:
+        start_assessment(
+            session, school_group_id=1, cycle_id=cycle.id,
+            cycle_population_member_id=member.id,
+        )
+    assert error.value.code == "assessment_tool_unavailable"
+
+
 def test_legacy_population_member_start_remains_compatible_and_duplicate_is_blocked(db):
     _, session = db
     _, _, cycle, member, _, _, _, _ = foundation(session)
