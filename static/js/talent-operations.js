@@ -139,15 +139,13 @@
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
     const rows=(await api(`/api/talent/assessments?${query({cycle_id:cycleId})}`)).filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
-    const cycles=can('talent_assessment_cycles.view')?await api(`/api/talent/assessment-cycles?${query({program_id:pid,academic_year_id:year})}`):[];
+    const cycles=await api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`);
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
     // ADR 0035: Evaluation Period/Cycle state is context, not an assessment
     // eligibility gate. When one context is unambiguous, show its Students
     // directly regardless of legacy Draft/Open status.
     const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
-    const eligible=cycle&&can('talent_assessment_cycles.view_population')
-      ?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`)
-      :null;
+    const eligible=cycle?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null;
 
     const eligibleRows=eligible?eligible.members.map(m=>{
       const a=rows.find(r=>String(r.student_id)===String(m.student_id));
