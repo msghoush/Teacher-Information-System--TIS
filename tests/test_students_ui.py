@@ -296,6 +296,11 @@ def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
 
 
 def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mobile(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     permissions(db, "students.view", "students.edit")
     saved = db.get(models.Student, 1001)
     saved.learning_style = "Read/Write"
@@ -415,6 +420,11 @@ def test_placement_open_cycle_preview_and_synced_success_feedback(db, client, mo
 
 
 def test_active_status_is_deemphasized_but_inactive_stays_a_visible_exception(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     """Active is the normal, expected state for an attending Student (lifecycle
     status, not Talent status). It must not be badged like an exception on every
     row. Inactive - a real exception - keeps its visible chip. Status stays
@@ -526,6 +536,11 @@ def test_placement_cascade_loads_grades_from_the_same_planning_endpoint():
 
 
 def test_list_filters_branch_grade_section_use_real_current_placement_query(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     permissions(db, "students.view")
     db.add(models.StudentAcademicPlacement(
         id=501, school_group_id=1, student_id=1002, academic_year_id=100,
@@ -557,6 +572,11 @@ def test_list_filters_branch_grade_section_use_real_current_placement_query(db, 
 
 
 def test_learning_style_filter_cascade_uses_planning_branch_grade_section(db, client):
+    # This scenario intentionally exercises organization-wide/cross-Branch
+    # Students behavior, which is Administrator-only by the current contract.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     permissions(db, "students.view")
     db.add_all([
         models.PlanningSection(id=9101, grade_level="4", section_name="North A", class_status="Current", branch_id=10, academic_year_id=100),
