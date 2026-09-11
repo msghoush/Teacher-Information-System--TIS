@@ -630,11 +630,14 @@ def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_rev
         framework_competency_id = member.id
     row = _rubric(db, framework.id, framework_competency_id)
     copied_legacy_levels = {}
+    cleaned_name = _clean(name, "name", required=True)
+    cleaned_description = _clean(description, "description", maximum=4000)
     if row is None:
         row = models.TalentRubric(
             school_group_id=school_group_id, program_id=program_id,
             framework_version_id=framework.id,
             framework_competency_id=framework_competency_id,
+            name=cleaned_name, description=cleaned_description,
         ); db.add(row); db.flush()
         # Compatibility bridge: when an existing Framework still has the old
         # shared rubric, creating a Competency rubric copies that shared scale
@@ -682,7 +685,7 @@ def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_rev
                             grade_level=old_descriptor.grade_level,
                             descriptor=old_descriptor.descriptor,
                         ))
-    row.name = _clean(name, "name", required=True); row.description = _clean(description, "description", maximum=4000); row.updated_at = datetime.utcnow(); db.flush()
+    row.name = cleaned_name; row.description = cleaned_description; row.updated_at = datetime.utcnow(); db.flush()
     _m3_mutation(db, framework, actor=actor, action="rubric_upsert", before=before, resources=[("rubric", row.id)]); return row, framework
 
 
