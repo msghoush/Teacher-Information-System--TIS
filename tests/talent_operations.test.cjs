@@ -269,6 +269,42 @@ test('two Evaluation contexts for the same Program remain an explicit choice, no
   assert.match(root.innerHTML,/View eligible Students and assessment status/);
 });
 
+test('configured Program inside an Evaluation Period is selectable without leaving Student Assessments',async()=>{
+  const root=domRoot();
+  let plannedButton,clickHandler;
+  plannedButton={
+    dataset:{program:'11',period:'51',planRevision:'3',label:'Term 1'},
+    addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}
+  };
+  root.querySelectorAll=selector=>selector==='[data-action="select-planned-evaluation"]'?[plannedButton]:[];
+  const calls=[];let navigated=null;
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams(),can:()=>true,notify(){},
+    navigate:(target,extra)=>{navigated={target,extra};},
+    api:async(path,options)=>{
+      calls.push({path,options});
+      if(path.startsWith('/api/talent/assessments?'))return [];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [];
+      if(path==='/api/talent/programs')return [{id:11,name:'Qaida Nourania'}];
+      if(path.startsWith('/api/talent/evaluation-plans?'))return [{id:41,program_id:11,academic_year_id:2026,revision:3,status:'active',periods:[{id:51,label:'Term 1',sequence:1,status:'planned'}]}];
+      if(path==='/api/talent/programs/11/frameworks')return [{id:31,status:'active'}];
+      if(path==='/api/talent/assessment-cycles'&&options?.method==='POST')return {id:61,revision:1};
+      if(path==='/api/talent/assessment-cycles/61/link-period'&&options?.method==='POST')return {cycle_revision:2};
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/Select this Program for Term 1 and view eligible Students/);
+  assert.equal(typeof clickHandler,'function');
+  await clickHandler();
+  const create=calls.find(item=>item.path==='/api/talent/assessment-cycles'&&item.options?.method==='POST');
+  assert.deepEqual(create.options.body,{
+    program_id:11,academic_year_id:2026,framework_version_id:31,
+    title:'Term 1',population_effective_at:create.options.body.population_effective_at
+  });
+  const link=calls.find(item=>item.path==='/api/talent/assessment-cycles/61/link-period');
+  assert.deepEqual(link.options.body,{planned_period_id:51,expected_plan_revision:3,expected_cycle_revision:1});
+  assert.deepEqual(navigated,{target:'assessments',extra:{cycle_id:61,program_id:11,academic_year_id:2026}});
+});
+
 test('a Program with no Evaluation context shows an honest message with a link to the Evaluation Plan',async()=>{
   const root=domRoot();
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
