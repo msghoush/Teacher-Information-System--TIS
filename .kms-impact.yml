@@ -4,6 +4,5 @@ affected_areas:
   - database-migrations
   - talent-student-assessment
 kms_files_updated:
-no_impact_reason: "Implementation compatibility correction only: BOOLEAN DEFAULT TRUE replaces BOOLEAN DEFAULT 1 on PostgreSQL while SQLite retains DEFAULT 1. The governed migration intent and resulting column semantics are unchanged."
+no_impact_reason: "db_migrations.py is a major-change path, but this patch does not alter migration intent or schema semantics; it only expresses the already-approved is_current BOOLEAN NOT NULL default using PostgreSQL-valid TRUE instead of integer 1, while SQLite retains DEFAULT 1. Product behavior and the resulting schema meaning are unchanged."
 major_change_override: yes
-major_change_override_reason: "db_migrations.py is a major-change path, but this patch does not alter migration intent or schema semantics; it only expresses the existing Boolean default using PostgreSQL-valid syntax (TRUE instead of integer 1). The previously approved is_current BOOLEAN NOT NULL default remains semantically identical."
