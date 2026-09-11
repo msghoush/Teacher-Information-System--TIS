@@ -420,7 +420,18 @@ def start_assessment_for_evaluation(
             "assessment_tool_unavailable",
             "This Evaluation needs at least one Grade-applicable Competency rubric with levels.",
         )
-    if newest.id == root_cycle.framework_version_id:
+    # The physical schema has a durable UNIQUE(cycle_id, student_id)
+    # constraint. After an Administrator reset, the completed historical row
+    # remains on the original Cycle by design, so a fresh current attempt must
+    # use a private derived Cycle even when the assessable Framework itself did
+    # not change. The visible Evaluation remains the original root Cycle.
+    prior_on_root = db.query(models.TalentStudentAssessment.id).filter_by(
+        school_group_id=school_group_id,
+        cycle_id=root_cycle.id,
+        student_id=int(student_id),
+    ).first() is not None
+
+    if newest.id == root_cycle.framework_version_id and not prior_on_root:
         return start_assessment(
             db, school_group_id=school_group_id, cycle_id=root_cycle.id,
             student_id=int(student_id), evaluation_context_cycle_id=root_cycle.id,
@@ -433,8 +444,16 @@ def start_assessment_for_evaluation(
         program_id=root_cycle.program_id,
         academic_year_id=root_cycle.academic_year_id,
         framework_version_id=newest.id,
-        title=f"{root_cycle.title} · Current rubric",
-        description="Internal rubric-version context for the visible Evaluation.",
+        title=(
+            f"{root_cycle.title} · Re-assessment"
+            if prior_on_root and newest.id == root_cycle.framework_version_id
+            else f"{root_cycle.title} · Current rubric"
+        ),
+        description=(
+            "Internal re-assessment attempt context; prior completed evidence remains historical."
+            if prior_on_root and newest.id == root_cycle.framework_version_id
+            else "Internal rubric-version context for the visible Evaluation."
+        ),
         population_effective_at=datetime.utcnow(),
         actor=actor,
     )
