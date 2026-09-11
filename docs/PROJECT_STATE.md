@@ -1,11 +1,33 @@
 ---
 title: TIS Project State
-documentation_version: 4.7
+documentation_version: 4.8
 last_updated: 2026-09-12
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Student Assessments — Program Annual-Configuration Enablement Removed As A Gate
+
+Per direct Owner instruction, a further same-day correction on top of the
+Grade-gate fix (below): `TalentProgramAcademicYearConfiguration.is_enabled`
+(and the configuration row's existence at all) is no longer required by the
+normal Student Assessments roster (`current_placements_for_assessment`) or
+Start Assessment (`_current_placement_for_assessment`) path. See
+`docs/adr/0039-talent-competency-kpi-level-simplification.md`'s "Further
+Owner correction" section. The Evaluation/Cycle already supplies the
+Academic Year; a Student's valid current Placement in that exact Academic
+Year is sufficient. Kept unchanged: School Group isolation, Branch
+authorization, Academic Year match, current Student Placement, the saved
+Competency+KPI+Level requirement, and immutable historical evidence
+protection. `derive_eligible_population` (legacy M4/frozen-population path)
+is unchanged and still requires an enabled configuration for its own
+callers. New regression proves: a Program with Competency+KPI+Level saved
+and no annual configuration row at all (and, separately, an explicitly
+disabled one) still shows the Student in the roster and allows Start
+Assessment. No schema migration required. Zero new test regressions
+(confirmed by direct before/after comparison); the same three pre-existing
+failures already present before this pass remain unaffected.
 
 ## Talent Competency -> KPI -> Level Simplification — Owner Correction: Grade Removed From Configuration Gates Too
 

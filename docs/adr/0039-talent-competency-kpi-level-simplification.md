@@ -121,9 +121,9 @@ non-empty (`basicsComplete`) before showing Ready. The Owner has now
 directly, explicitly corrected this: none of the three may gate on Program
 Grade configuration at all. Restated precisely:
 
-- **Start Assessment**: a Student's current effective Placement is
-  sufficient once tenant/Academic-Year scope and the Program's Academic
-  Year enablement (`is_enabled`) are satisfied - the Student's Placement
+- **Start Assessment**: a Student's current effective Placement in the
+  Evaluation/Cycle's own Academic Year is sufficient (see the further
+  correction below removing `is_enabled` too) - the Student's Placement
   Grade is never checked against the Program's `eligible_grade_levels`.
   Grade remains captured on the resulting population member/Assessment as
   historical/context data only.
@@ -142,6 +142,26 @@ Grade configuration at all. Restated precisely:
   but is never part of the Ready/Not-Ready gate. Readiness is exactly the
   assessment build itself: at least one Competency, with at least one KPI,
   with at least one Level, saved.
+
+## Further Owner correction (same day): Program Academic Year enablement is not a gate for the normal path either
+
+`TalentProgramAcademicYearConfiguration.is_enabled` was still required by
+both `_current_placement_for_assessment` (Start Assessment) and
+`current_placements_for_assessment` (the Student Assessments list) - a
+Student could not appear or start unless a configuration row existed and
+was explicitly enabled for that Program/Academic Year. The Owner has now
+corrected this too: the Evaluation/Cycle already supplies the Academic
+Year, and a Student's valid current Placement in that exact Academic Year
+is sufficient - the Program's own annual-configuration enabled/disabled
+state (or its absence entirely) is never a gate on the normal Student
+Assessments roster or Start Assessment path. Kept, unchanged: School Group
+(tenant) isolation, Branch authorization, Academic Year match, a genuinely
+current Student Placement, the saved Competency+KPI+Level requirement
+(ADR 0039's own core decision, unaffected), and immutable historical
+evidence protection. `derive_eligible_population` (the legacy M4/frozen-
+population path) is unchanged and still requires an enabled configuration
+for its own callers - not rewritten here, same boundary as the Grade
+correction above.
 
 # Status
 

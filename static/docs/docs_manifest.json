@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-12T02:05:29.423385+03:00",
+  "generated_at": "2026-09-12T02:15:25.190136+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "d6c5a06",
+  "commit_sha": "778641a",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "ae5a0b2c46ad757ed898562bcbc91d1b278b26cb6c2feb15f46962aee882f618",
-  "pdf_size_bytes": 1813342,
+  "pdf_sha256": "9006d30ad9120b3acec1ac9ae135c41f9c1b3babd561f13f8f8ca615ae45bb27",
+  "pdf_size_bytes": 1815069,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -46,9 +46,9 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-12T02:04:14.883349+03:00",
-      "size_bytes": 174597,
-      "sha256": "9a898bb8b2e5a32843cf426b406e1e21f94f135c1dc3c59a85b48bb3ddc31c70",
+      "modified_at": "2026-09-12T02:15:08.594352+03:00",
+      "size_bytes": 176044,
+      "sha256": "e40383c317f757fadb3c19e741e08ffc5ffc3789f5ee804f28e6c6b222fcf9dc",
       "pdf_page": 103
     },
     {
@@ -466,9 +466,9 @@
     },
     {
       "path": "docs/adr/0039-talent-competency-kpi-level-simplification.md",
-      "modified_at": "2026-09-12T02:04:49.698165+03:00",
-      "size_bytes": 8657,
-      "sha256": "7bba4f21a98e4743763595e9efdca31680d23304853dc2b9ad2de325e8e2537a",
+      "modified_at": "2026-09-12T02:14:54.507882+03:00",
+      "size_bytes": 9939,
+      "sha256": "2bc9e7b8b9c7852f8e68150326ad9ba136291c9f58bc2c8f2048a30301df74f5",
       "pdf_page": 463
     },
     {

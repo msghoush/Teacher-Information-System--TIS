@@ -106,22 +106,13 @@ def _assert_editable(db, assessment, expected_revision):
 def _current_placement_for_assessment(db, *, cycle, student_id, at):
     """Resolve the Student's current placement for Start Assessment (Owner correction).
 
-    Grade is never an eligibility gate here - only tenant scope, the
-    Program's Academic Year enablement, and a genuinely current effective
-    Placement are required. Grade is still captured on the resulting
-    population member/Assessment as historical/context data (unchanged).
+    Grade is never an eligibility gate here, and neither is the Program's own
+    annual-configuration enabled/disabled state - only School Group isolation,
+    Academic Year match (the Evaluation/Cycle already supplies the Academic
+    Year), and a genuinely current effective Placement are required. Grade is
+    still captured on the resulting population member/Assessment as
+    historical/context data (unchanged).
     """
-    config = db.query(models.TalentProgramAcademicYearConfiguration).filter_by(
-        school_group_id=cycle.school_group_id,
-        program_id=cycle.program_id,
-        academic_year_id=cycle.academic_year_id,
-        is_enabled=True,
-    ).one_or_none()
-    if config is None:
-        raise TalentStudentAssessmentError(
-            "annual_configuration_unavailable",
-            "This Program is not enabled for the selected Academic Year.",
-        )
     placement = db.query(models.StudentAcademicPlacement).filter(
         models.StudentAcademicPlacement.school_group_id == cycle.school_group_id,
         models.StudentAcademicPlacement.student_id == int(student_id),

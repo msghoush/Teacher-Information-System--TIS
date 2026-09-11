@@ -194,6 +194,50 @@ def test_normal_student_assessments_roster_and_start_are_never_grade_gated(db):
     assert foreign_roster == []
 
 
+def test_normal_roster_and_start_work_with_no_annual_program_configuration_at_all(db):
+    """Owner correction: TalentProgramAcademicYearConfiguration.is_enabled (or
+    its absence entirely) must not block the normal Student Assessments
+    roster or Start Assessment. The Evaluation/Cycle already supplies the
+    Academic Year; a valid current Placement in that Academic Year, plus a
+    saved Competency+KPI+Level, is sufficient."""
+    _, session = db
+    program = create_program(session, school_group_id=1, name="Mental Math")
+    transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Mental Math Framework")
+    lineage = create_competency(session, school_group_id=1, program_id=program.id, code="MC", name="Mental Computation")
+    member, framework = add_framework_competency(session, school_group_id=1, program_id=program.id, framework_id=framework.id, competency_id=lineage.id, expected_revision=framework.revision)
+    _, framework = upsert_rubric(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, framework_competency_id=member.id)
+    add_rubric_level(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, code="L1", label="Level 1", framework_competency_id=member.id)
+    session.commit()
+    framework = session.query(models.TalentProgramFrameworkVersion).filter_by(id=framework.id).one()
+    activate_framework(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, expected_fingerprint=framework.semantic_fingerprint, organization_authorized=True)
+    session.commit()
+    # Deliberately no upsert_annual_configuration call at all - no
+    # TalentProgramAcademicYearConfiguration row exists for this Program/Year.
+    assert session.query(models.TalentProgramAcademicYearConfiguration).filter_by(program_id=program.id, academic_year_id=100).count() == 0
+
+    student, _ = student_placement(session, first="NoConfig", section=1000, grade="1")
+    session.commit()
+    cycle = draft_cycle(session, program, framework)
+
+    roster = current_placements_for_assessment(session, cycle=cycle, effective_at=datetime(2026, 10, 1))
+    assert [row["student_id"] for row in roster] == [student.id]
+
+    assessment = start_assessment_for_evaluation(session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=student.id)
+    assert assessment.status == "in_progress"
+    session.commit()
+
+    # Now with a real but explicitly disabled annual configuration - same result.
+    other_student, _ = student_placement(session, first="DisabledConfig", section=1000, grade="1")
+    session.commit()
+    upsert_annual_configuration(session, school_group_id=1, program_id=program.id, academic_year_id=100, is_enabled=False, eligible_grade_levels=["1"])
+    session.commit()
+    disabled_roster = current_placements_for_assessment(session, cycle=cycle, effective_at=datetime(2026, 10, 1))
+    assert {row["student_id"] for row in disabled_roster} == {student.id, other_student.id}
+    other_assessment = start_assessment_for_evaluation(session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=other_student.id)
+    assert other_assessment.status == "in_progress"
+
+
 def test_current_student_status_never_reinterprets_historical_eligibility(db):
     # Student.status is only current mutable state with no effective-dated
     # history (see models.py Student / student_academic_service.py). A
