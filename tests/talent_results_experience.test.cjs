@@ -139,6 +139,15 @@ test('Talent navigation has one primary module entry, not a duplicated analytics
   assert.match(template, /aria-label="Results and Analytics views"/);
 });
 
+test('top-level Talent navigation resets child context while analytics sub-navigation preserves analysis context', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /document\.querySelectorAll\('\.tp-nav a, \.sidebar-tree a\[href\*="\/talent\/"\]'\)/);
+  assert.match(source, /next\.search=qs\(\{academic_year_id:year\.value\}\)/);
+  assert.match(source, /document\.querySelectorAll\('\.tp-results-nav a'\)/);
+  assert.match(source, /program_id:params\.get\('program_id'\)/);
+  assert.match(source, /\['programs','evaluation-plans','assessments','analytics'/);
+});
+
 test('Apply-context ceremony is removed: selections auto-apply, no required confirm click', () => {
   const template = fs.readFileSync(path.join(__dirname, '..', 'templates', 'talent', 'workspace.html'), 'utf8');
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
