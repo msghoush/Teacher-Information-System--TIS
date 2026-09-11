@@ -149,12 +149,22 @@ def assessment_contexts(request: Request, program_id: int | None = Query(None),
         models.TalentAssessmentCycle.created_at.asc(),
         models.TalentAssessmentCycle.id.asc(),
     ).all()
+    period_ids = {row.planned_evaluation_period_id for row in rows if row.planned_evaluation_period_id is not None}
+    periods = {
+        row.id: row for row in db.query(models.TalentPlannedEvaluationPeriod).filter(
+            models.TalentPlannedEvaluationPeriod.school_group_id == group_id,
+            models.TalentPlannedEvaluationPeriod.id.in_(period_ids or [-1]),
+        ).all()
+    }
     return [{
         "id": row.id,
         "program_id": row.program_id,
         "academic_year_id": row.academic_year_id,
         "framework_version_id": row.framework_version_id,
         "title": row.title,
+        "evaluation_period_id": row.planned_evaluation_period_id,
+        "evaluation_label": periods[row.planned_evaluation_period_id].label if row.planned_evaluation_period_id in periods else row.title,
+        "evaluation_sequence": periods[row.planned_evaluation_period_id].sequence if row.planned_evaluation_period_id in periods else None,
     } for row in rows]
 
 
