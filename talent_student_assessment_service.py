@@ -744,6 +744,72 @@ def _applicable_competencies(db, assessment):
     return query.all()
 
 
+def overall_program_result(db: Session, assessment):
+    """Deterministic normalized 0-100 result across all applicable competencies.
+
+    Each competency contributes equally. Its selected rubric level is normalized
+    by position within that competency's own ordered rubric, so competencies
+    with different level counts remain comparable. This is a result projection,
+    not an Official Identification decision and not a replacement for governed
+    Review Candidate policy.
+    """
+    competencies = _applicable_competencies(db, assessment)
+    if not competencies:
+        return None
+    results = {
+        row.framework_competency_id: row
+        for row in db.query(models.TalentStudentCompetencyResult).filter_by(
+            school_group_id=assessment.school_group_id,
+            assessment_id=assessment.id,
+        ).all()
+    }
+    if any(item.id not in results for item in competencies):
+        return None
+
+    components = []
+    total_basis_points = 0
+    for competency in competencies:
+        result = results[competency.id]
+        levels = db.query(models.TalentRubricLevel).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=assessment.framework_version_id,
+            rubric_id=result.rubric_id,
+        ).order_by(
+            models.TalentRubricLevel.display_order,
+            models.TalentRubricLevel.id,
+        ).all()
+        if not levels:
+            return None
+        index = next((idx for idx, level in enumerate(levels) if level.id == result.rubric_level_id), None)
+        if index is None:
+            return None
+        count = len(levels)
+        normalized_basis_points = 10000 if count == 1 else _round_half_up(index * 10000, count - 1)
+        total_basis_points += normalized_basis_points
+        level = levels[index]
+        components.append({
+            "framework_competency_id": competency.id,
+            "competency_label": competency.label,
+            "rubric_id": result.rubric_id,
+            "rubric_level_id": level.id,
+            "level_label": level.label,
+            "position": index + 1,
+            "total_levels": count,
+            "normalized_score": _round_half_up(normalized_basis_points, 100),
+        })
+
+    average_basis_points = _round_half_up(total_basis_points, len(components))
+    return {
+        "score": _round_half_up(average_basis_points, 100),
+        "scale_min": 0,
+        "scale_max": 100,
+        "competency_count": len(components),
+        "components": components,
+        "calculation_method": "equal_competency_normalized_rubric_position",
+    }
+
+
 def _validate_completeness(db, assessment):
     required = {row.id for row in _applicable_competencies(db, assessment)}
     results = db.query(models.TalentStudentCompetencyResult).filter_by(
