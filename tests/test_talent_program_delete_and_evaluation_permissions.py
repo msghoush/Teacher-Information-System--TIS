@@ -467,7 +467,7 @@ def test_linking_an_evaluation_period_requires_select_period_permission(db):
 
 def test_new_permission_keys_are_registered_with_the_same_additive_shape():
     import permission_registry as pr
-    for key in ("talent_programs.delete", "talent_programs.delete_competency", "talent_programs.delete_rubric_level", "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline", "talent_evaluation_plans.select_period"):
+    for key in ("talent_programs.delete", "talent_programs.delete_competency", "talent_programs.delete_rubric_level", "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline", "talent_evaluation_plans.select_period", "talent_assessments.reset_for_reassessment"):
         assert key in pr.ALL_PERMISSION_KEYS
         assert key in pr.PERMISSION_LABELS and isinstance(pr.PERMISSION_LABELS[key], str) and pr.PERMISSION_LABELS[key]
         assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
@@ -483,3 +483,7 @@ def test_new_permission_keys_are_registered_with_the_same_additive_shape():
     assert "talent_evaluation_plans.select_period" in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
     assert "talent_evaluation_plans.select_period" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
     assert "talent_evaluation_plans.select_period" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
+    assert "talent_assessments.reset_for_reassessment" not in pr._EDITOR_LIKE_PERMISSIONS
+    assert "talent_assessments.reset_for_reassessment" in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
+    assert "talent_assessments.reset_for_reassessment" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
+    assert "talent_assessments.reset_for_reassessment" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
