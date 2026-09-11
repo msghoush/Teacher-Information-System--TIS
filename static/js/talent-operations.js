@@ -94,18 +94,21 @@
       const saved=new Map(results.map(r=>[r.framework_competency_id,r]));
       const levels=configuration.levels || [];
       const assessmentGrade=String(assessment.context?.grade_level || '');
+      const allCompetencies=framework.competencies || [];
+      const hasExplicitGradeScope=allCompetencies.some(c=>String(c.grade_level || '').trim());
       const gradeScopedDescriptorIds=new Set(
         (configuration.descriptors || [])
           .filter(d=>String(d.grade_level || '')===assessmentGrade)
           .map(d=>d.framework_competency_id)
       );
       const hasAnyGradeScopedDescriptors=(configuration.descriptors || []).some(d=>String(d.grade_level || '').trim());
-      // Grade-specific Programs show only competencies that actually belong to
-      // the Student's historical Grade. Ungraded/legacy Frameworks keep their
-      // existing framework-wide competency behavior.
-      const competencies=(framework.competencies || []).filter(c=>
-        !hasAnyGradeScopedDescriptors || gradeScopedDescriptorIds.has(c.id)
-      );
+      // Explicit Framework competency Grade is authoritative. The descriptor
+      // inference below is retained only for pre-migration Frameworks that have
+      // Grade-specific descriptors but no explicit competency Grade yet.
+      const competencies=allCompetencies.filter(c=>{
+        if(hasExplicitGradeScope) return !c.grade_level || String(c.grade_level)===assessmentGrade;
+        return !hasAnyGradeScopedDescriptors || gradeScopedDescriptorIds.has(c.id);
+      });
       const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===assessmentGrade)?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
       let inputs=[];
       if(can('talent_educator_inputs.view')) inputs=await api(`/api/talent/educator-inputs?${query({student_id:assessment.student_id,program_id:assessment.program_id})}`);
