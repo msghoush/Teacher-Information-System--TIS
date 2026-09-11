@@ -16,7 +16,7 @@ from auth import get_current_user
 from routers.students import router as students_router
 from student_academic_service import (
     StudentAcademicError, add_external_identifier, correct_placement, create_placement, create_student,
-    deactivate_external_identifier, delete_student, delete_students, end_placement, get_student, list_placements,
+    deactivate_external_identifier, delete_student, delete_students, force_delete_student_history, end_placement, get_student, list_placements,
     list_students, resolve_placement, transition_placement, update_student,
 )
 
@@ -90,6 +90,28 @@ def test_student_delete_is_permanent_only_before_academic_or_talent_history(data
     assert error.value.code == "student_delete_blocked"
     db.rollback()
     assert db.get(models.Student, protected.id) is not None
+
+
+def test_force_delete_student_history_removes_protected_academic_history(database):
+    _, db = database
+    student = _student(db, first="Force")
+    placement = create_placement(
+        db, school_group_id=1, student_id=student.id, branch_id=10,
+        academic_year_id=100, planning_section_id=1000,
+        effective_from=datetime(2026, 9, 1),
+    )
+    db.commit()
+
+    with pytest.raises(StudentAcademicError) as blocked:
+        delete_student(db, school_group_id=1, student_id=student.id)
+    assert blocked.value.code == "student_delete_blocked"
+    db.rollback()
+
+    force_delete_student_history(db, school_group_id=1, student_id=student.id)
+    db.commit()
+    assert db.get(models.Student, student.id) is None
+    assert db.query(models.StudentAcademicPlacement).filter_by(id=placement.id).count() == 0
+    assert db.query(models.StudentAudit).filter_by(student_id=student.id, school_group_id=1).count() == 0
 
 
 def test_student_bulk_delete_is_atomic_when_any_selected_student_is_protected(database):
