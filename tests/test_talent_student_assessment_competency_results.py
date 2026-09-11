@@ -471,6 +471,11 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
     )
     session.commit()
 
+    # A completed legacy/shared-rubric Assessment is not stale merely because
+    # the old representation exists; re-evaluation begins only after a complete
+    # current competency-owned rubric actually supersedes its persisted binding.
+    assert reassessment_requirement(session, completed) is None
+
     # An unchanged legacy-compatible clone alone must not force re-evaluation.
     revised = create_framework_draft(
         session, school_group_id=1, program_id=program.id,
