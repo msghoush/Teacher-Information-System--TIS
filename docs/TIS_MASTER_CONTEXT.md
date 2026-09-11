@@ -1622,6 +1622,8 @@ Plan slice instead of re-fetching the whole workspace graph. Same-context
 wizard navigation and Save Rubric can redraw from the current bounded cache with
 zero network reads.
 
+Evaluation Plan initial load uses the selected Program directly and parallelizes
+Plan, Program, Cycle, annual-configuration, and Framework reads. Subsequent
 Evaluation Plan edits retain the rendered workspace and refresh only Plan/Cycle
 data; they do not refetch Programs, annual Program configuration, or Frameworks.
 Student Assessment opening parallelizes Program, result, Framework/configuration,
