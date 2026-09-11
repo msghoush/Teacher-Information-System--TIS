@@ -1,8 +1,8 @@
 knowledge_impact: no
-summary: "PostgreSQL compatibility hotfix for the already-governed Talent reassessment migration. The migration now emits a PostgreSQL-native TRUE boolean default instead of integer 1; no product behavior, architecture, schema intent, permissions, analytics semantics, or approved KMS decisions change."
+summary: "Talent Rubric Start Editing UI fix. Rubric mode now selects the newest Draft Framework after creating/cloning an editable version so Grade sections immediately expose Add Competency. No product requirements, data model, API contract, permissions, analytics semantics, or governed architecture change."
 affected_areas:
-  - database-migrations
-  - talent-student-assessment
+  - talent-rubric-ui
+  - talent-program-setup
 kms_files_updated:
-no_impact_reason: "db_migrations.py is a major-change path, but this patch does not alter migration intent or schema semantics; it only expresses the already-approved is_current BOOLEAN NOT NULL default using PostgreSQL-valid TRUE instead of integer 1, while SQLite retains DEFAULT 1. Product behavior and the resulting schema meaning are unchanged."
-major_change_override: yes
+no_impact_reason: "Implementation defect correction only. The approved Grade -> Competency -> competency-owned Rubric -> Levels workflow is unchanged; this patch makes the existing Start Editing action open the newest editable Draft instead of reselecting an older in-use Draft."
+major_change_override: no
