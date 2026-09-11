@@ -945,72 +945,57 @@ def _clone_m3_configuration(db, *, source, target):
     target_members = {row.talent_competency_id: row.id for row in _framework_members(db, target.id)}
     member_map = {source_id: target_members[competency_id] for source_id, competency_id in source_members.items()}
 
-    # Keys include the source Framework Competency because a legacy shared
-    # rubric is intentionally expanded into one independent rubric per
-    # competency in the cloned editable Framework.
     rubric_map = {}
     level_map = {}
     for rubric in _rubrics(db, source.id):
-        scoped_source_members = (
-            [rubric.framework_competency_id]
-            if rubric.framework_competency_id is not None
-            else list(source_members)
+        target_rubric = models.TalentRubric(
+            school_group_id=target.school_group_id,
+            program_id=target.program_id,
+            framework_version_id=target.id,
+            framework_competency_id=(
+                member_map.get(rubric.framework_competency_id)
+                if rubric.framework_competency_id is not None else None
+            ),
+            name=rubric.name,
+            description=rubric.description,
         )
-        source_levels = db.query(models.TalentRubricLevel).filter_by(
+        db.add(target_rubric); db.flush()
+        rubric_map[rubric.id] = target_rubric.id
+        for level in db.query(models.TalentRubricLevel).filter_by(
             rubric_id=rubric.id
-        ).order_by(models.TalentRubricLevel.display_order).all()
-        for source_member_id in scoped_source_members:
-            target_member_id = member_map[source_member_id]
-            target_rubric = models.TalentRubric(
+        ).order_by(models.TalentRubricLevel.display_order):
+            copied = models.TalentRubricLevel(
                 school_group_id=target.school_group_id,
                 program_id=target.program_id,
                 framework_version_id=target.id,
-                framework_competency_id=target_member_id,
-                name=rubric.name,
-                description=rubric.description,
+                rubric_id=target_rubric.id,
+                code=level.code,
+                label=level.label,
+                description=level.description,
+                display_order=level.display_order,
+                numeric_value=level.numeric_value,
             )
-            db.add(target_rubric); db.flush()
-            rubric_map[(rubric.id, source_member_id)] = target_rubric.id
-            for level in source_levels:
-                copied = models.TalentRubricLevel(
-                    school_group_id=target.school_group_id,
-                    program_id=target.program_id,
-                    framework_version_id=target.id,
-                    rubric_id=target_rubric.id,
-                    code=level.code,
-                    label=level.label,
-                    description=level.description,
-                    display_order=level.display_order,
-                    numeric_value=level.numeric_value,
-                )
-                db.add(copied); db.flush()
-                level_map[(level.id, source_member_id)] = copied.id
+            db.add(copied); db.flush()
+            level_map[level.id] = copied.id
 
     for descriptor in db.query(models.TalentCompetencyRubricDescriptor).filter_by(
         framework_version_id=source.id
     ):
-        key = (descriptor.rubric_id, descriptor.framework_competency_id)
-        level_key = (descriptor.rubric_level_id, descriptor.framework_competency_id)
-        if key not in rubric_map or level_key not in level_map:
-            continue
         db.add(models.TalentCompetencyRubricDescriptor(
             school_group_id=target.school_group_id, program_id=target.program_id,
-            framework_version_id=target.id, rubric_id=rubric_map[key],
+            framework_version_id=target.id, rubric_id=rubric_map[descriptor.rubric_id],
             framework_competency_id=member_map[descriptor.framework_competency_id],
-            rubric_level_id=level_map[level_key], descriptor=descriptor.descriptor,
+            rubric_level_id=level_map[descriptor.rubric_level_id],
+            descriptor=descriptor.descriptor,
         ))
     for descriptor in db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
         framework_version_id=source.id
     ):
-        key = (descriptor.rubric_id, descriptor.framework_competency_id)
-        level_key = (descriptor.rubric_level_id, descriptor.framework_competency_id)
-        if key not in rubric_map or level_key not in level_map:
-            continue
         db.add(models.TalentGradeCompetencyRubricDescriptor(
             school_group_id=target.school_group_id, program_id=target.program_id,
-            framework_version_id=target.id, rubric_id=rubric_map[key],
+            framework_version_id=target.id, rubric_id=rubric_map[descriptor.rubric_id],
             framework_competency_id=member_map[descriptor.framework_competency_id],
-            rubric_level_id=level_map[level_key],
+            rubric_level_id=level_map[descriptor.rubric_level_id],
             grade_level=descriptor.grade_level, descriptor=descriptor.descriptor,
         ))
 
@@ -1050,19 +1035,13 @@ def _clone_m3_configuration(db, *, source, target):
         for rule in db.query(models.TalentReviewCandidateRule).filter_by(
             policy_id=source_policy.id
         ).order_by(models.TalentReviewCandidateRule.display_order):
-            mapped_rubric_id = None
-            mapped_level_id = None
-            if rule.framework_competency_id is not None and rule.rubric_id is not None:
-                mapped_rubric_id = rubric_map.get((rule.rubric_id, rule.framework_competency_id))
-            if rule.framework_competency_id is not None and rule.rubric_level_id is not None:
-                mapped_level_id = level_map.get((rule.rubric_level_id, rule.framework_competency_id))
             db.add(models.TalentReviewCandidateRule(
                 school_group_id=target.school_group_id, program_id=target.program_id,
                 framework_version_id=target.id, policy_id=target_policy.id,
                 rule_type=rule.rule_type, display_order=rule.display_order,
                 framework_competency_id=member_map.get(rule.framework_competency_id),
-                rubric_id=mapped_rubric_id,
-                rubric_level_id=mapped_level_id,
+                rubric_id=rubric_map.get(rule.rubric_id),
+                rubric_level_id=level_map.get(rule.rubric_level_id),
                 threshold_value=rule.threshold_value,
             ))
     db.flush()
