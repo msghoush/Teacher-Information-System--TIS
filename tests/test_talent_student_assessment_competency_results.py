@@ -17,7 +17,7 @@ from routers.talent_programs import router as programs_router
 from student_academic_service import create_placement, create_student, transition_placement
 from talent_assessment_cycle_service import create_cycle, open_cycle
 from talent_program_service import (
-    activate_framework, add_framework_competency, add_rubric_level, configure_kpi,
+    TalentProgramError, activate_framework, add_framework_competency, add_rubric_level, configure_kpi,
     create_competency, create_framework_draft, create_program, transition_program,
     upsert_annual_configuration, upsert_descriptor, upsert_rubric,
 )
@@ -493,3 +493,30 @@ def test_reassessment_migration_is_additive_and_idempotent(db):
         db_migrations._talent_assessment_reassessment_attempts(engine, connection)
     columns = {row["name"] for row in inspect(engine).get_columns("talent_student_assessments")}
     assert {"is_current", "reassessment_of_assessment_id"}.issubset(columns)
+
+
+def test_framework_with_assessment_history_requires_new_version_before_semantic_edit(db):
+    _, session = db
+    program, framework, cycle, member, _, _, _, _ = foundation(session)
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    session.commit()
+    # Legacy/simple assessment flow can leave evidence against a Draft-labelled
+    # framework. The presence of Assessment history, not the label alone, makes
+    # semantic edits unsafe.
+    framework.status = "draft"
+    session.commit()
+    lineage = create_competency(
+        session, school_group_id=1, program_id=program.id,
+        code="LATE", name="Late competency",
+    )
+    with pytest.raises(TalentProgramError) as blocked:
+        add_framework_competency(
+            session, school_group_id=1, program_id=program.id,
+            framework_id=framework.id, competency_id=lineage.id,
+            expected_revision=framework.revision,
+        )
+    assert blocked.value.code == "framework_in_use"
+    assert get_assessment(session, school_group_id=1, assessment_id=assessment.id).framework_version_id == framework.id
