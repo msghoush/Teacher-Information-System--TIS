@@ -1548,26 +1548,86 @@ Any Framework Version already referenced by a Student Assessment is semantically
 ## Talent Overall Program Result Authority
 
 ADR 0037 governs the deterministic cross-competency result for one Talent
-Student Assessment. Rubric level number is the level's ordered proficiency
-position (`TalentRubricLevel.display_order`) within that competency-owned
-rubric and is rendered beside the level name; it is not a second manually
-entered numeric score.
+Student Assessment.
 
-When every Grade-applicable competency has a saved result, TIS derives one
-**Overall Program Result** on a 0-100 scale. Each competency contributes equally.
-Its selected level is normalized from first level = 0 to last level = 100 using
-that competency's own rubric length, then the normalized competency scores are
-averaged and rounded half-up. This prevents a five-level competency from
-outweighing a three-level competency merely because its scale is longer.
+Rubric level number is the ordered proficiency position within the
+competency-owned rubric and is rendered beside the level name. The canonical
+Overall Program Result is the arithmetic mean of all Grade-applicable selected
+rubric ranks on one coherent Program scale, for example `4.4 / 5`. Applicable
+competency rubrics must therefore use the same ordered level count before an
+Assessment can be completed.
 
-The calculation is a read projection
-(`equal_competency_normalized_rubric_position`) over the exact immutable
-Assessment/Framework/results; it adds no schema or migration. Existing optional
-Framework KPI configuration remains separate and unchanged.
+The calculation identifier is `arithmetic_mean_rubric_rank`. TIS may derive
+`average / scale_max * 100` only for visual normalization such as bar length or
+color intensity; that percentage is not the canonical educational result.
 
-Talent Review surfaces this Overall Program Result as the primary
-cross-competency numeric summary with an accessible low-to-high visual treatment.
-The score may support Review Candidate review but does not itself create a
-Review Candidate and never records Official Identification. Official
-Identification remains a separate authorized human decision. No hidden
-low/medium/high or talented/not-talented thresholds are introduced.
+The result is a read projection over the exact immutable
+Assessment/Framework/results and adds no schema migration. Existing optional KPI
+configuration remains separate.
+
+A Student may have separate results in multiple Talent Programs. TIS may show
+those Program results together, including in a Students Across Programs matrix,
+but it must never average or collapse them into one universal Talent score.
+
+Talent Review surfaces the Program-scale Overall Result as evidence. Review
+Candidate policy and Official Identification remain separate. Official
+Identification is still a separately authorized human decision, and no result
+threshold automatically identifies a Student.
+
+## Talent Evaluation-First Assessment And Review Workflow
+
+ADR 0038 governs the operational information architecture:
+
+**Evaluation Period -> Program -> Student**.
+
+The existing Annual Evaluation Plan / Planned Evaluation Period model remains
+the scheduling source of truth. Program setup surfaces configured Evaluation
+Periods alongside eligible Grades; no duplicate period table or hard-coded Term
+catalog is introduced. Repeated labels such as Term 1 are grouped once in the
+Student Assessments chooser with all participating Programs nested beneath.
+
+For a selected Program/Evaluation, the current operational Student list is
+driven by live Academic Placement eligibility from ADR 0035 plus tenant, Academic
+Year, eligible Grade, and authorized Branch/scope constraints. Students are
+shown as Not started, In progress, Completed, or Re-evaluation required.
+Historical Assessment Records remain a separate history section.
+
+ADR 0036 remains authoritative for re-evaluation. A materially changed newer
+Grade-applicable rubric keeps the previous completed attempt immutable and
+requires a new current attempt while retaining the original visible Evaluation
+context.
+
+Talent Review now represents all current completed Student Assessments in the
+authorized context, not only materialized Review Candidate rows. Review
+Candidate, review status, and Official Identification are shown as separate
+states. Completion may deterministically evaluate the existing Framework Review
+Candidate policy, but no-policy/non-qualifying results remain visible in Talent
+Review.
+
+## Talent Rubric Authoring, Results UX, And Performance
+
+New competency-owned rubric creation starts clean. Assessed legacy shared-rubric
+levels are never auto-copied into a new competency rubric. An author may
+explicitly use **Copy Levels From** another competency in the same current Draft
+Framework. Copying is one-time and independent; it may copy only level structure
+or level structure plus descriptions, and never copies Student evidence or
+historical Assessment state.
+
+The Programs list uses a bounded summary read instead of per-Program
+annual/framework/configuration fan-out. Same-context refreshes preserve rendered
+workspace content and use localized busy states rather than repeatedly blanking
+the page with full-screen loading.
+
+Talent operational UI uses the existing TIS light design system with stronger
+semantic status chips, evaluation/program cards, icons, low-to-high result
+visuals, richer review cards/tables, and responsive states. Color remains
+supplemental to visible numeric/text labels.
+
+Results & Analytics continues to use the existing governed privacy-closed M9/M10
+architecture. For a selected Program, privacy-visible completed rubric
+distributions may derive average competency rank and a Program-scale average.
+Organization/Branch/Grade views retain governed aggregate semantics and privacy
+suppression. The Student drill may show separate Program results and a
+Students Across Programs matrix when the identifiable P7 gate permits it; the
+browser must not reconstruct a universal cross-Program score.
+
