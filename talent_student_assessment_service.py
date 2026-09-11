@@ -271,6 +271,92 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     return assessment
 
 
+def _assessment_semantic_snapshot(db: Session, *, framework, grade):
+    """Student-facing assessment structure for one Framework and historical Grade.
+
+    Deliberately excludes Framework version/title/supersession metadata so a
+    no-op clone does not trigger re-evaluation. Only assessable content that can
+    change what the educator evaluates is compared.
+    """
+    member_query = db.query(models.FrameworkCompetency).filter_by(
+        school_group_id=framework.school_group_id,
+        program_id=framework.program_id,
+        framework_version_id=framework.id,
+    )
+    if grade:
+        member_query = member_query.filter(
+            (models.FrameworkCompetency.grade_level.is_(None))
+            | (models.FrameworkCompetency.grade_level == grade)
+        )
+    members = member_query.order_by(
+        models.FrameworkCompetency.display_order,
+        models.FrameworkCompetency.id,
+    ).all()
+
+    legacy_rubric = db.query(models.TalentRubric).filter(
+        models.TalentRubric.framework_version_id == framework.id,
+        models.TalentRubric.framework_competency_id.is_(None),
+    ).one_or_none()
+
+    result = []
+    for member in members:
+        rubric = db.query(models.TalentRubric).filter_by(
+            framework_version_id=framework.id,
+            framework_competency_id=member.id,
+        ).one_or_none() or legacy_rubric
+        levels = []
+        if rubric is not None:
+            for level in db.query(models.TalentRubricLevel).filter_by(
+                framework_version_id=framework.id,
+                rubric_id=rubric.id,
+            ).order_by(
+                models.TalentRubricLevel.display_order,
+                models.TalentRubricLevel.id,
+            ):
+                grade_descriptor = None
+                if grade:
+                    grade_descriptor = db.query(
+                        models.TalentGradeCompetencyRubricDescriptor
+                    ).filter_by(
+                        framework_version_id=framework.id,
+                        framework_competency_id=member.id,
+                        rubric_level_id=level.id,
+                        grade_level=grade,
+                    ).one_or_none()
+                generic_descriptor = db.query(
+                    models.TalentCompetencyRubricDescriptor
+                ).filter_by(
+                    framework_version_id=framework.id,
+                    framework_competency_id=member.id,
+                    rubric_level_id=level.id,
+                ).one_or_none()
+                levels.append({
+                    "order": level.display_order,
+                    "label": level.label,
+                    "description": level.description,
+                    "numeric_value": level.numeric_value,
+                    "achievement_description": (
+                        grade_descriptor.descriptor
+                        if grade_descriptor is not None
+                        else generic_descriptor.descriptor
+                        if generic_descriptor is not None
+                        else level.description
+                    ),
+                })
+        result.append({
+            "order": member.display_order,
+            "grade_level": member.grade_level,
+            "label": member.label,
+            "description": member.description,
+            "rubric": None if rubric is None else {
+                "name": rubric.name,
+                "description": rubric.description,
+                "levels": levels,
+            },
+        })
+    return result
+
+
 def reassessment_requirement(db: Session, assessment):
     """Return the newest materially-changed assessable Framework for a completed current Assessment.
 
@@ -298,25 +384,19 @@ def reassessment_requirement(db: Session, assessment):
         models.TalentProgramFrameworkVersion.program_id == assessment.program_id,
         models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
     ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all()
+    current_snapshot = _assessment_semantic_snapshot(
+        db, framework=current_framework, grade=grade
+    )
     for framework in candidates:
-        if framework.semantic_fingerprint == current_framework.semantic_fingerprint:
-            continue
-        has_level = db.query(models.TalentRubricLevel.id).filter_by(
-            school_group_id=assessment.school_group_id,
-            program_id=assessment.program_id,
-            framework_version_id=framework.id,
-        ).first() is not None
-        competency_query = db.query(models.FrameworkCompetency.id).filter_by(
-            school_group_id=assessment.school_group_id,
-            program_id=assessment.program_id,
-            framework_version_id=framework.id,
+        candidate_snapshot = _assessment_semantic_snapshot(
+            db, framework=framework, grade=grade
         )
-        if grade:
-            competency_query = competency_query.filter(
-                (models.FrameworkCompetency.grade_level.is_(None))
-                | (models.FrameworkCompetency.grade_level == grade)
-            )
-        if has_level and competency_query.first() is not None:
+        if candidate_snapshot == current_snapshot:
+            continue
+        if candidate_snapshot and any(
+            item.get("rubric") and item["rubric"].get("levels")
+            for item in candidate_snapshot
+        ):
             return framework
     return None
 
