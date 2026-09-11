@@ -169,6 +169,9 @@ def talent_review_workspace(
     cycle_id: int | None = Query(None),
     program_id: int | None = Query(None),
     academic_year_id: int | None = Query(None),
+    branch_id: int | None = Query(None),
+    grade_level: str | None = Query(None),
+    planning_section_id: int | None = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -200,6 +203,31 @@ def talent_review_workspace(
         models.TalentStudentAssessment.student_id,
         models.TalentStudentAssessment.id,
     ).all()
+
+    if branch_id is not None or grade_level is not None or planning_section_id is not None:
+        member_ids = {row.cycle_population_member_id for row in rows}
+        members = {
+            row.id: row
+            for row in db.query(models.TalentAssessmentCyclePopulationMember).filter(
+                models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,
+                models.TalentAssessmentCyclePopulationMember.id.in_(member_ids or [-1]),
+            ).all()
+        }
+        normalized_grade = str(grade_level or "").strip().upper()
+        filtered = []
+        for assessment in rows:
+            member = members.get(assessment.cycle_population_member_id)
+            if member is None:
+                continue
+            if branch_id is not None and member.branch_id != branch_id:
+                continue
+            if normalized_grade and str(member.grade_level or "").strip().upper() != normalized_grade:
+                continue
+            if planning_section_id is not None and member.planning_section_id != planning_section_id:
+                continue
+            filtered.append(assessment)
+        rows = filtered
+
     if not auth.can_access_all_branches(user):
         visible = _visible_branch_ids(db, user)
         member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
