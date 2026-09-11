@@ -700,12 +700,42 @@ def test_legacy_same_framework_rubric_replacement_resets_completed_student_for_r
 
 def test_admin_reset_for_reassessment_preserves_completed_evidence_and_allows_fresh_start(db):
     _, session = db
-    _, _, cycle, member, _, _, competencies, levels = foundation(session)
+    program, framework, cycle, member, _, _, competencies, _ = foundation(session)
+
+    # Model the current user-facing assessment tool: every Grade-applicable
+    # Framework Competency owns its rubric/levels. The normal Evaluation start
+    # path intentionally refuses a legacy shared-rubric-only framework.
+    owned_levels = []
+    for index, competency in enumerate(competencies, 1):
+        rubric = models.TalentRubric(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            framework_competency_id=competency.id,
+            name=f"Recovery rubric {index}",
+        )
+        session.add(rubric)
+        session.flush()
+        level = models.TalentRubricLevel(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            rubric_id=rubric.id,
+            code="LEVEL_1",
+            label="Secure",
+            description="Recovery test level",
+            display_order=1,
+        )
+        session.add(level)
+        session.flush()
+        owned_levels.append(level)
+    session.commit()
+
     assessment = start_assessment(
         session, school_group_id=1, cycle_id=cycle.id,
         cycle_population_member_id=member.id,
     )
-    assessment = set_all_results(session, assessment, competencies, levels)
+    assessment = set_all_results(session, assessment, competencies, owned_levels)
     completed = complete_assessment(
         session, school_group_id=1, assessment_id=assessment.id,
         expected_revision=assessment.revision,
