@@ -123,11 +123,17 @@ def test_effective_time_grade_eligibility_and_dynamic_draft_preview(db):
     create_student(session, school_group_id=1, first_name="No Placement", last_name="Learner")
     session.commit()
     cycle = draft_cycle(session, program, framework)
-    _, preview = preview_population(session, school_group_id=1, cycle_id=cycle.id)
+    _, preview = preview_population(
+        session, school_group_id=1, cycle_id=cycle.id,
+        effective_at=datetime(2026, 10, 1),
+    )
     assert [(row["student_id"], row["academic_placement_id"]) for row in preview] == [(eligible.id, placement.id)]
     config.eligible_grade_levels_csv = "1,4"
     session.commit()
-    _, changed = preview_population(session, school_group_id=1, cycle_id=cycle.id)
+    _, changed = preview_population(
+        session, school_group_id=1, cycle_id=cycle.id,
+        effective_at=datetime(2026, 10, 1),
+    )
     assert len(changed) == 2
 
 
@@ -141,11 +147,17 @@ def test_current_student_status_never_reinterprets_historical_eligibility(db):
     student, placement = student_placement(session, first="LaterInactive", start=datetime(2026, 9, 1))
     session.commit()
     cycle = draft_cycle(session, program, framework, effective=datetime(2026, 10, 1))
-    _, preview_before = preview_population(session, school_group_id=1, cycle_id=cycle.id)
+    _, preview_before = preview_population(
+        session, school_group_id=1, cycle_id=cycle.id,
+        effective_at=datetime(2026, 10, 1),
+    )
     assert [row["student_id"] for row in preview_before] == [student.id]
     update_student(session, school_group_id=1, student_id=student.id, status="inactive")
     session.commit()
-    _, preview_after = preview_population(session, school_group_id=1, cycle_id=cycle.id)
+    _, preview_after = preview_population(
+        session, school_group_id=1, cycle_id=cycle.id,
+        effective_at=datetime(2026, 10, 1),
+    )
     assert [row["student_id"] for row in preview_after] == [student.id]
     opened = open_cycle(session, school_group_id=1, cycle_id=cycle.id, expected_revision=cycle.revision,
                         organization_authorized=True)
@@ -153,6 +165,51 @@ def test_current_student_status_never_reinterprets_historical_eligibility(db):
     assert opened.population_count == 1
     _, members = frozen_population(session, school_group_id=1, cycle_id=cycle.id)
     assert [member.student_id for member in members] == [student.id]
+
+
+def test_live_preview_and_open_reconciliation_include_students_placed_after_configured_population_date(db):
+    """Owner-reproduced regression: the Cycle's configured Student list date
+    must not become a permanent cutoff for a Draft live preview or for ADR 0033
+    additive reconciliation while the Cycle is Open.
+    """
+    _, session = db
+    program, framework, _ = foundation(session, name="Mental Math", grades=("1",))
+    initial_student, _ = student_placement(
+        session, first="Initial", start=datetime(2026, 8, 1)
+    )
+    cycle = draft_cycle(
+        session, program, framework, effective=datetime(2026, 8, 30, 22, 4)
+    )
+
+    later_student, later_placement = student_placement(
+        session, first="Later", start=datetime(2026, 9, 5)
+    )
+
+    _, preview = preview_population(
+        session, school_group_id=1, cycle_id=cycle.id,
+        effective_at=datetime(2026, 9, 11),
+    )
+    assert {row["student_id"] for row in preview} == {initial_student.id, later_student.id}
+
+    opened = open_cycle(
+        session, school_group_id=1, cycle_id=cycle.id,
+        expected_revision=cycle.revision, organization_authorized=True,
+    )
+    session.commit()
+    _, initially_frozen = frozen_population(session, school_group_id=1, cycle_id=cycle.id)
+    assert {row.student_id for row in initially_frozen} == {initial_student.id}
+
+    reconciled, additions = reconcile_open_cycle_population(
+        session, school_group_id=1, cycle_id=cycle.id,
+        expected_revision=opened.revision, organization_authorized=True,
+        effective_at=datetime(2026, 9, 11),
+    )
+    session.commit()
+
+    assert [row.student_id for row in additions] == [later_student.id]
+    assert additions[0].academic_placement_id == later_placement.id
+    assert additions[0].population_effective_at == datetime(2026, 9, 11)
+    assert reconciled.population_count == 2
 
 
 def test_missing_disabled_config_and_unusable_framework_block_atomic_open(db):
