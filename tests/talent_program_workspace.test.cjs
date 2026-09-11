@@ -616,3 +616,38 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
   assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric');
   assert.equal(JSON.parse(write.options.body).framework_competency_id,71);
 });
+
+
+test('Rubric mode selects the newest Draft so Start Editing exposes Add Competency',async()=>{
+  const root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
+  const calls=[];
+  const versions=[
+    {id:31,status:'draft',version_number:1},
+    {id:32,status:'draft',version_number:2},
+  ];
+  const ctx={
+    root,year:'2026',yearLabel:'2026–2027',hash:'#tp-rubric',
+    params:new URLSearchParams('program_id=11'),
+    can:key=>key==='talent_programs.view'||key==='talent_programs.manage',
+    api:async(path,options)=>{
+      calls.push({path,options});
+      if(options)return {};
+      if(path==='/api/talent/programs')return [{id:11,name:'Mental Math',status:'active'}];
+      if(path.startsWith('/api/talent/programs/planning-grades'))return ['1','2','3'];
+      if(path.endsWith('/academic-years'))return [{academic_year_id:2026,is_enabled:true,eligible_grade_levels:['1','2','3']}];
+      if(path.endsWith('/frameworks'))return versions;
+      if(path.endsWith('/competencies'))return [];
+      if(path.endsWith('/frameworks/31'))return {id:31,status:'draft',version_number:1,revision:3,semantic_fingerprint:'old',in_use_by_assessments:true,competencies:[]};
+      if(path.endsWith('/frameworks/32'))return {id:32,status:'draft',version_number:2,revision:1,semantic_fingerprint:'new',in_use_by_assessments:false,competencies:[]};
+      if(path.includes('/frameworks/31/configuration'))return {rubric:null,levels:[],rubrics:[],descriptors:[],kpi:null,review_candidate_policy:null,revision:3,semantic_fingerprint:'old'};
+      if(path.includes('/frameworks/32/configuration'))return {rubric:null,levels:[],rubrics:[],descriptors:[],kpi:null,review_candidate_policy:null,revision:1,semantic_fingerprint:'new'};
+      if(path.startsWith('/api/talent/evaluation-plans?'))return [];
+      throw new Error(`Unexpected ${path}`);
+    }
+  };
+  await render(ctx);
+  assert.ok(calls.some(call=>call.path==='/api/talent/programs/11/frameworks/32'));
+  assert.doesNotMatch(root.innerHTML,/Edit Rubric Structure/);
+  assert.match(root.innerHTML,/\+ Add Competency/);
+  assert.match(root.innerHTML,/data-action="finish-rubric"/);
+});
