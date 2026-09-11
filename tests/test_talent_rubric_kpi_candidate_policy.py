@@ -524,3 +524,105 @@ def test_framework_competency_grade_scope_is_semantic_and_clones_independently(d
             grade_level="Grade 99",
         )
     assert invalid.value.code == "invalid_grade"
+
+
+def test_competencies_can_own_independent_rubrics_and_level_scopes(db):
+    program = create_program(db, school_group_id=1, name="Grade One Literacy")
+    transition_program(db, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(
+        db, school_group_id=1, program_id=program.id, title="Grade 1 Rubric"
+    )
+    reading = create_competency(
+        db, school_group_id=1, program_id=program.id,
+        code="READ", name="Reading Fluency",
+    )
+    writing = create_competency(
+        db, school_group_id=1, program_id=program.id,
+        code="WRITE", name="Writing Expression",
+    )
+    reading_member, framework = add_framework_competency(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=reading.id, expected_revision=framework.revision, grade_level="1",
+    )
+    writing_member, framework = add_framework_competency(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=writing.id, expected_revision=framework.revision, grade_level="1",
+    )
+
+    reading_rubric, framework = upsert_rubric(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=reading_member.id, expected_revision=framework.revision,
+        name="Oral Reading",
+    )
+    reading_level, framework = add_rubric_level(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=reading_member.id, expected_revision=framework.revision,
+        code="LEVEL_1", label="Beginning", description="Reads with limited accuracy.",
+    )
+    writing_rubric, framework = upsert_rubric(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=writing_member.id, expected_revision=framework.revision,
+        name="Sentence Writing",
+    )
+    writing_level, framework = add_rubric_level(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=writing_member.id, expected_revision=framework.revision,
+        code="LEVEL_1", label="Beginning", description="Writes simple words.",
+    )
+
+    assert reading_rubric.id != writing_rubric.id
+    assert reading_level.rubric_id == reading_rubric.id
+    assert writing_level.rubric_id == writing_rubric.id
+
+    config = get_framework_configuration(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id
+    )
+    by_member = {item["framework_competency_id"]: item for item in config["rubrics"]}
+    assert by_member[reading_member.id]["name"] == "Oral Reading"
+    assert by_member[writing_member.id]["name"] == "Sentence Writing"
+    assert by_member[reading_member.id]["levels"][0]["description"] == "Reads with limited accuracy."
+    assert by_member[writing_member.id]["levels"][0]["description"] == "Writes simple words."
+
+    with pytest.raises(TalentProgramError) as mismatch:
+        upsert_descriptor(
+            db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=reading_member.id,
+            rubric_level_id=writing_level.id,
+            expected_revision=framework.revision,
+            descriptor="Wrong rubric",
+        )
+    assert mismatch.value.code == "invalid_descriptor_scope"
+
+
+def test_cloning_legacy_shared_rubric_expands_it_per_competency(db):
+    program, framework, _, first_member, _ = foundation(db, name="Legacy Mental Math")
+    second = create_competency(
+        db, school_group_id=1, program_id=program.id,
+        code="FLEX", name="Number Flexibility",
+    )
+    second_member, framework = add_framework_competency(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=second.id, expected_revision=framework.revision, grade_level="1",
+    )
+    first_level, framework = add_rubric_level(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        expected_revision=framework.revision, code="LEVEL_1", label="Beginning",
+        description="Beginning description",
+    )
+    _, framework = upsert_descriptor(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=first_member.id, rubric_level_id=first_level.id,
+        expected_revision=framework.revision, descriptor="Legacy reading wording",
+    )
+
+    clone = create_framework_draft(
+        db, school_group_id=1, program_id=program.id,
+        title="Updated independent rubrics", clone_from_id=framework.id,
+        supersedes_framework_version_id=framework.id,
+    )
+    config = get_framework_configuration(
+        db, school_group_id=1, program_id=program.id, framework_id=clone.id
+    )
+    assert len(config["rubrics"]) == 2
+    assert all(item["framework_competency_id"] is not None for item in config["rubrics"])
+    assert all(len(item["levels"]) == 1 for item in config["rubrics"])
