@@ -34,6 +34,8 @@ from student_academic_service import (
     create_student,
     delete_student,
     delete_students,
+    force_delete_student_history,
+    student_delete_blockers,
     end_placement,
     get_student,
     list_audit_events,
@@ -288,6 +290,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
     organization_scope = auth.can_access_all_branches(user)
     can_delete = organization_scope and auth.has_permission(db, user, "students.delete", school_group_id=group_id)
     can_bulk_delete = organization_scope and auth.has_permission(db, user, "students.bulk_delete", school_group_id=group_id)
+    can_force_delete_history = organization_scope and auth.has_permission(db, user, "students.force_delete_history", school_group_id=group_id)
     years = _years(db, group_id)
 
     # Learning Style V1 (ADR 0031, Sections 6-8): Branch/Organization
@@ -325,6 +328,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "can_create": can_create,
         "can_delete": can_delete,
         "can_bulk_delete": can_bulk_delete,
+        "can_force_delete_history": can_force_delete_history,
         "error": request.query_params.get("error") or "",
         "success": request.query_params.get("success") or "",
     })
@@ -335,6 +339,7 @@ def students_bulk_delete_post(
     request: Request,
     student_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
+    force_history: str = Form(""),
     current_user=Depends(get_current_user),
 ):
     user, group_id, denied = _authorize(request, db, current_user, "students.bulk_delete")
@@ -351,8 +356,8 @@ def students_bulk_delete_post(
         return RedirectResponse(url=f"/students/?error={quote(exc.message)}", status_code=302)
 
 
-@router.post("/{student_id}/delete")
-def student_delete_post(
+@router.get("/{student_id}/delete-preview")
+def student_delete_preview_ui(
     request: Request,
     student_id: int,
     db: Session = Depends(get_db),
@@ -362,9 +367,41 @@ def student_delete_post(
     if denied:
         return denied
     if not auth.can_access_all_branches(user):
+        return JSONResponse({"detail": "Organization scope is required to permanently delete a Student."}, status_code=403)
+    try:
+        blockers = student_delete_blockers(db, school_group_id=group_id, student_id=student_id)
+        return {
+            "student_id": student_id,
+            "has_history": bool(blockers),
+            "blockers": blockers,
+            "can_force_delete_history": auth.has_permission(
+                db, user, "students.force_delete_history", school_group_id=group_id
+            ),
+        }
+    except StudentAcademicError as exc:
+        return JSONResponse({"detail": exc.message, "code": exc.code}, status_code=404 if exc.code == "not_found" else 400)
+
+
+@router.post("/{student_id}/delete")
+def student_delete_post(
+    request: Request,
+    student_id: int,
+    db: Session = Depends(get_db),
+    force_history: str = Form(""),
+    current_user=Depends(get_current_user),
+):
+    user, group_id, denied = _authorize(request, db, current_user, "students.delete")
+    if denied:
+        return denied
+    if not auth.can_access_all_branches(user):
         return HTMLResponse("Organization scope is required to permanently delete a Student.", status_code=403)
     try:
-        delete_student(db, school_group_id=group_id, student_id=student_id)
+        if str(force_history or "").strip().lower() in {"1", "true", "yes", "on"}:
+            if not auth.has_permission(db, user, "students.force_delete_history", school_group_id=group_id):
+                return HTMLResponse("Force delete history permission is required.", status_code=403)
+            force_delete_student_history(db, school_group_id=group_id, student_id=student_id)
+        else:
+            delete_student(db, school_group_id=group_id, student_id=student_id)
         db.commit()
         return RedirectResponse(url="/students/?success=deleted-1", status_code=302)
     except StudentAcademicError as exc:
