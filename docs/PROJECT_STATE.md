@@ -2289,3 +2289,22 @@ The Owner-directed Talent evaluation-process rebuild is implemented on `dev`. Pr
 ADR 0036 governs re-evaluation semantics. `TalentStudentAssessment` carries `is_current`, `reassessment_of_assessment_id`, and `evaluation_context_cycle_id` via migration `20260911_003_talent_assessment_reassessment_attempts`. Re-evaluation is triggered by actual Student-facing rubric-content changes for the Student's recorded Grade, not by a no-op Framework clone. Starting re-evaluation preserves the completed historical attempt and creates a new current attempt on the newer exact Framework while retaining the original Evaluation/Term identity. New Students in that Evaluation also start on the newest saved assessable rubric. Current-result analytics project the replacement attempt into the original Evaluation context and exclude the private replacement Cycle as a second population row.
 
 Production Results & Analytics still depends on governed external provider configuration under ADR 0028. The implementation already contains configuration-driven privacy-provider resolution and approved-value validation; missing Render environment configuration continues to fail closed rather than exposing unsuppressed indicators.
+
+## Talent Overall Program Result
+
+ADR 0037 is implemented on `dev`. New competency-owned rubric levels display
+their governed ordered number beside the level name. Student Assessments expose a
+deterministic `overall_result` once all applicable competency results exist.
+
+The result is normalized per competency to 0-100 using the selected level's
+position within that competency's own rubric, then averaged equally across
+competencies. This supports Programs whose competencies have different rubric
+lengths without scale-length bias. The calculation is read-only and requires no
+migration.
+
+Student Assessment and Talent Review show the Overall Program Result numerically
+and with a continuous accessible low-to-high visual. Talent Review no longer
+uses a single "highest rubric level" as the cross-competency summary because raw
+positions from differently-sized rubrics are not comparable. Review Candidate
+policy and Official Identification remain separate; no automatic talented/not
+talented classification is introduced.
