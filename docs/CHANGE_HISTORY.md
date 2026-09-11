@@ -15,6 +15,9 @@ source_of_truth: true
 - Closed the legacy reassessment gap for completed Students whose rubric was changed in place before assessed-Framework immutability was consistently enforced. When persisted completed rubric/level bindings no longer match a complete current competency-owned rubric on that same Framework, the Student surfaces **Re-evaluation required**. The prior completed attempt becomes non-current and the replacement starts empty/current/In Progress in the original visible Evaluation; evidence is preserved internally.
 - Untouched legacy shared rubrics and partially configured competency-owned rubrics do not produce false reassessment requirements.
 - Fixed Arabic/non-ASCII Grade-level Competency creation by removing the browser's ASCII-only generated-code path. The backend now assigns its existing unique Program-scoped internal code when the normal Rubric tool submits only name/description.
+- Added a permission-aware Talent & Potential child tree inside the main application sidebar for Overview, Programs, Student Assessments, Talent Review, and Results & Analytics.
+- Made every top-level Talent destination a context-reset boundary: only Academic Year is carried; stale Program/Cycle/Assessment/Branch/Grade/Section/metric/dimension context is not propagated across module sections. Student Assessments now owns its visible Program filter instead of inheriting the previously opened Program.
+- Simplified the Programs list to one normal **Open Program** entry point per row (plus separately authorized delete where applicable); Program-specific Edit Program, Build/Edit Rubric, Manage Evaluation Plan, Open Assessments, and View Results stay inside the opened Program workspace.
 - No schema migration, pricing, AI, analytics privacy, or tenant-isolation contract changed.
 
 ## 2026-09-11 — Talent current-rubric, reassessment, and granular delete correction
