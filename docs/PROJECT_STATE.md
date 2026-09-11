@@ -28,8 +28,8 @@ affordance.
 
 The Students list uses icon-only Add/Delete/Open actions with accessible names.
 A new `students.view_all_branches` permission controls the cross-Branch
-selector and **All branches** option; it is Administrator-default and still
-requires organization/global scope. Without it, the Students list is fixed to
+selector and **All branches** option; managed-role constraint keeps it
+Administrator-only and it still requires organization/global scope. Without it, the Students list is fixed to
 the actor's assigned authorized Branch. Learning Style aggregate privacy is
 unchanged: a missing governed privacy provider now produces a clear
 "statistics unavailable" panel instead of hiding the whole section, with no
