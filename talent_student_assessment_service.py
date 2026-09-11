@@ -469,6 +469,34 @@ def _same_framework_results_are_stale(db: Session, assessment, framework, grade)
     if not members:
         return False
 
+    # Only a complete current competency-owned rubric can supersede the
+    # completed legacy binding. A still-legacy or partially configured
+    # Framework is not a valid reassessment target and must not create a false
+    # "Re-evaluation required" state.
+    current_rubrics = {}
+    current_level_ids = {}
+    for member in members:
+        rubric = db.query(models.TalentRubric).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=framework.id,
+            framework_competency_id=member.id,
+        ).one_or_none()
+        if rubric is None:
+            return False
+        level_ids = {
+            row.id for row in db.query(models.TalentRubricLevel).filter_by(
+                school_group_id=assessment.school_group_id,
+                program_id=assessment.program_id,
+                framework_version_id=framework.id,
+                rubric_id=rubric.id,
+            ).all()
+        }
+        if not level_ids:
+            return False
+        current_rubrics[member.id] = rubric
+        current_level_ids[member.id] = level_ids
+
     results = {
         row.framework_competency_id: row
         for row in db.query(models.TalentStudentCompetencyResult).filter_by(
@@ -481,24 +509,9 @@ def _same_framework_results_are_stale(db: Session, assessment, framework, grade)
         return True
 
     for member in members:
-        rubric = db.query(models.TalentRubric).filter_by(
-            school_group_id=assessment.school_group_id,
-            program_id=assessment.program_id,
-            framework_version_id=framework.id,
-            framework_competency_id=member.id,
-        ).one_or_none()
-        if rubric is None:
-            return True
-        level_ids = {
-            row.id for row in db.query(models.TalentRubricLevel).filter_by(
-                school_group_id=assessment.school_group_id,
-                program_id=assessment.program_id,
-                framework_version_id=framework.id,
-                rubric_id=rubric.id,
-            ).all()
-        }
         result = results.get(member.id)
-        if result is None or result.rubric_id != rubric.id or result.rubric_level_id not in level_ids:
+        rubric = current_rubrics[member.id]
+        if result is None or result.rubric_id != rubric.id or result.rubric_level_id not in current_level_ids[member.id]:
             return True
     return False
 
