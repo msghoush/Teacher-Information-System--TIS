@@ -57,6 +57,38 @@ def test_new_student_workflow(db, client):
     assert created.status == "active"
 
 
+def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permissions(db, client):
+    permissions(db, "students.view", "students.delete", "students.bulk_delete")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    assert 'data-student-bulk-delete-form' in response.text
+    assert '/students/1001/delete' in response.text
+    assert 'data-student-select' in response.text
+
+
+def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, client):
+    permissions(db, "students.view", "students.delete", "students.bulk_delete")
+
+    single = client.post("/students/1002/delete")
+    assert single.status_code in (200, 302)
+    assert db.get(models.Student, 1002) is None
+
+    db.add(models.Student(id=1004, school_group_id=1, first_name="Safe", last_name="Delete", status="active"))
+    db.add(models.Student(id=1005, school_group_id=1, first_name="Protected", last_name="History", status="active"))
+    db.flush()
+    db.add(models.StudentAcademicPlacement(
+        school_group_id=1, student_id=1005, academic_year_id=100,
+        branch_id=10, grade_level="1", section_name="A",
+        effective_from=datetime(2026, 9, 1), status="active",
+    ))
+    db.commit()
+
+    bulk = client.post("/students/bulk-delete", data=[("student_ids", "1004"), ("student_ids", "1005")])
+    assert bulk.status_code in (200, 302)
+    assert db.get(models.Student, 1004) is not None
+    assert db.get(models.Student, 1005) is not None
+
+
 def test_profile_sections_render(db, client):
     permissions(db, "students.view", "talent_learner_profiles.view",
                 "talent_review_candidates.view", "talent_official_identifications.view")
