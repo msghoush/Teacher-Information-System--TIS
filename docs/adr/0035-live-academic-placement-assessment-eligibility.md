@@ -39,12 +39,15 @@ A Student is assessable when:
    Year at the assessment-start time;
 3. the Placement Grade is included in the Program's enabled Academic Year
    configuration;
-4. the Program has a usable active assessment framework/tool; and
+4. the Evaluation references a usable assessment framework/tool with at least
+   one competency and one rubric level; and
 5. the actor holds the existing assessment permission and authorized Branch
    scope.
 
-No additional Draft/Open/frozen-roster/synchronization/reconciliation state is
-a user-facing prerequisite to start an Assessment.
+No additional Program/Framework activation, Draft/Open Cycle,
+frozen-roster/synchronization/reconciliation state is a prerequisite to start
+an Assessment. The exact framework already referenced by the Evaluation is the
+assessment authority; its lifecycle label is not a second eligibility gate.
 
 Evaluation Periods such as Term 1, Term 2, or Final are assessment context. They
 do not require a separate "Open Evaluation" action before eligible Students can
@@ -82,7 +85,7 @@ Historical snapshots and existing persisted records remain valid.
 - Starting an Assessment captures historical placement/framework context at
   that moment.
 - No schema migration is required for this correction.
-- Tenant isolation, Branch authorization, assessment permissions, framework
-  validity, evidence immutability, and auditability remain enforced.
+- Tenant isolation, Branch authorization, assessment permissions, assessable
+  framework content, evidence immutability, and auditability remain enforced.
 - No new workflow or lifecycle gate may be added to this module without an
   explicit Owner requirement or an unavoidable security/data-integrity need.
