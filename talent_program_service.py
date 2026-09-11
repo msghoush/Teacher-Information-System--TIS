@@ -408,6 +408,7 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
     row = db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework_id, talent_competency_id=competency_id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Framework competency was not found.")
     if (db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).first()
+            or db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).first()
             or db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
             or db.query(models.TalentReviewCandidateRule).filter_by(framework_competency_id=row.id).first()):
         raise TalentProgramError("competency_in_use", "Remove rubric descriptors, KPI weighting, and candidate rules referencing this competency first.")
@@ -464,6 +465,7 @@ def _m3_semantic_payload(db, framework_id, *, include_ids=False):
     rubric = _rubric(db, framework_id)
     levels = db.query(models.TalentRubricLevel).filter_by(framework_version_id=framework_id).order_by(models.TalentRubricLevel.display_order).all()
     descriptors = db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_version_id=framework_id).order_by(models.TalentCompetencyRubricDescriptor.framework_competency_id, models.TalentCompetencyRubricDescriptor.rubric_level_id).all()
+    grade_descriptors = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_version_id=framework_id).order_by(models.TalentGradeCompetencyRubricDescriptor.grade_level, models.TalentGradeCompetencyRubricDescriptor.framework_competency_id, models.TalentGradeCompetencyRubricDescriptor.rubric_level_id).all()
     kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=framework_id).one_or_none()
     components = db.query(models.TalentKpiComponent).filter_by(framework_version_id=framework_id).order_by(models.TalentKpiComponent.framework_competency_id).all()
     policy = db.query(models.TalentReviewCandidatePolicy).filter_by(framework_version_id=framework_id).one_or_none()
@@ -471,7 +473,10 @@ def _m3_semantic_payload(db, framework_id, *, include_ids=False):
     return {
         "rubric": None if rubric is None else {"name": rubric.name, "description": rubric.description},
         "levels": [{**({"id": r.id} if include_ids else {}), "code": r.code, "label": r.label, "description": r.description, "order": r.display_order, "numeric_value": r.numeric_value} for r in levels],
-        "descriptors": [{**({"id": r.id} if include_ids else {}), "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "descriptor": r.descriptor} for r in descriptors],
+        "descriptors": [
+            *[{**({"id": r.id, "descriptor_scope": "general"} if include_ids else {}), "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "grade_level": None, "descriptor": r.descriptor} for r in descriptors],
+            *[{**({"id": r.id, "descriptor_scope": "grade"} if include_ids else {}), "framework_competency_id": r.framework_competency_id, "rubric_level_id": r.rubric_level_id, "grade_level": r.grade_level, "descriptor": r.descriptor} for r in grade_descriptors],
+        ],
         "kpi": None if kpi is None else {"enabled": kpi.is_enabled, "method": kpi.calculation_method, "scale_min": kpi.result_scale_min, "scale_max": kpi.result_scale_max, "interpretation": kpi.interpretation,
             "components": [{"framework_competency_id": r.framework_competency_id, "weight_basis_points": r.weight_basis_points} for r in components]},
         "review_candidate_policy": None if policy is None else {"enabled": policy.is_enabled, "match_mode": policy.match_mode, "description": policy.description,
@@ -578,25 +583,52 @@ def remove_rubric_level(db, *, school_group_id, program_id, framework_id, level_
     _require_draft(framework, expected_revision)
     row = db.query(models.TalentRubricLevel).filter_by(id=level_id, framework_version_id=framework.id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Rubric level was not found.")
-    if db.query(models.TalentCompetencyRubricDescriptor).filter_by(rubric_level_id=row.id).first() or db.query(models.TalentReviewCandidateRule).filter_by(rubric_level_id=row.id).first(): raise TalentProgramError("level_in_use", "Remove descriptors and policy rules that use this level first.")
+    if (db.query(models.TalentCompetencyRubricDescriptor).filter_by(rubric_level_id=row.id).first()
+            or db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(rubric_level_id=row.id).first()
+            or db.query(models.TalentReviewCandidateRule).filter_by(rubric_level_id=row.id).first()):
+        raise TalentProgramError("level_in_use", "Remove descriptors and policy rules that use this level first.")
     before = _m3_semantic_payload(db, framework.id); removed_level_id = row.id; db.delete(row); db.flush()
     for index, remaining in enumerate(db.query(models.TalentRubricLevel).filter_by(rubric_id=row.rubric_id).order_by(models.TalentRubricLevel.display_order), 1): remaining.display_order = index
     _m3_mutation(db, framework, actor=actor, action="rubric_level_remove", before=before, resources=[("rubric_level", removed_level_id)]); return framework
 
 
-def upsert_descriptor(db, *, school_group_id, program_id, framework_id, framework_competency_id, rubric_level_id, expected_revision, descriptor, actor=None):
+def upsert_descriptor(db, *, school_group_id, program_id, framework_id, framework_competency_id, rubric_level_id, expected_revision, descriptor, grade_level=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
     _require_draft(framework, expected_revision); rubric = _rubric(db, framework.id)
     member = db.query(models.FrameworkCompetency).filter_by(id=framework_competency_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
     level = db.query(models.TalentRubricLevel).filter_by(id=rubric_level_id, framework_version_id=framework.id, program_id=program_id, school_group_id=school_group_id).one_or_none()
     if rubric is None or member is None or level is None or level.rubric_id != rubric.id: raise TalentProgramError("invalid_descriptor_scope", "Descriptor competency and level must belong to this exact Framework.")
+    normalized_grade = normalize_grade_level(grade_level) if str(grade_level or "").strip() else None
+    if grade_level is not None and not normalized_grade:
+        raise TalentProgramError("invalid_grade", "Grade-specific descriptor requires a valid Grade.")
     before = _m3_semantic_payload(db, framework.id)
-    row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=member.id, rubric_level_id=level.id).one_or_none()
-    if row is None:
-        row = models.TalentCompetencyRubricDescriptor(school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id, rubric_id=rubric.id, framework_competency_id=member.id, rubric_level_id=level.id); db.add(row)
-    row.descriptor = _clean(descriptor, "descriptor", required=True, maximum=8000); row.updated_at = datetime.utcnow(); db.flush()
-    _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_upsert", before=before, resources=[("rubric_descriptor", row.id)]); return row, framework
+    if normalized_grade:
+        row = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+            framework_competency_id=member.id, rubric_level_id=level.id, grade_level=normalized_grade
+        ).one_or_none()
+        if row is None:
+            row = models.TalentGradeCompetencyRubricDescriptor(
+                school_group_id=school_group_id, program_id=program_id,
+                framework_version_id=framework.id, rubric_id=rubric.id,
+                framework_competency_id=member.id, rubric_level_id=level.id,
+                grade_level=normalized_grade,
+            ); db.add(row)
+    else:
+        row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(
+            framework_competency_id=member.id, rubric_level_id=level.id
+        ).one_or_none()
+        if row is None:
+            row = models.TalentCompetencyRubricDescriptor(
+                school_group_id=school_group_id, program_id=program_id,
+                framework_version_id=framework.id, rubric_id=rubric.id,
+                framework_competency_id=member.id, rubric_level_id=level.id,
+            ); db.add(row)
+    row.descriptor = _clean(descriptor, "descriptor", required=True, maximum=8000)
+    row.updated_at = datetime.utcnow(); db.flush()
+    _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_upsert", before=before, resources=[("rubric_descriptor", row.id)])
+    return row, framework
+
 
 
 def remove_descriptor(db, *, school_group_id, program_id, framework_id, descriptor_id, expected_revision, actor=None):
@@ -605,6 +637,19 @@ def remove_descriptor(db, *, school_group_id, program_id, framework_id, descript
     _require_draft(framework, expected_revision); row = db.query(models.TalentCompetencyRubricDescriptor).filter_by(id=descriptor_id, framework_version_id=framework.id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Rubric descriptor was not found.")
     before = _m3_semantic_payload(db, framework.id); removed_descriptor_id = row.id; db.delete(row); db.flush(); _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_remove", before=before, resources=[("rubric_descriptor", removed_descriptor_id)]); return framework
+
+
+def remove_grade_descriptor(db, *, school_group_id, program_id, framework_id, descriptor_id, expected_revision, actor=None):
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_draft(framework, expected_revision)
+    row = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(id=descriptor_id, framework_version_id=framework.id).one_or_none()
+    if row is None: raise TalentProgramError("not_found", "Grade-specific rubric descriptor was not found.")
+    before = _m3_semantic_payload(db, framework.id)
+    removed_descriptor_id = row.id
+    db.delete(row); db.flush()
+    _m3_mutation(db, framework, actor=actor, action="rubric_descriptor_remove", before=before, resources=[("rubric_descriptor", removed_descriptor_id)])
+    return framework
 
 
 def configure_kpi(db, *, school_group_id, program_id, framework_id, expected_revision, is_enabled, result_scale_min, result_scale_max, interpretation, components, calculation_method="weighted_level_average", actor=None):
@@ -728,6 +773,8 @@ def _clone_m3_configuration(db, *, source, target):
             copied = models.TalentRubricLevel(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, rubric_id=target_rubric.id, code=level.code, label=level.label, description=level.description, display_order=level.display_order, numeric_value=level.numeric_value); db.add(copied); db.flush(); level_map[level.id] = copied.id
         for descriptor in db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_version_id=source.id):
             db.add(models.TalentCompetencyRubricDescriptor(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, rubric_id=target_rubric.id, framework_competency_id=member_map[descriptor.framework_competency_id], rubric_level_id=level_map[descriptor.rubric_level_id], descriptor=descriptor.descriptor))
+        for descriptor in db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_version_id=source.id):
+            db.add(models.TalentGradeCompetencyRubricDescriptor(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, rubric_id=target_rubric.id, framework_competency_id=member_map[descriptor.framework_competency_id], rubric_level_id=level_map[descriptor.rubric_level_id], grade_level=descriptor.grade_level, descriptor=descriptor.descriptor))
     source_kpi = db.query(models.TalentKpiConfiguration).filter_by(framework_version_id=source.id).one_or_none()
     if source_kpi:
         target_kpi = models.TalentKpiConfiguration(school_group_id=target.school_group_id, program_id=target.program_id, framework_version_id=target.id, is_enabled=source_kpi.is_enabled, calculation_method=source_kpi.calculation_method, result_scale_min=source_kpi.result_scale_min, result_scale_max=source_kpi.result_scale_max, interpretation=source_kpi.interpretation); db.add(target_kpi); db.flush()

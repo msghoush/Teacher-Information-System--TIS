@@ -177,6 +177,38 @@ def _delete_student_unchecked(db: Session, *, school_group_id: int, student_id: 
         db.flush()
 
 
+def force_delete_student_history(db: Session, *, school_group_id: int, student_id: int):
+    """Permanently remove one Student and all Student-owned academic/Talent history.
+
+    This is a deliberately separate destructive authority. Callers must enforce
+    the dedicated force-delete permission and obtain explicit user confirmation.
+    Deletion order follows the existing foreign-key graph so no historical row
+    is silently orphaned.
+    """
+    if get_student(db, school_group_id, student_id) is None:
+        raise StudentAcademicError("not_found", "Student was not found.")
+
+    scoped = {"school_group_id": school_group_id, "student_id": student_id}
+    for model in (
+        models.TalentOfficialIdentification,
+        models.TalentEducatorInput,
+        models.TalentReviewCandidate,
+        models.TalentAssessmentAudit,
+        models.TalentStudentCompetencyResult,
+        models.TalentStudentAssessment,
+        models.TalentAssessmentCyclePopulationMember,
+        models.StudentAcademicPlacement,
+        models.StudentExternalIdentifier,
+        models.StudentAudit,
+    ):
+        db.query(model).filter_by(**scoped).delete(synchronize_session=False)
+
+    student = get_student(db, school_group_id, student_id)
+    if student is not None:
+        db.delete(student)
+    db.flush()
+
+
 def delete_student(db: Session, *, school_group_id: int, student_id: int):
     blockers = student_delete_blockers(
         db, school_group_id=school_group_id, student_id=student_id

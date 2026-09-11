@@ -492,6 +492,35 @@ class TalentCompetencyRubricDescriptor(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class TalentGradeCompetencyRubricDescriptor(Base):
+    """Optional Grade-specific rubric descriptor override.
+
+    Generic Competency x Level descriptors remain valid as the backward-
+    compatible fallback. When a Grade-specific row exists for the Student's
+    historical assessment Grade, it is the descriptor shown for that exact
+    Competency x Level x Grade cell.
+    """
+
+    __tablename__ = "talent_grade_competency_rubric_descriptors"
+    __table_args__ = (
+        CheckConstraint("grade_level IN ('KG','1','2','3','4','5','6','7','8','9','10','11','12')", name="ck_talent_grade_descriptors_grade"),
+        ForeignKeyConstraint(["framework_competency_id", "framework_version_id", "program_id", "school_group_id"], ["talent_framework_competencies.id", "talent_framework_competencies.framework_version_id", "talent_framework_competencies.program_id", "talent_framework_competencies.school_group_id"], name="fk_talent_grade_descriptors_framework_competency_scope"),
+        ForeignKeyConstraint(["rubric_level_id", "rubric_id", "framework_version_id", "program_id", "school_group_id"], ["talent_rubric_levels.id", "talent_rubric_levels.rubric_id", "talent_rubric_levels.framework_version_id", "talent_rubric_levels.program_id", "talent_rubric_levels.school_group_id"], name="fk_talent_grade_descriptors_level_scope"),
+        UniqueConstraint("framework_competency_id", "rubric_level_id", "grade_level", name="uq_talent_grade_descriptors_competency_level_grade"),
+    )
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
+    program_id = Column(Integer, nullable=False)
+    framework_version_id = Column(Integer, nullable=False)
+    rubric_id = Column(Integer, nullable=False)
+    framework_competency_id = Column(Integer, nullable=False)
+    rubric_level_id = Column(Integer, nullable=False)
+    grade_level = Column(String(8), nullable=False)
+    descriptor = Column(Text, nullable=False)
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class TalentKpiConfiguration(Base):
     """Optional, bounded, Framework-specific KPI configuration.
 

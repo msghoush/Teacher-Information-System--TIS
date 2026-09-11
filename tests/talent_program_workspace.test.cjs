@@ -39,8 +39,37 @@ test('descriptor save uses stable membership and level IDs plus loaded revision'
   try {await root.onsubmit({preventDefault(){},target:{dataset:{form:'descriptor:71:81'},querySelector:()=>null}});}finally{global.FormData=old;}
   const write=calls.find(c=>c.options);
   assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric/descriptors');
-  assert.deepEqual(JSON.parse(write.options.body),{expected_revision:7,framework_competency_id:71,rubric_level_id:81,descriptor:'Consistent expression'});
+  assert.deepEqual(JSON.parse(write.options.body),{expected_revision:7,framework_competency_id:71,rubric_level_id:81,descriptor:'Consistent expression',grade_level:null});
 });
+test('Grade-specific descriptor editor sends the selected Grade and uses exact Grade rows',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{step:'assess',hash:'#tp-builder-descriptions'});
+  const read=ctx.api;ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/configuration'))return {
+      levels:[{id:81,code:'LEVEL_1',label:'Beginning',numeric_value:null}],
+      descriptors:[
+        {id:91,descriptor_scope:'grade',framework_competency_id:71,rubric_level_id:81,grade_level:'1',descriptor:'Grade 1 text'},
+        {id:92,descriptor_scope:'grade',framework_competency_id:71,rubric_level_id:81,grade_level:'2',descriptor:'Grade 2 text'}
+      ],
+      rubric:{name:'Mental Math rubric'},kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Grade 1/);
+  assert.match(root.innerHTML,/Grade 2 text/);
+  assert.match(root.innerHTML,/data-scope="grade"/);
+  const old=global.FormData;global.FormData=class extends Map {constructor(){super([['descriptor','Updated Grade 2']]);}};
+  try {await root.onsubmit({preventDefault(){},target:{dataset:{form:'descriptor:71:81:2'},querySelector:()=>null}});}finally{global.FormData=old;}
+  const write=calls.filter(c=>c.options).at(-1);
+  assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric/descriptors');
+  assert.deepEqual(JSON.parse(write.options.body),{
+    expected_revision:7,framework_competency_id:71,rubric_level_id:81,
+    descriptor:'Updated Grade 2',grade_level:'2'
+  });
+});
+
+
 test('stale save preserves form and reports failure without success refresh',async()=>{
   const {ctx,root,feedback}=fixture();const read=ctx.api;ctx.api=(path,options)=>options?Promise.reject(new Error('Version changed elsewhere.')):read(path);
   await render(ctx);const initial=root.innerHTML,old=global.FormData;global.FormData=class extends Map {constructor(){super([['name','Changed'],['description','Test']]);}};

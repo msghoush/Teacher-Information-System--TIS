@@ -1,18 +1,14 @@
 knowledge_impact: yes
-summary: "Owner-directed Talent and Student workflow simplification and permission hardening. Talent Student Assessment uses the exact assessable Framework referenced by the Evaluation without Program/Framework activation labels acting as extra start gates. Program Criteria is removed from the normal setup/assessment UI. The sanctioned local analytics seed contains 10 Arabic student names written in Latin script across Grades 3-5 with completed/in-progress assessment coverage. Student single Delete and Bulk Delete are separately permissioned and backend-blocked when Academic Placement or Talent history exists. Evaluation Period selection for entering Student Assessments is separately governed by talent_evaluation_plans.select_period, exposed in System Configuration, enabled by default for Administrator only, disabled by default for other tenant roles, rendered disabled without permission, and enforced server-side when linking the Evaluation context."
+summary: "Owner-directed Talent rubric and Student deletion authority update. Talent Frameworks now support optional Grade-specific Competency x Rubric Level x Grade descriptors with generic descriptor fallback; Student Assessment resolves the descriptor for the Assessment's recorded historical Grade. The additive schema change is migration 20260911_001_talent_grade_specific_rubric_descriptors. Student deletion gains separately permissioned students.force_delete_history, Administrator-default through System Configuration, with backend history preview, explicit irreversible confirmation, and dependency-ordered removal of Student-owned Academic Placement/Talent history; normal Delete and Bulk Delete remain history-protecting. Student row Open/Delete icons are compacted."
 affected_areas:
-  - talent-student-assessment-eligibility
-  - talent-evaluation-framework-authority
-  - talent-evaluation-entry
+  - talent-rubric-data-model
   - talent-program-setup
-  - talent-assessment-ui
-  - talent-local-test-data
-  - talent-analytics-ux-validation
-  - talent-evaluation-period-permissions
+  - talent-student-assessment
+  - database-migrations
   - student-lifecycle
   - student-permissions
-  - student-single-delete
-  - student-bulk-delete
+  - student-destructive-actions
+  - student-ui
 kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md

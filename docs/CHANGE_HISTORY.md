@@ -3482,3 +3482,29 @@ No; the canonical behavior and implementation-state changes are fully captured i
 
 Reviewer/approval notes:
 Owner-directed product simplification and permission hardening. No production data mutation, schema migration, billing change, AI change, or destructive repository operation is introduced.
+
+## 2026-09-11 - Added Grade-specific Talent descriptors and explicit Student history force delete
+
+Area/module:
+Talent & Potential rubric configuration; Students; permissions; migrations
+
+Previous state:
+Talent achievement descriptions existed only at Competency x Rubric Level, so a single Framework could not faithfully store different wording for the same rubric level by Grade. Student permanent deletion was blocked whenever Academic Placement or Talent history existed, with no separately permissioned Administrator override.
+
+New state:
+An additive Grade-specific descriptor table stores optional Competency x Rubric Level x Grade overrides while preserving generic descriptors as fallback. Program setup authors the Program's eligible Grade cells, Framework fingerprints/clones include the overrides, and Student Assessment displays the wording matching the Assessment's historical Grade. A new migration, `20260911_001_talent_grade_specific_rubric_descriptors`, creates the table. Students also gain `students.force_delete_history`, Administrator-default and System-Configuration-managed. Authorized force deletion requires a history preview and explicit irreversible confirmation before deleting Student-owned Academic Placement and Talent history; normal Delete and Bulk Delete still fail closed on history. Student row Open/Delete icons were reduced to compact sizing.
+
+Reason:
+Faithfully represent owner-supplied multi-Grade rubrics such as Mental Math without creating artificial Grade competencies, while giving Administrators an explicit, permission-controlled way to remove temporary/test Students together with their history when intentionally required.
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Pending branch KMS synchronization after implementation validation.
+
+AI project context updated:
+No; this change affects deterministic Talent rubric persistence/presentation and Student deletion authority, not AI architecture or provider behavior.
+
+Reviewer/approval notes:
+Owner-directed. No production data was deleted or seeded by this repository change. Production execution of force deletion or demo-data seeding remains a separate explicit operational action.

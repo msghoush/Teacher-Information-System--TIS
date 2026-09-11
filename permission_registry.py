@@ -112,6 +112,7 @@ PERMISSION_GROUPS = (
             ("students.activate_deactivate", "Activate/deactivate students"),
             ("students.delete", "Permanently delete a Student with no academic or Talent history"),
             ("students.bulk_delete", "Bulk delete Students with no academic or Talent history"),
+            ("students.force_delete_history", "Permanently delete a Student together with Academic Placement and Talent history"),
             ("students.manage_identifiers", "Manage student external identifiers"),
             ("students.manage_placements", "Manage student academic placements"),
         ),

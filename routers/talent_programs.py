@@ -17,7 +17,7 @@ from talent_program_service import (
     create_framework_draft, create_program, delete_program, framework_payload, get_program, list_programs,
     get_framework_configuration, program_delete_blockers,
     program_payload, remove_framework_competency, remove_program_logo, reorder_framework_competencies,
-    remove_descriptor, remove_kpi, remove_review_candidate_policy, remove_rubric_level,
+    remove_descriptor, remove_grade_descriptor, remove_kpi, remove_review_candidate_policy, remove_rubric_level,
     reorder_rubric_levels, set_program_logo,
     retire_framework, transition_program, update_competency, update_framework_competency,
     update_framework_draft, update_program, update_rubric_level, upsert_annual_configuration,
@@ -431,9 +431,16 @@ def descriptor_upsert(program_id: int, framework_id: int, request: Request, payl
     user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
     if denied: return denied
     def work():
-        row, framework = upsert_descriptor(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, framework_competency_id=int(payload.get("framework_competency_id")), rubric_level_id=int(payload.get("rubric_level_id")), expected_revision=int(payload.get("expected_revision")), descriptor=payload.get("descriptor"), actor=user)
-        return {"id": row.id, "framework_competency_id": row.framework_competency_id, "rubric_level_id": row.rubric_level_id, "descriptor": row.descriptor, "framework_revision": framework.revision}
+        row, framework = upsert_descriptor(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, framework_competency_id=int(payload.get("framework_competency_id")), rubric_level_id=int(payload.get("rubric_level_id")), expected_revision=int(payload.get("expected_revision")), descriptor=payload.get("descriptor"), grade_level=payload.get("grade_level"), actor=user)
+        return {"id": row.id, "framework_competency_id": row.framework_competency_id, "rubric_level_id": row.rubric_level_id, "grade_level": getattr(row, "grade_level", None), "descriptor": row.descriptor, "framework_revision": framework.revision}
     return _run(db, work)
+
+
+@router.delete("/{program_id}/frameworks/{framework_id}/rubric/grade-descriptors/{descriptor_id}")
+def grade_descriptor_remove(program_id: int, framework_id: int, descriptor_id: int, request: Request, expected_revision: int = Query(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    return _run(db, lambda: {"framework_revision": remove_grade_descriptor(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, descriptor_id=descriptor_id, expected_revision=expected_revision, actor=user).revision})
 
 
 @router.delete("/{program_id}/frameworks/{framework_id}/rubric/descriptors/{descriptor_id}")

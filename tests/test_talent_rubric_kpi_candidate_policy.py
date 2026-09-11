@@ -16,7 +16,7 @@ from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, add_rubric_level,
     configure_kpi, configure_review_candidate_policy, create_competency,
     create_framework_draft, create_program, get_framework_configuration,
-    remove_descriptor, remove_framework_competency, remove_kpi, remove_review_candidate_policy,
+    remove_descriptor, remove_grade_descriptor, remove_framework_competency, remove_kpi, remove_review_candidate_policy,
     remove_rubric_level, reorder_rubric_levels, retire_framework, transition_program,
     update_rubric_level, upsert_descriptor, upsert_rubric,
 )
@@ -162,6 +162,76 @@ def test_descriptor_requires_exact_framework_competency_and_level(db):
         framework_competency_id=member2.id, rubric_level_id=level1.id, descriptor="Forged"))
     with pytest.raises(IntegrityError): db.commit()
     db.rollback()
+
+
+def test_grade_specific_descriptors_coexist_and_are_part_of_framework_semantics(db):
+    program, framework, _, member, _ = foundation(db, name="Mental Math")
+    rubric_level, framework = level(db, program, framework, code="LEVEL_1", label="Beginning")
+    original_fingerprint = framework.semantic_fingerprint
+
+    grade1, framework = upsert_descriptor(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, rubric_level_id=rubric_level.id,
+        expected_revision=framework.revision, grade_level="1",
+        descriptor="Grade 1 descriptor",
+    )
+    fingerprint_after_grade1 = framework.semantic_fingerprint
+    grade2, framework = upsert_descriptor(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, rubric_level_id=rubric_level.id,
+        expected_revision=framework.revision, grade_level="2",
+        descriptor="Grade 2 descriptor",
+    )
+    assert grade1.grade_level == "1" and grade2.grade_level == "2"
+    assert framework.semantic_fingerprint != original_fingerprint
+    assert framework.semantic_fingerprint != fingerprint_after_grade1
+
+    configuration = get_framework_configuration(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id
+    )
+    grade_descriptors = {
+        item["grade_level"]: item["descriptor"]
+        for item in configuration["descriptors"]
+        if item.get("descriptor_scope") == "grade"
+    }
+    assert grade_descriptors == {"1": "Grade 1 descriptor", "2": "Grade 2 descriptor"}
+
+    clone = create_framework_draft(
+        db, school_group_id=1, program_id=program.id, title="Mental Math Clone",
+        clone_from_id=framework.id, supersedes_framework_version_id=framework.id,
+    )
+    cloned_configuration = get_framework_configuration(
+        db, school_group_id=1, program_id=program.id, framework_id=clone.id
+    )
+    assert {
+        item["grade_level"]: item["descriptor"]
+        for item in cloned_configuration["descriptors"]
+        if item.get("descriptor_scope") == "grade"
+    } == grade_descriptors
+
+    cloned_grade1 = db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+        framework_version_id=clone.id, grade_level="1"
+    ).one()
+    remove_grade_descriptor(
+        db, school_group_id=1, program_id=program.id, framework_id=clone.id,
+        descriptor_id=cloned_grade1.id, expected_revision=clone.revision,
+    )
+    assert db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+        framework_version_id=framework.id, grade_level="1"
+    ).one().descriptor == "Grade 1 descriptor"
+
+
+def test_grade_specific_descriptor_rejects_invalid_grade(db):
+    program, framework, _, member, _ = foundation(db, name="Mental Math")
+    rubric_level, framework = level(db, program, framework, code="LEVEL_1", label="Beginning")
+    with pytest.raises(TalentProgramError) as invalid:
+        upsert_descriptor(
+            db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=member.id, rubric_level_id=rubric_level.id,
+            expected_revision=framework.revision, grade_level="Grade 99",
+            descriptor="Invalid",
+        )
+    assert invalid.value.code == "invalid_grade"
 
 
 def test_level_order_uniqueness_stale_writes_and_fingerprint_changes(db):
