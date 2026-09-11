@@ -2269,3 +2269,7 @@ Owner direction removes Program Criteria from the normal Talent setup and Studen
 ## Student Single And Bulk Delete
 
 The Students list now exposes permission-gated single Delete and checkbox-based Bulk Delete. Both use the canonical Student service; no client-side deletion authority exists. Hard deletion is allowed only before Academic Placement or Talent history exists, and bulk deletion is all-or-nothing when any selected Student is blocked. The new permissions are `students.delete` and `students.bulk_delete`; organization/global scope is required for the destructive action. Historical Student/Talent evidence is never cascaded away.
+
+## Permission-Controlled Student Actions And Evaluation Period Selection
+
+Student Delete and Bulk Delete are now first-class System Configuration permissions (`students.delete`, `students.bulk_delete`) and remain backend-enforced. Evaluation Period selection for entering Student Assessments is now separately permissioned as `talent_evaluation_plans.select_period`: Administrator receives it by default; other tenant roles are disabled by default, the UI renders the entry action disabled without it, and the Cycle-to-Period link API requires it. The role-permission configuration remains the owner-controlled override mechanism. The disposable Talent analytics seed now uses Arabic names written with Latin characters and retains its 10-Student Grades 3-5 analytics coverage.
