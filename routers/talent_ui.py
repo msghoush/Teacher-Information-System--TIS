@@ -78,6 +78,7 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                    "talent_programs.manage", "talent_programs.govern",
                    "talent_evaluation_plans.manage", "talent_evaluation_plans.govern",
+                   "talent_evaluation_plans.select_period",
                    "talent_assessments.manage", "talent_assessments.complete",
                    "talent_review_candidates.manage", "talent_official_identifications.record",
                    "talent_educator_inputs.view", "talent_educator_inputs.add", "talent_educator_inputs.amend"}}

@@ -32,6 +32,8 @@ from student_academic_service import (
     audit_event_payload,
     create_placement,
     create_student,
+    delete_student,
+    delete_students,
     end_placement,
     get_student,
     list_audit_events,
@@ -283,6 +285,9 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         students.append(student)
 
     can_create = auth.has_permission(db, user, "students.create", school_group_id=group_id)
+    organization_scope = auth.can_access_all_branches(user)
+    can_delete = organization_scope and auth.has_permission(db, user, "students.delete", school_group_id=group_id)
+    can_bulk_delete = organization_scope and auth.has_permission(db, user, "students.bulk_delete", school_group_id=group_id)
     years = _years(db, group_id)
 
     # Learning Style V1 (ADR 0031, Sections 6-8): Branch/Organization
@@ -318,9 +323,53 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "learning_style_distribution": learning_style_distribution,
         "scoped_year_id": scoped_year_id,
         "can_create": can_create,
+        "can_delete": can_delete,
+        "can_bulk_delete": can_bulk_delete,
         "error": request.query_params.get("error") or "",
         "success": request.query_params.get("success") or "",
     })
+
+
+@router.post("/bulk-delete")
+def students_bulk_delete_post(
+    request: Request,
+    student_ids: list[int] = Form([]),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    user, group_id, denied = _authorize(request, db, current_user, "students.bulk_delete")
+    if denied:
+        return denied
+    if not auth.can_access_all_branches(user):
+        return HTMLResponse("Organization scope is required to permanently delete Students.", status_code=403)
+    try:
+        count = delete_students(db, school_group_id=group_id, student_ids=student_ids)
+        db.commit()
+        return RedirectResponse(url=f"/students/?success=deleted-{count}", status_code=302)
+    except StudentAcademicError as exc:
+        db.rollback()
+        return RedirectResponse(url=f"/students/?error={quote(exc.message)}", status_code=302)
+
+
+@router.post("/{student_id}/delete")
+def student_delete_post(
+    request: Request,
+    student_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    user, group_id, denied = _authorize(request, db, current_user, "students.delete")
+    if denied:
+        return denied
+    if not auth.can_access_all_branches(user):
+        return HTMLResponse("Organization scope is required to permanently delete a Student.", status_code=403)
+    try:
+        delete_student(db, school_group_id=group_id, student_id=student_id)
+        db.commit()
+        return RedirectResponse(url="/students/?success=deleted-1", status_code=302)
+    except StudentAcademicError as exc:
+        db.rollback()
+        return RedirectResponse(url=f"/students/?error={quote(exc.message)}", status_code=302)
 
 
 @router.get("/new", response_class=HTMLResponse)

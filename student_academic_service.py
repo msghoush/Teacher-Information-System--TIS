@@ -136,6 +136,103 @@ def update_student(db: Session, *, school_group_id: int, student_id: int, actor=
     return student
 
 
+def student_delete_blockers(db: Session, *, school_group_id: int, student_id: int):
+    """Return durable-history blockers for permanent Student deletion.
+
+    Student identity deletion is allowed only before Academic Placement or
+    Talent history exists. Creation audit rows and optional external identifiers
+    are metadata owned by the otherwise-empty Student and are removed with it.
+    """
+    student = get_student(db, school_group_id, student_id)
+    if student is None:
+        raise StudentAcademicError("not_found", "Student was not found.")
+
+    checks = (
+        ("academic_placement", models.StudentAcademicPlacement, "Academic Placement history exists."),
+        ("talent_population", models.TalentAssessmentCyclePopulationMember, "Talent evaluation history exists."),
+        ("talent_assessment", models.TalentStudentAssessment, "Talent Assessment history exists."),
+        ("talent_review", models.TalentReviewCandidate, "Talent Review history exists."),
+        ("official_identification", models.TalentOfficialIdentification, "Official Identification history exists."),
+        ("educator_input", models.TalentEducatorInput, "Educator Input history exists."),
+    )
+    blockers = []
+    for code, model, message in checks:
+        if db.query(model).filter_by(school_group_id=school_group_id, student_id=student_id).first() is not None:
+            blockers.append({"code": code, "message": message})
+    return blockers
+
+
+def _delete_student_unchecked(db: Session, *, school_group_id: int, student_id: int):
+    # These records exist even for a just-created Student and carry no separate
+    # historical authority once the empty Student identity is being removed.
+    db.query(models.StudentExternalIdentifier).filter_by(
+        school_group_id=school_group_id, student_id=student_id
+    ).delete(synchronize_session=False)
+    db.query(models.StudentAudit).filter_by(
+        school_group_id=school_group_id, student_id=student_id
+    ).delete(synchronize_session=False)
+    student = get_student(db, school_group_id, student_id)
+    if student is not None:
+        db.delete(student)
+        db.flush()
+
+
+def delete_student(db: Session, *, school_group_id: int, student_id: int):
+    blockers = student_delete_blockers(
+        db, school_group_id=school_group_id, student_id=student_id
+    )
+    if blockers:
+        raise StudentAcademicError(
+            "student_delete_blocked",
+            "Student cannot be permanently deleted because historical records exist: "
+            + " ".join(item["message"] for item in blockers),
+        )
+    _delete_student_unchecked(db, school_group_id=school_group_id, student_id=student_id)
+
+
+def delete_students(db: Session, *, school_group_id: int, student_ids):
+    """Atomically delete an explicitly selected set of otherwise-empty Students."""
+    ids = []
+    for value in student_ids or ():
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            raise StudentAcademicError("invalid_student", "Student selection is invalid.")
+        if parsed not in ids:
+            ids.append(parsed)
+    if not ids:
+        raise StudentAcademicError("invalid_student", "Select at least one Student to delete.")
+
+    rows = db.query(models.Student).filter(
+        models.Student.school_group_id == school_group_id,
+        models.Student.id.in_(ids),
+    ).all()
+    if len(rows) != len(ids):
+        raise StudentAcademicError("not_found", "One or more selected Students were not found.")
+
+    blocked = []
+    for row in rows:
+        blockers = student_delete_blockers(
+            db, school_group_id=school_group_id, student_id=row.id
+        )
+        if blockers:
+            blocked.append(
+                f"{row.first_name} {row.last_name}: "
+                + " ".join(item["message"] for item in blockers)
+            )
+    if blocked:
+        raise StudentAcademicError(
+            "student_delete_blocked",
+            "No Students were deleted. " + " ".join(blocked),
+        )
+
+    for row in rows:
+        _delete_student_unchecked(
+            db, school_group_id=school_group_id, student_id=row.id
+        )
+    return len(rows)
+
+
 def _current_placement_scope_subquery(db: Session, *, school_group_id: int, at: datetime | None = None):
     """Real, backend-computed "current effective placement" scope per Student.
 

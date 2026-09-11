@@ -83,6 +83,7 @@ def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=Fa
     manage = auth.has_permission(db, user, "talent_evaluation_plans.manage")
     govern = auth.has_permission(db, user, "talent_evaluation_plans.govern")
     manage_timeline = auth.has_permission(db, user, "talent_evaluation_plans.manage_timeline")
+    select_period = auth.has_permission(db, user, "talent_evaluation_plans.select_period")
     delete_period_perm = auth.has_permission(db, user, "talent_evaluation_plans.delete_period")
     cycle_manage = auth.has_permission(db, user, "talent_assessment_cycles.manage")
     if period is None:
@@ -112,7 +113,7 @@ def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=Fa
     if govern and plan.status == "active" and period.status == "planned" and cycle is None:
         actions.append("cancel")
     if manage and cycle_manage and period.status == "planned":
-        if cycle is None and plan.status == "active":
+        if cycle is None and plan.status == "active" and select_period:
             actions.append("link_cycle")
         elif cycle is not None and cycle.status == "draft" and (plan.status == "active" or (plan.status == "closed" and not period.is_required)):
             actions.append("unlink_cycle")
@@ -306,7 +307,10 @@ def cycles_eligible_periods(cycle_id: int, request: Request, db: Session = Depen
 
 
 def _relationship_change(cycle_id, request, payload, db, current_user, *, unlink):
-    user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.manage", "talent_assessment_cycles.manage", all_required=True)
+    required = ["talent_evaluation_plans.manage", "talent_assessment_cycles.manage"]
+    if not unlink:
+        required.append("talent_evaluation_plans.select_period")
+    user, group_id, denied = _authorize(request, db, current_user, *required, all_required=True)
     if denied:
         return denied
     def work():

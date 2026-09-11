@@ -1510,3 +1510,17 @@ The generated booklet output is:
 - Always include a Knowledge Impact Assessment in implementation final reports.
 - Always keep `.kms-impact.yml` aligned with the task and actual Git diff.
 - Never put customer, personal, production, credential, secret, environment, transaction, invoice, webhook payload, or database-row data into KMS documentation.
+
+Owner-directed Talent simplification: Program Criteria configuration is not part of the normal Program setup UI, and completed Student Assessments do not expose a manual "Check Program Criteria" action. Existing Review Candidate/Official Identification persistence and historical records remain intact for backward compatibility/history unless separately governed for retirement.
+
+## Student Permanent Delete Authority
+
+Owner-approved Students management now includes explicit single and bulk permanent deletion. The capability is separately permissioned as `students.delete` and `students.bulk_delete` and requires organization/global Branch scope because Student identity is SchoolGroup-owned. Permanent deletion is intentionally limited to Students with no Academic Placement and no Talent historical records (Cycle population, Assessment, Review Candidate, Official Identification, or Educator Input). Creation-only Student audit rows and external identifiers are deleted with an otherwise-empty Student. Bulk deletion is atomic: if any selected Student is protected by historical records, no selected Student is deleted and the backend returns the blocker reason. This adds no Student lifecycle state, approval workflow, schema change, or migration.
+
+## Action Permission And Evaluation Period Selection Authority
+
+Owner direction requires user-facing mutable/destructive actions to have explicit permission authority exposed through the canonical System Configuration role-permission registry rather than relying on UI visibility alone. Student single permanent Delete is governed by `students.delete`; Student Bulk Delete is governed by `students.bulk_delete`; both are independently configurable through the existing role-permission system and remain subject to their backend history/scope safeguards.
+
+Selecting an Evaluation Period to enter Student Assessments is separately governed by `talent_evaluation_plans.select_period`. The permission is registered in System Configuration and is enabled by default only for the Administrator role under the existing default-role architecture; Editor, User, and Limited defaults do not receive it. The Evaluation Plan UI renders the Student Assessment entry control disabled when this permission is absent, and linking an internal Evaluation/Cycle context to a Period requires the same permission server-side. Administrators may still revoke the permission, and authorized role configuration may explicitly grant it later; there is no hard-coded username check.
+
+The sanctioned local Talent analytics dataset uses Arabic student names transliterated in Latin script (for example Layan Khalil, Adam Nasser, Nour Hassan) across Grades 3-5. The dataset remains disposable local test data only.

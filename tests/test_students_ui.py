@@ -32,6 +32,15 @@ def client(db):
     return TestClient(app)
 
 
+def test_student_delete_permissions_are_registered_and_configurable():
+    import permission_registry as pr
+    for key in ("students.delete", "students.bulk_delete"):
+        assert key in pr.ALL_PERMISSION_KEYS
+        assert key in pr.PERMISSION_LABELS
+        assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+        assert key in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
+
+
 def test_list_requires_students_view(db, client):
     assert client.get("/students/").status_code == 403
     permissions(db, "students.view")
@@ -55,6 +64,52 @@ def test_new_student_workflow(db, client):
     created = db.query(models.Student).filter_by(school_group_id=1, first_name="Carla").one()
     assert created.last_name == "New"
     assert created.status == "active"
+
+
+def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permissions(db, client):
+    permissions(db, "students.view", "students.delete", "students.bulk_delete")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    assert 'data-student-bulk-delete-form' in response.text
+    assert '/students/1001/delete' in response.text
+    assert 'data-student-select' in response.text
+
+
+def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, client):
+    permissions(db, "students.view", "students.delete", "students.bulk_delete")
+
+    empty = models.Student(school_group_id=1, first_name="Empty", last_name="Student", status="active")
+    db.add(empty)
+    db.commit()
+    empty_id = empty.id
+    single = client.post(f"/students/{empty_id}/delete", follow_redirects=False)
+    assert single.status_code == 302
+    assert single.headers["location"] == "/students/?success=deleted-1"
+    db.expire_all()
+    assert db.query(models.Student).filter_by(id=empty_id, school_group_id=1).one_or_none() is None
+
+    safe = models.Student(school_group_id=1, first_name="Safe", last_name="Delete", status="active")
+    protected = models.Student(school_group_id=1, first_name="Protected", last_name="History", status="active")
+    db.add_all([safe, protected])
+    db.flush()
+    safe_id, protected_id = safe.id, protected.id
+    db.add(models.StudentAcademicPlacement(
+        school_group_id=1, student_id=protected_id, academic_year_id=100,
+        branch_id=10, grade_level="1", section_name="A",
+        effective_from=datetime(2026, 9, 1), status="active",
+    ))
+    db.commit()
+
+    bulk = client.post(
+        "/students/bulk-delete",
+        data=[("student_ids", str(safe_id)), ("student_ids", str(protected_id))],
+        follow_redirects=False,
+    )
+    assert bulk.status_code == 302
+    assert "error=" in bulk.headers["location"]
+    db.expire_all()
+    assert db.query(models.Student).filter_by(id=safe_id, school_group_id=1).one_or_none() is not None
+    assert db.query(models.Student).filter_by(id=protected_id, school_group_id=1).one_or_none() is not None
 
 
 def test_profile_sections_render(db, client):
@@ -156,8 +211,8 @@ def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mo
     assert response.status_code == 200
     assert response.text.count("Read/Write") >= 2  # desktop row and mobile card
     assert response.text.count("Not specified") >= 2
-    assert "Talent score" not in response.text
-    assert "Talent status" not in response.text
+    assert "<th>Talent score</th>" not in response.text
+    assert "<th>Talent status</th>" not in response.text
 
     # Persist through the real edit route, reload the list, then clear through
     # the same route and verify the neutral fallback.

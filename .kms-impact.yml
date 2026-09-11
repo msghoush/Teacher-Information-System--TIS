@@ -1,11 +1,21 @@
 knowledge_impact: yes
-summary: "Owner correction to Talent Student Assessment eligibility: the exact assessable framework/tool already referenced by the Evaluation is the assessment authority. Program/Framework Draft or Active lifecycle labels are no longer additional prerequisites to start a Student Assessment. Runtime validation now requires real assessable content (at least one competency and one rubric level) while preserving tenant isolation, current Academic Placement, Program eligible Grade, Branch scope, assessment permissions, auditability, and historical evidence protections."
+summary: "Owner-directed Talent and Student workflow simplification and permission hardening. Talent Student Assessment uses the exact assessable Framework referenced by the Evaluation without Program/Framework activation labels acting as extra start gates. Program Criteria is removed from the normal setup/assessment UI. The sanctioned local analytics seed contains 10 Arabic student names written in Latin script across Grades 3-5 with completed/in-progress assessment coverage. Student single Delete and Bulk Delete are separately permissioned and backend-blocked when Academic Placement or Talent history exists. Evaluation Period selection for entering Student Assessments is separately governed by talent_evaluation_plans.select_period, exposed in System Configuration, enabled by default for Administrator only, disabled by default for other tenant roles, rendered disabled without permission, and enforced server-side when linking the Evaluation context."
 affected_areas:
   - talent-student-assessment-eligibility
   - talent-evaluation-framework-authority
   - talent-evaluation-entry
+  - talent-program-setup
+  - talent-assessment-ui
+  - talent-local-test-data
+  - talent-analytics-ux-validation
+  - talent-evaluation-period-permissions
+  - student-lifecycle
+  - student-permissions
+  - student-single-delete
+  - student-bulk-delete
 kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
-  - docs/adr/0035-live-academic-placement-assessment-eligibility.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
 no_impact_reason:
 major_change_override: no

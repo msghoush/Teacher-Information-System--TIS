@@ -147,12 +147,16 @@ def build_dataset(db):
     db.flush()
 
     student_specs = [
-        ("Amina", "Yousef", "Khalil", "female", "active", branch_north.id, "9", "A"),
-        ("Omar", "Fadi", "Nassar", "male", "active", branch_north.id, "9", "B"),
-        ("Layla", "Samir", "Haddad", "female", "active", branch_north.id, "10", "A"),
-        ("Karim", "Adel", "Mansour", "male", "active", branch_south.id, "10", "A"),
-        ("Nour", "Bassam", "Aziz", "female", "active", branch_south.id, "11", "A"),
-        ("Yousef", "Rami", "Saleh", "male", "inactive", branch_south.id, "11", "B"),
+        ("Layan", "Khalil", "female", "active", branch_north.id, "3", "A"),
+        ("Adam", "Nasser", "male", "active", branch_north.id, "3", "A"),
+        ("Nour", "Hassan", "female", "active", branch_north.id, "3", "B"),
+        ("Karim", "Mansour", "male", "active", branch_north.id, "4", "A"),
+        ("Tala", "Haddad", "female", "active", branch_north.id, "4", "A"),
+        ("Yousef", "Saleh", "male", "active", branch_south.id, "4", "B"),
+        ("Reem", "Aziz", "female", "active", branch_south.id, "5", "A"),
+        ("Omar", "Nassar", "male", "active", branch_south.id, "5", "A"),
+        ("Sara", "Hamdan", "female", "active", branch_south.id, "5", "B"),
+        ("Jad", "Murad", "male", "active", branch_south.id, "5", "B"),
     ]
     # Talent Program Grade configuration is bounded by operational Planning.
     # Keep the sanctioned local dataset on the same supported contract as the
@@ -167,14 +171,14 @@ def build_dataset(db):
         )
         for branch_id, grade, section in sorted({
             (branch_id, grade, section)
-            for _, _, _, _, _, branch_id, grade, section in student_specs
+            for _, _, _, _, branch_id, grade, section in student_specs
         })
     ])
     db.flush()
     students = []
-    for first, father, last, gender, status, branch_id, grade, section in student_specs:
+    for first, last, gender, status, branch_id, grade, section in student_specs:
         student = create_student(db, school_group_id=group.id, first_name=first, last_name=last,
-                                  father_name=father, gender=gender, actor=admin)
+                                  gender=gender, actor=admin)
         if status == "inactive":
             student.status = "inactive"
         create_placement(db, school_group_id=group.id, student_id=student.id, academic_year_id=year.id,
@@ -190,7 +194,7 @@ def build_dataset(db):
                       effective_to=datetime(2026, 8, 31), grade_level="8", section_name="A",
                       reason="Prior-year historical placement (seed data).", actor=admin)
 
-    grades = ["9", "10", "11"]
+    grades = ["3", "4", "5"]
 
     # Program A: numeric/KPI-oriented ("STEM Excellence").
     program_a, framework_a, competencies_a, levels_a = _build_program(
@@ -335,25 +339,15 @@ def build_dataset(db):
     members_b = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(cycle_id=cycle_b.id).order_by(
         models.TalentAssessmentCyclePopulationMember.student_id).all()
 
-    # Cycle A assessments: 4 completed (varied rubric levels feed varied KPI results
-    # and Review Candidate outcomes), 1 in-progress (started/incomplete), 1 marked
-    # Insufficient Evidence.
-    level_pattern_a = ["D2", "D4", "D3", "D4"]
+    # Cycle A assessments: all 10 completed so Release 1 aggregate analytics
+    # are visibly above the minimum cohort. Five D3 and five D4 outcomes keep
+    # the rubric distribution itself visible rather than splitting into tiny buckets.
+    level_pattern_a = ["D3", "D4"]
     levels_by_code_a = {level.code: level for level in levels_a}
     reviewed_candidate_ids = []
     for index, member in enumerate(members_a):
         assessment = start_assessment(db, school_group_id=group.id, cycle_id=cycle_a.id,
                                        cycle_population_member_id=member.id, actor=admin)
-        if index == 4:
-            _, assessment = set_competency_result(
-                db, school_group_id=group.id, assessment_id=assessment.id,
-                framework_competency_id=competencies_a[0].id, rubric_level_id=levels_by_code_a["D2"].id,
-                expected_revision=assessment.revision, evidence="Partial evidence collected (seed data).", actor=admin)
-            continue
-        if index == 5:
-            mark_non_complete(db, school_group_id=group.id, assessment_id=assessment.id,
-                               expected_revision=assessment.revision, status="insufficient_evidence", actor=admin)
-            continue
         level_code = level_pattern_a[index % len(level_pattern_a)]
         for competency in competencies_a:
             _, assessment = set_competency_result(
@@ -381,17 +375,19 @@ def build_dataset(db):
     cycle_a = close_cycle(db, school_group_id=group.id, cycle_id=cycle_a.id,
                            expected_revision=cycle_a.revision, organization_authorized=True, actor=admin)
 
-    # Cycle B assessments: 2 completed, 1 in-progress, remaining members never started.
+    # Cycle B assessments: 7 completed, 2 in-progress, 1 not started.
+    # This gives the analytics UI a clearly visible completed cohort while also
+    # preserving started-vs-completed contrast for operational cards.
     levels_by_code_b = {level.code: level for level in levels_b}
     level_pattern_b = ["V2", "V3"]
-    for index, member in enumerate(members_b[:3]):
+    for index, member in enumerate(members_b[:9]):
         assessment = start_assessment(db, school_group_id=group.id, cycle_id=cycle_b.id,
                                        cycle_population_member_id=member.id, actor=admin)
-        if index == 2:
+        if index >= 7:
             _, assessment = set_competency_result(
                 db, school_group_id=group.id, assessment_id=assessment.id,
                 framework_competency_id=competencies_b[0].id, rubric_level_id=levels_by_code_b["V1"].id,
-                expected_revision=assessment.revision, evidence="Early portfolio review (seed data).", actor=admin)
+                expected_revision=assessment.revision, evidence="Assessment still in progress (seed data).", actor=admin)
             continue
         level_code = level_pattern_b[index % len(level_pattern_b)]
         for competency in competencies_b:

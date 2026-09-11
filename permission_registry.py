@@ -110,6 +110,8 @@ PERMISSION_GROUPS = (
             ("students.create", "Create students"),
             ("students.edit", "Edit student identity details"),
             ("students.activate_deactivate", "Activate/deactivate students"),
+            ("students.delete", "Permanently delete a Student with no academic or Talent history"),
+            ("students.bulk_delete", "Bulk delete Students with no academic or Talent history"),
             ("students.manage_identifiers", "Manage student external identifiers"),
             ("students.manage_placements", "Manage student academic placements"),
         ),
@@ -143,6 +145,7 @@ PERMISSION_GROUPS = (
             ("talent_evaluation_plans.govern", "Activate, cancel periods in, and close annual Talent evaluation plans"),
             ("talent_evaluation_plans.delete_period", "Permanently delete a Draft-status Evaluation Period"),
             ("talent_evaluation_plans.manage_timeline", "Manage Evaluation Period planned dates and reorder/sequence"),
+            ("talent_evaluation_plans.select_period", "Select an Evaluation Period for Student Assessment"),
         ),
     },
     {

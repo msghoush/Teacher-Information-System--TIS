@@ -52,10 +52,16 @@ def test_build_dataset_produces_a_relationship_valid_seed():
     try:
         summary = build_dataset(session)
 
-        assert len(summary["student_ids"]) == 6
+        assert len(summary["student_ids"]) == 10
         assert len(summary["program_ids"]) == 3
         assert len(summary["cycle_ids"]) == 3
         assert summary["identification_id"] is not None
+
+        seeded_students = session.query(models.Student).filter_by(school_group_id=summary["school_group_id"]).all()
+        assert {student.first_name for student in seeded_students} == {
+            "Layan", "Adam", "Nour", "Karim", "Tala", "Yousef", "Reem", "Omar", "Sara", "Jad"
+        }
+        assert all(student.first_name.isascii() and student.last_name.isascii() for student in seeded_students)
 
         group_id = summary["school_group_id"]
         programs = session.query(models.TalentProgram).filter_by(school_group_id=group_id).all()
@@ -69,7 +75,8 @@ def test_build_dataset_produces_a_relationship_valid_seed():
         assert [c.status for c in cycles] == ["closed", "open", "draft"]
 
         assessments = session.query(models.TalentStudentAssessment).filter_by(school_group_id=group_id).all()
-        assert {a.status for a in assessments} >= {"completed", "in_progress", "insufficient_evidence"}
+        assert {a.status for a in assessments} >= {"completed", "in_progress"}
+        assert sum(1 for a in assessments if a.status == "completed") >= 17
 
         # Every competency result must resolve to a real Framework Competency and
         # Rubric Level belonging to the exact same Framework as its Assessment.
@@ -94,6 +101,7 @@ def test_build_dataset_produces_a_relationship_valid_seed():
 
         placements = session.query(models.StudentAcademicPlacement).filter_by(school_group_id=group_id).all()
         assert any(p.status == "ended" for p in placements)  # real historical placement
+        assert {p.grade_level for p in placements if p.status != "ended"} == {"3", "4", "5"}
 
         admin = session.query(models.User).filter_by(username=LOCAL_TEST_USERNAME).one()
         assert admin.is_internal_test_identity is True
@@ -163,7 +171,7 @@ def test_full_create_seed_status_reset_reseed_cycle_and_tis_db_is_untouched(tmp_
     with engine.connect() as connection:
         from sqlalchemy import text
         count = connection.execute(text("SELECT COUNT(*) FROM students")).scalar()
-    assert count == 6
+    assert count == 10
 
     manage.cmd_status(target)
     captured = capsys.readouterr()
@@ -181,7 +189,7 @@ def test_full_create_seed_status_reset_reseed_cycle_and_tis_db_is_untouched(tmp_
     with engine.connect() as connection:
         from sqlalchemy import text
         count_after_reseed = connection.execute(text("SELECT COUNT(*) FROM students")).scalar()
-    assert count_after_reseed == 6
+    assert count_after_reseed == 10
 
     after = _tis_db_fingerprint()
     assert before == after  # tis.db content and mtime are byte-for-byte unchanged

@@ -2261,3 +2261,15 @@ Then run `.\.venv\Scripts\python.exe scripts\kms.py check` for final read-only v
 - Do not let automation rewrite authoritative Markdown.
 - Do not place customer, personal, production, billing-record, transaction, invoice, webhook payload, credential, secret, environment, or database-row data in KMS docs.
 - Do not commit or push unless explicitly requested.
+
+## Talent Program Criteria UI Simplification
+
+Owner direction removes Program Criteria from the normal Talent setup and Student Assessment workflow. The Program setup UI no longer exposes Program Criteria configuration, and a completed Student Assessment no longer exposes a manual "Check Program Criteria" action. Existing backend Review Candidate/Official Identification records and historical data are preserved; this change does not delete schema or historical evidence.
+
+## Student Single And Bulk Delete
+
+The Students list now exposes permission-gated single Delete and checkbox-based Bulk Delete. Both use the canonical Student service; no client-side deletion authority exists. Hard deletion is allowed only before Academic Placement or Talent history exists, and bulk deletion is all-or-nothing when any selected Student is blocked. The new permissions are `students.delete` and `students.bulk_delete`; organization/global scope is required for the destructive action. Historical Student/Talent evidence is never cascaded away.
+
+## Permission-Controlled Student Actions And Evaluation Period Selection
+
+Student Delete and Bulk Delete are now first-class System Configuration permissions (`students.delete`, `students.bulk_delete`) and remain backend-enforced. Evaluation Period selection for entering Student Assessments is now separately permissioned as `talent_evaluation_plans.select_period`: Administrator receives it by default; other tenant roles are disabled by default, the UI renders the entry action disabled without it, and the Cycle-to-Period link API requires it. The role-permission configuration remains the owner-controlled override mechanism. The disposable Talent analytics seed now uses Arabic names written with Latin characters and retains its 10-Student Grades 3-5 analytics coverage.
