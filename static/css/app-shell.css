@@ -261,25 +261,14 @@ svg:is(
     min-width: 0;
 }
 
-.sidebar-link--brand {
-    min-height: 76px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-}
-
-.sidebar-link--brand .sidebar-link-main {
-    flex: 1 1 auto;
-    min-width: 0;
-}
-
-.sidebar-brand-logo {
-    display: block;
-    width: min(190px, 100%);
-    height: auto;
-    max-height: 66px;
+.sidebar-brand-symbol {
+    width: var(--app-icon-size);
+    height: var(--app-icon-size);
+    min-width: var(--app-icon-size);
+    min-height: var(--app-icon-size);
     object-fit: contain;
     object-position: left center;
-    flex: 0 1 auto;
+    flex: 0 0 auto;
 }
 
 .sidebar-nav-badge {

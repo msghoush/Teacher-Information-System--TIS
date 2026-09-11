@@ -376,7 +376,29 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy
     return result
 
 
+def _has_assessable_competency(snapshot):
+    """True when at least one Competency in the snapshot has a complete KPI/rubric with levels.
+
+    Per ADR 0039, Start Assessment eligibility requires at least one
+    assessable Competency on the framework - not that every Competency in
+    the snapshot is complete, and not that assessable content exists
+    specifically for the Student's Grade.
+    """
+    return any(
+        item.get("rubric") and item["rubric"].get("levels")
+        for item in snapshot
+    )
+
+
 def _newest_assessable_framework(db: Session, *, cycle, grade):
+    """Newest Framework Version with at least one usable Competency+KPI+Levels.
+
+    Per ADR 0039, Grade is preferred context, not an eligibility gate: a
+    Framework Version is assessable if it has assessable content scoped to
+    the Student's Grade (preferred when present) OR assessable content
+    anywhere on the Program's saved build (used instead of blocking when no
+    Grade-specific content exists).
+    """
     candidates = db.query(models.TalentProgramFrameworkVersion).filter_by(
         school_group_id=cycle.school_group_id,
         program_id=cycle.program_id,
@@ -385,13 +407,15 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
         models.TalentProgramFrameworkVersion.id.desc(),
     ).all()
     for framework in candidates:
-        snapshot = _assessment_semantic_snapshot(
+        graded_snapshot = _assessment_semantic_snapshot(
             db, framework=framework, grade=grade, allow_legacy=False
         )
-        if snapshot and all(
-            item.get("rubric") and item["rubric"].get("levels")
-            for item in snapshot
-        ):
+        if _has_assessable_competency(graded_snapshot):
+            return framework
+        full_snapshot = _assessment_semantic_snapshot(
+            db, framework=framework, grade=None, allow_legacy=False
+        )
+        if _has_assessable_competency(full_snapshot):
             return framework
     return None
 
@@ -418,7 +442,7 @@ def start_assessment_for_evaluation(
     if newest is None:
         raise TalentStudentAssessmentError(
             "assessment_tool_unavailable",
-            "This Evaluation needs at least one Grade-applicable Competency rubric with levels.",
+            "This Program needs at least one Competency with a KPI and at least one Level before Assessment can start.",
         )
     # The physical schema has a durable UNIQUE(cycle_id, student_id)
     # constraint. After an Administrator reset, the completed historical row

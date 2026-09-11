@@ -441,11 +441,17 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
     _require_mutable_draft(db, framework, expected_revision)
     row = db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework_id, talent_competency_id=competency_id).one_or_none()
     if row is None: raise TalentProgramError("not_found", "Framework competency was not found.")
-    if (db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).first()
-            or db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).first()
-            or db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
+    # Delete Competency is a single subtree action (ADR 0039): achievement
+    # descriptions belong to this Competency's own KPI/Level build and are
+    # removed with it automatically. Numeric KPI weighting and Program
+    # Criteria/candidate rules are separate governed structures the Owner has
+    # not authorized silently deleting as a side effect - those still block
+    # with an exact, actionable reason.
+    if (db.query(models.TalentKpiComponent).filter_by(framework_competency_id=row.id).first()
             or db.query(models.TalentReviewCandidateRule).filter_by(framework_competency_id=row.id).first()):
-        raise TalentProgramError("competency_in_use", "Remove rubric descriptors, KPI weighting, and candidate rules referencing this competency first.")
+        raise TalentProgramError("competency_in_use", "Remove the numeric KPI weighting and Program Criteria rules referencing this Competency first.")
+    db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).delete(synchronize_session=False)
+    db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_competency_id=row.id).delete(synchronize_session=False)
     owned_rubric = db.query(models.TalentRubric).filter_by(
         school_group_id=school_group_id,
         program_id=program_id,
@@ -656,10 +662,11 @@ def _m3_mutation(db, framework, *, actor, action, before, resources):
     return framework
 
 
-def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_revision, name, description=None, framework_competency_id=None, actor=None):
+def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_revision, name=None, description=None, framework_competency_id=None, actor=None):
     framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
     if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
     _require_mutable_draft(db, framework, expected_revision); before = _m3_semantic_payload(db, framework.id)
+    member = None
     if framework_competency_id is not None:
         member = db.query(models.FrameworkCompetency).filter_by(
             id=int(framework_competency_id), framework_version_id=framework.id,
@@ -669,6 +676,15 @@ def upsert_rubric(db, *, school_group_id, program_id, framework_id, expected_rev
             raise TalentProgramError("invalid_rubric_scope", "Rubric competency must belong to this exact Framework.")
         framework_competency_id = member.id
     row = _rubric(db, framework.id, framework_competency_id)
+    # ADR 0039: the user does not need to type a redundant KPI/rubric name
+    # when the parent Competency already identifies it - auto-derive one.
+    # A legacy framework-wide rubric (no owning Competency) has nothing to
+    # derive from and keeps requiring an explicit name.
+    if not str(name or "").strip():
+        if member is not None:
+            name = f"{member.label} KPI"
+        else:
+            raise TalentProgramError("name_required", "Name is required for a Framework-wide Rubric.")
     cleaned_name = _clean(name, "name", required=True)
     cleaned_description = _clean(description, "description", maximum=4000)
     if row is None:

@@ -715,7 +715,7 @@ test('Rubric delete actions are hidden when manage permission exists without ded
   };
   await render(ctx);
   assert.match(root.innerHTML,/Reading Fluency/);
-  assert.match(root.innerHTML,/Edit Rubric/);
+  assert.match(root.innerHTML,/Edit KPI/);
   assert.doesNotMatch(root.innerHTML,/Delete Competency/);
   assert.doesNotMatch(root.innerHTML,/Delete Level/);
 });

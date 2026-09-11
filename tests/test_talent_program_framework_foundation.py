@@ -13,11 +13,11 @@ from database import Base
 from dependencies import get_db
 from routers.talent_programs import router
 from talent_program_service import (
-    TalentProgramError, activate_framework, add_framework_competency, create_competency,
+    TalentProgramError, activate_framework, add_framework_competency, add_rubric_level, create_competency,
     create_framework_draft, create_program, list_programs, remove_framework_competency,
     reorder_framework_competencies, retire_framework, transition_program, update_competency,
     update_framework_competency, update_framework_draft, update_program,
-    upsert_annual_configuration,
+    upsert_annual_configuration, upsert_descriptor, upsert_rubric,
 )
 
 
@@ -130,6 +130,32 @@ def test_competency_lineage_membership_order_snapshots_and_active_immutability(d
         remove_framework_competency(db, school_group_id=1, program_id=p.id, framework_id=framework.id, competency_id=c1.id, expected_revision=5)
     assert immutable.value.code == "immutable_framework"
     db.commit()
+
+
+def test_delete_competency_is_one_subtree_action_removing_kpi_levels_and_descriptors(db):
+    """ADR 0039: Delete Competency removes its KPI/Levels/descriptions from the
+    current/future build in one action. The Owner must not manually delete
+    Levels, then KPI, then Competency."""
+    p = program(db); transition_program(db, school_group_id=1, program_id=p.id, target_status="active")
+    framework = create_framework_draft(db, school_group_id=1, program_id=p.id, title="One")
+    c1 = create_competency(db, school_group_id=1, program_id=p.id, code="CRE", name="Creativity")
+    m1, framework = add_framework_competency(db, school_group_id=1, program_id=p.id, framework_id=framework.id, competency_id=c1.id, expected_revision=framework.revision)
+    rubric, framework = upsert_rubric(db, school_group_id=1, program_id=p.id, framework_id=framework.id, expected_revision=framework.revision, name="KPI", framework_competency_id=m1.id)
+    level, framework = add_rubric_level(db, school_group_id=1, program_id=p.id, framework_id=framework.id, expected_revision=framework.revision, code="L1", label="Level 1", framework_competency_id=m1.id)
+    _, framework = upsert_descriptor(db, school_group_id=1, program_id=p.id, framework_id=framework.id, framework_competency_id=m1.id, rubric_level_id=level.id, expected_revision=framework.revision, descriptor="Shows creative thinking")
+    db.commit()
+
+    assert db.query(models.TalentRubric).filter_by(framework_competency_id=m1.id).count() == 1
+    assert db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id).count() == 1
+    assert db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=m1.id).count() == 1
+
+    framework = remove_framework_competency(db, school_group_id=1, program_id=p.id, framework_id=framework.id, competency_id=c1.id, expected_revision=framework.revision)
+    db.commit()
+
+    assert db.query(models.FrameworkCompetency).filter_by(framework_version_id=framework.id, talent_competency_id=c1.id).count() == 0
+    assert db.query(models.TalentRubric).filter_by(framework_competency_id=m1.id).count() == 0
+    assert db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id).count() == 0
+    assert db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=m1.id).count() == 0
 
 
 def test_cross_program_and_cross_tenant_membership_rejected(db):
