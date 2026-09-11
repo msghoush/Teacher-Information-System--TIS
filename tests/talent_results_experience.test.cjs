@@ -137,28 +137,17 @@ test('Talent module expands as a permission-aware sidebar tree with clean top-le
   assert.match(shellCss, /\.sidebar-tree-link\.is-active/);
 });
 
-test('Talent navigation has one primary module entry, not a duplicated analytics list', () => {
+test('Talent page does not duplicate the primary sidebar module tree', () => {
   const template = fs.readFileSync(path.join(__dirname, '..', 'templates', 'talent', 'workspace.html'), 'utf8');
-  const navMatch = template.match(/<nav class="tp-nav"[\s\S]*?<\/nav>/);
-  assert.ok(navMatch, 'primary tp-nav markup must exist');
-  const primaryNav = navMatch[0];
-  const primaryLoopMatch = primaryNav.match(/\{% for key in (\[[^\]]*\]) %\}/);
-  assert.ok(primaryLoopMatch, 'primary nav must iterate an explicit view-key list');
-  const primaryKeys = primaryLoopMatch[1];
-  // The primary nav lists each top-level module once and resolves the whole
-  // analytics family to exactly one "Results & Analytics" entry point, never a
-  // per-page repeat of every analytics-family view (the sub-nav below already
-  // exists to present that family in a compact form once the user is inside it).
-  assert.match(primaryNav, /Results &amp; Analytics/);
-  for (const key of ['talent-map', 'portfolio', 'overlap', 'longitudinal', 'branch', 'students']) {
-    assert.doesNotMatch(primaryKeys, new RegExp(`'${key}'`));
-  }
+  assert.doesNotMatch(template, /<nav class="tp-nav"/);
   assert.match(template, /aria-label="Results and Analytics views"/);
+  assert.match(template, /class="tp-results-nav"/);
 });
+
 
 test('top-level Talent navigation resets child context while analytics sub-navigation preserves analysis context', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /document\.querySelectorAll\('\.tp-nav a, \.sidebar-tree a\[href\*="\/talent\/"\]'\)/);
+  assert.match(source, /\.sidebar-tree a\[href\*="\/talent\/"\]/);
   assert.match(source, /next\.search=qs\(\{academic_year_id:year\.value\}\)/);
   assert.match(source, /document\.querySelectorAll\('\.tp-results-nav a'\)/);
   assert.match(source, /program_id:params\.get\('program_id'\)/);

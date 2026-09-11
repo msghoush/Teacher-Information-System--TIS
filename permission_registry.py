@@ -159,6 +159,7 @@ PERMISSION_GROUPS = (
             ("talent_assessments.manage", "Start and edit Talent Student Assessments and competency results"),
             ("talent_assessments.complete", "Complete or record non-complete Talent Student Assessment outcomes"),
             ("talent_assessments.delete", "Permanently delete a Talent Student Assessment with no recorded evidence"),
+            ("talent_assessments.reset_for_reassessment", "Reset a completed current Talent Assessment for re-assessment while preserving historical evidence"),
         ),
     },
     {

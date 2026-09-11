@@ -1,11 +1,44 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.7
+documentation_version: 3.8
 last_updated: 2026-09-09
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Operational Recovery And UX Correction
+
+Talent's application sidebar tree is now the only primary module navigation;
+the page-level duplicate navigation is removed. Program setup no longer uses a
+separate Ready step. Readiness is a derived Program-summary state and is
+positive only when Program/Grade, assessment criteria, and Evaluation Plan
+configuration are complete. Grade-first authoring displays one selected Grade
+at a time.
+
+Completed evidence remains immutable. Administrator receives the new default
+permission `talent_assessments.reset_for_reassessment`, which may mark a
+Completed current Assessment non-current so the same visible Evaluation can be
+started again. This is an audited pointer/state recovery only: competency
+results, Candidate/Identification state, Educator Input, placement provenance,
+and all history remain intact. Physical delete remains the ADR 0034
+zero-evidence exception.
+
+Student Assessments visibly retains the selected Evaluation Period and Program
+and carries that context into Start Assessment, whose workspace resolves the
+exact saved Grade-scoped competencies and assessment criteria. Talent Review
+supports authorized Branch/Grade/Section filtering and does not show the
+internal deterministic "Meets criteria" outcome as a primary classification;
+the Candidate mechanism itself remains deterministic and separate from
+Official Identification.
+
+For terminology, competency-owned rubrics remain rubric domain objects
+internally but are presented as **Assessment Criteria** to avoid falsely
+conflating them with the separate numeric KPI model. The actual
+`TalentKpiConfiguration` is explicitly presented as **Key Performance
+Indicator (KPI)** with Add/Edit/Delete controls. Analytics errors surface
+specific governed backend reasons when available instead of generic
+environment-unavailable wording.
 
 ## Talent Corrective Batches 3 And 4
 
@@ -21,9 +54,9 @@ The sanctioned Talent local-test seed defines `local_test_admin` as organization
 
 ## Talent Program Operational Mode And Evaluation Plan Terminology
 
-An active Program whose annual configuration, active assessment setup, achievement descriptions, and Evaluation Periods are complete opens in Operational/Summary mode by default. It shows the Program identity, real Academic Year label, enablement, Grades, competency/rubric/Period counts, assessment setup status, and permission-gated Edit Program, Edit What we assess, Manage Evaluation Plan, Open Assessments, and View Results actions. Any explicit setup hash re-enters the same four-step wizard. For a fully configured Draft Program, Finish Setup is the governed activation boundary: Program activation runs first, then the reviewed Draft Framework is activated with expected revision/fingerprint protection, and the same Program opens in operational summary. Already-active state is not redundantly activated.
+An active Program whose annual configuration, active assessment setup, achievement descriptions, and Evaluation Periods are complete opens in Operational/Summary mode by default. It shows the Program identity, real Academic Year label, enablement, Grades, competency/assessment-criteria/Period counts, assessment setup status, and permission-gated Edit Program, Edit What we assess, Manage Evaluation Plan, Open Assessments, and View Results actions. Explicit setup hashes re-enter the relevant focused edit panel; there is no separate Ready panel. For a fully configured Draft Program, Finish Setup is the governed activation boundary: Program activation runs first, then the reviewed Draft Framework is activated with expected revision/fingerprint protection, and the same Program opens in operational summary. Already-active state is not redundantly activated.
 
-The approved user-facing annual concept is **Evaluation Plan**, containing **Evaluation Periods**. Program setup keeps the Evaluation Plan embedded in Step 3. Backend `EvaluationPlan` identifiers and routes remain unchanged. Branch-scoped payloads no longer advertise Plan management that the API's existing organization-authority gate would reject, and any such API error is translated into an action-specific access message rather than exposing scope-policy jargon.
+The approved user-facing annual concept is **Evaluation Plan**, containing **Evaluation Periods**. Program setup keeps the Evaluation Plan embedded in its focused setup panel. Backend `EvaluationPlan` identifiers and routes remain unchanged. Branch-scoped payloads no longer advertise Plan management that the API's existing organization-authority gate would reject, and any such API error is translated into an action-specific access message rather than exposing scope-policy jargon.
 
 ## Talent Evaluation Grouping And Legacy Reassessment Compatibility
 
@@ -43,7 +76,7 @@ The Program wizard embeds the existing Evaluation Schedule renderer and its perm
 
 ## Talent Program Setup Wizard Visual Acceptance
 
-Program setup is a real four-step, hash-backed wizard. The Program identity header and compact progress indicator remain visible, while the page renders only the active Basics, What we assess, Evaluation Schedule, or Ready panel. Completed steps show a check, incomplete assessment setup shows a compact remaining-item reason, prior steps remain directly editable, and refresh restores the selected hash step. The former permanent Grades and Build your evaluation summary cards are removed.
+Program setup is hash-backed for its editable panels but no longer has a separate Ready step. The Program identity remains visible, What we assess and Evaluation Plan stay focused, and readiness is projected on the operational Program summary. Positive Ready appears only when all required Program/Grade, assessment-criteria, and Evaluation Plan prerequisites are complete.
 
 The wizard continues to call the existing permission-gated, revision-aware Program, annual configuration, framework, rubric, descriptor, Evaluation Plan, Period, and Cycle contracts. Program removal is intentionally absent because the governed Program lifecycle is activate/retire; supported logo, draft setup item, schedule-period, and in-progress assessment-result removal actions retain their existing permission and lifecycle checks.
 

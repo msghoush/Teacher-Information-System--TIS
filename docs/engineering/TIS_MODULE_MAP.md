@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 3.8
+documentation_version: 3.9
 last_updated: 2026-09-11
 source_of_truth: true
 ---
@@ -14,6 +14,18 @@ source_of_truth: true
 - `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence.
 - `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views.
 - `routers/students_ui.py` and `templates/students.html`: present the existing Learning Style distribution through Planning-derived Branch/Grade/Section choices; the API and privacy provider remain unchanged.
+
+## Talent Recovery, Review Filters, And Navigation Ownership
+
+- `permission_registry.py`: owns `talent_assessments.reset_for_reassessment`; the standard Administrator all-permissions default includes it while Editor/User defaults do not.
+- `talent_student_assessment_service.py`: evidence-preserving completed-Assessment reset. It marks the current attempt historical and audits the action; it never deletes dependent evidence.
+- `routers/talent_assessments.py`: permission-enforced reset endpoint and backend-computed reset action projection.
+- `static/js/talent-operations.js`: selected Evaluation/Program presentation, Start/Continue/View routing, Reset for Re-assessment UI, and simplified Talent Review presentation.
+- `routers/talent_review_candidates.py`: server-side Branch/Grade/Section filtering over frozen Assessment placement context.
+- `routers/talent_programs.py`: authorized Planning Branch/Grade/Section options used by shared Talent filters.
+- `templates/talent/workspace.html` + `ui_shell.py`: sidebar tree is the sole primary Talent module navigation; the page-level duplicate ribbon is removed.
+- `static/js/talent-program-workspace.js`: one-Grade-at-a-time authoring, summary-based readiness, Assessment Criteria presentation, and real numeric KPI Add/Edit/Delete controls.
+- `static/js/talent.js`: shared authorized review filters and actionable analytics failure messages using backend detail.
 
 ## Talent Program And Evaluation UX Orchestration
 

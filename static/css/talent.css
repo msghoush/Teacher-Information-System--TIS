@@ -369,6 +369,8 @@
 
 .tp-evaluation-groups{display:grid;gap:16px;margin:12px 0 20px}
 .tp-evaluation-group{overflow:hidden;border:1px solid var(--app-line);border-radius:var(--app-radius-lg);background:var(--app-surface-strong);box-shadow:var(--app-shadow-sm)}
+.tp-evaluation-group.is-selected{border-color:var(--app-brand);box-shadow:var(--app-shadow-md)}
+.tp-evaluation-program-card.is-selected{border-color:var(--app-brand);background:var(--app-brand-soft)}
 .tp-evaluation-group>header,.tp-selected-evaluation{display:flex;align-items:center;gap:14px;padding:16px 18px;background:linear-gradient(120deg,var(--app-brand-soft),var(--app-surface-strong))}
 .tp-evaluation-group>header h3,.tp-selected-evaluation h3{margin:2px 0;color:var(--app-brand-deep)}
 .tp-evaluation-group>header small{color:var(--app-muted)}

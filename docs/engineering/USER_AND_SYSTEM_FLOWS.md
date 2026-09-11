@@ -1,11 +1,36 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.5
+documentation_version: 3.6
 last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Talent Selected Evaluation And Recovery Flow
+
+1. Student Assessments lists user-defined Evaluation Periods and their configured Programs. Selecting a Program inside a Period visibly marks that Evaluation/Program as active and loads its currently eligible Students.
+2. Start Assessment sends the selected Evaluation Cycle plus Student identity and opens the returned Assessment while retaining the selected Cycle/Program context. Continue/View Assessment opens that exact current attempt.
+3. The Assessment workspace loads the exact saved Framework for that attempt and the Student's recorded Grade-scoped competencies/assessment criteria; a click must never silently no-op.
+4. If automatic rubric-change comparison reports a completed current attempt as stale, the normal **Re-evaluation required** flow creates a linked replacement under ADR 0036.
+5. If an administrator must deliberately reassess a completed current attempt without an automatic stale-rubric condition, `talent_assessments.reset_for_reassessment` marks the prior attempt historical/non-current and audits the reset. It does not delete any evidence.
+6. After reset, the same Student/Evaluation row returns to **Not started / Start Assessment**. The next start creates a fresh current attempt with zero competency results; the prior completed attempt remains available only as historical evidence.
+
+## Talent Program Readiness And Authoring Flow
+
+1. Talent's main sidebar tree is the sole primary module navigation; the page does not duplicate that navigation ribbon.
+2. Program authoring shows one eligible Grade at a time, defaulting to the first configured Grade, then its Competencies and assessment criteria.
+3. Competency and Rubric-Level deletion remains permission/lifecycle controlled by backend actions; UI visibility never grants authority.
+4. Program readiness is projected on the Program summary. **Ready** is positive only after Program/Grade setup, assessment criteria, and Evaluation Plan requirements are complete; there is no separate Ready step.
+5. The competency-owned rubric structure is labeled **Assessment Criteria** in normal setup. The separate real numeric `TalentKpiConfiguration` is labeled **Key Performance Indicator (KPI)** and supports Add/Edit/Delete while mutable.
+
+## Talent Review Filtering Flow
+
+1. Talent Review starts from all current completed Assessments in the authorized Academic Year/Program context.
+2. Branch options are tenant/scope authorized. **All Branches** appears only when the actor can access more than one Branch.
+3. Grade options derive from operational Planning within the selected authorized Branch; Section options cascade from selected Branch + Grade.
+4. The backend applies Branch/Grade/Section to frozen Assessment placement context before projection.
+5. The primary table shows Overall Program Result, Review status, and Official Identification. Deterministic Review Candidate policy remains internal and can still enable review actions, but **Meets criteria** is not presented as a learner classification.
 
 ## Talent Rubric And Analytics Closure Flow
 
@@ -27,7 +52,7 @@ source_of_truth: true
 1. Opening an active Program with enabled annual Grades, an active complete assessment setup, and at least one Evaluation Period shows its operational summary without the setup stepper.
 2. Edit Program opens `#tp-basics`; Edit What we assess opens the assessment subflow; Manage Evaluation Plan opens `#tp-schedule`. Program and Academic Year query context remain unchanged.
 3. The setup stepper labels Step 3 Evaluation Plan. Its embedded table labels each row an Evaluation Period and supports the existing authorized edit, remove, and Start Evaluation actions.
-4. Ready confirms each prerequisite. For a complete Draft Program, Finish Setup is the governed activation boundary: activate the Program, activate the reviewed Draft Framework with its revision/fingerprint, clear setup state, and open that Program's operational summary. Already-active state is not mutated again.
+4. The Program summary confirms prerequisites. For a complete Draft Program, Finish Setup is the governed activation boundary: activate the Program, activate the reviewed Draft Framework with its revision/fingerprint, clear setup state, and open that Program's operational summary. Already-active state is not mutated again.
 5. The renderer obtains the Academic Year display label from the selected shell option and never presents its internal ID as the normal label.
 
 ## Talent Module Navigation And Context Reset Flow
@@ -58,11 +83,11 @@ source_of_truth: true
 
 ## Talent Program Guided Setup
 
-1. The user opens a Program and sees its identity header and the Basics, What we assess, Evaluation Schedule, and Ready progress steps.
-2. The browser reads the URL hash and renders only that step's panel; changing the hash updates the active panel and refresh returns to it.
+1. The user opens a Program and sees its identity plus focused Basics, What we assess, and Evaluation Plan entry points; readiness is summarized on the Program itself.
+2. The browser reads supported URL hashes and renders the requested edit panel; refresh returns to that panel.
 3. Basics saves Program identity/configuration through existing Program and academic-year routes. What we assess edits the selected draft framework through existing revision-guarded competency, rubric, level, and descriptor routes.
-4. Evaluation Schedule hands off to the existing guided Plan/Period/Cycle workspace, which previews eligible Students before opening and freezing the population. Ready links to that operational workspace after the prerequisite steps are complete.
-5. The UI shows edit/remove actions only when the permission payload and entity lifecycle support them. Program lifecycle uses activate/retire; historical versions and terminal assessment results stay read-only.
+4. Evaluation Plan reuses the existing guided Plan/Period/Cycle workspace. When prerequisites are complete, Finish Setup is offered from the Program summary rather than from a separate Ready step.
+5. The UI shows edit/remove actions only when the permission payload and entity lifecycle support them. Program lifecycle uses activate/retire; historical versions and terminal assessment evidence stay immutable.
 
 ## Talent Program Identity, Planning Scope, And Result Clearing
 

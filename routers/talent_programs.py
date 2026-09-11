@@ -88,6 +88,39 @@ def _grade_sort_key(value: str):
         return (2, 0)
 
 
+@router.get("/planning-branches")
+def programs_planning_branches(
+    request: Request,
+    academic_year_id: int = Query(...),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """Authorized Branch options for Talent operational filters."""
+    user, group_id, denied = _authorize(
+        request, db, current_user,
+        "talent_programs.view", "talent_review_candidates.view", "talent_analytics.view",
+    )
+    if denied:
+        return denied
+    year = db.query(models.AcademicYear).filter_by(
+        id=academic_year_id, school_group_id=group_id
+    ).one_or_none()
+    if year is None:
+        return JSONResponse(
+            {"detail": "Academic Year is not available in your organization.", "code": "not_found"},
+            status_code=404,
+        )
+    query = db.query(models.Branch).filter_by(school_group_id=group_id)
+    if not auth.can_access_all_branches(user):
+        visible = {
+            row[0]
+            for row in auth.get_accessible_branch_query(db, user)
+            .with_entities(models.Branch.id).all()
+        }
+        query = query.filter(models.Branch.id.in_(visible or [-1]))
+    return [{"id": row.id, "name": row.name} for row in query.order_by(models.Branch.name, models.Branch.id).all()]
+
+
 @router.get("/planning-grades")
 def programs_planning_grades(request: Request, academic_year_id: int = Query(...), branch_id: int | None = Query(None), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Real Grades configured in Planning for the requested Academic Year (optionally one Branch).
@@ -100,7 +133,10 @@ def programs_planning_grades(request: Request, academic_year_id: int = Query(...
     selected, this returns the union of configured Grades across every Branch the
     actor may access for that Academic Year.
     """
-    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.view", "talent_analytics.view")
+    user, group_id, denied = _authorize(
+        request, db, current_user,
+        "talent_programs.view", "talent_review_candidates.view", "talent_analytics.view",
+    )
     if denied:
         return denied
     year = db.query(models.AcademicYear).filter_by(id=academic_year_id, school_group_id=group_id).one_or_none()

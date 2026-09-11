@@ -192,11 +192,14 @@ test('Basics renders the Academic Year label instead of its internal ID',async()
 });
 
 
-test('Finish Setup activates a completed Draft Program and its Draft rubric before opening operational summary',async()=>{
-  const {ctx,root,calls}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
+test('Program summary owns readiness and Finish Setup activation; there is no separate Ready step',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{complete:true,hash:''});
   const navigated=[];ctx.navigate=(target,extra)=>navigated.push({target,extra});
   await render(ctx);
+  assert.match(root.innerHTML,/class="tp-readiness-banner is-ready"/);
+  assert.match(root.innerHTML,/✓ Ready/);
   assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
+  assert.doesNotMatch(root.innerHTML,/id="tp-ready"|>Ready<\/b>/);
   await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
   const lifecycleWrites=calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/frameworks\/31\/activate$/.test(call.path)));
   assert.deepEqual(lifecycleWrites.map(call=>call.path),[
@@ -207,37 +210,24 @@ test('Finish Setup activates a completed Draft Program and its Draft rubric befo
   assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
 });
 
-test('completed Ready state offers Finish Setup to exit the wizard',async()=>{
-  const {ctx,root}=fixture(true,'active',{complete:true,hash:'#tp-ready'});await render(ctx);
-  assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
-});
-
-// Finish Setup on an already-Active Program/Framework performs no redundant
-// lifecycle writes and returns to that same Program's operational summary.
-for (const [label, hash] of [
-  ['a fully-ready/Active Program', '#tp-ready'],
-  // A direct deep-link straight into the Ready step (no prior step-by-step
-  // navigation through basics/assess/schedule in this render call).
-  ['a direct deep-link straight into the Ready step', '#tp-ready'],
-]) {
-  test(`Finish Setup on ${label} returns to the same Program operational summary without redundant lifecycle writes`,async()=>{
-    const {ctx,root,calls}=fixture(true,'active',{complete:true,hash});
-    await render(ctx);
-    assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
-    const navigated=[];
-    ctx.navigate=(target,extra)=>navigated.push({target,extra});
-    await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
-    assert.equal(calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/activate$/.test(call.path))).length,0);
-    assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
-  });
-}
-
-test('a fully configured Draft Program exposes Finish Setup as the activation boundary',async()=>{
-  const {ctx,root}=fixture(true,'draft',{complete:true,hash:'#tp-ready'});
+test('incomplete Program summary never presents green Ready or Finish Setup',async()=>{
+  const {ctx,root}=fixture(true,'draft',{complete:false,hash:''});
   await render(ctx);
-  assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
-  assert.doesNotMatch(root.innerHTML,/data-action="finalize-setup"/);
+  assert.match(root.innerHTML,/class="tp-readiness-banner is-incomplete"/);
+  assert.match(root.innerHTML,/Setup incomplete/);
+  assert.doesNotMatch(root.innerHTML,/✓ Ready|data-action="finish-setup"/);
 });
+
+test('Finish Setup on an already-active fully configured Program avoids redundant lifecycle writes',async()=>{
+  const {ctx,root,calls}=fixture(true,'active',{complete:true,hash:''});
+  const navigated=[];ctx.navigate=(target,extra)=>navigated.push({target,extra});
+  await render(ctx);
+  assert.match(root.innerHTML,/data-action="finish-setup"/);
+  await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
+  assert.equal(calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/activate$/.test(call.path))).length,0);
+  assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
+});
+
 
 test('Program index is a compact searchable table with primary actions',async()=>{
   const feedback={textContent:'',setAttribute(){}},root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
@@ -675,7 +665,7 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
     plans:calls.filter(item=>!item.options&&item.path.startsWith('/api/talent/evaluation-plans?')).length,
     versions:calls.filter(item=>!item.options&&item.path.endsWith('/frameworks')).length,
   };
-  assert.match(root.innerHTML,/Rubric Structure/);
+  assert.match(root.innerHTML,/Assessment Criteria/);
   assert.match(root.innerHTML,/Grade 1/);
   assert.match(root.innerHTML,/Reading Fluency/);
   assert.match(root.innerHTML,/Oral Reading/);

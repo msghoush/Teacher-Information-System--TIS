@@ -24,7 +24,8 @@ from talent_program_service import (
 )
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, complete_assessment, get_assessment,
-    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result, set_competency_result,
+    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result,
+    reset_completed_assessment_for_reassessment, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
@@ -694,6 +695,83 @@ def test_legacy_same_framework_rubric_replacement_resets_completed_student_for_r
     assert replacement.student_id == student.id
     assert session.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=replacement.id
+    ).count() == 0
+
+
+def test_admin_reset_for_reassessment_preserves_completed_evidence_and_allows_fresh_start(db):
+    _, session = db
+    program, framework, cycle, member, _, _, competencies, _ = foundation(session)
+
+    # Model the current user-facing assessment tool: every Grade-applicable
+    # Framework Competency owns its rubric/levels. The normal Evaluation start
+    # path intentionally refuses a legacy shared-rubric-only framework.
+    owned_levels = []
+    for index, competency in enumerate(competencies, 1):
+        rubric = models.TalentRubric(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            framework_competency_id=competency.id,
+            name=f"Recovery rubric {index}",
+        )
+        session.add(rubric)
+        session.flush()
+        level = models.TalentRubricLevel(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            rubric_id=rubric.id,
+            code="LEVEL_1",
+            label="Secure",
+            description="Recovery test level",
+            display_order=1,
+        )
+        session.add(level)
+        session.flush()
+        owned_levels.append(level)
+    session.commit()
+
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    assessment = set_all_results(session, assessment, competencies, owned_levels)
+    completed = complete_assessment(
+        session, school_group_id=1, assessment_id=assessment.id,
+        expected_revision=assessment.revision,
+    )
+    session.commit()
+
+    prior_result_count = session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=completed.id
+    ).count()
+    reset = reset_completed_assessment_for_reassessment(
+        session, school_group_id=1, assessment_id=completed.id
+    )
+    session.commit()
+
+    assert reset.status == "completed"
+    assert reset.is_current is False
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=completed.id
+    ).count() == prior_result_count
+    assert session.query(models.TalentAssessmentAudit).filter_by(
+        assessment_id=completed.id, action="reset_for_reassessment"
+    ).count() == 1
+
+    restarted = start_assessment_for_evaluation(
+        session, school_group_id=1, evaluation_cycle_id=cycle.id,
+        student_id=completed.student_id,
+    )
+    session.flush()
+    assert restarted.status == "in_progress"
+    assert restarted.is_current is True
+    assert restarted.student_id == completed.student_id
+    assert restarted.cycle_id != cycle.id
+    assert restarted.evaluation_context_cycle_id == cycle.id
+    assert restarted.framework_version_id == completed.framework_version_id
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=restarted.id
     ).count() == 0
 
 

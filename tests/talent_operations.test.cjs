@@ -71,8 +71,8 @@ test('Talent Review includes every completed assessment and keeps Candidate sepa
   assert.match(root.innerHTML,/Alya &lt;X&gt;/);
   assert.match(root.innerHTML,/Omar/);
   assert.match(root.innerHTML,/Overall Program Result 4\.2 out of 5/);
-  assert.match(root.innerHTML,/Meets criteria/);
-  assert.match(root.innerHTML,/No candidate/);
+  assert.doesNotMatch(root.innerHTML,/Meets criteria|No candidate/);
+  assert.match(root.innerHTML,/Review status/);
   assert.match(root.innerHTML,/review_id=9/);
   assert.match(root.innerHTML,/review_id=10/);
 });
@@ -91,7 +91,8 @@ test('opening one Talent Review assessment shows result and separate human decis
   assert.doesNotMatch(root.innerHTML,/<table class="tp-compact-table/);
   assert.match(root.innerHTML,/Back to Talent Review/);
   assert.match(root.innerHTML,/Overall Program Result 4\.4 out of 5/);
-  assert.match(root.innerHTML,/Review Candidate/);
+  assert.doesNotMatch(root.innerHTML,/Meets configured criteria/);
+  assert.match(root.innerHTML,/Review status/);
   assert.match(root.innerHTML,/Official Identification remains a separate authorized human decision/);
 });
 
@@ -214,6 +215,24 @@ test('completed Student with a changed rubric is surfaced as Re-evaluation requi
   assert.match(root.innerHTML,/Re-evaluation required/);
   assert.match(root.innerHTML,/data-action="reassess-row"[^>]*data-id="502"/);
   assert.doesNotMatch(root.innerHTML,/data-action="start"[^>]*data-student="103"/);
+});
+
+test('completed Student can expose the evidence-preserving Reset for Re-assessment action',async()=>{
+  const root=domRoot();
+  const cycle={id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',status:'open'};
+  const members=[{student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
+  const rows=[{id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:'11',reassessment:{required:false},actions:['reset_for_reassessment']}];
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
+    api:async path=>{
+      if(path.startsWith('/api/talent/assessments?'))return rows;
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
+      if(path.endsWith('/eligible-students'))return {members};
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/Reset for Re-assessment/);
+  assert.match(root.innerHTML,/Selected Evaluation Period/);
+  assert.match(root.innerHTML,/is-selected/);
 });
 
 test('arriving on Student Assessments with one Evaluation context shows its enrolled Students directly',async()=>{
@@ -386,7 +405,7 @@ test('Start Assessment posts cycle_id plus student_id directly without a populat
   await clickHandler();
   const call=calls.find(item=>item.path==='/api/talent/assessments'&&item.options?.method==='POST');
   assert.deepEqual(call.options.body,{cycle_id:71,student_id:501});
-  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,academic_year_id:'2026',program_id:'11'}});
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:71,academic_year_id:'2026',program_id:'11'}});
 });
 
 test('starting an assessment carries the current Program forward in the resulting navigation (no ribbon/content mismatch)',async()=>{
@@ -409,7 +428,7 @@ test('starting an assessment carries the current Program forward in the resultin
   await withWindow(()=>render(ctx));
   assert.equal(typeof clickHandler,'function');
   await clickHandler();
-  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,academic_year_id:'2026',program_id:'11'}});
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:61,academic_year_id:'2026',program_id:'11'}});
 });
 
 

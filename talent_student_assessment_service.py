@@ -420,7 +420,18 @@ def start_assessment_for_evaluation(
             "assessment_tool_unavailable",
             "This Evaluation needs at least one Grade-applicable Competency rubric with levels.",
         )
-    if newest.id == root_cycle.framework_version_id:
+    # The physical schema has a durable UNIQUE(cycle_id, student_id)
+    # constraint. After an Administrator reset, the completed historical row
+    # remains on the original Cycle by design, so a fresh current attempt must
+    # use a private derived Cycle even when the assessable Framework itself did
+    # not change. The visible Evaluation remains the original root Cycle.
+    prior_on_root = db.query(models.TalentStudentAssessment.id).filter_by(
+        school_group_id=school_group_id,
+        cycle_id=root_cycle.id,
+        student_id=int(student_id),
+    ).first() is not None
+
+    if newest.id == root_cycle.framework_version_id and not prior_on_root:
         return start_assessment(
             db, school_group_id=school_group_id, cycle_id=root_cycle.id,
             student_id=int(student_id), evaluation_context_cycle_id=root_cycle.id,
@@ -433,8 +444,16 @@ def start_assessment_for_evaluation(
         program_id=root_cycle.program_id,
         academic_year_id=root_cycle.academic_year_id,
         framework_version_id=newest.id,
-        title=f"{root_cycle.title} · Current rubric",
-        description="Internal rubric-version context for the visible Evaluation.",
+        title=(
+            f"{root_cycle.title} · Re-assessment"
+            if prior_on_root and newest.id == root_cycle.framework_version_id
+            else f"{root_cycle.title} · Current rubric"
+        ),
+        description=(
+            "Internal re-assessment attempt context; prior completed evidence remains historical."
+            if prior_on_root and newest.id == root_cycle.framework_version_id
+            else "Internal rubric-version context for the visible Evaluation."
+        ),
         population_effective_at=datetime.utcnow(),
         actor=actor,
     )
@@ -1110,6 +1129,39 @@ def delete_assessment(db, *, school_group_id, assessment_id, actor=None):
     db.delete(assessment)
     db.flush()
     return assessment.id
+
+
+
+def reset_completed_assessment_for_reassessment(db, *, school_group_id, assessment_id, actor=None):
+    """Make one Completed current Assessment historical so the same Evaluation can start again.
+
+    This is an operational recovery action, not a hard delete. All competency
+    results, review/identification records, educator input, placement context,
+    and audit history remain attached to the prior Assessment. Only its current
+    pointer is cleared, allowing the normal start path to create a fresh current
+    Assessment for the same visible Evaluation.
+    """
+    assessment = _assessment(db, school_group_id, assessment_id, lock=True)
+    if assessment is None:
+        raise TalentStudentAssessmentError("not_found", "Student Assessment was not found.")
+    if assessment.status != "completed":
+        raise TalentStudentAssessmentError(
+            "reset_not_available", "Only a Completed Assessment can be reset for re-assessment."
+        )
+    if not bool(getattr(assessment, "is_current", True)):
+        raise TalentStudentAssessmentError(
+            "reset_not_available", "This Assessment is already historical."
+        )
+    before = assessment_payload(assessment)
+    assessment.is_current = False
+    assessment.updated_by_user_id = getattr(actor, "user_id", None)
+    assessment.updated_at = datetime.utcnow()
+    db.flush()
+    _audit(
+        db, assessment, actor=actor, action="reset_for_reassessment",
+        before=before, after=assessment_payload(assessment),
+    )
+    return assessment
 
 
 def mark_non_complete(db, *, school_group_id, assessment_id, expected_revision, status, actor=None):

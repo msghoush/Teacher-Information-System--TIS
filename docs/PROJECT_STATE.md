@@ -1,11 +1,45 @@
 ---
 title: TIS Project State
-documentation_version: 4.2
+documentation_version: 4.3
 last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Urgent UX And Recovery Adjustment Batch
+
+The Owner-approved urgent adjustment batch is implemented on `dev` with no
+schema migration. Talent's sidebar tree is now the only primary module
+navigation; the duplicate in-page module ribbon is removed. Program setup
+projects readiness on the Program summary and no longer owns a separate Ready
+step. A positive **Ready** state is shown only when eligible Grades, assessment
+criteria, and Evaluation Period configuration are complete. Competency
+authoring uses one selected Grade at a time, defaulting to the first configured
+Grade, while dedicated delete permissions continue to govern Competency/Level
+destructive actions.
+
+A new Administrator-default permission
+`talent_assessments.reset_for_reassessment` provides safe operational
+recovery for a current completed Assessment. Reset marks the prior completed
+attempt non-current and writes an audit event while preserving every dependent
+evidence/history row. The Student therefore returns to Not started in the same
+visible Evaluation and may start a fresh current Assessment. This is not ADR
+0034 hard-delete; completed evidence is never physically deleted by this path.
+
+Student Assessments now emphasizes the selected Evaluation Period and selected
+Program, and Start Assessment carries the selected Cycle/Program into the
+opened assessment workspace so the Program's exact competencies and persisted
+assessment criteria load immediately. Talent Review accepts authorized
+Branch/Grade/Section filters and no longer presents "Meets criteria" as a
+primary user classification; deterministic Candidate policy remains internal
+and Official Identification remains distinct. Analytics error surfaces now
+reuse the backend's specific governed reason where available.
+
+Program setup uses the neutral user-facing phrase **Assessment Criteria** for
+the competency-owned rubric structure. The separate real numeric feature is
+shown explicitly as **Key Performance Indicator (KPI)** with Add/Edit/Delete
+controls. Internal rubric persistence/API terminology is unchanged.
 
 ## Talent Assessment Eligibility — Owner Simplification
 
@@ -262,13 +296,13 @@ The UI now uses Evaluation Plan and Evaluation Period terminology consistently. 
 
 ## Talent Guided Configuration And Student Display Correction
 
-The Owner screenshot follow-up is implemented in the shared Talent workspace. Program Basics is one concise identity/year/Grades form. What we assess renders one of four compact substeps with table rows and on-demand editors. Evaluation Schedule is embedded inside the Program wizard while reusing the existing standalone renderer and backend contracts. Ready shows only completion counts and one next action. Editing a Program from the Programs table opens this same wizard and its hash preserves the main step or assessment substep across refresh.
+The Owner screenshot follow-up is implemented in the shared Talent workspace. Program Basics is one concise identity/year/Grades form. What we assess uses compact substeps with table rows and on-demand editors. Evaluation Schedule remains embedded inside the Program workspace while reusing the existing standalone renderer and backend contracts. Readiness is now projected on the Program summary instead of a separate Ready panel. Editing a Program from the Programs table opens this same workspace and its hash preserves the selected setup or assessment substep across refresh.
 
 Student collection presentation now explicitly shows the compact table above 680px and compact cards at or below 680px, never both at once. Active lifecycle state remains in accessible text and filtering but is visually represented by a neutral dash; exceptional statuses keep a visible status chip. Open Evaluation and Talent Review remain compact collection tables with detail shown only after opening one Student.
 
 ## Talent Program Setup Wizard Owner Correction
 
-The Programs detail workspace now satisfies the Owner visual structure: Program header, compact four-step progress, one active setup panel, and local Back/Save & Continue or next-action controls. Step selection is stored in the URL hash and restored on refresh. The implementation no longer emits all setup sections or the duplicate Grades/Build your evaluation readiness cards into one long page. Readiness appears in the stepper through completed checks and a concise remaining-item count.
+The Programs detail workspace uses the Program header plus focused setup panels and local Back/Save & Continue or next-action controls. Step selection remains hash-backed where applicable. The implementation no longer emits all setup sections or duplicate Grades/readiness cards into one long page. Readiness is shown only in the Program summary and becomes positive only when all required setup areas are complete.
 
 The management-action audit confirms the UI exposes existing permission- and lifecycle-authorized edit/remove operations for Program details and logo, draft competencies, rubric levels, achievement descriptions, optional KPI and Program criteria, Evaluation Schedule periods, and in-progress assessment results. Programs remain governed by activate/retire rather than hard delete, and terminal assessments and historical framework versions remain immutable.
 
