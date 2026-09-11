@@ -107,6 +107,33 @@ def _read_assessment(db, group_id, user, assessment_id):
     return assessment, None
 
 
+@router.get("/contexts")
+def assessment_contexts(request: Request, program_id: int | None = Query(None),
+                        academic_year_id: int | None = Query(None),
+                        db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Minimal Evaluation contexts for the normal Student Assessments UI.
+
+    ADR 0035 deliberately avoids requiring Cycle-management/view permissions
+    just to choose an Evaluation and assess enrolled Students.
+    """
+    _, group_id, denied = _authorize(request, db, current_user, "talent_assessments.view")
+    if denied:
+        return denied
+    query = db.query(models.TalentAssessmentCycle).filter_by(school_group_id=group_id)
+    if program_id is not None:
+        query = query.filter_by(program_id=program_id)
+    if academic_year_id is not None:
+        query = query.filter_by(academic_year_id=academic_year_id)
+    rows = query.order_by(models.TalentAssessmentCycle.created_at.desc(), models.TalentAssessmentCycle.id.desc()).all()
+    return [{
+        "id": row.id,
+        "program_id": row.program_id,
+        "academic_year_id": row.academic_year_id,
+        "framework_version_id": row.framework_version_id,
+        "title": row.title,
+    } for row in rows]
+
+
 @router.post("")
 def assessments_start(request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "talent_assessments.manage")
