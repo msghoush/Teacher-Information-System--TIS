@@ -1,7 +1,7 @@
 ---
 title: TIS Module Map
-documentation_version: 3.5
-last_updated: 2026-09-09
+documentation_version: 3.6
+last_updated: 2026-09-11
 source_of_truth: true
 ---
 
@@ -19,7 +19,11 @@ source_of_truth: true
 
 - `routers/talent_programs.py`: Program/Framework authoring API plus bounded
   Program-list summaries and explicit competency-to-competency rubric-level
-  copy. New rubric creation does not auto-import legacy shared levels.
+  copy. New rubric creation does not auto-import legacy shared levels. True
+  Competency and Rubric Level removal use the dedicated assignable permissions
+  `talent_programs.delete_competency` and
+  `talent_programs.delete_rubric_level`; whole Program deletion remains
+  separate.
 - `static/js/talent-program-workspace.js`: searchable Program table; Program
   identity/eligible-Grade settings; visible Evaluation Period summary; separate
   Grade -> Competency -> competency-owned Rubric -> ordered Levels builder; and
@@ -28,11 +32,15 @@ source_of_truth: true
   routine mutations refresh only affected cached slices rather than the entire
   workspace graph.
 - `talent_student_assessment_service.py`: live-eligibility Assessment start,
-  immutable reassessment attempts, coherent-rubric-scale completion guard, and
-  deterministic arithmetic-mean Overall Program Result.
+  current Evaluation selection restricted to complete competency-owned rubrics,
+  historical-only legacy-rubric comparison, immutable reassessment attempts,
+  coherent-rubric-scale completion guard, and deterministic arithmetic-mean
+  Overall Program Result.
 - `routers/talent_assessments.py` and `static/js/talent-operations.js`:
-  Evaluation Period -> Program -> Student operational workflow, all eligible
-  Student states, reassessment actions, and result presentation.
+  Evaluation Period -> Program -> Student current operational workflow, all
+  eligible Student states, reassessment actions, and result presentation. The
+  normal workspace does not render a duplicate Assessment Records/History
+  table.
 - `routers/talent_review_candidates.py`: candidate persistence APIs plus a
   workspace projection over all current completed Assessments so non-candidate
   Students are not hidden from Talent Review.
