@@ -18,7 +18,7 @@ from talent_program_service import (
     create_framework_draft, create_program, get_framework_configuration,
     remove_descriptor, remove_grade_descriptor, remove_framework_competency, remove_kpi, remove_review_candidate_policy,
     remove_rubric_level, reorder_rubric_levels, retire_framework, transition_program,
-    update_rubric_level, upsert_descriptor, upsert_rubric,
+    update_framework_competency, update_rubric_level, upsert_descriptor, upsert_rubric,
 )
 
 
@@ -495,3 +495,32 @@ def test_m3_migration_widens_narrow_m2_audit_resource_type_check_in_place():
             "SELECT resource_type FROM talent_configuration_audits WHERE public_id = '11111111-1111-1111-1111-111111111111'"
         )).scalar()
     assert preserved == "framework_version"
+
+
+def test_framework_competency_grade_scope_is_semantic_and_clones_independently(db):
+    program, framework, competency, member, _ = foundation(db, name="Mental Math Grade Scope")
+    original = framework.semantic_fingerprint
+    member, framework = update_framework_competency(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=competency.id, expected_revision=framework.revision,
+        grade_level="3",
+    )
+    assert member.grade_level == "3"
+    assert framework.semantic_fingerprint != original
+
+    clone = create_framework_draft(
+        db, school_group_id=1, program_id=program.id, title="Clone",
+        clone_from_id=framework.id,
+    )
+    cloned_member = db.query(models.FrameworkCompetency).filter_by(
+        framework_version_id=clone.id, talent_competency_id=competency.id
+    ).one()
+    assert cloned_member.grade_level == "3"
+
+    with pytest.raises(TalentProgramError) as invalid:
+        update_framework_competency(
+            db, school_group_id=1, program_id=program.id, framework_id=clone.id,
+            competency_id=competency.id, expected_revision=clone.revision,
+            grade_level="Grade 99",
+        )
+    assert invalid.value.code == "invalid_grade"
