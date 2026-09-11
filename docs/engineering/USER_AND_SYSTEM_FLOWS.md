@@ -1,11 +1,36 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.5
+documentation_version: 3.6
 last_updated: 2026-09-09
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Talent Selected Evaluation And Recovery Flow
+
+1. Student Assessments lists user-defined Evaluation Periods and their configured Programs. Selecting a Program inside a Period visibly marks that Evaluation/Program as active and loads its currently eligible Students.
+2. Start Assessment sends the selected Evaluation Cycle plus Student identity and opens the returned Assessment while retaining the selected Cycle/Program context. Continue/View Assessment opens that exact current attempt.
+3. The Assessment workspace loads the exact saved Framework for that attempt and the Student's recorded Grade-scoped competencies/assessment criteria; a click must never silently no-op.
+4. If automatic rubric-change comparison reports a completed current attempt as stale, the normal **Re-evaluation required** flow creates a linked replacement under ADR 0036.
+5. If an administrator must deliberately reassess a completed current attempt without an automatic stale-rubric condition, `talent_assessments.reset_for_reassessment` marks the prior attempt historical/non-current and audits the reset. It does not delete any evidence.
+6. After reset, the same Student/Evaluation row returns to **Not started / Start Assessment**. The next start creates a fresh current attempt with zero competency results; the prior completed attempt remains available only as historical evidence.
+
+## Talent Program Readiness And Authoring Flow
+
+1. Talent's main sidebar tree is the sole primary module navigation; the page does not duplicate that navigation ribbon.
+2. Program authoring shows one eligible Grade at a time, defaulting to the first configured Grade, then its Competencies and assessment criteria.
+3. Competency and Rubric-Level deletion remains permission/lifecycle controlled by backend actions; UI visibility never grants authority.
+4. Program readiness is projected on the Program summary. **Ready** is positive only after Program/Grade setup, assessment criteria, and Evaluation Plan requirements are complete; there is no separate Ready step.
+5. The competency-owned rubric structure is labeled **Assessment Criteria** in normal setup. The separate real numeric `TalentKpiConfiguration` is labeled **Key Performance Indicator (KPI)** and supports Add/Edit/Delete while mutable.
+
+## Talent Review Filtering Flow
+
+1. Talent Review starts from all current completed Assessments in the authorized Academic Year/Program context.
+2. Branch options are tenant/scope authorized. **All Branches** appears only when the actor can access more than one Branch.
+3. Grade options derive from operational Planning within the selected authorized Branch; Section options cascade from selected Branch + Grade.
+4. The backend applies Branch/Grade/Section to frozen Assessment placement context before projection.
+5. The primary table shows Overall Program Result, Review status, and Official Identification. Deterministic Review Candidate policy remains internal and can still enable review actions, but **Meets criteria** is not presented as a learner classification.
 
 ## Talent Rubric And Analytics Closure Flow
 
