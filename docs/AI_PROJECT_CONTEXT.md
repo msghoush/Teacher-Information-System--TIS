@@ -33,6 +33,8 @@ Re-evaluation remains append-only. In addition to the normal newer-Framework tri
 
 Normal Grade-level Competency authoring does not fabricate ASCII-only codes in the browser. Unicode names are submitted directly and the backend generates the existing unique Program-scoped internal code.
 
+Talent & Potential now expands as a permission-aware child tree in the main application sidebar. Overview, Programs, Student Assessments, Talent Review, and Results & Analytics are clean top-level destinations: moving between them retains Academic Year only and drops stale Program/Cycle/Assessment and analytics filter context. Programs therefore reopens its collection view unless the user explicitly opens a Program, while Student Assessments owns its own Program selector instead of inheriting the Program previously being edited. Program-context buttons inside an opened Program intentionally keep that Program when opening Assessments or Results.
+
 ## Talent Guided Configuration Owner Recheck
 
 Program creation and editing stay on `/talent/programs` through four hash-backed panels: Program Basics, What we assess, Evaluation Schedule, and Ready. Program Basics combines logo, draft name/description, selected Academic Year, annual enablement, and Planning-derived Grades in one panel and one Save & Continue action. What we assess has its own Competencies, Rubric Levels, Achievement Descriptions, and Review substeps; only the selected substep is rendered and add/edit forms remain collapsed until requested. Assessment setup history and creation of an editable successor setup are disclosed under advanced history rather than shown as the normal workflow.
