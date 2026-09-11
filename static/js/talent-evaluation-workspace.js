@@ -39,12 +39,15 @@
     }else{
       const canViewPrograms=can('talent_programs.view');
       const directBase=programId?`/api/talent/programs/${programId}`:null;
+      const prefetchedProgram=programId?ctx.programCatalog?.get?.(String(programId)):null;
       const [loadedPlans,loadedPrograms,loadedCycles,loadedAnnual,loadedFrameworks] = await Promise.all([
         api(`/api/talent/evaluation-plans?${query}`),
         canViewPrograms
-          ? (programId
-              ? api(directBase).then(program=>[program]).catch(()=>api('/api/talent/programs'))
-              : api('/api/talent/programs'))
+          ? (prefetchedProgram
+              ? Promise.resolve([prefetchedProgram])
+              : programId
+                ? api(directBase).then(program=>[program]).catch(()=>api('/api/talent/programs'))
+                : api('/api/talent/programs'))
           : Promise.resolve([]),
         can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : Promise.resolve([]),
         canViewPrograms&&programId ? api(`${directBase}/academic-years`) : Promise.resolve([]),
