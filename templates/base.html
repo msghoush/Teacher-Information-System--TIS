@@ -104,16 +104,16 @@
                 <h3 class="sidebar-section-title">Navigation</h3>
                 <nav class="sidebar-nav" aria-label="Primary navigation" data-design-component="shell.navigation" data-design-type="navigation">
                     {% for item in shell.nav_items %}
-                    <a class="sidebar-link {% if item.brand_logo %}sidebar-link--brand{% endif %} {% if item.active %}is-active{% endif %}" href="{{ item.href }}" {% if item.brand_logo %}aria-label="{{ item.label }}"{% endif %}>
+                    <a class="sidebar-link {% if item.active %}is-active{% endif %}" href="{{ item.href }}">
                         <span class="sidebar-link-main">
                             {% if item.brand_logo %}
-                            <img class="sidebar-brand-logo" src="{{ url_for('static', path=item.brand_logo) }}" alt="{{ item.label }} — Ghars">
+                            <img class="sidebar-brand-symbol shell-icon" src="{{ url_for('static', path=item.brand_logo) }}" alt="" aria-hidden="true">
                             {% else %}
                             {{ icon(item.icon, "shell-icon") }}
+                            {% endif %}
                             <span class="sidebar-link-copy">
                                 <strong>{{ item.label }}</strong>
                             </span>
-                            {% endif %}
                             {% if item.badge_count %}
                             <span class="sidebar-nav-badge" aria-label="{{ item.badge_count }} new notifications">{{ item.badge_count }}</span>
                             {% endif %}

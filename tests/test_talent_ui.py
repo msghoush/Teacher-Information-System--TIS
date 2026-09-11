@@ -212,3 +212,20 @@ def test_evaluation_plan_route_and_backend_remain_functional(db, client):
     permissions(db, 'talent_evaluation_plans.view')
     response = client.get('/talent/evaluation-plans')
     assert response.status_code == 200
+
+
+def test_students_is_first_child_of_talent_nav_and_gated_by_students_view(db, client):
+    permissions(db, 'talent_programs.view')
+    response = client.get('/talent')
+    assert response.status_code == 200
+    # Without students.view, no Students link into the Talent tree appears.
+    assert 'href="/students/"' not in response.text
+
+    permissions(db, 'students.view')
+    response = client.get('/talent')
+    assert response.status_code == 200
+    body = response.text
+    students_index = body.index('href="/students/"')
+    overview_index = body.index('href="/talent/overview"')
+    programs_index = body.index('href="/talent/programs"')
+    assert students_index < overview_index < programs_index

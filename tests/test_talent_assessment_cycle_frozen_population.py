@@ -17,15 +17,16 @@ from dependencies import get_db
 from routers.talent_assessment_cycles import router
 from student_academic_service import create_placement, create_student, transition_placement, update_student
 from talent_assessment_cycle_service import (
-    TalentAssessmentCycleError, close_cycle, create_cycle, frozen_population,
-    open_cycle, population_fingerprint, preview_population,
+    TalentAssessmentCycleError, close_cycle, create_cycle, current_placements_for_assessment,
+    frozen_population, open_cycle, population_fingerprint, preview_population,
     reconcile_open_cycle_population, synchronize_placement_to_open_cycles,
     update_cycle,
 )
-from talent_student_assessment_service import start_assessment
+from talent_student_assessment_service import start_assessment, start_assessment_for_evaluation
 from talent_program_service import (
-    activate_framework, create_framework_draft, create_program, retire_framework,
-    transition_program, upsert_annual_configuration,
+    activate_framework, add_framework_competency, add_rubric_level, create_competency,
+    create_framework_draft, create_program, retire_framework,
+    transition_program, upsert_annual_configuration, upsert_rubric,
 )
 
 
@@ -135,6 +136,106 @@ def test_effective_time_grade_eligibility_and_dynamic_draft_preview(db):
         effective_at=datetime(2026, 10, 1),
     )
     assert len(changed) == 2
+
+
+def test_normal_student_assessments_roster_and_start_are_never_grade_gated(db):
+    """Owner correction: Grade must not be a Student-list gate or Start
+    Assessment gate. Mental Math fixture: 7 Students total (6 Grade 3, 1
+    Grade 4), Program eligible Grades configured as only Grade "1" -
+    every Student must still appear and be able to start."""
+    engine, session = db
+    session.add_all([
+        models.PlanningSection(id=1004, branch_id=10, academic_year_id=100, grade_level="3", section_name="E", class_status="Current"),
+        models.PlanningSection(id=1005, branch_id=20, academic_year_id=200, grade_level="1", section_name="A", class_status="Current"),
+    ])
+    session.commit()
+    program = create_program(session, school_group_id=1, name="Mental Math")
+    transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Mental Math Framework")
+    lineage = create_competency(session, school_group_id=1, program_id=program.id, code="MC", name="Mental Computation")
+    member, framework = add_framework_competency(session, school_group_id=1, program_id=program.id, framework_id=framework.id, competency_id=lineage.id, expected_revision=framework.revision, grade_level="1")
+    _, framework = upsert_rubric(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, framework_competency_id=member.id)
+    level, framework = add_rubric_level(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, code="L1", label="Level 1", framework_competency_id=member.id)
+    activate_framework(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, expected_fingerprint=framework.semantic_fingerprint, organization_authorized=True)
+    config = upsert_annual_configuration(session, school_group_id=1, program_id=program.id, academic_year_id=100, is_enabled=True, eligible_grade_levels=["1"])
+    session.commit()
+    grade3 = [student_placement(session, first=f"Grade3-{i}", section=1004, grade="3")[0] for i in range(6)]
+    grade4, _ = student_placement(session, first="Grade4-1", section=1002, grade="4")
+    session.commit()
+    cycle = draft_cycle(session, program, framework)
+
+    # Student list: all 7 appear, not filtered by the Program's own
+    # eligible-Grade configuration ("1" only).
+    roster = current_placements_for_assessment(session, cycle=cycle, effective_at=datetime(2026, 10, 1))
+    assert {row["student_id"] for row in roster} == {s.id for s in grade3} | {grade4.id}
+    assert len(roster) == 7
+
+    # The legacy/frozen M4 population path is untouched and still Grade-gated
+    # for its own (Cycle-open/preview) callers - separate from the normal list.
+    _, legacy_preview = preview_population(session, school_group_id=1, cycle_id=cycle.id, effective_at=datetime(2026, 10, 1))
+    assert legacy_preview == []
+
+    # Start Assessment: a Grade 3 and a Grade 4 Student can both start even
+    # though the Program's eligible Grades is only "1".
+    a3 = start_assessment_for_evaluation(session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=grade3[0].id)
+    assert a3.status == "in_progress"
+    session.commit()
+    a4 = start_assessment_for_evaluation(session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=grade4.id)
+    assert a4.status == "in_progress"
+    session.commit()
+
+    # Tenant scope is still enforced: a foreign-tenant Student is never returned.
+    foreign_program, foreign_framework, _ = foundation(session, group=2, year=200, name="Other", grades=("1",))
+    foreign_cycle = create_cycle(session, school_group_id=2, program_id=foreign_program.id, academic_year_id=200,
+                                 framework_version_id=foreign_framework.id, title="Other Cycle",
+                                 population_effective_at=datetime(2026, 10, 1))
+    session.commit()
+    foreign_roster = current_placements_for_assessment(session, cycle=foreign_cycle, effective_at=datetime(2026, 10, 1))
+    assert foreign_roster == []
+
+
+def test_normal_roster_and_start_work_with_no_annual_program_configuration_at_all(db):
+    """Owner correction: TalentProgramAcademicYearConfiguration.is_enabled (or
+    its absence entirely) must not block the normal Student Assessments
+    roster or Start Assessment. The Evaluation/Cycle already supplies the
+    Academic Year; a valid current Placement in that Academic Year, plus a
+    saved Competency+KPI+Level, is sufficient."""
+    _, session = db
+    program = create_program(session, school_group_id=1, name="Mental Math")
+    transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Mental Math Framework")
+    lineage = create_competency(session, school_group_id=1, program_id=program.id, code="MC", name="Mental Computation")
+    member, framework = add_framework_competency(session, school_group_id=1, program_id=program.id, framework_id=framework.id, competency_id=lineage.id, expected_revision=framework.revision)
+    _, framework = upsert_rubric(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, framework_competency_id=member.id)
+    add_rubric_level(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, code="L1", label="Level 1", framework_competency_id=member.id)
+    session.commit()
+    framework = session.query(models.TalentProgramFrameworkVersion).filter_by(id=framework.id).one()
+    activate_framework(session, school_group_id=1, program_id=program.id, framework_id=framework.id, expected_revision=framework.revision, expected_fingerprint=framework.semantic_fingerprint, organization_authorized=True)
+    session.commit()
+    # Deliberately no upsert_annual_configuration call at all - no
+    # TalentProgramAcademicYearConfiguration row exists for this Program/Year.
+    assert session.query(models.TalentProgramAcademicYearConfiguration).filter_by(program_id=program.id, academic_year_id=100).count() == 0
+
+    student, _ = student_placement(session, first="NoConfig", section=1000, grade="1")
+    session.commit()
+    cycle = draft_cycle(session, program, framework)
+
+    roster = current_placements_for_assessment(session, cycle=cycle, effective_at=datetime(2026, 10, 1))
+    assert [row["student_id"] for row in roster] == [student.id]
+
+    assessment = start_assessment_for_evaluation(session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=student.id)
+    assert assessment.status == "in_progress"
+    session.commit()
+
+    # Now with a real but explicitly disabled annual configuration - same result.
+    other_student, _ = student_placement(session, first="DisabledConfig", section=1000, grade="1")
+    session.commit()
+    upsert_annual_configuration(session, school_group_id=1, program_id=program.id, academic_year_id=100, is_enabled=False, eligible_grade_levels=["1"])
+    session.commit()
+    disabled_roster = current_placements_for_assessment(session, cycle=cycle, effective_at=datetime(2026, 10, 1))
+    assert {row["student_id"] for row in disabled_roster} == {student.id, other_student.id}
+    other_assessment = start_assessment_for_evaluation(session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=other_student.id)
+    assert other_assessment.status == "in_progress"
 
 
 def test_current_student_status_never_reinterprets_historical_eligibility(db):

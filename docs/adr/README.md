@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
-documentation_version: 3.5
-last_updated: 2026-09-11
+documentation_version: 3.6
+last_updated: 2026-09-12
 ---
 
 # Architecture Decision Records
@@ -62,3 +62,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0036-talent-rubric-reassessment-attempts.md`
 - `0037-talent-overall-program-result.md`
 - `0038-talent-evaluation-first-assessment-review.md`
+- `0039-talent-competency-kpi-level-simplification.md`

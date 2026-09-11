@@ -210,6 +210,50 @@ def derive_eligible_population(db, *, cycle, effective_at=None):
     } for row in placements]
 
 
+def current_placements_for_assessment(db, *, cycle, effective_at=None):
+    """Live Student Assessments roster for one Evaluation context (Owner correction).
+
+    Per the Owner's governing rule, Grade is never a Student-list gate: this
+    returns every currently, effective-dated placed Student in the Cycle's
+    School Group and Academic Year - not filtered by the Program's own
+    eligible-Grade configuration. The Program's own annual-configuration
+    enabled/disabled state is likewise not a gate here: the Evaluation/Cycle
+    already supplies the Academic Year, and the Student still must have a
+    valid current Placement in that exact Academic Year - that is
+    sufficient. Tenant (School Group) isolation, Branch authorization
+    (enforced by the caller), Academic Year match, and a genuinely current
+    effective Placement remain enforced.
+
+    This is deliberately separate from ``derive_eligible_population``, which
+    remains unchanged and continues to gate by Program-eligible Grade and
+    annual-configuration enablement for its own legacy/frozen-population
+    callers (Cycle open/preview/reconciliation, ADR 0033/0035 provenance
+    capture) - those are historical population mechanics, not the normal
+    Student Assessments list, and are not rewritten here.
+    """
+    as_of = effective_at or cycle.population_effective_at or datetime.utcnow()
+    placements = db.query(models.StudentAcademicPlacement).join(
+        models.Student,
+        (models.Student.id == models.StudentAcademicPlacement.student_id)
+        & (models.Student.school_group_id == models.StudentAcademicPlacement.school_group_id),
+    ).filter(
+        models.StudentAcademicPlacement.school_group_id == cycle.school_group_id,
+        models.StudentAcademicPlacement.academic_year_id == cycle.academic_year_id,
+        models.StudentAcademicPlacement.effective_from <= as_of,
+        or_(models.StudentAcademicPlacement.effective_to.is_(None), models.StudentAcademicPlacement.effective_to > as_of),
+    ).order_by(models.StudentAcademicPlacement.student_id, models.StudentAcademicPlacement.id).all()
+    return [{
+        "student_id": row.student_id,
+        "academic_placement_id": row.id,
+        "academic_year_id": row.academic_year_id,
+        "branch_id": row.branch_id,
+        "planning_section_id": row.planning_section_id,
+        "grade_level": row.grade_level,
+        "section_name": row.section_name,
+        "population_effective_at": as_of,
+    } for row in placements]
+
+
 def eligible_open_cycles_for_placement_scope(db, *, school_group_id, academic_year_id, grade_level):
     """Return Open Cycles whose enabled annual configuration includes the Grade."""
     cycles = db.query(models.TalentAssessmentCycle).filter_by(

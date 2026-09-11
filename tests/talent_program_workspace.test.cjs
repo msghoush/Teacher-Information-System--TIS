@@ -210,6 +210,28 @@ test('Program summary owns readiness and Finish Setup activation; there is no se
   assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
 });
 
+test('Ready is exactly Competency+KPI+Level, saved - Program/Academic-Year Grade selection is never a Ready gate (Owner correction)',async()=>{
+  const framework={id:31,title:'Mental Math',status:'draft',version_number:1,revision:3,semantic_fingerprint:'fp',competencies:[{id:71,competency_id:61,label:'Mental Computation',description:''}]};
+  const config={levels:[],descriptors:[],rubric:null,kpi:null,review_candidate_policy:null,rubrics:[{id:81,framework_competency_id:71,name:'Mental Computation KPI',levels:[{id:91,rubric_id:81,framework_competency_id:71,code:'L1',label:'Level 1',order:1}]}]};
+  const root={innerHTML:'',querySelector:()=>({textContent:'',setAttribute(){}}),querySelectorAll:()=>[]};
+  const ctx={root,year:'2026',yearLabel:'2026-2027',hash:'',params:new URLSearchParams('program_id=11'),can:()=>true,api:async path=>{
+    if(path==='/api/talent/programs/11')return {id:11,name:'Mental Math',status:'draft',logo_url:null};
+    if(path.startsWith('/api/talent/programs/planning-grades'))return ['1','2','3'];
+    if(path.startsWith('/api/talent/evaluation-plans?'))return [];
+    // No eligible Grades selected for this Academic Year - basicsComplete is
+    // false, yet the build (Competency+KPI+Level) is present and saved.
+    if(path.endsWith('/academic-years'))return [{academic_year_id:2026,is_enabled:true,eligible_grade_levels:[]}];
+    if(path.endsWith('/frameworks'))return [framework];
+    if(path.endsWith('/competencies'))return [{id:61,name:'Mental Computation',status:'active'}];
+    if(path.endsWith('/configuration'))return config;
+    return framework;
+  }};
+  await render(ctx);
+  assert.match(root.innerHTML,/class="tp-readiness-banner is-ready"/);
+  assert.match(root.innerHTML,/✓ Ready/);
+  assert.doesNotMatch(root.innerHTML,/Add at least one eligible Grade/);
+});
+
 test('incomplete Program summary never presents green Ready or Finish Setup',async()=>{
   const {ctx,root}=fixture(true,'draft',{complete:false,hash:''});
   await render(ctx);
@@ -715,7 +737,7 @@ test('Rubric delete actions are hidden when manage permission exists without ded
   };
   await render(ctx);
   assert.match(root.innerHTML,/Reading Fluency/);
-  assert.match(root.innerHTML,/Edit Rubric/);
+  assert.match(root.innerHTML,/Edit KPI/);
   assert.doesNotMatch(root.innerHTML,/Delete Competency/);
   assert.doesNotMatch(root.innerHTML,/Delete Level/);
 });

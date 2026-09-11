@@ -13,7 +13,7 @@ from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
     TalentAssessmentCycleError, close_cycle, create_cycle, cycle_payload,
-    derive_eligible_population, frozen_population, get_cycle, list_cycles, open_cycle, population_fingerprint,
+    current_placements_for_assessment, frozen_population, get_cycle, list_cycles, open_cycle, population_fingerprint,
     population_member_payload, preview_population, reconcile_open_cycle_population,
     update_cycle,
 )
@@ -165,7 +165,7 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         return denied
     try:
         cycle = get_cycle(db, school_group_id=group_id, cycle_id=cycle_id)
-        population = derive_eligible_population(db, cycle=cycle, effective_at=datetime.utcnow())
+        population = current_placements_for_assessment(db, cycle=cycle, effective_at=datetime.utcnow())
     except TalentAssessmentCycleError as exc:
         return _error(exc)
     organization = _organization_authorized(user)

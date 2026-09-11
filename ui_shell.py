@@ -460,6 +460,7 @@ def _build_nav_items(
         }
         if item["href"] == "/talent":
             talent_children = [
+                {"label": "Students", "href": "/students/", "icon": "users", "allowed": can("students.view")},
                 {"label": "Overview", "href": "/talent/overview", "icon": "dashboard", "allowed": True},
                 {"label": "Programs", "href": "/talent/programs", "icon": "degree", "allowed": can("talent_programs.view")},
                 {"label": "Student Assessments", "href": "/talent/assessments", "icon": "exam", "allowed": can("talent_assessments.view")},

@@ -169,13 +169,18 @@
           .map(d=>d.framework_competency_id)
       );
       const hasAnyGradeScopedDescriptors=(configuration.descriptors || []).some(d=>String(d.grade_level || '').trim());
-      // Explicit Framework competency Grade is authoritative. The descriptor
-      // inference below is retained only for pre-migration Frameworks that have
-      // Grade-specific descriptors but no explicit competency Grade yet.
-      const competencies=allCompetencies.filter(c=>{
+      // Explicit Framework competency Grade is preferred context, not a
+      // gate (ADR 0039): show the Student's Grade-specific competencies when
+      // any exist, otherwise fall back to the Program's full saved build so
+      // the editor never renders empty for an assessment the backend already
+      // agreed to open. The descriptor inference below is retained only for
+      // pre-migration Frameworks that have Grade-specific descriptors but no
+      // explicit competency Grade yet.
+      const gradeScoped=allCompetencies.filter(c=>{
         if(hasExplicitGradeScope) return !c.grade_level || String(c.grade_level)===assessmentGrade;
         return !hasAnyGradeScopedDescriptors || gradeScopedDescriptorIds.has(c.id);
       });
+      const competencies=gradeScoped.length?gradeScoped:allCompetencies;
       const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===assessmentGrade)?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
       let inputs=(loadedInputs||[]).filter(r=>r.academic_year_id===assessment.academic_year_id&&r.assessment_id===assessment.id);
       const educatorFields=(r={})=>select('Input category','category',[['observation','Observation'],['context','Context'],['supporting_evidence','Supporting evidence']],r.category || 'observation')+field('Observed at (your local time)','observed_at',r.observed_at?localDate(r.observed_at):'','datetime-local','required')+area('Educator input','content',r.content || '',2000);

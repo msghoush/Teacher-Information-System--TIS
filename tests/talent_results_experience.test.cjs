@@ -133,14 +133,18 @@ test('Talent module expands as a permission-aware sidebar tree with the Ghars br
   assert.match(shellSource, /talent_review_candidates\.view/);
   assert.match(shellSource, /talent_analytics\.view/);
   assert.match(shellSource, /"brand_logo": "img\/talent-ghars-logo\.svg"/);
-  assert.match(base, /class="sidebar-brand-logo"/);
+  // The Ghars mark renders small (icon-sized), and the visible
+  // "Talent & Potential" text is never suppressed - only the icon glyph
+  // swaps between the brand symbol and the default module icon.
+  assert.match(base, /class="sidebar-brand-symbol shell-icon"/);
   assert.match(base, /item\.brand_logo/);
+  assert.match(base, /<span class="sidebar-link-copy">/);
   assert.ok(fs.existsSync(brandLogoPath));
   assert.match(fs.readFileSync(brandLogoPath,'utf8'), /Talent and Potential Ghars logo/);
   assert.match(base, /class="sidebar-tree"/);
   assert.match(base, /class="sidebar-tree-link/);
-  assert.match(shellCss, /\.sidebar-brand-logo\s*\{/);
-  assert.match(shellCss, /\.sidebar-link--brand/);
+  assert.match(shellCss, /\.sidebar-brand-symbol\s*\{/);
+  assert.doesNotMatch(shellCss, /\.sidebar-link--brand\s*\{/);
   assert.match(shellCss, /\.sidebar-tree\s*\{/);
   assert.match(shellCss, /\.sidebar-tree-link\.is-active/);
 });

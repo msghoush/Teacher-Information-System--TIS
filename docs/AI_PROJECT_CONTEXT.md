@@ -53,13 +53,23 @@ internal deterministic "Meets criteria" outcome as a primary classification;
 the Candidate mechanism itself remains deterministic and separate from
 Official Identification.
 
-For terminology, competency-owned rubrics remain rubric domain objects
-internally but are presented as **Assessment Criteria** to avoid falsely
-conflating them with the separate numeric KPI model. The actual
-`TalentKpiConfiguration` is explicitly presented as **Key Performance
-Indicator (KPI)** with Add/Edit/Delete controls. Analytics errors surface
-specific governed backend reasons when available instead of generic
-environment-unavailable wording.
+Per ADR 0039, competency-owned rubrics remain rubric domain objects
+internally (`TalentRubric`/`TalentRubricLevel`, unchanged) but the
+user-facing Program-setup/assessment hierarchy is presented as
+**Competency -> KPI -> Level** ("Assessment Criteria"/"Rubric" retired as
+normal-user-facing text for this hierarchy). This is a presentation-layer
+rename only; `talent_program_service.upsert_rubric` still writes to the
+same `TalentRubric` table, and its `name` is now optional and auto-derived
+from the owning Competency's label when omitted. **Known open terminology
+collision, not yet resolved**: the separate, pre-existing numeric
+`TalentKpiConfiguration` feature is also presented as **Key Performance
+Indicator (KPI)** with its own Add/Edit/Delete controls (including a
+`remove-kpi` UI action) - the two features now share the "KPI" label in the
+UI even though they remain functionally and architecturally distinct.
+ADR 0039 explicitly does not authorize merging or renaming either feature
+to resolve this; a follow-up Owner naming decision is required. Analytics
+errors surface specific governed backend reasons when available instead of
+generic environment-unavailable wording.
 
 ## Talent Corrective Batches 3 And 4
 

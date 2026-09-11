@@ -103,37 +103,33 @@ def _assert_editable(db, assessment, expected_revision):
     return cycle
 
 
-def _current_eligible_placement(db, *, cycle, student_id, at):
-    config = db.query(models.TalentProgramAcademicYearConfiguration).filter_by(
-        school_group_id=cycle.school_group_id,
-        program_id=cycle.program_id,
-        academic_year_id=cycle.academic_year_id,
-        is_enabled=True,
-    ).one_or_none()
-    if config is None:
-        raise TalentStudentAssessmentError(
-            "annual_configuration_unavailable",
-            "This Program is not enabled for the selected Academic Year.",
-        )
-    eligible_grades = {value for value in (config.eligible_grade_levels_csv or "").split(",") if value}
+def _current_placement_for_assessment(db, *, cycle, student_id, at):
+    """Resolve the Student's current placement for Start Assessment (Owner correction).
+
+    Grade is never an eligibility gate here, and neither is the Program's own
+    annual-configuration enabled/disabled state - only School Group isolation,
+    Academic Year match (the Evaluation/Cycle already supplies the Academic
+    Year), and a genuinely current effective Placement are required. Grade is
+    still captured on the resulting population member/Assessment as
+    historical/context data (unchanged).
+    """
     placement = db.query(models.StudentAcademicPlacement).filter(
         models.StudentAcademicPlacement.school_group_id == cycle.school_group_id,
         models.StudentAcademicPlacement.student_id == int(student_id),
         models.StudentAcademicPlacement.academic_year_id == cycle.academic_year_id,
-        models.StudentAcademicPlacement.grade_level.in_(eligible_grades or {"__none__"}),
         models.StudentAcademicPlacement.effective_from <= at,
         (models.StudentAcademicPlacement.effective_to.is_(None) | (models.StudentAcademicPlacement.effective_to > at)),
     ).order_by(models.StudentAcademicPlacement.effective_from.desc()).one_or_none()
     if placement is None:
         raise TalentStudentAssessmentError(
             "student_not_eligible",
-            "Student must have a current Academic Placement in a Grade included in this Program.",
+            "Student must have a current Academic Placement for the selected Academic Year.",
         )
     return placement
 
 
 def _assessment_member_from_current_placement(db, *, cycle, student_id, at):
-    placement = _current_eligible_placement(db, cycle=cycle, student_id=student_id, at=at)
+    placement = _current_placement_for_assessment(db, cycle=cycle, student_id=student_id, at=at)
     member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
         school_group_id=cycle.school_group_id, cycle_id=cycle.id, student_id=int(student_id)
     ).with_for_update().one_or_none()
@@ -376,7 +372,29 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy
     return result
 
 
+def _has_assessable_competency(snapshot):
+    """True when at least one Competency in the snapshot has a complete KPI/rubric with levels.
+
+    Per ADR 0039, Start Assessment eligibility requires at least one
+    assessable Competency on the framework - not that every Competency in
+    the snapshot is complete, and not that assessable content exists
+    specifically for the Student's Grade.
+    """
+    return any(
+        item.get("rubric") and item["rubric"].get("levels")
+        for item in snapshot
+    )
+
+
 def _newest_assessable_framework(db: Session, *, cycle, grade):
+    """Newest Framework Version with at least one usable Competency+KPI+Levels.
+
+    Per ADR 0039, Grade is preferred context, not an eligibility gate: a
+    Framework Version is assessable if it has assessable content scoped to
+    the Student's Grade (preferred when present) OR assessable content
+    anywhere on the Program's saved build (used instead of blocking when no
+    Grade-specific content exists).
+    """
     candidates = db.query(models.TalentProgramFrameworkVersion).filter_by(
         school_group_id=cycle.school_group_id,
         program_id=cycle.program_id,
@@ -385,13 +403,15 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
         models.TalentProgramFrameworkVersion.id.desc(),
     ).all()
     for framework in candidates:
-        snapshot = _assessment_semantic_snapshot(
+        graded_snapshot = _assessment_semantic_snapshot(
             db, framework=framework, grade=grade, allow_legacy=False
         )
-        if snapshot and all(
-            item.get("rubric") and item["rubric"].get("levels")
-            for item in snapshot
-        ):
+        if _has_assessable_competency(graded_snapshot):
+            return framework
+        full_snapshot = _assessment_semantic_snapshot(
+            db, framework=framework, grade=None, allow_legacy=False
+        )
+        if _has_assessable_competency(full_snapshot):
             return framework
     return None
 
@@ -409,7 +429,7 @@ def start_assessment_for_evaluation(
     root_cycle = _cycle(db, school_group_id, evaluation_cycle_id, lock=True)
     if root_cycle is None:
         raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
-    placement = _current_eligible_placement(
+    placement = _current_placement_for_assessment(
         db, cycle=root_cycle, student_id=int(student_id), at=datetime.utcnow()
     )
     newest = _newest_assessable_framework(
@@ -418,7 +438,7 @@ def start_assessment_for_evaluation(
     if newest is None:
         raise TalentStudentAssessmentError(
             "assessment_tool_unavailable",
-            "This Evaluation needs at least one Grade-applicable Competency rubric with levels.",
+            "This Program needs at least one Competency with a KPI and at least one Level before Assessment can start.",
         )
     # The physical schema has a durable UNIQUE(cycle_id, student_id)
     # constraint. After an Administrator reset, the completed historical row
