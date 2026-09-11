@@ -328,13 +328,14 @@
       // three-tier distinction preserved throughout this view.
       const identificationAllowed=can('talent_official_identifications.view');
       const rubricAllowed=Boolean(pid)&&can('talent_analytics.view');
-      const [overview,map,gradeMap,identifiedMap,rubric,longitudinal]=await Promise.all([
+      const [overview,map,gradeMap,identifiedMap,rubric,longitudinal,studentPreview]=await Promise.all([
         api(`${base}overview?${qs(common)}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_grade'})}`,signal),
         identificationAllowed?api(`${base}talent-map?${qs({...common,metric:'identified_of_eligible',dimension:'program_branch'})}`,signal).catch(()=>null):Promise.resolve(null),
         rubricAllowed?api(`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`,signal).catch(()=>null):Promise.resolve(null),
         pid?api(`${base}programs/${encodeURIComponent(pid)}/longitudinal?${qs({...common,metric:'completion_coverage'})}`,signal).catch(()=>null):Promise.resolve(null),
+        can('talent_analytics.view_students')?api(`${base}students?${qs({...common,limit:10,offset:0})}`,signal).catch(()=>null):Promise.resolve(null),
       ]);
       // Drawn only from the already-privacy-closed organization_total cell the
       // backend returns for this exact scope (org-wide, or the selected
@@ -354,6 +355,9 @@
       const competencyAverageSection=rubric&&rubric.distributions?.some(d=>d.average_rank!=null)
         ? `<section aria-labelledby="tp-competency-average-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Competencies</p><h3 id="tp-competency-average-title">Average Result by Competency</h3></div><p>Completed assessments only. Each bar stays on the selected Program's rubric scale.</p></div><div class="tp-competency-average-list">${rubric.distributions.filter(d=>d.average_rank!=null).map(d=>`<div class="tp-competency-average-row"><span>${esc(d.competency_label||d.rubric_name||'Competency')}</span><div class="tp-result-meter"><i style="width:${Math.max(0,Math.min(100,Number(d.normalized_percent||0)))}%"></i></div><strong>${Number(d.average_rank).toFixed(1)} / ${esc(d.scale_max)}</strong></div>`).join('')}</div></section>`
         : '';
+      const studentResultsSection=studentPreview?.items?.length
+        ? `<section aria-labelledby="tp-student-results-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Student Results</p><h3 id="tp-student-results-title">Recent authorized Student contexts</h3></div>${link('students','View Students Across Programs')}</div><p>Shown only when the governed identifiable Student-drill gate permits this cohort. Program results remain separate.</p><div class="tp-table-wrap"><table class="tp-compact-table tp-dashboard-students"><thead><tr><th>Student</th><th>Program result contexts</th><th>Review / Identification</th></tr></thead><tbody>${studentPreview.items.map(student=>`<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">${initials(student.display_name)}</span><span>${esc(student.display_name)}</span></span></th><td>${student.contexts.filter(context=>context.overall_result).map(context=>`<span class="tp-dashboard-result"><strong>${Number(context.overall_result.average).toFixed(1)}/${esc(context.overall_result.scale_max)}</strong><small>${esc(programCatalog.get(String(context.program_id))?.name||'Program')}</small></span>`).join('')||'<span class="tp-muted">No completed Program result</span>'}</td><td>${student.contexts.map(context=>`<span class="tp-status-chip ${context.identification_state==='identified'?'is-positive':context.candidate_state?'is-candidate':'is-neutral'}">${esc(context.identification_state?human(context.identification_state):context.candidate_state?human(context.candidate_state):'No candidate')}</span>`).join(' ')}</td></tr>`).join('')}</tbody></table></div></section>`
+        : '';
       const m={...(overview.metrics||{})};
       const rateKpis=['completion_coverage','started_coverage','required_period_execution'].filter(k=>Object.hasOwn(m,k));
       const factKpis=['candidate_membership_count'].filter(k=>Object.hasOwn(m,k));
@@ -371,6 +375,7 @@
         gradeSection+
         `<section aria-labelledby="tp-branch-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3 id="tp-branch-summary">${can('talent_review_candidates.view')?'Talent activity by Branch':'Assessment progress by Branch'}</h3></div><p>Select a Branch to drill into its authorized Program, Grade, assessment, review, and identification statistics. Branches are never ranked.</p></div>${branchVisual}</section>`+
         progressionSection+
+        studentResultsSection+
         `<div class="tp-actions">${link('portfolio','Open Program Results')}${link('talent-map','Open Talent Map',{metric:overviewMetric})}</div>`+
         rubricSection;
     }
