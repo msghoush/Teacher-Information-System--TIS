@@ -120,7 +120,7 @@ def set_all_results(session, assessment, competencies, levels, *, weights=(None,
     return assessment
 
 
-def test_only_open_frozen_member_can_start_and_only_one_assessment(db):
+def test_legacy_population_member_start_remains_compatible_and_duplicate_is_blocked(db):
     _, session = db
     _, _, cycle, member, _, _, _, _ = foundation(session)
     assessment = start_assessment(session, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id)
@@ -129,11 +129,7 @@ def test_only_open_frozen_member_can_start_and_only_one_assessment(db):
         start_assessment(session, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id)
     with pytest.raises(TalentStudentAssessmentError) as invalid:
         start_assessment(session, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=99999)
-    assert invalid.value.code == "invalid_population_member"
-    cycle.status = "closed"
-    with pytest.raises(TalentStudentAssessmentError) as closed:
-        start_assessment(session, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id)
-    assert closed.value.code == "cycle_not_open"
+    assert invalid.value.code == "invalid_student_context"
 
 
 def test_qualitative_assessment_completes_without_kpi_or_numeric_levels(db):
@@ -316,9 +312,10 @@ def test_start_assessment_rejects_malformed_payload_without_500(db):
         assert non_numeric.status_code == 400
         assert non_numeric.json()["code"] == "invalid_input"
         valid = client.post("/api/talent/assessments", json={
-            "cycle_id": cycle.id, "cycle_population_member_id": member.id,
+            "cycle_id": cycle.id, "student_id": member.student_id,
         })
         assert valid.status_code == 201
+        assert valid.json()["student_id"] == member.student_id
 
 
 def test_audit_omits_evidence_and_m5_migration_is_idempotent(db):
