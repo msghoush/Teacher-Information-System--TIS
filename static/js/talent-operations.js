@@ -40,7 +40,7 @@
     const reload=()=>render(ctx);
     const url=(view,values={})=>`/talent/${view}?${query({academic_year_id:year,program_id:params.get('program_id'),...values})}`;
     const link=(view,label,values={})=>`<a href="${esc(url(view,values))}">${esc(label)} →</a>`;
-    const mount=html=>{root.innerHTML=`<div class="tp-operational">${html}<p id="op-message" role="status" aria-live="polite"></p></div>`;};
+    const mount=html=>{root.innerHTML=`<div class="tp-operational"><p id="op-message" class="tp-op-feedback" role="status" aria-live="polite"></p>${html}</div>`;};
     const guard=event=>{if(dirtyForms.size||busy){event.preventDefault();event.returnValue='';}};
     if (window.__talentUnsavedGuard) window.removeEventListener('beforeunload',window.__talentUnsavedGuard);
     window.__talentUnsavedGuard=guard;window.addEventListener('beforeunload',guard);
@@ -209,6 +209,7 @@
     // in routers/talent_assessment_cycles.py).
     on('open-cycle',async()=>{
       if(!window.confirm('Open this evaluation? The current eligible Students become the initial roster and Assessments can then be started. Newly eligible Students may be added while the evaluation remains Open.'))return;
+      notify('Opening evaluation...');
       await api(`/api/talent/assessment-cycles/${cycle.id}/open`,{method:'POST',body:{expected_revision:cycle.revision}});
       await reload();
       notify('Evaluation opened.');
