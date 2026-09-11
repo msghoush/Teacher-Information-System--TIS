@@ -147,6 +147,11 @@ test('saving a Period timeline PATCHes only the two governed date fields, never 
     throw new Error(`Unexpected ${path}`);
   }};
   await render(ctx);
+  const broadBefore={
+    programs:calls.filter(call=>!call.options&&call.path==='/api/talent/programs').length,
+    annual:calls.filter(call=>!call.options&&call.path.endsWith('/academic-years')).length,
+    frameworks:calls.filter(call=>!call.options&&call.path.endsWith('/frameworks')).length,
+  };
   const original=global.FormData;global.FormData=class {constructor(){return new Map([['planned_start_date',''],['planned_end_date','2026-02-01']]);}};
   try {await root.onsubmit({target:{matches:selector=>selector==='form[data-form="period-timeline"]',dataset:{period:'41'},querySelector:()=>feedback},preventDefault(){}});}
   finally {global.FormData=original;}
@@ -156,6 +161,9 @@ test('saving a Period timeline PATCHes only the two governed date fields, never 
   assert.deepEqual(Object.keys(body).sort(),['expected_plan_revision','planned_end_date','planned_start_date']);
   assert.equal(body.planned_start_date,null);
   assert.equal(body.planned_end_date,'2026-02-01');
+  assert.equal(calls.filter(call=>!call.options&&call.path==='/api/talent/programs').length,broadBefore.programs,'Period save does not refetch Programs');
+  assert.equal(calls.filter(call=>!call.options&&call.path.endsWith('/academic-years')).length,broadBefore.annual,'Period save does not refetch annual Program configuration');
+  assert.equal(calls.filter(call=>!call.options&&call.path.endsWith('/frameworks')).length,broadBefore.frameworks,'Period save does not refetch Frameworks');
 });
 
 test('Evaluation Period presentation stays simple and does not expose Draft/Open gating',()=>{
