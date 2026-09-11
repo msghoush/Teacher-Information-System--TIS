@@ -140,17 +140,14 @@
       const programs=await api('/api/talent/programs');
       if (token !== renderToken) return;
       if(!pid) {
-        const planningGrades=year
-          ? await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[])
-          : [];
-        const summaries=await Promise.all(programs.map(async program=>{
-          const programBase=`/api/talent/programs/${program.id}`;
-          const [years,frameworks]=await Promise.all([api(`${programBase}/academic-years`),api(`${programBase}/frameworks`)]);
-          const current=years.find(item=>String(item.academic_year_id)===String(year));
-          const active=frameworks.find(item=>item.status==='active');
-          let type='Not set';
-          if(active){const configuration=await api(`${programBase}/frameworks/${active.id}/configuration`);type=configuration.kpi?.enabled?'Numeric + rubric':'Rubric';}
-          return {program,current,type};
+        const [planningGrades,summaryRows]=await Promise.all([
+          year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
+          year?api(`/api/talent/programs/summaries?academic_year_id=${encodeURIComponent(year)}`):Promise.resolve(programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))),
+        ]);
+        const summaries=summaryRows.map(program=>({
+          program,
+          current:program.annual,
+          type:program.assessment_type || 'Not set',
         }));
         if (token !== renderToken) return;
         // ADR 0032: "delete" only ever appears in a Program row's own
