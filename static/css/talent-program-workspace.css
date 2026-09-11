@@ -90,7 +90,18 @@
 .tp-grade-rubric>summary::-webkit-details-marker {display:none}
 .tp-grade-rubric>summary::after {content:'+';font-size:22px;line-height:1;color:var(--app-brand-deep)}
 .tp-grade-rubric[open]>summary::after {content:'−'}
-.tp-grade-rubric-body {display:grid;gap:14px;padding:16px 18px 18px}
+.tp-grade-rubric-body {display:grid;gap:18px;padding:18px 20px 20px}
+.tp-rubric-competency {position:relative;margin:0!important;padding:18px 18px 18px 28px!important;border-left:3px solid var(--app-brand-soft)}
+.tp-rubric-competency::before {content:'';position:absolute;left:10px;top:30px;width:12px;height:1px;background:var(--app-line)}
+.tp-competency-node-head,.tp-rubric-node-head {display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tp-node-label {display:block;margin-bottom:3px;font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--app-muted)}
+.tp-rubric-node {position:relative;margin:14px 0 0 18px;padding:14px 14px 14px 24px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-bg)}
+.tp-rubric-node::before {content:'';position:absolute;left:-18px;top:24px;width:18px;height:1px;background:var(--app-line)}
+.tp-rubric-level-list {display:grid;gap:10px;margin:14px 0}
+.tp-rubric-level-node {position:relative;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:12px;margin-left:18px;padding:12px 14px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-surface)}
+.tp-rubric-level-node::before {content:'';position:absolute;left:-18px;top:50%;width:18px;height:1px;background:var(--app-line)}
+.tp-level-number {display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:var(--app-brand-soft);color:var(--app-brand-deep);font-weight:800}
+.tp-level-copy p {margin:3px 0 0;color:var(--app-muted)}
 .tp-rubric-competency {margin:0!important}
 .tp-rubric-competency .tp-section-lede {align-items:flex-start}
 .tp-inline-level {display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--app-line)}
