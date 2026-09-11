@@ -242,8 +242,9 @@
         return;
       }
       base=`/api/talent/programs/${pid}`;
+      const prefetchedProgram=ctx.programCatalog?.get?.(String(pid)) || null;
       let [selectedProgram,nextGrades,nextAnnual,nextVersions,nextBank,loadedPlans]=await Promise.all([
-        api(base).catch(()=>null),
+        prefetchedProgram?Promise.resolve(prefetchedProgram):api(base).catch(()=>null),
         year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
         api(`${base}/academic-years`),
         api(`${base}/frameworks`),
