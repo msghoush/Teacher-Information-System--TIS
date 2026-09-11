@@ -537,28 +537,61 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
 
 def test_same_id_rubric_semantic_edit_after_completion_requires_reassessment(db):
     _, session = db
-    program, framework, cycle, member, _, _, competencies, levels = foundation(session)
+    program, framework, cycle, member, _, _, competencies, _ = foundation(session)
+
+    # Build the canonical competency-owned rubric structure before the Student
+    # is assessed so persisted result bindings already point at these exact
+    # rubric/level IDs. This isolates the same-ID semantic-edit path from the
+    # separate legacy binding-mismatch compatibility rule.
+    owned_levels = {}
+    for index, competency in enumerate(competencies, 1):
+        rubric = models.TalentRubric(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            framework_competency_id=competency.id,
+            name=f"Owned rubric {index}",
+        )
+        session.add(rubric)
+        session.flush()
+        level = models.TalentRubricLevel(
+            school_group_id=1,
+            program_id=program.id,
+            framework_version_id=framework.id,
+            rubric_id=rubric.id,
+            code="LEVEL_1",
+            label="Beginning",
+            description=f"Original description {index}",
+            display_order=1,
+        )
+        session.add(level)
+        session.flush()
+        owned_levels[competency.id] = level
+    session.commit()
+
     assessment = start_assessment(
         session, school_group_id=1, cycle_id=cycle.id,
         cycle_population_member_id=member.id,
     )
-    assessment = set_all_results(session, assessment, competencies, levels)
+    revision = assessment.revision
+    for competency in competencies:
+        _, assessment = set_competency_result(
+            session, school_group_id=1, assessment_id=assessment.id,
+            framework_competency_id=competency.id,
+            rubric_level_id=owned_levels[competency.id].id,
+            expected_revision=revision,
+            evidence="private evidence",
+        )
+        revision = assessment.revision
     completed = complete_assessment(
         session, school_group_id=1, assessment_id=assessment.id,
         expected_revision=assessment.revision,
     )
     session.commit()
 
-    # Legacy production state: Student-facing rubric semantics changed in place
-    # after completion but stable IDs were preserved. This used to evade the
-    # ID-binding compatibility check and leave the Student incorrectly Completed.
-    current_rubric = session.query(models.TalentRubric).filter_by(
-        framework_version_id=framework.id,
-        framework_competency_id=competencies[0].id,
-    ).one()
-    current_level = session.query(models.TalentRubricLevel).filter_by(
-        rubric_id=current_rubric.id,
-    ).order_by(models.TalentRubricLevel.display_order).first()
+    # Legacy production state: Student-facing semantics changed in place after
+    # completion while every persisted rubric/level ID stayed exactly the same.
+    current_level = owned_levels[competencies[0].id]
     current_level.description = "Changed after Student completion"
     session.add(models.TalentConfigurationAudit(
         school_group_id=1,
@@ -568,7 +601,7 @@ def test_same_id_rubric_semantic_edit_after_completion_requires_reassessment(db)
         action="level_update",
         before_json=json.dumps({
             "framework_id": framework.id,
-            "description": "Before",
+            "description": "Original description 1",
         }),
         after_json=json.dumps({
             "framework_id": framework.id,
@@ -579,9 +612,20 @@ def test_same_id_rubric_semantic_edit_after_completion_requires_reassessment(db)
     ))
     session.commit()
 
+    # Bindings still match: reassessment must be coming from the audited
+    # post-completion semantic edit, not from changed rubric/level IDs.
+    persisted = {
+        row.framework_competency_id: row
+        for row in session.query(models.TalentStudentCompetencyResult).filter_by(
+            assessment_id=completed.id
+        ).all()
+    }
+    assert persisted[competencies[0].id].rubric_level_id == current_level.id
+
     required = reassessment_requirement(session, completed)
     assert required is not None
     assert required.id == framework.id
+
 
 def test_legacy_same_framework_rubric_replacement_resets_completed_student_for_reassessment(db):
     _, session = db
