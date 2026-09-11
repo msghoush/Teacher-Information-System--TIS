@@ -118,6 +118,7 @@ def test_evaluation_plan_action_permissions_reach_browser_payload(db, client):
     # organization-authorized Evaluation Plan actions.
     assert '"talent_evaluation_plans.manage": true' in response.text
     assert '"talent_evaluation_plans.govern": true' in response.text
+    assert '"talent_evaluation_plans.select_period": true' in response.text
 
 
 def test_authorized_learner_profile_link_redirects_to_canonical_student_profile(db):
