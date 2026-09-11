@@ -190,9 +190,7 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
   assert.match(root.innerHTML,/data-action="start"[^>]*data-student="101"[^>]*>Start Assessment/);
   assert.match(root.innerHTML,/assessment_id=501[^"]*">Continue Assessment/);
   assert.match(root.innerHTML,/assessment_id=502[^"]*">View Assessment/);
-  assert.match(root.innerHTML,/Assessment Records[\s\S]*<table class="tp-compact-table">/);
-  assert.doesNotMatch(root.innerHTML,/Saved assessments/);
-  assert.doesNotMatch(root.innerHTML,/Assessment Records[\s\S]*<article class="tp-card"><h3>Mid Way/);
+  assert.doesNotMatch(root.innerHTML,/Assessment Records|<p class="tp-eyebrow">History<\/p>/);
 });
 
 test('completed Student with a changed rubric is surfaced as Re-evaluation required',async()=>{
@@ -295,8 +293,7 @@ test('a Program with no Evaluation context shows an honest message with a link t
   await withWindow(()=>render(ctx));
   assert.match(root.innerHTML,/No Evaluation Period is available for this Program/);
   assert.match(root.innerHTML,/evaluation-plans\?[^"]*program_id=11/);
-  assert.match(root.innerHTML,/No Assessment Records in this context yet\./);
-  assert.doesNotMatch(root.innerHTML,/No assessments saved in this context yet\./);
+  assert.doesNotMatch(root.innerHTML,/Assessment Records|No assessments saved in this context yet\./);
   assert.doesNotMatch(root.innerHTML,/Students/);
 });
 
