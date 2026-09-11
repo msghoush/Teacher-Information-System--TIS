@@ -13,7 +13,7 @@ from dependencies import get_db
 from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, create_competency,
-    add_rubric_level, configure_kpi, configure_review_candidate_policy,
+    add_rubric_level, copy_competency_rubric_levels, configure_kpi, configure_review_candidate_policy,
     create_framework_draft, create_program, delete_program, framework_payload, get_program, list_programs,
     get_framework_configuration, program_delete_blockers,
     program_payload, remove_framework_competency, remove_program_logo, reorder_framework_competencies,
@@ -431,6 +431,34 @@ def rubric_level_add(program_id: int, framework_id: int, request: Request, paylo
             "code": row.code, "label": row.label, "description": row.description,
             "display_order": row.display_order, "numeric_value": row.numeric_value,
             "framework_revision": framework.revision,
+        }
+    return _run(db, work, created=True)
+
+
+@router.post("/{program_id}/frameworks/{framework_id}/rubric/levels/copy")
+def rubric_levels_copy(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        rows, framework = copy_competency_rubric_levels(
+            db,
+            school_group_id=group_id,
+            program_id=program_id,
+            framework_id=framework_id,
+            source_framework_competency_id=int(payload.get("source_framework_competency_id")),
+            target_framework_competency_id=int(payload.get("target_framework_competency_id")),
+            expected_revision=int(payload.get("expected_revision")),
+            include_descriptions=bool(payload.get("include_descriptions", False)),
+            actor=user,
+        )
+        return {
+            "levels": [{
+                "id": row.id, "rubric_id": row.rubric_id, "code": row.code,
+                "label": row.label, "description": row.description,
+                "display_order": row.display_order, "numeric_value": row.numeric_value,
+            } for row in rows],
+            "framework_revision": framework.revision,
+            "framework_fingerprint": framework.semantic_fingerprint,
         }
     return _run(db, work, created=True)
 
