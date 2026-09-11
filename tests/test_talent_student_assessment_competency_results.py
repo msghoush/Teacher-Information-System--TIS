@@ -368,3 +368,49 @@ def test_audit_omits_evidence_and_m5_migration_is_idempotent(db):
         db_migrations._talent_student_assessment_competency_results_foundation(engine, connection)
     assert {"talent_student_assessments", "talent_student_competency_results"}.issubset(inspect(engine).get_table_names())
     assert any(row.migration_id == "20260904_005_talent_student_assessment_competency_results" for row in db_migrations.MIGRATIONS)
+
+def test_assessment_contexts_follow_evaluation_period_sequence_not_creation_order(db):
+    _, session = db
+    program, framework, cycle2, _, _, _, _, _ = foundation(session)
+    config = session.query(models.TalentProgramAcademicYearConfiguration).filter_by(
+        program_id=program.id, academic_year_id=100
+    ).one()
+    plan = models.TalentAnnualEvaluationPlan(
+        school_group_id=1, program_id=program.id, academic_year_id=100,
+        program_academic_year_configuration_id=config.id, status="draft", revision=1,
+    )
+    session.add(plan); session.flush()
+    period1 = models.TalentPlannedEvaluationPeriod(
+        school_group_id=1, program_id=program.id, academic_year_id=100,
+        annual_evaluation_plan_id=plan.id, sequence=1, label="Term 1",
+        normalized_label="term 1", status="planned", is_required=True,
+    )
+    period2 = models.TalentPlannedEvaluationPeriod(
+        school_group_id=1, program_id=program.id, academic_year_id=100,
+        annual_evaluation_plan_id=plan.id, sequence=2, label="Term 2",
+        normalized_label="term 2", status="planned", is_required=True,
+    )
+    session.add_all([period1, period2]); session.flush()
+    cycle2.title = "Term 2"
+    cycle2.planned_evaluation_period_id = period2.id
+    cycle1 = models.TalentAssessmentCycle(
+        school_group_id=1, program_id=program.id, academic_year_id=100,
+        framework_version_id=framework.id, planned_evaluation_period_id=period1.id,
+        title="Term 1", status="draft", revision=1,
+        created_at=datetime(2026, 12, 1),
+    )
+    cycle2.created_at = datetime(2026, 9, 1)
+    session.add(cycle1); session.commit()
+
+    admin = _user("1000000010", branch=None, scope="ORGANIZATION")
+    session.add(admin); session.commit()
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_current_user] = lambda: admin
+    with TestClient(app) as client:
+        response = client.get(
+            f"/api/talent/assessments/contexts?program_id={program.id}&academic_year_id=100"
+        )
+        assert response.status_code == 200
+        assert [item["title"] for item in response.json()][:2] == ["Term 1", "Term 2"]
