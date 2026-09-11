@@ -32,6 +32,15 @@ def client(db):
     return TestClient(app)
 
 
+def test_student_delete_permissions_are_registered_and_configurable():
+    import permission_registry as pr
+    for key in ("students.delete", "students.bulk_delete"):
+        assert key in pr.ALL_PERMISSION_KEYS
+        assert key in pr.PERMISSION_LABELS
+        assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
+        assert key in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
+
+
 def test_list_requires_students_view(db, client):
     assert client.get("/students/").status_code == 403
     permissions(db, "students.view")
