@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -9,6 +11,7 @@ import authorization
 import models
 from auth import get_current_user
 from dependencies import get_db
+from student_academic_service import resolve_placement
 from talent_operational_context import authorized_contexts, authorized_payload
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
@@ -104,6 +107,33 @@ def _read_assessment(db, group_id, user, assessment_id):
     return assessment, None
 
 
+@router.get("/contexts")
+def assessment_contexts(request: Request, program_id: int | None = Query(None),
+                        academic_year_id: int | None = Query(None),
+                        db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Minimal Evaluation contexts for the normal Student Assessments UI.
+
+    ADR 0035 deliberately avoids requiring Cycle-management/view permissions
+    just to choose an Evaluation and assess enrolled Students.
+    """
+    _, group_id, denied = _authorize(request, db, current_user, "talent_assessments.view")
+    if denied:
+        return denied
+    query = db.query(models.TalentAssessmentCycle).filter_by(school_group_id=group_id)
+    if program_id is not None:
+        query = query.filter_by(program_id=program_id)
+    if academic_year_id is not None:
+        query = query.filter_by(academic_year_id=academic_year_id)
+    rows = query.order_by(models.TalentAssessmentCycle.created_at.desc(), models.TalentAssessmentCycle.id.desc()).all()
+    return [{
+        "id": row.id,
+        "program_id": row.program_id,
+        "academic_year_id": row.academic_year_id,
+        "framework_version_id": row.framework_version_id,
+        "title": row.title,
+    } for row in rows]
+
+
 @router.post("")
 def assessments_start(request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "talent_assessments.manage")
@@ -111,14 +141,47 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
         return denied
     try:
         cycle_id = int(payload.get("cycle_id"))
-        member_id = int(payload.get("cycle_population_member_id"))
+    except (TypeError, ValueError):
+        return JSONResponse({"detail": "Invalid Assessment payload.", "code": "invalid_input"}, status_code=400)
+
+    # ADR 0035: the normal path starts from a Student's current Academic
+    # Placement, not from a pre-frozen population-member id. The legacy member
+    # form remains accepted for backward compatibility with existing clients.
+    student_id = payload.get("student_id")
+    member_id = payload.get("cycle_population_member_id")
+    if student_id is None and member_id is None:
+        return JSONResponse({"detail": "Choose a Student to assess.", "code": "invalid_input"}, status_code=400)
+
+    if student_id is not None:
+        try:
+            student_id = int(student_id)
+        except (TypeError, ValueError):
+            return JSONResponse({"detail": "Invalid Student.", "code": "invalid_input"}, status_code=400)
+        cycle = db.query(models.TalentAssessmentCycle).filter_by(
+            id=cycle_id, school_group_id=group_id
+        ).one_or_none()
+        if cycle is None:
+            return JSONResponse({"detail": "Talent Assessment context was not found.", "code": "not_found"}, status_code=404)
+        placement = resolve_placement(
+            db, school_group_id=group_id, student_id=student_id,
+            academic_year_id=cycle.academic_year_id, at=datetime.utcnow(),
+        )
+        if placement is not None and not auth.can_access_all_branches(user) and placement.branch_id not in _visible_branch_ids(db, user):
+            return JSONResponse({"detail": "Assessment is outside your authorized Branch scope."}, status_code=403)
+        return _run(db, lambda: _display_payload(db, user, start_assessment(
+            db, school_group_id=group_id, cycle_id=cycle_id,
+            student_id=student_id, actor=user,
+        )), created=True)
+
+    try:
+        member_id = int(member_id)
     except (TypeError, ValueError):
         return JSONResponse({"detail": "Invalid Assessment payload.", "code": "invalid_input"}, status_code=400)
     member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
         id=member_id, school_group_id=group_id, cycle_id=cycle_id,
     ).one_or_none()
     if member is None:
-        return JSONResponse({"detail": "Student must belong to this Cycle's frozen population.", "code": "invalid_population_member"}, status_code=400)
+        return JSONResponse({"detail": "Student Assessment context is unavailable.", "code": "invalid_student_context"}, status_code=400)
     if not auth.can_access_all_branches(user) and member.branch_id not in _visible_branch_ids(db, user):
         return JSONResponse({"detail": "Assessment is outside your authorized Branch scope."}, status_code=403)
     return _run(db, lambda: _display_payload(db, user, start_assessment(

@@ -88,17 +88,14 @@ version history inside the existing edit path.
 
 Evaluation scheduling accepts a free-text, user-defined evaluation name (for
 example Term 1, Audition, or Spring Review - never a fixed Baseline/Term 1/
-Term 2/Final picklist) and translates Plan/Period/Cycle state to Setup, Ready
-to start, In progress, or Complete for that name; internal lifecycle copy
-("Prepared evaluations", "Ready to link", "Link an evaluation", "No Evaluation
-Plan", "Frozen population") does not appear anywhere in this normal path. Start
-Evaluation uses the existing APIs in order to prepare and link a draft Cycle,
-preview the authorized eligible population, show its count and Academic
-Placement effective date, and then open the Cycle. Opening still freezes the
-population and all backend revisions, permissions, organization gates, and
-version/lifecycle checks remain authoritative. The UI permission payload now
-includes both `talent_evaluation_plans.manage` and `talent_evaluation_plans.
-govern`; Branch scope never advertises govern.
+Term 2/Final picklist). Per ADR 0035, the normal path no longer exposes or
+requires Draft/Open Cycle, frozen-population, synchronization, reconciliation,
+or an "Open Evaluation" step before assessment. An Evaluation Period is simply
+the context for Student Assessments. The UI opens Student Assessments directly;
+current effective Academic Placement supplies the eligible Students, and
+historical placement/framework context is captured when each Assessment starts.
+Legacy Cycle/Population structures remain internal compatibility/provenance
+implementation details.
 
 This change adds no schema, migration, backend domain mutation, pricing, AI,
 analytics, timetable, Student UI, or `tis.db` change.

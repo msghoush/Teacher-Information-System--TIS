@@ -53,7 +53,7 @@ source_of_truth: true
 - `static/css/talent.css`: scoped responsive cards, progress visuals, accessible matrices, categorical privacy/no-data states, focus treatments, sticky context navigation, and reduced-motion behavior using shared TIS design tokens.
 - `tests/talent_results_experience.test.cjs`: presentation, friendly-language, privacy-leak, matrix, error-state, responsive, and accessibility invariants.
 
-The UI does not own analytics semantics. M9/M10 privacy closure, access, historical frozen population, paging, and comparison rules remain authoritative.
+The UI does not own analytics semantics. M9/M10 privacy closure, access, paging, and comparison rules remain authoritative. Historical Cycle/Population snapshots remain valid analytics provenance where those existing projections consume them, but ADR 0035 supersedes frozen population as the operational eligibility gate for starting Student Assessments.
 
 
 ## B11 Production Qualification Boundary

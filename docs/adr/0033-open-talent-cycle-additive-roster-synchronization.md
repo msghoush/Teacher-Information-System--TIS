@@ -1,7 +1,8 @@
 ---
 title: "ADR 0033: Additive Roster Synchronization While A Talent Cycle Is Open"
-status: accepted
+status: superseded
 date: 2026-09-11
+superseded_by: ADR 0035
 decision_owners:
   - Product Owner
   - Engineering Owner
@@ -61,3 +62,12 @@ population member; it would not query live Placement directly.
 This changes the M4 population invariant for Open Cycles only. No schema
 migration is required because the existing member row stores per-member
 effective and frozen timestamps. Closed Cycle membership remains immutable.
+
+
+# Superseded
+
+Superseded on 2026-09-11 by ADR 0035. Additive roster synchronization may
+remain as backward-compatible internal machinery, but it is no longer the
+eligibility authority or a required user workflow for starting Talent Student
+Assessments. Current effective Academic Placement is the assessment-start
+eligibility authority.

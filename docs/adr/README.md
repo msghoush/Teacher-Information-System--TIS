@@ -1,6 +1,6 @@
 ---
 title: TIS Architecture Decision Records
-documentation_version: 3.4
+documentation_version: 3.5
 last_updated: 2026-09-11
 ---
 
@@ -58,3 +58,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0032-draft-talent-program-hard-delete-exception.md`
 - `0033-open-talent-cycle-additive-roster-synchronization.md`
 - `0034-assessment-delete-zero-evidence-exception.md`
+- `0035-live-academic-placement-assessment-eligibility.md`

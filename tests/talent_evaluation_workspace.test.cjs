@@ -25,7 +25,7 @@ test('authorized empty context offers a free-text evaluation name, not a fixed p
   assert.match(root.innerHTML,/<input type="text" name="label"/);
   assert.doesNotMatch(root.innerHTML,/Baseline, Term 1, Term 2, Final/);
   assert.doesNotMatch(root.innerHTML,/How many evaluations this year\?/);
-  assert.match(root.innerHTML,/included Student list unchanged for history/);
+  assert.match(root.innerHTML,/current Academic Placement for eligibility/);
   assert.doesNotMatch(root.innerHTML,/cycle_id|framework_version_id|program_academic_year_configuration_id/);
 });
 
@@ -87,7 +87,7 @@ test('normal-path Evaluation Plan uses approved terminology without internal lif
   for (const pattern of banned) assert.doesNotMatch(root.innerHTML, pattern, `must not render ${pattern}`);
   assert.match(root.innerHTML,/Evaluation Plan/);
   assert.match(root.innerHTML,/Evaluation Period/);
-  assert.match(root.innerHTML,/In progress/);
+  assert.match(root.innerHTML,/Available/);
 });
 
 test('a Period with manage_timeline shows editable, always-visible, accessibly-labeled date inputs',async()=>{
@@ -158,41 +158,41 @@ test('saving a Period timeline PATCHes only the two governed date fields, never 
   assert.equal(body.planned_end_date,'2026-02-01');
 });
 
-test('simple states translate the governed lifecycle',()=>{
+test('Evaluation Period presentation stays simple and does not expose Draft/Open gating',()=>{
   const {stateFor}=require('../static/js/talent-evaluation-workspace.js');
-  assert.equal(stateFor({status:'draft'},{cycle:null}),'Setup');
-  assert.equal(stateFor({status:'active'},{cycle:null}),'Ready to start');
-  assert.equal(stateFor({status:'active'},{cycle:{status:'open'}}),'In progress');
-  assert.equal(stateFor({status:'active'},{cycle:{status:'closed'}}),'Complete');
+  assert.equal(stateFor({status:'draft'},{status:'planned',cycle:null}),'Available');
+  assert.equal(stateFor({status:'active'},{status:'planned',cycle:{status:'draft'}}),'Available');
+  assert.equal(stateFor({status:'active'},{status:'planned',cycle:{status:'open'}}),'Available');
+  assert.equal(stateFor({status:'active'},{status:'planned',cycle:{status:'closed'}}),'Complete');
+  assert.equal(stateFor({status:'active'},{status:'cancelled',cycle:null}),'Cancelled');
 });
 
-test('Start Evaluation prepares, links, previews, and opens in governed order',async()=>{
-  const calls=[],feedback={textContent:'',setAttribute(){}},period={id:41,label:'Baseline',cycle:null};
+test('Open Student Assessments creates/links only the internal context and navigates without Open Evaluation',async()=>{
+  const calls=[],feedback={textContent:'',setAttribute(){}},period={id:41,label:'Baseline',status:'planned',cycle:null};
   const plan={id:21,program_id:11,status:'active',revision:5,periods:[period]};
+  let navigated=null;
   const root={innerHTML:'',querySelector:()=>feedback,querySelectorAll:()=>[],classList:{add(){}},onclick:null};
-  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},api:async(path,options)=>{
-    calls.push({path,options});
-    if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
-    if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
-    if(path.startsWith('/api/talent/assessment-cycles?'))return [];
-    if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
-    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
-    if(path==='/api/talent/assessment-cycles'&&options)return {id:61,revision:1,population_effective_at:'2026-09-09T10:00:00'};
-    if(path.endsWith('/link-period')&&options)return {cycle_revision:2,plan_revision:6};
-    if(path.endsWith('/population/preview'))return {count:12};
-    if(path.endsWith('/open')&&options){period.cycle={id:61,status:'open',revision:3};return {status:'open'};}
-    throw new Error(`Unexpected ${path}`);
-  }};
-  const previous=global.window;global.window={addEventListener(){},removeEventListener(){},confirm:()=>true};
-  try {
-    await render(ctx);
-    await root.onclick({target:{closest:()=>({dataset:{start:'41'},hasAttribute:()=>false})}});
-  } finally {global.window=previous;}
+  const ctx={root,year:'100',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
+    navigate:(target,extra)=>{navigated={target,extra};},
+    api:async(path,options)=>{
+      calls.push({path,options});
+      if(path.startsWith('/api/talent/evaluation-plans?'))return [plan];
+      if(path==='/api/talent/programs')return [{id:11,name:'Arts',status:'active'}];
+      if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+      if(path.endsWith('/academic-years'))return [{id:51,academic_year_id:100,is_enabled:true}];
+      if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
+      if(path==='/api/talent/assessment-cycles'&&options)return {id:61,revision:1,population_effective_at:'2026-09-09T10:00:00'};
+      if(path.endsWith('/link-period')&&options)return {cycle_revision:2,plan_revision:6};
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await render(ctx);
+  await root.onclick({target:{closest:()=>({dataset:{assess:'41'},hasAttribute:name=>name==='data-assess'})}});
   const writes=calls.filter(call=>call.options).map(call=>call.path);
   assert.deepEqual(writes,[
     '/api/talent/assessment-cycles',
     '/api/talent/assessment-cycles/61/link-period',
-    '/api/talent/assessment-cycles/61/open',
   ]);
-  assert.ok(calls.some(call=>call.path==='/api/talent/assessment-cycles/61/population/preview'));
+  assert.ok(!calls.some(call=>call.path.endsWith('/population/preview')));
+  assert.ok(!calls.some(call=>call.path.endsWith('/open')));
+  assert.deepEqual(navigated,{target:'assessments',extra:{program_id:11,cycle_id:61,academic_year_id:100}});
 });

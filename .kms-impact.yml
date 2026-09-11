@@ -1,7 +1,20 @@
-knowledge_impact: no
-summary: "Owner-reproduced Student Assessments P0 follow-up: clicking Open Evaluation could fail server-side while the only exact backend error was written to the bottom operation message / screen-reader status, making the action appear to do nothing in the visible viewport. The Student Assessments operational feedback region is now rendered at the top of the workspace and the Open Evaluation action immediately shows 'Opening evaluation...' before the existing governed POST /api/talent/assessment-cycles/{id}/open call. Any backend rejection continues to surface its exact authoritative detail message through the existing operation error path; no authorization, lifecycle, schema, migration, roster, or API behavior changed."
+knowledge_impact: yes
+summary: "Owner-directed Talent & Potential simplification. ADR 0035 supersedes ADR 0033 and the M4 frozen-population rule wherever Draft/Open Cycle state, frozen roster membership, synchronization, reconciliation, or population membership acted as prerequisites to start/edit a Student Assessment. Current effective Academic Placement in the selected Academic Year plus Program eligible Grade and an active assessment framework/tool are now the operational eligibility authority. Student Assessments reads live eligible Students directly, shows Start Assessment without an Open Evaluation step, and posts cycle_id + student_id. The backend validates current Placement/Grade/Branch scope, captures the existing Cycle Population Member row only as a historical placement/framework snapshot at Assessment creation, and keeps legacy Cycle state as internal compatibility metadata rather than a user-facing gate. Evaluation Plan UI now opens Student Assessments directly; it no longer previews/freezes/opens a roster or exposes Draft/Open gating as the normal workflow. Existing completed evidence remains immutable, tenant isolation and permissions remain enforced, and no schema migration is introduced."
 affected_areas:
-  - student-assessments-open-evaluation-feedback
+  - talent-assessment-product-flow
+  - student-assessment-eligibility
+  - academic-placement-as-eligibility-authority
+  - evaluation-period-workflow
+  - assessment-historical-provenance
+  - talent-cycle-backward-compatibility
 kms_files_updated:
-no_impact_reason: "Presentation/error-visibility correction only. It does not change the governed Cycle open contract or any product rule; it makes already-returned backend success/failure state visible at the point of action."
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/engineering/PRODUCT_ROADMAP.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/PROJECT_STATE.md
+  - docs/adr/0033-open-talent-cycle-additive-roster-synchronization.md
+  - docs/adr/0035-live-academic-placement-assessment-eligibility.md
+  - docs/adr/README.md
+no_impact_reason:
 major_change_override: no

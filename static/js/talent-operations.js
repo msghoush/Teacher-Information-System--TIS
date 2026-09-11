@@ -90,7 +90,7 @@
       if(!can('talent_programs.view')) {mount(`<article class="tp-card"><h3>${programLogo(assessmentProgram)} ${esc(assessment.context?.student_name || 'Student name unavailable')}</h3>${context(assessment)}</article>`+note('Program viewing permission is needed to display the competency and rubric labels. Ask your administrator for access.'));return;}
       const base=`/api/talent/programs/${assessment.program_id}/frameworks/${assessment.framework_version_id}`;
       const [framework,configuration]=await Promise.all([api(base),api(`${base}/configuration`)]);
-      const editable=assessment.status==='in_progress'&&assessment.context?.cycle_status==='open';
+      const editable=assessment.status==='in_progress';
       const saved=new Map(results.map(r=>[r.framework_competency_id,r]));
       const competencies=framework.competencies || [],levels=configuration.levels || [];
       const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid)?.descriptor || '';
@@ -139,80 +139,46 @@
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
     const rows=(await api(`/api/talent/assessments?${query({cycle_id:cycleId})}`)).filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
-    const cycles=can('talent_assessment_cycles.view')?await api(`/api/talent/assessment-cycles?${query({program_id:pid,academic_year_id:year})}`):[];
+    const cycles=await api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`);
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
-    // Arriving without an explicit cycle_id (e.g. the primary nav, which never
-    // carries cycle_id) must not hide an already-open evaluation behind an
-    // extra click when the Program context is unambiguous: auto-open the one
-    // Open Cycle for this Program/Year. Multiple Open Cycles or no Program
-    // selected remain a deliberate choice, shown as cards below.
-    const openCycles=cycles.filter(c=>c.status==='open');
-    const cycle=explicitCycle || (!cycleId && pid && openCycles.length===1 ? openCycles[0] : undefined);
-    const isDraftCycle=cycle&&cycle.status==='draft';
-    const population=cycle&&!isDraftCycle&&can('talent_assessment_cycles.view_population')?await api(`/api/talent/assessment-cycles/${cycle.id}/population`):null;
-    // Draft Cycles have no frozen population yet (ADR 0033/M4): the eligible
-    // list is a live, non-persisted preview derived from current Academic
-    // Placement, distinct from the Open Cycle's frozen membership above.
-    const preview=isDraftCycle&&can('talent_assessment_cycles.view_population')?await api(`/api/talent/assessment-cycles/${cycle.id}/population/preview`):null;
-    // Distinct from "No assessments saved in this context yet." below: this is
-    // the honest no-open-Evaluation-Period state, only shown when a Program is
-    // selected and it truly has no Cycle at all (draft or otherwise) to open -
-    // never conflated with the zero-population or zero-saved-assessment cases.
-    const noOpenEvaluation=pid&&!cycles.length;
-    const memberRows=population?population.members.map(m=>{
-      const a=rows.find(r=>r.cycle_population_member_id===m.id);
+    // ADR 0035: Evaluation Period/Cycle state is context, not an assessment
+    // eligibility gate. When one context is unambiguous, show its Students
+    // directly regardless of legacy Draft/Open status.
+    const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
+    const eligible=cycle?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null;
+
+    const eligibleRows=eligible?eligible.members.map(m=>{
+      const a=rows.find(r=>String(r.student_id)===String(m.student_id));
       const studentName=esc(m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ') || 'Student name unavailable');
-      let statusLabel='Not started', action;
-      if(a) {
-        statusLabel=words(a.status);
-        action=`<a href="${esc(url('assessments',{assessment_id:a.id}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'}</a>`;
-      } else if(cycle.status==='open'&&can('talent_assessments.manage')) {
-        action=button('start','Start Assessment',`data-member="${m.id}"`);
-      } else {
-        action='<span>Not started</span>';
-      }
+      const statusLabel=a?words(a.status):'Not started';
+      const action=a
+        ?`<a href="${esc(url('assessments',{assessment_id:a.id}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'}</a>`
+        :can('talent_assessments.manage')
+          ?button('start','Start Assessment',`data-student="${m.student_id}"`)
+          :'<span>Not started</span>';
       return `<tr><th scope="row">${studentName}</th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td>${esc(statusLabel)}</td><td>${action}</td></tr>`;
     }).join(''):'';
-    const previewRows=preview?preview.members.map(m=>{
-      const studentName=esc(m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ') || 'Student name unavailable');
-      return `<tr><th scope="row">${studentName}</th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td>Eligible — evaluation not opened yet</td></tr>`;
-    }).join(''):'';
+
     const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
+
     const cardsHtml=cycles.length
-      ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)} ${badge(c.status)}</h3><p>Student list date: ${esc(c.population_effective_at || 'Not set')}</p>${link('assessments',c.status==='draft'?'View eligible Students':'Open evaluation students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
-      :(noOpenEvaluation?note('No Evaluation Period is open for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
-    const canGovernCycle=can('talent_assessment_cycles.govern');
-    mount(`${cardsHtml}${cycle?`<h3>${esc(cycle.title)}</h3>`:''}${population?`<h3>Students in this evaluation</h3>${note('This Student list remains as recorded when the evaluation started.')}${population.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${memberRows}</tbody></table></div>`:note('No Students were included when this evaluation started.')}`:''}${preview?`<h3>Eligible Students</h3>${note('This is a live preview from current Academic Placement. It has not been opened for evaluation yet, so no Assessment can be started. Opening records the current eligible Students as the initial roster; newly eligible Students may be added while the evaluation remains Open, and existing members are preserved.')}${preview.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Status</th></tr></thead><tbody>${previewRows}</tbody></table></div>`:note('No Students are currently eligible for this evaluation.')}${canGovernCycle?`<p class="tp-actions">${button('open-cycle','Open Evaluation','class="tp-primary"')}</p>`:''}`:''}<h3>Assessment Records</h3>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
-    // Starting an assessment leaves this list to open the new assessment
-    // editor directly. That is a real cross-surface navigation (Student
-    // Assessments -> a specific assessment), so it must carry the current
-    // Program forward the same way every other link in this file does (see
-    // url()/link() above, which always include program_id from params) -
-    // omitting it here would silently reset the upper ribbon/context
-    // selector to "Choose a Program" while the opened assessment itself
-    // still belongs to Program pid, an internal context mismatch.
-    on('start',async el=>{const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,cycle_population_member_id:Number(el.dataset.member)}});navigate('assessments',{assessment_id:result.id,academic_year_id:result.academic_year_id,program_id:pid});});
-    // ADR 0034: "delete" only ever appears in an Assessment row's own backend
-    // actions array (zero dependent evidence AND the actor holds
-    // talent_assessments.delete) - never a client-side guess. Same
-    // window.confirm + exact-backend-error-surfacing pattern already used for
-    // Draft Program delete (static/js/talent-program-workspace.js).
+      ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)}</h3>${link('assessments','View Students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
+      :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
+
+    mount(`${cardsHtml}${cycle?`<h3>${esc(cycle.title)}</h3>`:''}${eligible?`<h3>Students</h3>${note('Students are shown from their current Academic Placement. If the Program includes their Grade and an assessment tool is ready, they can be assessed directly.')}${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}<h3>Assessment Records</h3>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
+
+    // ADR 0035: Start Assessment uses the Student's current Academic Placement
+    // as eligibility authority. The backend captures the historical Placement
+    // snapshot when the Assessment is created; no Open Evaluation step exists.
+    on('start',async el=>{
+      const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,student_id:Number(el.dataset.student)}});
+      navigate('assessments',{assessment_id:result.id,academic_year_id:result.academic_year_id,program_id:pid});
+    });
     on('delete-assessment',async el=>{
       if(!window.confirm('Permanently delete this Assessment? This cannot be undone.'))return;
       await api(`/api/talent/assessments/${el.dataset.id}`,{method:'DELETE'});
       await reload();
       notify('Assessment deleted.');
-    });
-    // ADR 0033/M4: opening a Draft Cycle freezes today's preview into the
-    // permanent population. Reuses the same governed, expected-revision
-    // pattern as every other Cycle lifecycle mutation (open/close/synchronize
-    // in routers/talent_assessment_cycles.py).
-    on('open-cycle',async()=>{
-      if(!window.confirm('Open this evaluation? The current eligible Students become the initial roster and Assessments can then be started. Newly eligible Students may be added while the evaluation remains Open.'))return;
-      notify('Opening evaluation...');
-      await api(`/api/talent/assessment-cycles/${cycle.id}/open`,{method:'POST',body:{expected_revision:cycle.revision}});
-      await reload();
-      notify('Evaluation opened.');
     });
   }
   function localDate(value) {const d=new Date(value.endsWith('Z')||/[+-]\d\d:\d\d$/.test(value)?value:`${value}Z`);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}

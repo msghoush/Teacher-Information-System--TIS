@@ -4,11 +4,10 @@
   const programLogo = program => typeof window !== 'undefined' && window.TalentProgramIdentity ? window.TalentProgramIdentity.logoBadge(program, 'tp-logo-sm') : '';
   const icon = name => typeof window !== 'undefined' && window.TalentProgramWorkspace?.icon ? window.TalentProgramWorkspace.icon(name) : '';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, character => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
-  const stateFor = (plan, period) => {
-    if (period.cycle?.status === 'open') return 'In progress';
+  const stateFor = (_plan, period) => {
+    if (period.status === 'cancelled') return 'Cancelled';
     if (period.cycle?.status === 'closed') return 'Complete';
-    if (period.cycle?.status === 'draft') return 'Ready to start';
-    return plan.status === 'active' ? 'Ready to start' : 'Setup';
+    return 'Available';
   };
   const link = (view, year, programId, cycleId) => `/talent/${view}?${new URLSearchParams({academic_year_id:year, program_id:programId, ...(cycleId ? {cycle_id:cycleId} : {})})}`;
   let unloadGuard;
@@ -41,7 +40,7 @@
     const plan = plans.find(item => item.program_id === program.id) || null;
     const periods = plan?.periods || [];
     const managePlan = can('talent_evaluation_plans.manage'), governPlan = can('talent_evaluation_plans.govern');
-    const manageCycle = can('talent_assessment_cycles.manage'), governCycle = can('talent_assessment_cycles.govern'), previewPopulation = can('talent_assessment_cycles.view_population');
+    const manageCycle = can('talent_assessment_cycles.manage');
     const setupReady = Boolean(configuration && activeFramework && program.status === 'active');
     const canAddPeriod = managePlan && plan?.status !== 'closed' && configuration;
     const addForm = canAddPeriod ? `<form class="tp-card tp-editor tp-schedule-form" data-form="add-period"><h3>Add Evaluation Period</h3><label>Evaluation Period Name<input type="text" name="label" placeholder="e.g., Term 1, Audition, Spring Review, Final Performance" maxlength="80" required></label><div class="tp-actions"><button type="submit">${icon('add')}Add Evaluation Period</button></div><p data-feedback role="status" aria-live="polite"></p></form>` : '';
@@ -60,11 +59,13 @@
       ? '<p class="tp-callout">This Evaluation Plan is read-only in your current workspace. Ask an organization-authorized Program manager to add or change Evaluation Periods.</p>'
       : '';
     const readiness = !configuration ? 'Enable this Program for the selected academic year first.' : !activeFramework ? 'Finish and activate What we assess before starting an evaluation.' : program.status !== 'active' ? 'Activate the Program before starting an evaluation.' : '';
-    const readyAction = plan?.status === 'draft' && periods.length && governPlan && !managePlan ? '<p><button type="button" data-ready>Make Schedule Ready</button></p>' : '';
+    const readyAction = '';
     const rows = periods.map(period => {
       const state = stateFor(plan, period), cycle = period.cycle;
-      const start = state === 'Ready to start' && setupReady && governCycle && previewPopulation && (cycle || (manageCycle && managePlan));
-      const open = cycle && cycle.status !== 'draft' && can('talent_assessments.view') && can('talent_assessment_cycles.view_population') ? `<a href="${esc(link('assessments', year, program.id, cycle.id))}">${icon('eye')}Open Evaluation</a>` : '';
+      const openAssessments = setupReady && can('talent_assessments.view') && (cycle || (manageCycle && managePlan));
+      const open = openAssessments
+        ? `<button type="button" data-assess="${period.id}">${icon('eye')}Open Student Assessments</button>`
+        : '';
       const canRename = (period.actions || []).includes('edit');
       const canRemove = (period.actions || []).includes('remove');
       const canManageTimeline = (period.actions || []).includes('edit_timeline');
@@ -80,12 +81,12 @@
       const dateCell = canManageTimeline
         ? `<form class="tp-inline-rename" data-form="period-timeline" data-period="${period.id}"><input type="date" name="planned_start_date" value="${esc(period.planned_start_date || '')}" aria-label="${esc(period.label)} start date"><input type="date" name="planned_end_date" value="${esc(period.planned_end_date || '')}" aria-label="${esc(period.label)} end date"><button type="submit">Save dates</button></form>`
         : `<span class="tp-period-dates" aria-label="${esc(period.label)} planned dates">${esc(period.planned_start_date || 'No start date')} – ${esc(period.planned_end_date || 'No end date')}</span>`;
-      return `<tr><th scope="row">${nameCell}</th><td><span class="tp-badge tp-state-${esc(state.toLowerCase().replaceAll(' ', '-'))}">${esc(state)}</span></td><td>${dateCell}</td><td><div class="tp-row-actions">${start ? `<button type="button" data-start="${period.id}">${icon('start')}Start Evaluation</button>` : open}${removeButton}</div></td></tr>`;
+      return `<tr><th scope="row">${nameCell}</th><td><span class="tp-badge tp-state-${esc(state.toLowerCase().replaceAll(' ', '-'))}">${esc(state)}</span></td><td>${dateCell}</td><td><div class="tp-row-actions">${open}${removeButton}</div></td></tr>`;
     }).join('');
 
     const heading=embedded?'<p>Plan when this Program will be evaluated during the Academic Year.</p>':`<a href="${esc(link('programs', year, program.id))}#tp-schedule">Back to Program setup</a><header class="tp-section-lede">${programLogo(program)}<div><p class="tp-eyebrow">${esc(program.name)}</p><h2>Evaluation Plan</h2><p>Plan when this Program will be evaluated during the Academic Year.</p></div></header>`;
     const navigation=embedded?`<div class="tp-wizard-actions"><a href="#tp-builder-review">Back</a><a class="tp-primary-link" href="#tp-ready">Save &amp; Continue</a></div>`:`<div class="tp-wizard-actions"><a href="${esc(link('programs', year, program.id))}#tp-builder-review">Back</a>${periods.length?`<a class="tp-primary-link" href="${esc(link('programs', year, program.id))}#tp-ready">Finish Setup</a>`:''}</div>`;
-    root.innerHTML = `<div data-feedback role="status" aria-live="polite"></div>${heading}${readiness ? `<p class="tp-callout">${esc(readiness)}</p>` : ''}${readOnlyNotice}${warningsNotice}${periods.length ? `<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Evaluation Period</th><th>Status</th><th>Dates</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="tp-empty">${managePlan ? 'Add this year\'s Evaluation Periods below.' : 'No Evaluation Periods have been added for this year.'}</p>`}${addForm}${readyAction}<details class="tp-card"><summary>Plan details</summary><p>${plan ? `Evaluation Plan saved with ${periods.length} Period${periods.length === 1 ? '' : 's'}.` : 'No Evaluation Plan saved yet.'}</p><p>Starting an evaluation keeps its assessment setup and included Student list unchanged for history.</p></details>${navigation}`;
+    root.innerHTML = `<div data-feedback role="status" aria-live="polite"></div>${heading}${readiness ? `<p class="tp-callout">${esc(readiness)}</p>` : ''}${readOnlyNotice}${warningsNotice}${periods.length ? `<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Evaluation Period</th><th>Status</th><th>Dates</th><th>Actions</th></tr></thead><tbody>${rows}</tbody></table></div>` : `<p class="tp-empty">${managePlan ? 'Add this year\'s Evaluation Periods below.' : 'No Evaluation Periods have been added for this year.'}</p>`}${addForm}${readyAction}<details class="tp-card"><summary>Plan details</summary><p>${plan ? `Evaluation Plan saved with ${periods.length} Period${periods.length === 1 ? '' : 's'}.` : 'No Evaluation Plan saved yet.'}</p><p>Student Assessments use current Academic Placement for eligibility. Historical placement and assessment-tool context are captured when each Assessment starts.</p></details>${navigation}`;
 
     let busy = false;
     const dirtyForms = new Set();
@@ -145,13 +146,7 @@
     };
 
     root.onclick = async event => {
-      const button = event.target.closest('button[data-start],button[data-ready],button[data-remove]'); if (!button || busy) return;
-      if (button.hasAttribute('data-ready')) {
-        setBusy(true);
-        try { await request(`/api/talent/evaluation-plans/${plan.id}/activate`, 'POST', {expected_plan_revision:plan.revision}); await refresh('Schedule is ready.'); }
-        catch (error) { fail(error); } finally { setBusy(false); }
-        return;
-      }
+      const button = event.target.closest('button[data-assess],button[data-remove]'); if (!button || busy) return;
       if (button.hasAttribute('data-remove')) {
         if (typeof window !== 'undefined' && !window.confirm('Remove this evaluation? This cannot be undone.')) return;
         setBusy(true);
@@ -159,22 +154,29 @@
         catch (error) { fail(error); } finally { setBusy(false); }
         return;
       }
-      const period = periods.find(item => String(item.id) === button.dataset.start); if (!period) return;
-      setBusy(true); const output = feedback(); output.textContent = 'Checking eligible Students...';
+      const period = periods.find(item => String(item.id) === button.dataset.assess); if (!period) return;
+      setBusy(true); const output = feedback(); output.textContent = 'Opening Student Assessments...';
       try {
         let cycle = period.cycle;
         if (!cycle) {
-          cycle = await request('/api/talent/assessment-cycles', 'POST', {program_id:program.id, academic_year_id:Number(year), framework_version_id:activeFramework.id, title:period.label, population_effective_at:new Date().toISOString()});
-          const linked = await request(`/api/talent/assessment-cycles/${cycle.id}/link-period`, 'POST', {planned_period_id:period.id, expected_plan_revision:plan.revision, expected_cycle_revision:cycle.revision});
+          // ADR 0035: Cycle remains an internal compatibility/provenance
+          // container. Creating/linking it is not a user-facing lifecycle step
+          // and does not open/freeze a roster.
+          cycle = await request('/api/talent/assessment-cycles', 'POST', {
+            program_id:program.id,
+            academic_year_id:Number(year),
+            framework_version_id:activeFramework.id,
+            title:period.label,
+            population_effective_at:new Date().toISOString()
+          });
+          const linked = await request(`/api/talent/assessment-cycles/${cycle.id}/link-period`, 'POST', {
+            planned_period_id:period.id,
+            expected_plan_revision:plan.revision,
+            expected_cycle_revision:cycle.revision
+          });
           cycle.revision = linked.cycle_revision;
-        } else cycle = await api(`/api/talent/assessment-cycles/${cycle.id}`);
-        const preview = await api(`/api/talent/assessment-cycles/${cycle.id}/population/preview`);
-        const date = String(cycle.population_effective_at || new Date().toISOString()).slice(0, 10);
-        const message = `${preview.count} eligible Students will be included based on Academic Placement as of ${date}. Start this evaluation?`;
-        output.textContent = message.replace(' Start this evaluation?', '');
-        if (typeof window !== 'undefined' && !window.confirm(message)) { await refresh('Evaluation is ready to start.'); return; }
-        await request(`/api/talent/assessment-cycles/${cycle.id}/open`, 'POST', {expected_revision:cycle.revision});
-        await refresh('Evaluation started. The Student population is now fixed for history.');
+        }
+        ctx.navigate?.('assessments',{program_id:program.id,cycle_id:cycle.id,academic_year_id:Number(year)});
       } catch (error) { fail(error); } finally { setBusy(false); }
     };
   }
