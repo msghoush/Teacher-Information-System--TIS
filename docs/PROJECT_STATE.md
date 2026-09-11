@@ -1,11 +1,66 @@
 ---
 title: TIS Project State
-documentation_version: 4.4
-last_updated: 2026-09-11
+documentation_version: 4.6
+last_updated: 2026-09-12
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Competency -> KPI -> Level Simplification — Implemented
+
+ADR 0039 (see below) is now implemented, not only recorded. Start Assessment
+no longer fails when the Student's specific Grade has no separately-authored
+Competency: `_newest_assessable_framework` prefers Grade-specific content
+but falls back to the Program's full saved build, and the Assessment
+editor's own client-side Competency filter carries the identical fallback
+so an assessment the backend now allows never renders empty. Program
+readiness in the setup workspace is exactly Competency+KPI+Level, saved,
+stated as the single missing requirement in plain language when incomplete;
+Finish Setup/Framework activation remains available but is no longer
+required for or tied to the Ready banner. "Rubric"/"Assessment Criteria" is
+relabeled "KPI" in the Competency build/summary UI; the separate numeric
+`TalentKpiConfiguration` feature was left untouched, so a real
+two-things-called-"KPI" UI collision now exists and needs a follow-up Owner
+naming decision (not resolved by this pass). The KPI/rubric `name` field is
+now optional and auto-derived from the owning Competency when omitted.
+Delete Competency removes its KPI, Levels, and achievement Descriptors as
+one subtree action; it still blocks with an exact reason on numeric-KPI
+weighting or Program Criteria rules referencing the Competency, since those
+remain separate governed structures this pass does not authorize deleting
+as a side effect. The Talent & Potential sidebar Ghars logo no longer
+suppresses the visible module text and renders at the same size as sibling
+navigation icons; the existing SVG asset was confirmed to have no safely
+extractable icon-only symbol (one dense unlabeled wordmark path), so a true
+hand-extracted mark remains a follow-up design task. "Students" is now the
+first child of the Talent & Potential nav tree, gated by the existing
+`students.view` permission; the separate top-level Students item is
+unchanged. No schema migration was required. Zero test regressions were
+introduced, confirmed by direct before/after comparison across the full
+Talent Python and Node suites.
+
+## Talent Competency -> KPI -> Level Simplification — Governance Decision Recorded
+
+Per direct Owner instruction on 2026-09-12, see
+`docs/adr/0039-talent-competency-kpi-level-simplification.md`. Two policy
+changes are now approved: (1) Grade is no longer a Start Assessment
+eligibility gate - a Student is assessable once the Program's saved build
+has at least one Competency with one KPI/criterion and one Level, regardless
+of whether that content was authored under the Student's specific Grade;
+Grade remains display/historical context only, per an amendment to ADR 0035
+condition 4 (the rest of ADR 0035 is unchanged). (2) The user-facing
+authoring/assessment hierarchy is relabeled Competency -> KPI -> Level
+("Assessment Criteria" retired as normal-user-facing text); internal
+schema/API names may remain unchanged. This explicitly does NOT resolve
+whether the separate, pre-existing numeric `TalentKpiConfiguration` feature
+needs its own rename to avoid a two-different-things-called-"KPI" collision
+- that is flagged as a distinct follow-up decision, not silently resolved.
+Program readiness becomes Competency+KPI+Level+Save=Ready with no separate
+Finish-Setup/Activate step in the normal flow; Competency delete becomes a
+single subtree action (removes its KPI/Levels from the current/future build)
+while historical completed Assessment evidence remains immutable. This entry
+and the referenced ADR are the authorization record, not a completion
+record; implementation is tracked separately.
 
 ## Owner Video Acceptance — Immediate Corrective Pass
 
