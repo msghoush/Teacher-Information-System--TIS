@@ -34,6 +34,8 @@ The reassessment compatibility boundary is also closed for legacy data created b
 
 Normal Grade-level Competency creation no longer synthesizes an ASCII-only code in the browser. Unicode names such as Arabic Competencies are sent without a technical code, and the backend allocates the existing unique Program-scoped internal code. No schema migration was added.
 
+Talent navigation now also follows an explicit module-tree/context-boundary rule. While Talent & Potential is active, the main sidebar expands Overview, Programs, Student Assessments, Talent Review, and Results & Analytics as permission-aware child destinations. Those top-level destinations carry the selected Academic Year only and clear stale Program/Cycle/Assessment and analytics filter context from the page being left. Programs therefore always re-enters the searchable Program list unless an explicit Program-opening link is used, and Student Assessments opens neutral with its own Program selector rather than inheriting a previously selected Program. The Programs table now exposes one normal Open Program entry point per row; Program-specific Edit Program, Build/Edit Rubric, Manage Evaluation Plan, Open Assessments, and View Results remain inside the opened Program workspace.
+
 ## Talent Current Rubric, Re-evaluation, And Rubric-Delete Correction
 
 Per direct Owner instruction on 2026-09-11, the normal Student Assessment
