@@ -42,7 +42,7 @@ test('descriptor save uses stable membership and level IDs plus loaded revision'
   assert.deepEqual(JSON.parse(write.options.body),{expected_revision:7,framework_competency_id:71,rubric_level_id:81,descriptor:'Consistent expression',grade_level:null});
 });
 test('Grade-specific descriptor editor sends the selected Grade and uses exact Grade rows',async()=>{
-  const {ctx,root,calls}=fixture(true,'draft',{step:'assess',hash:'#tp-builder-descriptions'});
+  const {ctx,root,calls}=fixture(true,'draft',{step:'assess',hash:'#tp-builder-descriptions',complete:true});
   const read=ctx.api;ctx.api=async(path,options)=>{
     if(!options&&path.endsWith('/configuration'))return {
       levels:[{id:81,code:'LEVEL_1',label:'Beginning',numeric_value:null}],
