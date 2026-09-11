@@ -806,6 +806,7 @@ class TalentStudentAssessment(Base):
         UniqueConstraint("cycle_id", "student_id", name="uq_talent_student_assessments_cycle_student"),
         UniqueConstraint("id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id", name="uq_talent_student_assessments_result_scope"),
         Index("ix_talent_student_assessments_scope", "school_group_id", "cycle_id", "student_id", "status"),
+        Index("ix_talent_student_assessments_current", "school_group_id", "program_id", "academic_year_id", "student_id", "is_current"),
     )
     id = Column(Integer, primary_key=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
@@ -816,6 +817,8 @@ class TalentStudentAssessment(Base):
     academic_year_id = Column(Integer, nullable=False)
     framework_version_id = Column(Integer, nullable=False)
     status = Column(String(32), nullable=False, default="in_progress")
+    is_current = Column(Boolean, nullable=False, default=True)
+    reassessment_of_assessment_id = Column(Integer, ForeignKey("talent_student_assessments.id"), nullable=True)
     revision = Column(Integer, nullable=False, default=1)
     started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)
