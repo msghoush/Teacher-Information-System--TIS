@@ -809,10 +809,12 @@ class TalentStudentAssessment(Base):
         UniqueConstraint("id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id", name="uq_talent_student_assessments_result_scope"),
         Index("ix_talent_student_assessments_scope", "school_group_id", "cycle_id", "student_id", "status"),
         Index("ix_talent_student_assessments_current", "school_group_id", "program_id", "academic_year_id", "student_id", "is_current"),
+        Index("ix_talent_student_assessments_evaluation_context", "school_group_id", "evaluation_context_cycle_id", "student_id", "is_current"),
     )
     id = Column(Integer, primary_key=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
     cycle_id = Column(Integer, nullable=False)
+    evaluation_context_cycle_id = Column(Integer, nullable=True)
     cycle_population_member_id = Column(Integer, nullable=False)
     student_id = Column(Integer, nullable=False)
     program_id = Column(Integer, nullable=False)
