@@ -3589,3 +3589,39 @@ Pending local `scripts/kms.py sync` after GitHub changes are synced and tests pa
 
 Deployment:
 Not performed. Owner retains deployment authority.
+
+## 2026-09-11 - Added deterministic Talent Overall Program Result
+
+Area/module:
+Talent & Potential rubric authoring, Student Assessment, Talent Review
+
+Previous state:
+Rubric levels had governed order and optional numeric values, but there was no
+single fair cross-competency result for a Student when competency rubrics used
+different numbers of levels. Talent Review could surface a highest recorded
+rubric level, which is not a valid cross-competency summary when rubric scales
+differ.
+
+New state:
+ADR 0037 defines rubric level number as its ordered proficiency position and
+adds the deterministic `equal_competency_normalized_rubric_position` Overall
+Program Result. Each selected competency level is normalized within its own
+rubric from 0 to 100, all applicable competencies contribute equally, and the
+mean is rounded half-up. Student Assessment and Talent Review display the result
+as score/100 with supplemental low-to-high color progression. Individual
+competency evidence remains available in the Assessment.
+
+Official Identification remains a separate authorized human decision. The
+overall score does not create an automatic talented/not-talented label, does not
+replace Review Candidate policy, and does not alter the existing optional KPI
+contract.
+
+Schema/migration:
+None. The result is a deterministic read projection from immutable Assessment,
+Framework, rubric-level, and competency-result evidence.
+
+Documentation updated:
+Yes - ADR 0037, TIS_MASTER_CONTEXT, PROJECT_STATE, CHANGE_HISTORY.
+
+Deployment:
+Not performed. Owner deploys only after focused tests and KMS enforcement pass.
