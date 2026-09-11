@@ -19,7 +19,8 @@ from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
     complete_assessment, competency_result_payload, delete_assessment,
     get_assessment, list_assessments, list_competency_results,
-    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result, set_competency_result,
+    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result,
+    reset_completed_assessment_for_reassessment, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
 
@@ -44,6 +45,12 @@ def _with_actions(db, user, row, payload):
     }
     if newer_framework is not None and auth.has_permission(db, user, "talent_assessments.manage"):
         actions.append("reassess")
+    if (
+        row.status == "completed"
+        and bool(getattr(row, "is_current", True))
+        and auth.has_permission(db, user, "talent_assessments.reset_for_reassessment")
+    ):
+        actions.append("reset_for_reassessment")
     payload["actions"] = actions
     return payload
 
@@ -316,6 +323,33 @@ def assessments_reassess(assessment_id: int, request: Request, db: Session = Dep
             )
         ),
         created=True,
+    )
+
+
+@router.post("/{assessment_id}/reset-for-reassessment")
+def assessments_reset_for_reassessment(
+    assessment_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    user, group_id, denied = _authorize(
+        request, db, current_user, "talent_assessments.reset_for_reassessment"
+    )
+    if denied:
+        return denied
+    assessment, error = _read_assessment(db, group_id, user, assessment_id)
+    if error:
+        return error
+    return _run(
+        db,
+        lambda: _display_payload(
+            db,
+            user,
+            reset_completed_assessment_for_reassessment(
+                db, school_group_id=group_id, assessment_id=assessment.id, actor=user
+            ),
+        ),
     )
 
 
