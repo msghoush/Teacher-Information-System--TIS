@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import and_, exists, func
 from sqlalchemy.orm import Session
 
 import academic_grade
@@ -233,6 +233,10 @@ def population_query(db: Session, ctx: AnalyticsContext, filters: ResolvedFilter
     query = db.query(models.TalentAssessmentCyclePopulationMember).filter(
         models.TalentAssessmentCyclePopulationMember.school_group_id == ctx.school_group_id,
         models.TalentAssessmentCyclePopulationMember.cycle_id.in_(cycle_ids or [-1]),
+        ~exists().where(and_(
+            models.TalentStudentAssessment.cycle_population_member_id == models.TalentAssessmentCyclePopulationMember.id,
+            models.TalentStudentAssessment.is_current.is_(False),
+        )),
     )
     if visible_branch_ids is not None:
         query = query.filter(models.TalentAssessmentCyclePopulationMember.branch_id.in_(visible_branch_ids or {-1}))
@@ -310,7 +314,10 @@ def raw_coverage_counts(db: Session, pop_query) -> dict:
         func.count(base.c.member_id),
     ).select_from(base).outerjoin(
         models.TalentStudentAssessment,
-        models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+        and_(
+            models.TalentStudentAssessment.cycle_population_member_id == base.c.member_id,
+            models.TalentStudentAssessment.is_current.is_(True),
+        ),
     ).group_by("status").all()
     counts = {key: 0 for key in COVERAGE_STATUS_KEYS}
     for status, count in rows:
@@ -380,6 +387,7 @@ def section_labels(db: Session, pop_query) -> dict:
 
 def _assessment_ids_subquery(db: Session, pop_query):
     return db.query(models.TalentStudentAssessment.id).filter(
+        models.TalentStudentAssessment.is_current.is_(True),
         models.TalentStudentAssessment.cycle_population_member_id.in_(
             pop_query.with_entities(models.TalentAssessmentCyclePopulationMember.id)
         )
