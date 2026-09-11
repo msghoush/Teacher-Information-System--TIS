@@ -339,7 +339,7 @@
         else return;
       }
       const saved=await mutate(path,method,body,f);
-      if(saved&&(action==='annual'||action==='basics')&&typeof window!=='undefined')window.location.hash=hashes.assess;
+      if(saved&&(action==='annual'||action==='basics')&&typeof window!=='undefined')window.location.hash='';
     };
     root.onclick=async event=>{
       const reveal=event.target.closest('[data-reveal],[data-action="reveal-editor"]');
