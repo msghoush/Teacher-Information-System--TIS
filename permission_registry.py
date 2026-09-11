@@ -449,6 +449,11 @@ LIMITED_READ_ONLY_PERMISSION_KEYS = {
 }
 
 
+ADMINISTRATOR_ONLY_PERMISSION_KEYS = {
+    "students.view_all_branches",
+}
+
+
 OWNER_ONLY_PERMISSION_KEYS = {
     "system_owner.full_access",
     "system_owner.manage_developer_accounts",
@@ -501,6 +506,8 @@ def constrain_role_permissions(role: str, permission_keys) -> set[str]:
     allowed = set(permission_keys or ()) - DEVELOPER_ONLY_PERMISSION_KEYS
     if normalized == auth.ROLE_LIMITED:
         allowed &= LIMITED_READ_ONLY_PERMISSION_KEYS
+    if normalized != auth.ROLE_ADMINISTRATOR:
+        allowed -= ADMINISTRATOR_ONLY_PERMISSION_KEYS
     return allowed
 
 
@@ -523,8 +530,14 @@ def build_role_permission_payload(role: str, allowed_keys: set[str] | None = Non
                     "assignable": (
                         not developer_only
                         and (
-                            normalized != auth.ROLE_LIMITED
-                            or permission_key in LIMITED_READ_ONLY_PERMISSION_KEYS
+                            (
+                                normalized != auth.ROLE_LIMITED
+                                or permission_key in LIMITED_READ_ONLY_PERMISSION_KEYS
+                            )
+                            and (
+                                normalized == auth.ROLE_ADMINISTRATOR
+                                or permission_key not in ADMINISTRATOR_ONLY_PERMISSION_KEYS
+                            )
                         )
                     ),
                     "allowed": permission_key in allowed,
