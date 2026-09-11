@@ -350,7 +350,7 @@ test('a Program save refreshes only selected Program data and keeps the hash cac
   try {await root.onsubmit({preventDefault(){},target:{dataset:{form:'edit-program'},querySelector:()=>({textContent:'',setAttribute(){}})}});}
   finally {global.FormData=old;}
   await render(ctx,{viaHash:true});
-  assert.equal(programCatalogReads,1,'the save performs one targeted Program catalog refresh and the following hash redraw performs no additional reads');
+  assert.equal(programCatalogReads,0,'the save refreshes the selected Program directly and the following hash redraw performs no Program-catalog read');
   assert.match(root.innerHTML,/Updated description/);
   assert.doesNotMatch(root.innerHTML,/Original description/);
 });
