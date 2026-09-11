@@ -217,16 +217,19 @@
     members=framework?.competencies || [];
     const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft' && !framework?.in_use_by_assessments;
     const annualYear=annual.find(a=>String(a.academic_year_id)===String(year));
-    const levels=config?.levels || [], kpi=config?.kpi;
+    const levels=config?.levels || [], rubrics=config?.rubrics || [], kpi=config?.kpi;
     const descriptorGrades=annualYear?.eligible_grade_levels || [];
     const memberName=m=>m.label || bank.find(c=>c.id===m.competency_id)?.name || 'Unnamed competency';
+    const rubricForCompetency=mid=>rubrics.find(r=>Number(r.framework_competency_id)===Number(mid)) || null;
+    const levelsForCompetency=mid=>rubricForCompetency(mid)?.levels || levels;
     const descriptorFor=(mid,lid,grade)=>config?.descriptors?.find(item=>item.framework_competency_id===mid&&item.rubric_level_id===lid&&String(item.grade_level||'')===String(grade||'')) || config?.descriptors?.find(item=>item.framework_competency_id===mid&&item.rubric_level_id===lid&&!item.grade_level);
     const membersForGrade=grade=>members.filter(m=>!m.grade_level||String(m.grade_level)===String(grade||''));
-    const descriptorCells=(descriptorGrades.length?descriptorGrades:[null]).flatMap(grade=>membersForGrade(grade).flatMap(m=>levels.map(l=>({grade,m,l,d:descriptorFor(m.id,l.id,grade)}))));
+    const descriptorCells=(descriptorGrades.length?descriptorGrades:[null]).flatMap(grade=>membersForGrade(grade).flatMap(m=>levelsForCompetency(m.id).map(l=>({grade,m,l,d:descriptorFor(m.id,l.id,grade)}))));
     const descriptorTotal=descriptorCells.length, descriptorSaved=descriptorCells.filter(cell=>String(cell.d?.descriptor||'').trim()).length;
     const basicsComplete=Boolean(annualYear?.is_enabled&&annualYear.eligible_grade_levels?.length);
-    const assessRemaining=(members.length?0:1)+(levels.length?0:1)+Math.max(0,descriptorTotal-descriptorSaved);
-    const assessComplete=Boolean(members.length&&levels.length&&descriptorTotal===descriptorSaved);
+    const rubricReady=Boolean(members.length&&members.every(m=>rubricForCompetency(m.id)?.levels?.length || levels.length));
+    const assessRemaining=(members.length?0:1)+(rubricReady?0:1)+Math.max(0,descriptorTotal-descriptorSaved);
+    const assessComplete=Boolean(members.length&&rubricReady&&descriptorTotal===descriptorSaved);
     const scheduleComplete=plans.some(item=>item.periods?.length);
     const hashes={basics:'#tp-basics',assess:'#tp-builder',schedule:'#tp-schedule',ready:'#tp-ready'};
     const requested=typeof window!=='undefined'?window.location.hash:(ctx.hash||(params.get('step')?hashes[params.get('step')]:''));
@@ -238,13 +241,18 @@
     if(!explicitSetup){
       const grades=(annualYear?.eligible_grade_levels||[]).map(g=>g==='KG'?'KG':`Grade ${esc(g)}`).join(', ');
       const periodCount=plans.reduce((count,item)=>count+(item.periods?.length||0),0);
-      const scoringMode=kpi?.enabled?'Numeric + rubric':(levels.length?'Rubric':'Not set');
+      const scoringMode=kpi?.enabled?'Numeric + rubric':(rubricReady?'Rubric':'Not set');
       const gradeRubricSummary=(annualYear?.eligible_grade_levels||[]).map(g=>{
         const label=g==='KG'?'KG':`Grade ${g}`;
         const gradeMembers=members.filter(m=>String(m.grade_level||'')===String(g));
-        return `<details class="tp-card tp-grade-rubric"><summary><strong>${esc(label)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'} · ${levels.length} levels</span></summary><div class="tp-grade-rubric-body">${gradeMembers.length?`<ul>${gradeMembers.map(m=>`<li>${esc(memberName(m))}</li>`).join('')}</ul>`:'<p class="tp-empty">No competencies configured yet.</p>'}</div></details>`;
+        const summary=gradeMembers.map(m=>{
+          const rubric=rubricForCompetency(m.id);
+          const count=rubric?.levels?.length || levels.length;
+          return `<li><strong>${esc(memberName(m))}</strong> — ${esc(rubric?.name||config?.rubric?.name||'Rubric not configured')} · ${count} level${count===1?'':'s'}</li>`;
+        }).join('');
+        return `<details class="tp-card tp-grade-rubric"><summary><strong>${esc(label)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${gradeMembers.length?`<ul>${summary}</ul>`:'<p class="tp-empty">No competencies configured yet.</p>'}</div></details>`;
       }).join('');
-      root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p><p>${esc(yearLabel)} · ${annualYear?.is_enabled?'Enabled':'Not enabled'}</p></div></header><section class="tp-program-summary" aria-label="Program summary"><dl><div><dt>Grades</dt><dd>${grades||'Not configured'}</dd></div><div><dt>Competencies</dt><dd>${members.length}</dd></div><div><dt>Rubric levels</dt><dd>${levels.length}</dd></div><div><dt>Scoring Mode</dt><dd>${esc(scoringMode)}${kpi?.enabled?` <span class="tp-badge">Numeric result enabled</span>`:''}</dd></div><div><dt>Evaluation Periods</dt><dd>${periodCount}</dd></div><div><dt>Rubric status</dt><dd>${assessComplete?'Ready':'Needs setup'}</dd></div></dl></section>${gradeRubricSummary?`<section><h3>Rubric overview</h3><div class="tp-grade-accordion">${gradeRubricSummary}</div></section>`:''}<div class="tp-summary-actions">${manage?`<a href="#tp-basics">${icon('edit')}Edit Program</a><a href="#tp-rubric">${icon('edit')}Build / Edit Rubric</a>`:''}${can('talent_evaluation_plans.view')?`<a href="#tp-schedule">Manage Evaluation Plan</a>`:''}${can('talent_assessments.view')?`<a href="${esc(href('assessments'))}">${icon('eye')}Open Assessments</a>`:''}${can('talent_analytics.view')?`<a href="${esc(href('portfolio'))}">${icon('eye')}View Results</a>`:''}</div>`;
+      root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p><p>${esc(yearLabel)} · ${annualYear?.is_enabled?'Enabled':'Not enabled'}</p></div></header><section class="tp-program-summary" aria-label="Program summary"><dl><div><dt>Grades</dt><dd>${grades||'Not configured'}</dd></div><div><dt>Competencies</dt><dd>${members.length}</dd></div><div><dt>Rubrics</dt><dd>${rubrics.filter(r=>r.framework_competency_id!=null).length || (levels.length?1:0)}</dd></div><div><dt>Scoring Mode</dt><dd>${esc(scoringMode)}${kpi?.enabled?` <span class="tp-badge">Numeric result enabled</span>`:''}</dd></div><div><dt>Evaluation Periods</dt><dd>${periodCount}</dd></div><div><dt>Rubric status</dt><dd>${assessComplete?'Ready':'Needs setup'}</dd></div></dl></section>${gradeRubricSummary?`<section><h3>Rubric overview</h3><div class="tp-grade-accordion">${gradeRubricSummary}</div></section>`:''}<div class="tp-summary-actions">${manage?`<a href="#tp-basics">${icon('edit')}Edit Program</a><a href="#tp-rubric">${icon('edit')}Build / Edit Rubric</a>`:''}${can('talent_evaluation_plans.view')?`<a href="#tp-schedule">Manage Evaluation Plan</a>`:''}${can('talent_assessments.view')?`<a href="${esc(href('assessments'))}">${icon('eye')}Open Assessments</a>`:''}${can('talent_analytics.view')?`<a href="${esc(href('portfolio'))}">${icon('eye')}View Results</a>`:''}</div>`;
       return;
     }
     const stepReason={assess:assessRemaining?`${assessRemaining} item${assessRemaining===1?'':'s'} remaining`:''};
