@@ -40,6 +40,7 @@
     const plan = plans.find(item => item.program_id === program.id) || null;
     const periods = plan?.periods || [];
     const managePlan = can('talent_evaluation_plans.manage'), governPlan = can('talent_evaluation_plans.govern');
+    const canSelectPeriod = can('talent_evaluation_plans.select_period');
     const manageCycle = can('talent_assessment_cycles.manage');
     const setupReady = Boolean(configuration && assessmentFramework);
     const canAddPeriod = managePlan && plan?.status !== 'closed' && configuration;
@@ -62,10 +63,12 @@
     const readyAction = '';
     const rows = periods.map(period => {
       const state = stateFor(plan, period), cycle = period.cycle;
-      const openAssessments = setupReady && can('talent_assessments.view') && (cycle || (manageCycle && managePlan));
+      const openAssessments = setupReady && can('talent_assessments.view') && canSelectPeriod && (cycle || (manageCycle && managePlan));
       const open = openAssessments
         ? `<button type="button" data-assess="${period.id}">${icon('eye')}Open Student Assessments</button>`
-        : '';
+        : (setupReady && can('talent_assessments.view')
+          ? '<button type="button" disabled title="Evaluation Period selection is not permitted for your role">Open Student Assessments</button>'
+          : '');
       const canRename = (period.actions || []).includes('edit');
       const canRemove = (period.actions || []).includes('remove');
       const canManageTimeline = (period.actions || []).includes('edit_timeline');
