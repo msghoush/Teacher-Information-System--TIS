@@ -831,6 +831,12 @@ def _validate_completeness(db, assessment):
     actual = {row.framework_competency_id for row in results}
     if not required or actual != required:
         raise TalentStudentAssessmentError("incomplete_assessment", "Completed Assessment requires a valid result for every Framework competency.")
+    overall = overall_program_result(db, assessment)
+    if overall and overall.get("available") is False and overall.get("reason") == "inconsistent_rubric_scale":
+        raise TalentStudentAssessmentError(
+            "inconsistent_rubric_scale",
+            "All Competencies in this Program assessment must use the same number of ordered rubric levels before the Assessment can be completed.",
+        )
 
 
 def complete_assessment(db, *, school_group_id, assessment_id, expected_revision, actor=None):
