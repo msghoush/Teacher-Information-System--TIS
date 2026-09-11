@@ -200,8 +200,11 @@
     const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft';
     const annualYear=annual.find(a=>String(a.academic_year_id)===String(year));
     const levels=config?.levels || [], kpi=config?.kpi;
+    const descriptorGrades=annualYear?.eligible_grade_levels || [];
     const memberName=m=>m.label || bank.find(c=>c.id===m.competency_id)?.name || 'Unnamed competency';
-    const descriptorTotal=members.length*levels.length, descriptorSaved=config?.descriptors?.filter(item=>String(item.descriptor||'').trim()).length||0;
+    const descriptorFor=(mid,lid,grade)=>config?.descriptors?.find(item=>item.framework_competency_id===mid&&item.rubric_level_id===lid&&String(item.grade_level||'')===String(grade||'')) || config?.descriptors?.find(item=>item.framework_competency_id===mid&&item.rubric_level_id===lid&&!item.grade_level);
+    const descriptorCells=(descriptorGrades.length?descriptorGrades:[null]).flatMap(grade=>members.flatMap(m=>levels.map(l=>({grade,m,l,d:descriptorFor(m.id,l.id,grade)}))));
+    const descriptorTotal=descriptorCells.length, descriptorSaved=descriptorCells.filter(cell=>String(cell.d?.descriptor||'').trim()).length;
     const basicsComplete=Boolean(annualYear?.is_enabled&&annualYear.eligible_grade_levels?.length);
     const assessRemaining=(members.length?0:1)+(levels.length?0:1)+Math.max(0,descriptorTotal-descriptorSaved);
     const assessComplete=Boolean(members.length&&levels.length&&descriptorTotal===descriptorSaved);
