@@ -1,11 +1,13 @@
 knowledge_impact: yes
-summary: "Owner-directed Talent simplification. Student Assessment uses the exact assessable Framework already referenced by the Evaluation without Program/Framework activation labels acting as additional assessment-start gates. Program Criteria configuration is removed from the normal Program setup UI, and completed Student Assessments no longer expose a manual Check Program Criteria action. Existing Review Candidate/Official Identification backend persistence and historical records remain intact. Tenant isolation, current Academic Placement, Program eligible Grade, Branch scope, assessment permissions, assessable framework content, auditability, and historical evidence protections remain enforced."
+summary: "Owner-directed Talent simplification. Student Assessment uses the exact assessable Framework already referenced by the Evaluation without Program/Framework activation labels acting as additional assessment-start gates. Program Criteria configuration is removed from the normal Program setup UI, and completed Student Assessments no longer expose a manual Check Program Criteria action. Existing Review Candidate/Official Identification backend persistence and historical records remain intact. Tenant isolation, current Academic Placement, Program eligible Grade, Branch scope, assessment permissions, assessable framework content, auditability, and historical evidence protections remain enforced. The sanctioned local Talent test dataset is expanded to 10 Arabic-named Students across Grades 3-5 with completed/in-progress assessment coverage specifically to make privacy-safe analytics observable during local UX review."
 affected_areas:
   - talent-student-assessment-eligibility
   - talent-evaluation-framework-authority
   - talent-evaluation-entry
   - talent-program-setup
   - talent-assessment-ui
+  - talent-local-test-data
+  - talent-analytics-ux-validation
 kms_files_updated:
   - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
