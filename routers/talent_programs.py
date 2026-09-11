@@ -264,7 +264,14 @@ def frameworks_list(program_id: int, request: Request, db: Session = Depends(get
     if denied: return denied
     if get_program(db, group_id, program_id) is None: return JSONResponse({"detail": "Talent Program was not found.", "code": "not_found"}, status_code=404)
     rows = db.query(models.TalentProgramFrameworkVersion).filter_by(school_group_id=group_id, program_id=program_id).order_by(models.TalentProgramFrameworkVersion.version_number).all()
-    return [framework_payload(row) for row in rows]
+    result = []
+    for row in rows:
+        item = framework_payload(row)
+        item["in_use_by_assessments"] = db.query(models.TalentStudentAssessment.id).filter_by(
+            school_group_id=group_id, program_id=program_id, framework_version_id=row.id
+        ).first() is not None
+        result.append(item)
+    return result
 
 
 @router.get("/{program_id}/frameworks/{framework_id}")
@@ -273,7 +280,11 @@ def frameworks_read(program_id: int, framework_id: int, request: Request, db: Se
     if denied: return denied
     row = db.query(models.TalentProgramFrameworkVersion).filter_by(id=framework_id, program_id=program_id, school_group_id=group_id).one_or_none()
     if row is None: return JSONResponse({"detail": "Framework Version was not found.", "code": "not_found"}, status_code=404)
-    result = framework_payload(row); result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "grade_level": m.grade_level, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
+    result = framework_payload(row)
+    result["in_use_by_assessments"] = db.query(models.TalentStudentAssessment.id).filter_by(
+        school_group_id=group_id, program_id=program_id, framework_version_id=row.id
+    ).first() is not None
+    result["competencies"] = [{"id": m.id, "competency_id": m.talent_competency_id, "display_order": m.display_order, "grade_level": m.grade_level, "label": m.label, "description": m.description} for m in db.query(models.FrameworkCompetency).filter_by(framework_version_id=row.id).order_by(models.FrameworkCompetency.display_order)]
     return result
 
 
@@ -387,8 +398,18 @@ def rubric_upsert(program_id: int, framework_id: int, request: Request, payload:
     user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
     if denied: return denied
     def work():
-        row, framework = upsert_rubric(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=int(payload.get("expected_revision")), name=payload.get("name"), description=payload.get("description"), actor=user)
-        return {"id": row.id, "name": row.name, "description": row.description, "framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
+        row, framework = upsert_rubric(
+            db, school_group_id=group_id, program_id=program_id, framework_id=framework_id,
+            expected_revision=int(payload.get("expected_revision")),
+            framework_competency_id=int(payload.get("framework_competency_id")) if payload.get("framework_competency_id") is not None else None,
+            name=payload.get("name"), description=payload.get("description"), actor=user,
+        )
+        return {
+            "id": row.id, "framework_competency_id": row.framework_competency_id,
+            "name": row.name, "description": row.description,
+            "framework_revision": framework.revision,
+            "framework_fingerprint": framework.semantic_fingerprint,
+        }
     return _run(db, work)
 
 
@@ -397,8 +418,20 @@ def rubric_level_add(program_id: int, framework_id: int, request: Request, paylo
     user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
     if denied: return denied
     def work():
-        row, framework = add_rubric_level(db, school_group_id=group_id, program_id=program_id, framework_id=framework_id, expected_revision=int(payload.get("expected_revision")), code=payload.get("code"), label=payload.get("label"), description=payload.get("description"), numeric_value=payload.get("numeric_value"), display_order=payload.get("display_order"), actor=user)
-        return {"id": row.id, "code": row.code, "label": row.label, "description": row.description, "display_order": row.display_order, "numeric_value": row.numeric_value, "framework_revision": framework.revision}
+        row, framework = add_rubric_level(
+            db, school_group_id=group_id, program_id=program_id, framework_id=framework_id,
+            expected_revision=int(payload.get("expected_revision")),
+            framework_competency_id=int(payload.get("framework_competency_id")) if payload.get("framework_competency_id") is not None else None,
+            code=payload.get("code"), label=payload.get("label"),
+            description=payload.get("description"), numeric_value=payload.get("numeric_value"),
+            display_order=payload.get("display_order"), actor=user,
+        )
+        return {
+            "id": row.id, "rubric_id": row.rubric_id,
+            "code": row.code, "label": row.label, "description": row.description,
+            "display_order": row.display_order, "numeric_value": row.numeric_value,
+            "framework_revision": framework.revision,
+        }
     return _run(db, work, created=True)
 
 

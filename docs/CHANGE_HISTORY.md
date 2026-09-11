@@ -3535,3 +3535,57 @@ No; this is deterministic Talent configuration/presentation behavior, not AI arc
 
 Reviewer/approval notes:
 Owner-directed correction. No production deployment or production/demo data mutation was performed by this repository change.
+
+## 2026-09-11 - Rebuilt Talent Program/Rubric workflow and added explicit re-evaluation attempts
+
+Area/module:
+Talent & Potential Programs, Framework/Rubric authoring, Student Assessments, Analytics, migrations
+
+Previous state:
+Program authoring still exposed the guided Basics -> What we assess -> Evaluation Plan -> Ready workflow as the primary path. Grade-specific rubric content existed but was split across wizard substeps. Completed Assessments were immutable, but a later rubric change had no explicit operational re-evaluation state/action, and a Draft-labelled Framework with Assessment history could still be semantically edited in place.
+
+New state:
+Program creation/editing is focused on Program identity plus eligible Grades. Each Program has a separate Rubric action. Rubric authoring uses collapsible eligible-Grade sections with Grade-scoped competencies and ordered rubric Levels/achievement descriptions. Program overview summarizes Grade/competency/rubric configuration after save.
+
+ADR 0036 introduces additive Assessment attempt semantics: `is_current` and `reassessment_of_assessment_id` (migration `20260911_003_talent_assessment_reassessment_attempts`). A completed current Assessment is marked Re-evaluation required when a materially different newer assessable Framework exists. Re-evaluation creates a new Cycle and Assessment, preserves the prior completed evidence as historical, marks the prior Assessment non-current, and keeps the replacement current. Framework semantic edits are blocked once any Assessment references that Framework; a new Framework Version is required instead. Analytics current-result queries now ignore superseded Assessment attempts/population members so re-evaluation does not double-count Students.
+
+Reason:
+Direct Product Owner request to simplify the evaluation process and ensure rubric changes force a safe, visible re-evaluation path for already-completed Students without rewriting historical evidence.
+
+Results & Analytics:
+No privacy threshold was invented or hard-coded as a fallback. Production analytics remains governed by ADR 0028 external provider configuration. Missing deployment configuration continues to fail closed.
+
+Documentation updated:
+Yes - ADR 0036, TIS_MASTER_CONTEXT, PROJECT_STATE, CHANGE_HISTORY.
+
+Generated KMS artifacts:
+Pending local `scripts/kms.py sync` after GitHub changes are synced.
+
+Deployment:
+Not performed by this change. Owner deploys after local verification/KMS regeneration.
+
+
+## 2026-09-11 - Aligned Talent rubric structure to Owner reference and preserved Evaluation lineage
+
+Area/module:
+Talent & Potential Program/Rubric authoring, rubric persistence, Student Assessments, reassessment, analytics
+
+Previous state:
+The Grade-first redesign still treated the ordered rubric scale as primarily Framework-wide/shared. This did not match the Owner's reference in which every competency owns its own rubric and level descriptions. Reassessment replacement attempts also needed an explicit link back to the original visible Evaluation/Term, and a full Framework fingerprint could over-trigger re-evaluation for metadata-only/no-op clones.
+
+New state:
+The canonical structure is Grade -> Competency -> Competency-owned Rubric -> ordered Levels. `TalentRubric.framework_competency_id` and migration `20260911_004_talent_competency_specific_rubrics` permit one rubric per exact Framework Competency while preserving NULL-owned legacy shared rubrics for historical compatibility. The Rubric workspace mirrors the Owner reference with collapsible Grade sections, competency nodes, per-competency Add/Edit Rubric controls, and nested levels/descriptions. Student Assessment renders/selects only the selected competency's rubric levels and rejects cross-competency level writes.
+
+Re-evaluation comparison now uses the Student-facing assessment structure for the Student's historical Grade rather than Framework version metadata, so a no-op clone does not require re-evaluation. Migration `20260911_003_talent_assessment_reassessment_attempts` also carries/backfills `evaluation_context_cycle_id`: replacement attempts and new Students using a newer saved rubric remain operationally attached to the original Evaluation/Term. Current analytics project the current attempt to that original Evaluation population and exclude the physical replacement Cycle from current population counts.
+
+Reason:
+Match the Owner-supplied rubric structure exactly at the product/domain level while preserving immutable historical evidence, clear re-evaluation behavior, and current-result analytics semantics.
+
+Documentation updated:
+Yes - ADR 0036, TIS_MASTER_CONTEXT, PROJECT_STATE, CHANGE_HISTORY.
+
+Generated KMS artifacts:
+Pending local `scripts/kms.py sync` after GitHub changes are synced and tests pass.
+
+Deployment:
+Not performed. Owner retains deployment authority.

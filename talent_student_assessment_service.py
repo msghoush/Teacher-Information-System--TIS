@@ -9,7 +9,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 import models
-from talent_assessment_cycle_service import population_fingerprint, population_member_payload
+from talent_assessment_cycle_service import create_cycle, population_fingerprint, population_member_payload
 
 
 class TalentStudentAssessmentError(ValueError):
@@ -33,9 +33,12 @@ def _clean(value, field, *, maximum=4000):
 def assessment_payload(row):
     return {
         "id": row.id, "school_group_id": row.school_group_id, "cycle_id": row.cycle_id,
+        "evaluation_context_cycle_id": row.evaluation_context_cycle_id or row.cycle_id,
         "cycle_population_member_id": row.cycle_population_member_id, "student_id": row.student_id,
         "program_id": row.program_id, "academic_year_id": row.academic_year_id,
         "framework_version_id": row.framework_version_id, "status": row.status,
+        "is_current": bool(getattr(row, "is_current", True)),
+        "reassessment_of_assessment_id": getattr(row, "reassessment_of_assessment_id", None),
         "revision": row.revision, "started_at": row.started_at.isoformat() if row.started_at else None,
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
         "kpi_result": row.kpi_result,
@@ -169,7 +172,8 @@ def _assessment_member_from_current_placement(db, *, cycle, student_id, at):
 
 
 def start_assessment(db: Session, *, school_group_id, cycle_id,
-                     cycle_population_member_id=None, student_id=None, actor=None):
+                     cycle_population_member_id=None, student_id=None,
+                     evaluation_context_cycle_id=None, actor=None):
     cycle = _cycle(db, school_group_id, cycle_id, lock=True)
     if cycle is None:
         raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
@@ -222,8 +226,21 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
                 "Student Assessment context is unavailable. Reload the eligible Students list and try again.",
             )
 
-    if db.query(models.TalentStudentAssessment).filter_by(cycle_id=cycle.id, student_id=member.student_id).first():
-        raise TalentStudentAssessmentError("duplicate_assessment", "Student already has an Assessment for this Evaluation.")
+    root_cycle_id = int(evaluation_context_cycle_id or cycle.id)
+    existing_query = db.query(models.TalentStudentAssessment).filter(
+        models.TalentStudentAssessment.school_group_id == school_group_id,
+        models.TalentStudentAssessment.student_id == member.student_id,
+        models.TalentStudentAssessment.is_current.is_(True),
+        (
+            (models.TalentStudentAssessment.evaluation_context_cycle_id == root_cycle_id)
+            | (
+                models.TalentStudentAssessment.evaluation_context_cycle_id.is_(None)
+                & (models.TalentStudentAssessment.cycle_id == root_cycle_id)
+            )
+        ),
+    )
+    if existing_query.first() is not None:
+        raise TalentStudentAssessmentError("duplicate_assessment", "Student already has a current Assessment for this Evaluation.")
 
     # Existing schema keeps Cycle status for backward compatibility and analytics.
     # First Assessment activity may mark a legacy Draft context Open internally,
@@ -251,7 +268,9 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
         )
 
     assessment = models.TalentStudentAssessment(
-        school_group_id=school_group_id, cycle_id=cycle.id, cycle_population_member_id=member.id,
+        school_group_id=school_group_id, cycle_id=cycle.id,
+        evaluation_context_cycle_id=root_cycle_id,
+        cycle_population_member_id=member.id,
         student_id=member.student_id, program_id=cycle.program_id,
         academic_year_id=cycle.academic_year_id, framework_version_id=cycle.framework_version_id,
         status="in_progress", revision=1, created_by_user_id=getattr(actor, "user_id", None),
@@ -269,6 +288,265 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     return assessment
 
 
+def _assessment_semantic_snapshot(db: Session, *, framework, grade):
+    """Student-facing assessment structure for one Framework and historical Grade.
+
+    Deliberately excludes Framework version/title/supersession metadata so a
+    no-op clone does not trigger re-evaluation. Only assessable content that can
+    change what the educator evaluates is compared.
+    """
+    member_query = db.query(models.FrameworkCompetency).filter_by(
+        school_group_id=framework.school_group_id,
+        program_id=framework.program_id,
+        framework_version_id=framework.id,
+    )
+    if grade:
+        member_query = member_query.filter(
+            (models.FrameworkCompetency.grade_level.is_(None))
+            | (models.FrameworkCompetency.grade_level == grade)
+        )
+    members = member_query.order_by(
+        models.FrameworkCompetency.display_order,
+        models.FrameworkCompetency.id,
+    ).all()
+
+    legacy_rubric = db.query(models.TalentRubric).filter(
+        models.TalentRubric.framework_version_id == framework.id,
+        models.TalentRubric.framework_competency_id.is_(None),
+    ).one_or_none()
+
+    result = []
+    for member in members:
+        rubric = db.query(models.TalentRubric).filter_by(
+            framework_version_id=framework.id,
+            framework_competency_id=member.id,
+        ).one_or_none() or legacy_rubric
+        levels = []
+        if rubric is not None:
+            for level in db.query(models.TalentRubricLevel).filter_by(
+                framework_version_id=framework.id,
+                rubric_id=rubric.id,
+            ).order_by(
+                models.TalentRubricLevel.display_order,
+                models.TalentRubricLevel.id,
+            ):
+                grade_descriptor = None
+                if grade:
+                    grade_descriptor = db.query(
+                        models.TalentGradeCompetencyRubricDescriptor
+                    ).filter_by(
+                        framework_version_id=framework.id,
+                        framework_competency_id=member.id,
+                        rubric_level_id=level.id,
+                        grade_level=grade,
+                    ).one_or_none()
+                generic_descriptor = db.query(
+                    models.TalentCompetencyRubricDescriptor
+                ).filter_by(
+                    framework_version_id=framework.id,
+                    framework_competency_id=member.id,
+                    rubric_level_id=level.id,
+                ).one_or_none()
+                levels.append({
+                    "order": level.display_order,
+                    "label": level.label,
+                    "description": level.description,
+                    "numeric_value": level.numeric_value,
+                    "achievement_description": (
+                        grade_descriptor.descriptor
+                        if grade_descriptor is not None
+                        else generic_descriptor.descriptor
+                        if generic_descriptor is not None
+                        else level.description
+                    ),
+                })
+        result.append({
+            "order": member.display_order,
+            "grade_level": member.grade_level,
+            "label": member.label,
+            "description": member.description,
+            "rubric": None if rubric is None else {
+                "name": rubric.name,
+                "description": rubric.description,
+                "levels": levels,
+            },
+        })
+    return result
+
+
+def _newest_assessable_framework(db: Session, *, cycle, grade):
+    candidates = db.query(models.TalentProgramFrameworkVersion).filter_by(
+        school_group_id=cycle.school_group_id,
+        program_id=cycle.program_id,
+    ).order_by(
+        models.TalentProgramFrameworkVersion.version_number.desc(),
+        models.TalentProgramFrameworkVersion.id.desc(),
+    ).all()
+    for framework in candidates:
+        snapshot = _assessment_semantic_snapshot(db, framework=framework, grade=grade)
+        if snapshot and all(
+            item.get("rubric") and item["rubric"].get("levels")
+            for item in snapshot
+        ):
+            return framework
+    return None
+
+
+def start_assessment_for_evaluation(
+    db: Session, *, school_group_id, evaluation_cycle_id, student_id, actor=None
+):
+    """Start a Student against the newest saved assessable rubric for one Evaluation.
+
+    The visible Evaluation/Term identity remains the original Cycle. When its
+    frozen Framework is older than the newest rubric, a private derived Cycle
+    captures the newer Framework while the Assessment keeps
+    evaluation_context_cycle_id pointing to the original Evaluation.
+    """
+    root_cycle = _cycle(db, school_group_id, evaluation_cycle_id, lock=True)
+    if root_cycle is None:
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    placement = _current_eligible_placement(
+        db, cycle=root_cycle, student_id=int(student_id), at=datetime.utcnow()
+    )
+    newest = _newest_assessable_framework(
+        db, cycle=root_cycle, grade=placement.grade_level
+    )
+    if newest is None:
+        raise TalentStudentAssessmentError(
+            "assessment_tool_unavailable",
+            "This Evaluation needs at least one Grade-applicable Competency rubric with levels.",
+        )
+    if newest.id == root_cycle.framework_version_id:
+        return start_assessment(
+            db, school_group_id=school_group_id, cycle_id=root_cycle.id,
+            student_id=int(student_id), evaluation_context_cycle_id=root_cycle.id,
+            actor=actor,
+        )
+
+    derived_cycle = create_cycle(
+        db,
+        school_group_id=school_group_id,
+        program_id=root_cycle.program_id,
+        academic_year_id=root_cycle.academic_year_id,
+        framework_version_id=newest.id,
+        title=f"{root_cycle.title} · Current rubric",
+        description="Internal rubric-version context for the visible Evaluation.",
+        population_effective_at=datetime.utcnow(),
+        actor=actor,
+    )
+    return start_assessment(
+        db, school_group_id=school_group_id, cycle_id=derived_cycle.id,
+        student_id=int(student_id), evaluation_context_cycle_id=root_cycle.id,
+        actor=actor,
+    )
+
+
+def reassessment_requirement(db: Session, assessment):
+    """Return the newest materially-changed assessable Framework for a completed current Assessment.
+
+    A cloned-but-unchanged draft does not trigger re-evaluation. Historical
+    evidence remains bound to the Assessment's exact Framework; this helper only
+    reports whether a newer saved Framework has a different semantic fingerprint.
+    """
+    if assessment.status != "completed" or not bool(getattr(assessment, "is_current", True)):
+        return None
+    current_framework = db.query(models.TalentProgramFrameworkVersion).filter_by(
+        id=assessment.framework_version_id,
+        school_group_id=assessment.school_group_id,
+        program_id=assessment.program_id,
+    ).one_or_none()
+    if current_framework is None:
+        return None
+    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        id=assessment.cycle_population_member_id,
+        school_group_id=assessment.school_group_id,
+        student_id=assessment.student_id,
+    ).one_or_none()
+    grade = member.grade_level if member is not None else None
+    candidates = db.query(models.TalentProgramFrameworkVersion).filter(
+        models.TalentProgramFrameworkVersion.school_group_id == assessment.school_group_id,
+        models.TalentProgramFrameworkVersion.program_id == assessment.program_id,
+        models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
+    ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all()
+    current_snapshot = _assessment_semantic_snapshot(
+        db, framework=current_framework, grade=grade
+    )
+    for framework in candidates:
+        candidate_snapshot = _assessment_semantic_snapshot(
+            db, framework=framework, grade=grade
+        )
+        if candidate_snapshot == current_snapshot:
+            continue
+        if candidate_snapshot and all(
+            item.get("rubric") and item["rubric"].get("levels")
+            for item in candidate_snapshot
+        ):
+            return framework
+    return None
+
+
+def start_reassessment(db: Session, *, school_group_id, assessment_id, actor=None):
+    """Create a new current Assessment against the newest changed Framework.
+
+    The prior completed Assessment and all of its evidence remain immutable.
+    The reassessment receives its own ad-hoc Cycle/population member so existing
+    Cycle/Student uniqueness and historical provenance are preserved.
+    """
+    prior = _assessment(db, school_group_id, assessment_id, lock=True)
+    if prior is None:
+        raise TalentStudentAssessmentError("not_found", "Student Assessment was not found.")
+    if prior.status != "completed":
+        raise TalentStudentAssessmentError("reassessment_not_available", "Only a Completed Assessment can be re-evaluated.")
+    if not bool(getattr(prior, "is_current", True)):
+        raise TalentStudentAssessmentError("reassessment_not_available", "This historical Assessment has already been superseded.")
+    framework = reassessment_requirement(db, prior)
+    if framework is None:
+        raise TalentStudentAssessmentError("reassessment_not_required", "No newer saved rubric requires re-evaluation for this Student.")
+    old_cycle = _cycle(db, school_group_id, prior.cycle_id)
+    if old_cycle is None:
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    before = assessment_payload(prior)
+    prior.is_current = False
+    prior.updated_by_user_id = getattr(actor, "user_id", None)
+    prior.updated_at = datetime.utcnow()
+    db.flush()
+
+    cycle = create_cycle(
+        db,
+        school_group_id=school_group_id,
+        program_id=prior.program_id,
+        academic_year_id=prior.academic_year_id,
+        framework_version_id=framework.id,
+        title=f"{old_cycle.title} · Re-evaluation",
+        description="Re-evaluation after rubric update; prior completed evidence remains historical.",
+        population_effective_at=datetime.utcnow(),
+        actor=actor,
+    )
+    replacement = start_assessment(
+        db,
+        school_group_id=school_group_id,
+        cycle_id=cycle.id,
+        student_id=prior.student_id,
+        evaluation_context_cycle_id=prior.evaluation_context_cycle_id or prior.cycle_id,
+        actor=actor,
+    )
+    replacement.is_current = True
+    replacement.reassessment_of_assessment_id = prior.id
+    replacement.evaluation_context_cycle_id = prior.evaluation_context_cycle_id or prior.cycle_id
+    replacement.updated_by_user_id = getattr(actor, "user_id", None)
+    replacement.updated_at = datetime.utcnow()
+    db.flush()
+    _audit(
+        db, prior, actor=actor, action="superseded_for_reassessment",
+        before=before, after=assessment_payload(prior),
+    )
+    _audit(
+        db, replacement, actor=actor, action="reassessment_linked",
+        after={"reassessment_of_assessment_id": prior.id, "framework_version_id": framework.id},
+    )
+    return replacement
+
+
 def get_assessment(db, *, school_group_id, assessment_id):
     row = _assessment(db, school_group_id, assessment_id)
     if row is None:
@@ -279,7 +557,13 @@ def get_assessment(db, *, school_group_id, assessment_id):
 def list_assessments(db, *, school_group_id, cycle_id=None):
     query = db.query(models.TalentStudentAssessment).filter_by(school_group_id=school_group_id)
     if cycle_id is not None:
-        query = query.filter_by(cycle_id=cycle_id)
+        query = query.filter(
+            (models.TalentStudentAssessment.evaluation_context_cycle_id == cycle_id)
+            | (
+                models.TalentStudentAssessment.evaluation_context_cycle_id.is_(None)
+                & (models.TalentStudentAssessment.cycle_id == cycle_id)
+            )
+        )
     return query.order_by(models.TalentStudentAssessment.id).all()
 
 
@@ -307,6 +591,21 @@ def set_competency_result(db, *, school_group_id, assessment_id, framework_compe
     ).one_or_none()
     if competency is None or level is None:
         raise TalentStudentAssessmentError("invalid_result_scope", "Competency and rubric level must belong to the Assessment's exact Framework.")
+    applicable_ids = {row.id for row in _applicable_competencies(db, assessment)}
+    if competency.id not in applicable_ids:
+        raise TalentStudentAssessmentError("invalid_result_scope", "Competency is not applicable to the Student's recorded Grade.")
+    rubric = db.query(models.TalentRubric).filter_by(
+        id=level.rubric_id, school_group_id=school_group_id,
+        program_id=assessment.program_id, framework_version_id=assessment.framework_version_id,
+    ).one_or_none()
+    if rubric is None or (
+        rubric.framework_competency_id is not None
+        and rubric.framework_competency_id != competency.id
+    ):
+        raise TalentStudentAssessmentError(
+            "invalid_result_scope",
+            "Rubric level must belong to this exact Competency rubric.",
+        )
     result = db.query(models.TalentStudentCompetencyResult).filter_by(
         assessment_id=assessment.id, framework_competency_id=competency.id,
     ).one_or_none()
@@ -322,6 +621,7 @@ def set_competency_result(db, *, school_group_id, assessment_id, framework_compe
         )
         db.add(result)
     else:
+        result.rubric_id = level.rubric_id
         result.rubric_level_id = level.id
         if evidence is not None:
             result.evidence = _clean(evidence, "evidence")
@@ -420,13 +720,32 @@ def _calculate_kpi(db, assessment):
     return {**payload, "calculation_fingerprint": hashlib.sha256(_json(payload).encode()).hexdigest()}
 
 
+def _assessment_grade(db, assessment):
+    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        id=assessment.cycle_population_member_id,
+        school_group_id=assessment.school_group_id,
+        student_id=assessment.student_id,
+    ).one_or_none()
+    return member.grade_level if member is not None else None
+
+
+def _applicable_competencies(db, assessment):
+    query = db.query(models.FrameworkCompetency).filter_by(
+        school_group_id=assessment.school_group_id,
+        program_id=assessment.program_id,
+        framework_version_id=assessment.framework_version_id,
+    )
+    grade = _assessment_grade(db, assessment)
+    if grade:
+        query = query.filter(
+            (models.FrameworkCompetency.grade_level.is_(None))
+            | (models.FrameworkCompetency.grade_level == grade)
+        )
+    return query.all()
+
+
 def _validate_completeness(db, assessment):
-    required = {
-        row.id for row in db.query(models.FrameworkCompetency).filter_by(
-            school_group_id=assessment.school_group_id, program_id=assessment.program_id,
-            framework_version_id=assessment.framework_version_id,
-        ).all()
-    }
+    required = {row.id for row in _applicable_competencies(db, assessment)}
     results = db.query(models.TalentStudentCompetencyResult).filter_by(
         school_group_id=assessment.school_group_id, assessment_id=assessment.id,
     ).all()

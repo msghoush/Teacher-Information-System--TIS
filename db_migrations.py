@@ -6834,6 +6834,81 @@ def _talent_framework_competency_grade_scope(engine, connection):
             )
 
 
+def _talent_competency_specific_rubrics(engine, connection):
+    """Allow one rubric per Framework Competency while preserving legacy Framework-wide rubrics."""
+    if not _table_exists(connection, "talent_rubrics"):
+        return
+    if engine.dialect.name == "sqlite":
+        if not _column_exists(connection, "talent_rubrics", "framework_competency_id"):
+            _sqlite_rebuild_from_current_metadata(connection, "talent_rubrics")
+        return
+
+    _add_column_if_missing(
+        connection, connection, "talent_rubrics",
+        "framework_competency_id", "framework_competency_id INTEGER",
+    )
+    uniques = {item.get("name") for item in inspect(connection).get_unique_constraints("talent_rubrics")}
+    if "uq_talent_rubrics_framework" in uniques:
+        _execute(connection, "ALTER TABLE talent_rubrics DROP CONSTRAINT uq_talent_rubrics_framework")
+    foreigns = {item.get("name") for item in inspect(connection).get_foreign_keys("talent_rubrics")}
+    if "fk_talent_rubrics_competency_scope" not in foreigns:
+        _execute(
+            connection,
+            "ALTER TABLE talent_rubrics ADD CONSTRAINT fk_talent_rubrics_competency_scope "
+            "FOREIGN KEY (framework_competency_id, framework_version_id, program_id, school_group_id) "
+            "REFERENCES talent_framework_competencies "
+            "(id, framework_version_id, program_id, school_group_id) NOT VALID",
+        )
+        _execute(
+            connection,
+            "ALTER TABLE talent_rubrics VALIDATE CONSTRAINT fk_talent_rubrics_competency_scope",
+        )
+    _create_unique_index_if_missing(
+        connection, connection, "talent_rubrics",
+        "uq_talent_rubrics_framework_competency",
+        "framework_version_id, framework_competency_id",
+    )
+
+
+def _talent_assessment_reassessment_attempts(engine, connection):
+    """Add explicit reassessment/current-attempt metadata to Talent Student Assessments.
+
+    Historical completed evidence remains in place. A later reassessment creates a
+    new Assessment on a new Cycle/Framework and marks the prior Assessment
+    non-current; analytics can therefore project one authoritative current
+    attempt without deleting historical evidence.
+    """
+    if not _table_exists(connection, "talent_student_assessments"):
+        return
+    _add_column_if_missing(
+        connection, connection, "talent_student_assessments",
+        "is_current", "is_current BOOLEAN NOT NULL DEFAULT 1",
+    )
+    _add_column_if_missing(
+        connection, connection, "talent_student_assessments",
+        "reassessment_of_assessment_id", "reassessment_of_assessment_id INTEGER",
+    )
+    _add_column_if_missing(
+        connection, connection, "talent_student_assessments",
+        "evaluation_context_cycle_id", "evaluation_context_cycle_id INTEGER",
+    )
+    _execute(
+        connection,
+        "UPDATE talent_student_assessments SET evaluation_context_cycle_id = cycle_id "
+        "WHERE evaluation_context_cycle_id IS NULL",
+    )
+    _create_index_if_missing(
+        connection, connection, "talent_student_assessments",
+        "ix_talent_student_assessments_current",
+        "school_group_id, program_id, academic_year_id, student_id, is_current",
+    )
+    _create_index_if_missing(
+        connection, connection, "talent_student_assessments",
+        "ix_talent_student_assessments_evaluation_context",
+        "school_group_id, evaluation_context_cycle_id, student_id, is_current",
+    )
+
+
 def _student_learning_style_v1(engine, connection):
     """Add an optional single-select primary Learning Style to Student.
 
@@ -7199,6 +7274,16 @@ MIGRATIONS = (
         migration_id="20260911_002_talent_framework_competency_grade_scope",
         description="Add optional Grade scope to Talent Framework competencies",
         apply=_talent_framework_competency_grade_scope,
+    ),
+    Migration(
+        migration_id="20260911_003_talent_assessment_reassessment_attempts",
+        description="Add explicit current/reassessment linkage for Talent Student Assessments",
+        apply=_talent_assessment_reassessment_attempts,
+    ),
+    Migration(
+        migration_id="20260911_004_talent_competency_specific_rubrics",
+        description="Allow competency-specific Talent rubrics within each Framework",
+        apply=_talent_competency_specific_rubrics,
     ),
 )
 

@@ -425,13 +425,15 @@ class TalentRubric(Base):
     __tablename__ = "talent_rubrics"
     __table_args__ = (
         ForeignKeyConstraint(["framework_version_id", "program_id", "school_group_id"], ["talent_program_framework_versions.id", "talent_program_framework_versions.program_id", "talent_program_framework_versions.school_group_id"], name="fk_talent_rubrics_framework_scope"),
-        UniqueConstraint("framework_version_id", name="uq_talent_rubrics_framework"),
+        ForeignKeyConstraint(["framework_competency_id", "framework_version_id", "program_id", "school_group_id"], ["talent_framework_competencies.id", "talent_framework_competencies.framework_version_id", "talent_framework_competencies.program_id", "talent_framework_competencies.school_group_id"], name="fk_talent_rubrics_competency_scope"),
+        UniqueConstraint("framework_version_id", "framework_competency_id", name="uq_talent_rubrics_framework_competency"),
         UniqueConstraint("id", "framework_version_id", "program_id", "school_group_id", name="uq_talent_rubrics_id_framework_scope"),
     )
     id = Column(Integer, primary_key=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
     program_id = Column(Integer, nullable=False)
     framework_version_id = Column(Integer, nullable=False)
+    framework_competency_id = Column(Integer, nullable=True)
     name = Column(String(180), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -806,16 +808,21 @@ class TalentStudentAssessment(Base):
         UniqueConstraint("cycle_id", "student_id", name="uq_talent_student_assessments_cycle_student"),
         UniqueConstraint("id", "cycle_id", "student_id", "program_id", "academic_year_id", "framework_version_id", "school_group_id", name="uq_talent_student_assessments_result_scope"),
         Index("ix_talent_student_assessments_scope", "school_group_id", "cycle_id", "student_id", "status"),
+        Index("ix_talent_student_assessments_current", "school_group_id", "program_id", "academic_year_id", "student_id", "is_current"),
+        Index("ix_talent_student_assessments_evaluation_context", "school_group_id", "evaluation_context_cycle_id", "student_id", "is_current"),
     )
     id = Column(Integer, primary_key=True)
     school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False)
     cycle_id = Column(Integer, nullable=False)
+    evaluation_context_cycle_id = Column(Integer, nullable=True)
     cycle_population_member_id = Column(Integer, nullable=False)
     student_id = Column(Integer, nullable=False)
     program_id = Column(Integer, nullable=False)
     academic_year_id = Column(Integer, nullable=False)
     framework_version_id = Column(Integer, nullable=False)
     status = Column(String(32), nullable=False, default="in_progress")
+    is_current = Column(Boolean, nullable=False, default=True)
+    reassessment_of_assessment_id = Column(Integer, nullable=True)
     revision = Column(Integer, nullable=False, default=1)
     started_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

@@ -844,12 +844,12 @@ coverage-shaped sibling field, in addition to the existing static ordering
 guard.
 
 New Administrator-only default permissions are `talent_analytics.view` and
-`talent_analytics.view_students`. No production `TalentAnalyticsPrivacyPolicy`
-is approved - `resolve_privacy_policy_provider()` returns `None` in
-production, so every route fails closed until a governed policy is approved
-and wired in (open gate, by design, not a defect). Live PostgreSQL
-performance/concurrency validation has not been run (open gate, consistent
-with every prior milestone) - only SQLite-backed pytest coverage exists.
+`talent_analytics.view_students`. Production privacy-provider construction is
+configuration-driven through `talent_organization_analytics_providers.py`.
+The provider is returned only when the deployment's governed environment values
+match the approved Release 1 policy values; missing or invalid configuration
+fails closed. Live PostgreSQL performance/concurrency validation remains a
+separate release gate.
 Focused coverage is `tests/test_talent_analytics.py`. M9 is committed and
 pushed on `dev` at `23ade9a7c6166197140b48a3edbfac849396d580` (commit `feat:
 add deterministic talent analytics`). It is not deployed, not production-
@@ -2281,3 +2281,11 @@ Talent rubric authoring now follows `Grade -> Competency -> Level -> Achievement
 Student Assessment Evaluation contexts are ordered by the linked Annual Evaluation Plan Period `sequence`, fixing cases where a later-created Term 2 appeared before Term 1. Creation/id ordering is used only for legacy unlinked Cycles.
 
 Students now also have a separately permissioned force-delete-history path. `students.force_delete_history` is Administrator-default and configurable through System Configuration. The Students UI first previews historical blockers; without the permission the delete remains blocked, while an authorized actor must explicitly confirm deleting the Student together with Academic Placement/Talent history. Normal single Delete and Bulk Delete retain their existing history-protecting semantics. Student row Open/Delete action icons are rendered at a compact 13px size.
+
+## Talent Grade-First Evaluation Workflow Rebuild
+
+The Owner-directed Talent evaluation-process rebuild is implemented on `dev`. Program creation/editing is focused on Program identity plus eligible Grades only. The Programs table exposes a distinct Rubric action. Opening Rubric presents eligible Grades as independent collapsible sections using the Owner-confirmed hierarchy **Grade -> Competency -> Competency-owned Rubric -> Levels**. Each competency can create its own rubric name and ordered levels/descriptions. The old one-shared-rubric-per-Framework rule is retained only for legacy read/migration compatibility; migration `20260911_004_talent_competency_specific_rubrics` enables exact competency ownership. Saving returns to a compact Program/Rubric overview.
+
+ADR 0036 governs re-evaluation semantics. `TalentStudentAssessment` carries `is_current`, `reassessment_of_assessment_id`, and `evaluation_context_cycle_id` via migration `20260911_003_talent_assessment_reassessment_attempts`. Re-evaluation is triggered by actual Student-facing rubric-content changes for the Student's recorded Grade, not by a no-op Framework clone. Starting re-evaluation preserves the completed historical attempt and creates a new current attempt on the newer exact Framework while retaining the original Evaluation/Term identity. New Students in that Evaluation also start on the newest saved assessable rubric. Current-result analytics project the replacement attempt into the original Evaluation context and exclude the private replacement Cycle as a second population row.
+
+Production Results & Analytics still depends on governed external provider configuration under ADR 0028. The implementation already contains configuration-driven privacy-provider resolution and approved-value validation; missing Render environment configuration continues to fail closed rather than exposing unsuppressed indicators.

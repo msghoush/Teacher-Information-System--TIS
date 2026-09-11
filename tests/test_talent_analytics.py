@@ -177,7 +177,12 @@ def test_allow_all_test_policy_never_suppresses():
     assert none_cell.state == NO_DATA
 
 
-def test_production_privacy_provider_defaults_to_none_fail_closed():
+def test_production_privacy_provider_fails_closed_without_governed_configuration(monkeypatch):
+    # This test must not inherit the sanctioned local Talent DATABASE_URL from
+    # the developer shell. Production-like resolution without the approved
+    # privacy environment value must still fail closed.
+    monkeypatch.setenv("TIS_ENV", "production")
+    monkeypatch.delenv("TIS_ORGANIZATION_ANALYTICS_MINIMUM_COHORT", raising=False)
     assert resolve_privacy_policy_provider() is None
 
 
@@ -440,13 +445,18 @@ def test_candidate_identification_zero_leakage_matrix(db, scenario, grant_candid
             assert ("identification_state" in item) is grant_identification
 
 
-def test_privacy_states_visible_suppressed_no_data_and_fail_closed(db, scenario):
+def test_privacy_states_visible_suppressed_no_data_and_fail_closed(db, scenario, monkeypatch):
     program = scenario["program"]
     admin = user("5000000001")
     db.add(admin)
     db.commit()
 
-    with client(db, admin) as api:  # no policy override at all -> production default (None) -> fail closed
+    # Force the production-like provider branch so this assertion is isolated
+    # from a developer shell that intentionally points DATABASE_URL at the
+    # sanctioned local Talent analytics database.
+    monkeypatch.setenv("TIS_ENV", "production")
+    monkeypatch.delenv("TIS_ORGANIZATION_ANALYTICS_MINIMUM_COHORT", raising=False)
+    with client(db, admin) as api:
         response = api.get(f"/api/talent/analytics/programs/{program.id}/academic-years/100/overview")
         assert response.status_code == 500 and response.json()["code"] == "analytics_query_failed"
         assert "threshold" not in response.text.lower()
@@ -816,6 +826,48 @@ def test_rubric_distribution_visible_under_allow_all_previously_crashed(db, scen
         # A genuine zero count is a real, visible zero - never suppressed/no_data.
         assert levels_by_code["DEVELOPING"]["count"] == 0
         assert levels_by_code["DEVELOPING"]["state"] == "visible"
+
+
+def test_rubric_distribution_supports_multiple_competency_rubrics(db, scenario):
+    program = scenario["program"]
+    framework = scenario["framework"]
+    fw_competency = scenario["fw_competency"]
+    extra_rubric = models.TalentRubric(
+        school_group_id=1, program_id=program.id, framework_version_id=framework.id,
+        framework_competency_id=fw_competency.id,
+        name="Competency-specific rubric",
+    )
+    db.add(extra_rubric)
+    db.flush()
+    db.add(models.TalentRubricLevel(
+        school_group_id=1, program_id=program.id, framework_version_id=framework.id,
+        rubric_id=extra_rubric.id, code="OWN_LEVEL_1", label="Own Level 1",
+        description="Competency-owned level", display_order=1,
+    ))
+    db.commit()
+
+    admin = user("2100000099")
+    db.add(admin)
+    db.commit()
+    with client(db, admin, policy=AllowAllTestPolicy()) as api:
+        response = api.get(
+            f"/api/talent/analytics/programs/{program.id}/academic-years/100/rubric-distribution"
+        )
+        assert response.status_code == 200
+        distributions = [
+            item for item in response.json()["distributions"]
+            if item["framework_version_id"] == framework.id
+        ]
+        assert len(distributions) == 2
+        owned = next(
+            item for item in distributions
+            if item["rubric_id"] == extra_rubric.id
+        )
+        assert owned["framework_competency_id"] == fw_competency.id
+        assert owned["competency_label"] == fw_competency.label
+        assert owned["rubric_name"] == "Competency-specific rubric"
+        assert owned["levels"][0]["code"] == "OWN_LEVEL_1"
+        assert owned["levels"][0]["count"] == 0
 
 
 def test_rubric_distribution_suppressed_under_deterministic_policy(db, scenario):

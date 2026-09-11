@@ -310,8 +310,7 @@ The UI does not own analytics semantics. M9/M10 privacy closure, access, paging,
   (`TalentAnalyticsPrivacyPolicy`, `PrivacyDecision`), the `Cell`/`Group`
   model, `apply_primary_privacy`, and the `run_complementary_suppression`
   fixed-point engine (identity/value-independent tie-break, max 8 passes,
-  fails to non-convergence rather than guessing). `resolve_privacy_policy_provider()`
-  returns `None` in production (fail-closed); `AllowAllTestPolicy`/
+  fails to non-convergence rather than guessing). `resolve_privacy_policy_provider()` delegates to the governed configuration-driven provider builder; production returns `None` only when approved deployment configuration is missing/invalid (fail-closed); `AllowAllTestPolicy`/
   `DeterministicSuppressionTestPolicy`/`CoarsenWithReplacementTestPolicy`/
   `CoarsenWithoutReplacementTestPolicy` are test-only fixtures, never a
   production default.

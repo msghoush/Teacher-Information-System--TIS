@@ -746,11 +746,12 @@ reconstruction-breaking step always demotes its tie-broken victim to
 `suppressed`, never `coarsened` - it has no channel to obtain a policy-
 supplied replacement for an arbitrary victim, so it never fabricates one.
 There is no generic bucket-merge/coarsening algorithm anywhere in this
-module. No production `TalentAnalyticsPrivacyPolicy` implementation exists;
-`resolve_privacy_policy_provider()` returns `None` in production so every
-route fails closed (`analytics_query_failed`, HTTP 500, no threshold value in
-the response) until a governed policy is approved and wired through
-`app.dependency_overrides`-equivalent production configuration. This is an
+module. Production `TalentAnalyticsPrivacyPolicy` construction is configuration-driven:
+`resolve_privacy_policy_provider()` delegates to
+`talent_organization_analytics_providers.build_privacy_provider()`. The
+provider is created only when the deployment environment matches the approved
+Release 1 configuration; otherwise routes fail closed (`analytics_query_failed`,
+no threshold value in the response). Test policy overrides remain test-only. This is an
 intentional open gate, not a defect.
 
 The `competency_id` filter is validated against both tenant scope and the

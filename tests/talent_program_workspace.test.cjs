@@ -203,8 +203,9 @@ test('Program index is a compact searchable table with primary actions',async()=
   assert.doesNotMatch(root.innerHTML,/<th>Type<\/th>/);
   assert.match(root.innerHTML,/Search Programs/);
   assert.match(root.innerHTML,/New Program/);
-  assert.match(root.innerHTML,/>Open<\/a>/);
-  assert.match(root.innerHTML,/>Edit<\/a>/);
+  assert.match(root.innerHTML,/>Overview<\/a>/);
+  assert.match(root.innerHTML,/>Edit Program<\/a>/);
+  assert.match(root.innerHTML,/>Rubric<\/a>/);
   assert.doesNotMatch(root.innerHTML,/Open Program →/);
   // The Create-Program form must not be permanently expanded on the landing
   // screen; it opens only via the "New Program" action (Students' "Add Student"
@@ -511,4 +512,107 @@ test('removing the Program logo requires confirmation and calls the Program-scop
   } finally { global.window = oldConfirm; }
   const remove = calls.find(c => c.path === '/api/talent/programs/11/logo' && c.options && c.options.method === 'DELETE');
   assert.ok(remove, 'expected a DELETE call to the Program logo route');
+});
+
+
+test('Rubric action renders eligible Grades as independent collapsible Grade accordions',async()=>{
+  const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(!options&&/\/frameworks\/31$/.test(path))return {
+      id:31,title:'Mental Math rubric',status:'draft',version_number:2,revision:7,semantic_fingerprint:'fingerprint',
+      competencies:[
+        {id:71,competency_id:61,grade_level:'1',label:'Mental Calculation',description:'Mental strategies'},
+        {id:72,competency_id:62,grade_level:'2',label:'Number Flexibility',description:'Number relationships'}
+      ]
+    };
+    if(!options&&path.endsWith('/competencies'))return [
+      {id:61,name:'Mental Calculation',status:'active'},
+      {id:62,name:'Number Flexibility',status:'active'}
+    ];
+    if(!options&&path.endsWith('/configuration'))return {
+      levels:[
+        {id:81,code:'L1',label:'Beginning',description:'Level one',display_order:1},
+        {id:82,code:'L2',label:'Meets',description:'Level two',display_order:2}
+      ],
+      descriptors:[
+        {id:91,framework_competency_id:71,rubric_level_id:81,grade_level:'1',descriptor:'Grade 1 beginning'},
+        {id:92,framework_competency_id:71,rubric_level_id:82,grade_level:'1',descriptor:'Grade 1 meets'},
+        {id:93,framework_competency_id:72,rubric_level_id:81,grade_level:'2',descriptor:'Grade 2 beginning'},
+        {id:94,framework_competency_id:72,rubric_level_id:82,grade_level:'2',descriptor:'Grade 2 meets'}
+      ],
+      rubric:{name:'Mental Math rubric'},kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/id="tp-rubric"/);
+  assert.match(root.innerHTML,/<details class="tp-card tp-grade-rubric" open>/);
+  assert.match(root.innerHTML,/Grade 1/);
+  assert.match(root.innerHTML,/Grade 2/);
+  assert.match(root.innerHTML,/Mental Calculation/);
+  assert.match(root.innerHTML,/Number Flexibility/);
+  assert.match(root.innerHTML,/\+ Add Competency/);
+  assert.match(root.innerHTML,/Grade 1 beginning/);
+  assert.match(root.innerHTML,/data-action="finish-rubric"/);
+});
+
+test('Program creation form asks for eligible Grades and keeps rubric as a separate action',async()=>{
+  const root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
+  const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
+    if(path==='/api/talent/programs')return [];
+    if(path.startsWith('/api/talent/programs/planning-grades'))return ['1','2','3'];
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  assert.match(root.innerHTML,/Eligible Grades/);
+  assert.match(root.innerHTML,/Grade 1/);
+  assert.match(root.innerHTML,/Grade 2/);
+  assert.match(root.innerHTML,/Grade 3/);
+  assert.doesNotMatch(root.innerHTML,/Rubric Levels|Evaluation Plan/);
+});
+
+
+test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Reading Fluency',description:'Reads connected text'}]
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],
+      rubrics:[{
+        id:301,framework_competency_id:71,name:'Oral Reading',description:'Reading rubric',
+        levels:[
+          {id:401,rubric_id:301,framework_competency_id:71,code:'L1',label:'Beginning',description:'Reads with limited accuracy.',order:1},
+          {id:402,rubric_id:301,framework_competency_id:71,code:'L2',label:'Approaching',description:'Reads with some support.',order:2}
+        ]
+      }],
+      descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Rubric Structure/);
+  assert.match(root.innerHTML,/Grade 1/);
+  assert.match(root.innerHTML,/Reading Fluency/);
+  assert.match(root.innerHTML,/Oral Reading/);
+  assert.match(root.innerHTML,/Beginning/);
+  assert.match(root.innerHTML,/Reads with limited accuracy/);
+  assert.match(root.innerHTML,/\+ Add Competency/);
+  assert.doesNotMatch(root.innerHTML,/<h3>Rubric Levels<\/h3>/);
+
+  const old=global.FormData;
+  global.FormData=class extends Map {constructor(){super([['name','Updated Oral Reading'],['description','Updated rubric']]);}};
+  try{
+    await root.onsubmit({preventDefault(){},target:{dataset:{form:'competency-rubric:71'},querySelector:()=>null}});
+  }finally{global.FormData=old;}
+  const write=calls.filter(item=>item.options).at(-1);
+  assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric');
+  assert.equal(JSON.parse(write.options.body).framework_competency_id,71);
 });

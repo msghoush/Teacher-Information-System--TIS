@@ -354,52 +354,105 @@ def analytics_rubric_distribution(program_id: int, academic_year_id: int, reques
 
     distributions = []
     for framework_version_id in frameworks_in_scope:
-        rubric = db.query(models.TalentRubric).filter_by(school_group_id=ctx.school_group_id, framework_version_id=framework_version_id).one_or_none()
-        if rubric is None:
+        rubrics = db.query(models.TalentRubric).filter_by(
+            school_group_id=ctx.school_group_id,
+            framework_version_id=framework_version_id,
+        ).order_by(
+            models.TalentRubric.framework_competency_id,
+            models.TalentRubric.id,
+        ).all()
+        if not rubrics:
             continue
-        levels = db.query(models.TalentRubricLevel).filter_by(rubric_id=rubric.id).order_by(models.TalentRubricLevel.display_order).all()
         scoped_filters = replace(filters, framework_version_id=framework_version_id)
         pop_query = svc.population_query(db, ctx, scoped_filters, visible_branch_ids)
         raw_counts = svc.raw_rubric_level_counts(db, pop_query, framework_version_id)
-        total_raw = sum(raw_counts.values())
-        children_raw = {level.id: raw_counts.get(level.id, 0) for level in levels}
-        group = svc.build_breakdown_group(name=f"rubric:{framework_version_id}", privacy_class="P3", total_raw=total_raw, children_raw=children_raw)
-        apply_primary_privacy(group.all_cells(), policy)
-        converged = run_complementary_suppression([group], policy)
-        framework = db.query(models.TalentProgramFrameworkVersion).filter_by(id=framework_version_id, school_group_id=ctx.school_group_id).one_or_none()
-        if not converged:
-            distributions.append({
-                "framework_version_id": framework_version_id, "framework_title": framework.title if framework else None,
-                "rubric_id": rubric.id, "state": RESTRICTED,
-            })
-            continue
-        # Every per-status coverage count (and the frozen_eligible headline)
-        # must be independently privacy-evaluated with complementary sibling/
-        # total protection - a visible rubric-level total never licenses
-        # publishing the raw coverage_metrics() breakdown directly (Section
-        # C/E of the M9 coverage-privacy remediation).
+        framework = db.query(models.TalentProgramFrameworkVersion).filter_by(
+            id=framework_version_id, school_group_id=ctx.school_group_id
+        ).one_or_none()
         coverage_counts = svc.raw_coverage_counts(db, pop_query)
         coverage_payload, coverage_projection_state, _ = svc.build_privacy_safe_coverage_bundle(
-            name=f"rubric_coverage:{framework_version_id}", counts=coverage_counts, privacy_class="P2", policy=policy,
+            name=f"rubric_coverage:{framework_version_id}",
+            counts=coverage_counts,
+            privacy_class="P2",
+            policy=policy,
         )
-        coverage = coverage_payload if coverage_payload is not None else {"state": coverage_projection_state}
-        level_by_id = {level.id: level for level in levels}
-        levels_payload = []
-        for cell in group.children:
-            level = level_by_id[cell.key[2]]
-            levels_payload.append({
-                "rubric_level_id": level.id, "code": level.code, "label": level.label, "display_order": level.display_order,
-                "state": cell.state,
-                "count": cell.value,
-                "percentage": svc.percentage(cell.value, total_raw) if cell.state == VISIBLE and group.total.state == VISIBLE else None,
+        coverage = coverage_payload if coverage_payload is not None else {
+            "state": coverage_projection_state
+        }
+
+        for rubric in rubrics:
+            levels = db.query(models.TalentRubricLevel).filter_by(
+                rubric_id=rubric.id
+            ).order_by(models.TalentRubricLevel.display_order).all()
+            if not levels:
+                continue
+            level_ids = {level.id for level in levels}
+            children_raw = {
+                level.id: raw_counts.get(level.id, 0) for level in levels
+            }
+            total_raw = sum(children_raw.values())
+            group = svc.build_breakdown_group(
+                name=f"rubric:{framework_version_id}:{rubric.id}",
+                privacy_class="P3",
+                total_raw=total_raw,
+                children_raw=children_raw,
+            )
+            apply_primary_privacy(group.all_cells(), policy)
+            converged = run_complementary_suppression([group], policy)
+            if not converged:
+                distributions.append({
+                    "framework_version_id": framework_version_id,
+                    "framework_title": framework.title if framework else None,
+                    "framework_competency_id": rubric.framework_competency_id,
+                    "rubric_id": rubric.id,
+                    "rubric_name": rubric.name,
+                    "state": RESTRICTED,
+                })
+                continue
+
+            competency_label = None
+            if rubric.framework_competency_id is not None:
+                member = db.query(models.FrameworkCompetency).filter_by(
+                    id=rubric.framework_competency_id,
+                    framework_version_id=framework_version_id,
+                    school_group_id=ctx.school_group_id,
+                ).one_or_none()
+                competency_label = member.label if member is not None else None
+
+            level_by_id = {level.id: level for level in levels}
+            levels_payload = []
+            for cell in group.children:
+                level_id = cell.key[2]
+                if level_id not in level_ids:
+                    continue
+                level = level_by_id[level_id]
+                levels_payload.append({
+                    "rubric_level_id": level.id,
+                    "code": level.code,
+                    "label": level.label,
+                    "display_order": level.display_order,
+                    "state": cell.state,
+                    "count": cell.value,
+                    "percentage": (
+                        svc.percentage(cell.value, total_raw)
+                        if cell.state == VISIBLE and group.total.state == VISIBLE
+                        else None
+                    ),
+                })
+            distributions.append({
+                "framework_version_id": framework_version_id,
+                "framework_title": framework.title if framework else None,
+                "framework_competency_id": rubric.framework_competency_id,
+                "competency_label": competency_label,
+                "rubric_id": rubric.id,
+                "rubric_name": rubric.name,
+                "valid_result_count": {
+                    "state": group.total.state,
+                    "value": group.total.value,
+                },
+                "levels": levels_payload,
+                "coverage": coverage,
             })
-        distributions.append({
-            "framework_version_id": framework_version_id, "framework_title": framework.title if framework else None,
-            "rubric_id": rubric.id, "rubric_name": rubric.name,
-            "valid_result_count": {"state": group.total.state, "value": group.total.value},
-            "levels": levels_payload,
-            "coverage": coverage,
-        })
     fingerprint = svc.compute_request_context_fingerprint(
         program_id=program_id, academic_year_id=academic_year_id, scope_signature=svc.scope_signature(visible_branch_ids),
         filters=filters, permission_projection=_projection_list(perms), privacy_policy_version=policy.privacy_policy_version,
