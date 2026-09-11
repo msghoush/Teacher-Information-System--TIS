@@ -886,9 +886,10 @@ def test_rubric_distribution_suppressed_under_deterministic_policy(db, scenario)
         assert levels_by_code["ADVANCED"]["state"] == "visible"
         assert levels_by_code["ADVANCED"]["count"] == 3
         assert dist["valid_result_count"] == {"state": "visible", "value": 4}
-        assert float(dist["average_rank"]) == pytest.approx(2.5)
-        assert dist["scale_max"] == 3
-        assert float(dist["normalized_percent"]) == pytest.approx(83.33, abs=0.01)
+        assert dist["average_rank"] is None
+        assert dist["scale_max"] is None
+        assert dist["normalized_percent"] is None
+        assert body["program_result_summary"]["state"] == "restricted"
 
 
 def test_competencies_visible_under_allow_all_asserts_body(db, scenario):
