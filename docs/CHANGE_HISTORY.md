@@ -14,7 +14,7 @@ source_of_truth: true
 - Restored a safe Delete Competency path for immutable/assessed setup by cloning a new editable Framework Version and deleting there; historical evidence is never mutated.
 - Added an explicit KPI expand/collapse affordance.
 - Changed Student list Add Student, Delete selected, Open, and Delete actions to icon-only controls with accessible labels.
-- Added Administrator-default `students.view_all_branches`; cross-Branch switching/All branches requires this permission plus organization/global scope, while other actors remain on their assigned Branch.
+- Added Administrator-only `students.view_all_branches`; cross-Branch switching/All branches requires this permission plus organization/global scope, while other actors remain on their assigned Branch.
 - Kept Learning Style analytics fail closed but replaced the hidden-panel failure with an explicit unavailable message when the privacy provider is missing; no protected aggregate values are exposed.
 
 
