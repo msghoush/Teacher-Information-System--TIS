@@ -8,9 +8,13 @@
   const words = value => String(value ?? '').replaceAll('_', ' ');
   const badge = value => `<span class="tp-badge">${esc(words(value))}</span>`;
   const overallResultVisual = result => {
-    if(!result || !Number.isFinite(Number(result.score))) return '<span class="tp-overall-result tp-overall-result-empty">No overall result</span>';
-    const score=Math.max(0,Math.min(100,Number(result.score)));
-    return `<span class="tp-overall-result" style="--tp-overall-score:${score}" aria-label="Overall Program Result ${score} out of 100"><strong>${score}</strong><span>/100</span><span class="tp-overall-result-track" aria-hidden="true"><i style="width:${score}%"></i></span></span>`;
+    if(!result) return '<span class="tp-overall-result tp-overall-result-empty">No overall result</span>';
+    if(result.available===false) return '<span class="tp-overall-result tp-overall-result-empty">Rubric scale needs alignment</span>';
+    const average=Number(result.average),scaleMax=Number(result.scale_max);
+    if(!Number.isFinite(average)||!Number.isFinite(scaleMax)||scaleMax<=0) return '<span class="tp-overall-result tp-overall-result-empty">No overall result</span>';
+    const percent=Number.isFinite(Number(result.normalized_percent))?Math.max(0,Math.min(100,Number(result.normalized_percent))):Math.round(average/scaleMax*100);
+    const value=average.toFixed(1);
+    return `<span class="tp-overall-result" style="--tp-overall-score:${percent}" aria-label="Overall Program Result ${value} out of ${scaleMax}"><strong>${value}</strong><span>/${scaleMax}</span><span class="tp-overall-result-track" aria-hidden="true"><i style="width:${percent}%"></i></span></span>`;
   };
   const note = value => `<aside class="tp-note">${esc(value)}</aside>`;
   const button = (action, label, extra='') => `<button type="button" data-action="${action}" ${extra}>${esc(label)}</button>`;
@@ -65,27 +69,71 @@
     };
     const on=(name,work)=>root.querySelectorAll(`[data-action="${name}"]`).forEach(el=>el.addEventListener('click',()=>action(null,()=>work(el))));
     if(ctx.view==='reviews') {
-      const rows=(await api(`/api/talent/review-candidates?${query({cycle_id:params.get('cycle_id')})}`)).filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!params.get('program_id')||String(r.program_id)===params.get('program_id')));
-      const programs=can('talent_programs.view')?await api('/api/talent/programs').catch(()=>[]):[];
+      const workspaceQuery=query({
+        cycle_id:params.get('cycle_id'),
+        program_id:params.get('program_id'),
+        academic_year_id:year,
+      });
+      const [rows,programs,decisions]=await Promise.all([
+        api(`/api/talent/review-candidates/workspace?${workspaceQuery}`),
+        can('talent_programs.view')?api('/api/talent/programs').catch(()=>[]):Promise.resolve([]),
+        can('talent_official_identifications.view')?api(`/api/talent/official-identifications?${query({cycle_id:params.get('cycle_id')})}`):Promise.resolve([]),
+      ]);
       const programById=new Map(programs.map(item=>[String(item.id),item]));
-      const decisions=can('talent_official_identifications.view')?await api(`/api/talent/official-identifications?${query({cycle_id:params.get('cycle_id')})}`):[];
       const reviewId=params.get('review_id');
+      const decisionFor=row=>row.candidate?decisions.find(item=>item.review_candidate_id===row.candidate.id):null;
+      const candidateLabel=row=>row.candidate
+        ? (row.candidate.status==='reviewed'?'Reviewed':'Pending review')
+        : 'No Review Candidate';
+      const identificationLabel=row=>{
+        const decision=decisionFor(row);
+        return decision?words(decision.decision):'Not yet decided';
+      };
       if(reviewId) {
         const r=rows.find(x=>String(x.id)===String(reviewId));
         if(!r){mount(note('This Student is not available in the current Talent Review context.')+`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Talent Review</a></p>`);return;}
-        const d=decisions.find(x=>x.review_candidate_id===r.id);
-        mount(`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Talent Review</a></p><article class="tp-card"><h3>${programLogo(programById.get(String(r.program_id)))} ${esc(r.context?.student_name || 'Student name unavailable')} ${badge(r.status)}</h3>${context(r)}<div class="tp-review-overall"><span>Overall Program Result</span>${overallResultVisual(r.overall_result)}</div><p>This Student met the Program’s configured Review Candidate criteria, recorded ${esc(r.evaluated_at || '')}. The Overall Program Result and rubric evidence support review, but Official Identification remains a separate authorized human decision.</p><div class="tp-actions">${can('talent_assessments.view')?link('assessments','Open assessment evidence',{assessment_id:r.assessment_id}):''}${r.status==='pending_review'&&can('talent_review_candidates.manage')?button('review','Mark reviewed',`data-id="${r.id}"`):''}</div>${d?`<h4>Official Identification</h4>${badge(d.decision)}<p>${esc(d.rationale || '')}</p>`:''}${r.status==='reviewed'&&!d&&can('talent_official_identifications.record')?form(`decision-${r.id}`,note('Record one permanent decision. It cannot be edited or replaced.')+select('Decision','decision',[['','Choose a decision'],['identified','Officially identified'],['not_identified','Not identified']])+area('Rationale','rationale'),'Record official decision'):''}</article>`);
+        const candidate=r.candidate;
+        const d=decisionFor(r);
+        mount(`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Talent Review</a></p>
+          <article class="tp-card tp-review-detail">
+            <div class="tp-review-student-head"><div><p class="tp-eyebrow">Talent review</p><h3>${programLogo(programById.get(String(r.program_id)))} ${esc(r.context?.student_name || 'Student name unavailable')}</h3></div><span class="tp-status-chip">${esc(candidateLabel(r))}</span></div>
+            ${context(r)}
+            ${r.reassessment?.required?note('A newer rubric requires re-evaluation. This completed result remains historical evidence until the replacement assessment is completed.'):''}
+            <div class="tp-review-overall"><span>Overall Program Result</span>${overallResultVisual(r.overall_result)}</div>
+            <div class="tp-review-state-grid">
+              <div><small>Review Candidate</small><strong>${esc(candidate?'Meets configured criteria':'No candidate record')}</strong></div>
+              <div><small>Review status</small><strong>${esc(candidateLabel(r))}</strong></div>
+              <div><small>Official Identification</small><strong>${esc(d?words(d.decision):'Not yet decided')}</strong></div>
+            </div>
+            <p>The Program result and competency evidence support educator review. Official Identification remains a separate authorized human decision.</p>
+            <div class="tp-actions">${can('talent_assessments.view')?link('assessments','Open assessment evidence',{assessment_id:r.id}):''}${candidate?.status==='pending_review'&&can('talent_review_candidates.manage')?button('review','Mark reviewed',`data-id="${candidate.id}"`):''}</div>
+            ${d?`<h4>Official Identification</h4>${badge(d.decision)}<p>${esc(d.rationale || '')}</p>`:''}
+            ${candidate?.status==='reviewed'&&!d&&can('talent_official_identifications.record')?form(`decision-${candidate.id}`,note('Record one permanent decision. It cannot be edited or replaced.')+select('Decision','decision',[['','Choose a decision'],['identified','Officially identified'],['not_identified','Not identified']])+area('Rationale','rationale'),'Record official decision'):''}
+          </article>`);
         on('review',async el=>{if(dirtyForms.size)throw new Error('Save or cancel your unsaved changes first.');if(!window.confirm('Mark this Student reviewed? This does not record an Official Identification.'))return;await api(`/api/talent/review-candidates/${el.dataset.id}/review`,{method:'POST'});await reload();notify('Review recorded.');});
-        bindForm(`decision-${r.id}`,async(data,el)=>{if(!data.decision){feedback(el,'Choose a decision.',true);return;}if(!window.confirm(`Record “${data.decision==='identified'?'Officially identified':'Not identified'}” permanently? This decision cannot be changed.`))return;const recorded=await api('/api/talent/official-identifications',{method:'POST',body:{review_candidate_id:r.id,...data}});dirtyForms.delete(el);if(can('talent_official_identifications.view'))await reload();else el.outerHTML=`<section><h4>Official Identification</h4>${badge(recorded.decision)}<p>${esc(recorded.rationale||'Decision recorded.')}</p></section>`;notify('Official decision recorded.');});
+        if(candidate) bindForm(`decision-${candidate.id}`,async(data,el)=>{if(!data.decision){feedback(el,'Choose a decision.',true);return;}if(!window.confirm(`Record “${data.decision==='identified'?'Officially identified':'Not identified'}” permanently? This decision cannot be changed.`))return;const recorded=await api('/api/talent/official-identifications',{method:'POST',body:{review_candidate_id:candidate.id,...data}});dirtyForms.delete(el);if(can('talent_official_identifications.view'))await reload();else el.outerHTML=`<section><h4>Official Identification</h4>${badge(recorded.decision)}<p>${esc(recorded.rationale||'Decision recorded.')}</p></section>`;notify('Official decision recorded.');});
         return;
       }
-      const identLabel=r=>{const d=decisions.find(x=>x.review_candidate_id===r.id);return d?badge(d.decision):'Not yet decided';};
+      const completedCount=rows.length;
+      const resultRows=rows.filter(r=>r.overall_result?.available!==false&&Number.isFinite(Number(r.overall_result?.average)));
+      const avg=resultRows.length?(resultRows.reduce((sum,r)=>sum+Number(r.overall_result.average),0)/resultRows.length):null;
+      const commonScale=resultRows.length&&resultRows.every(r=>Number(r.overall_result.scale_max)===Number(resultRows[0].overall_result.scale_max))?Number(resultRows[0].overall_result.scale_max):null;
+      const candidateCount=rows.filter(r=>r.candidate).length;
+      const identifiedCount=rows.filter(r=>decisionFor(r)?.decision==='identified').length;
+      const kpis=`<div class="tp-kpi-grid tp-review-kpis">
+        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✓</span><span class="tp-kpi-label">Completed Assessments</span><div class="tp-kpi-value">${completedCount}</div></article>
+        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">★</span><span class="tp-kpi-label">Review Candidates</span><div class="tp-kpi-value">${candidateCount}</div></article>
+        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">◎</span><span class="tp-kpi-label">Average Program Result</span><div class="tp-kpi-value">${avg!=null&&commonScale?`${avg.toFixed(1)}<small>/${commonScale}</small>`:'—'}</div></article>
+        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✦</span><span class="tp-kpi-label">Officially Identified</span><div class="tp-kpi-value">${identifiedCount}</div></article>
+      </div>`;
       const tableRows=rows.map(r=>{
         const c=r.context || {};
-        const canOpen=r.status==='pending_review'&&can('talent_review_candidates.manage');
-        return `<tr><th scope="row">${esc(c.student_name || 'Student name unavailable')}</th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}</td><td>${esc(c.grade_level || 'Unavailable')}</td><td>${esc(c.section_name || 'Unavailable')}</td><td>${esc(c.cycle_title || 'Evaluation name unavailable')}</td><td>${overallResultVisual(r.overall_result)}<small>Review Candidate criteria satisfied</small></td><td>${badge(r.status)}</td><td>${identLabel(r)}</td><td><div class="tp-row-actions"><a href="${esc(url('reviews',{review_id:r.id}))}">${canOpen?'Review':'Open'}</a></div></td></tr>`;
+        const candidate=r.candidate;
+        const d=decisionFor(r);
+        const status=r.reassessment?.required?'Re-evaluation required':candidateLabel(r);
+        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${esc(c.student_name || 'Student name unavailable')}<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small></span></span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td><span class="tp-status-chip ${candidate?'is-candidate':'is-neutral'}">${esc(candidate?'Meets criteria':'No candidate')}</span></td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open Review →</a></td></tr>`;
       }).join('');
-      mount(note('A Student appears in Talent Review when they meet the Program’s configured evaluation criteria. Appearing here does not identify the Student. Official Identification is a separate, permanent human decision.')+(!rows.length?note('No Students meeting Program criteria in this context.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Evaluation</th><th>Overall result</th><th>Review status</th><th>Identification status</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`));
+      mount(`${kpis}${note('Talent Review includes every current Completed Assessment. Review Candidate and Official Identification are separate states; an assessment never disappears because it did not materialize a Candidate row.')}${!rows.length?note('No completed Student Assessments are available in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table tp-review-table"><thead><tr><th>Student</th><th>Program / Evaluation</th><th>Overall result</th><th>Review Candidate</th><th>Review status</th><th>Identification</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`}`);
       return;
     }
     if(params.get('assessment_id')) {
