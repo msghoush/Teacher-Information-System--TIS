@@ -594,13 +594,13 @@ def test_competencies_can_own_independent_rubrics_and_level_scopes(db):
     assert mismatch.value.code == "invalid_descriptor_scope"
 
 
-def test_cloning_legacy_shared_rubric_expands_it_per_competency(db):
+def test_legacy_shared_rubric_migrates_only_when_a_competency_is_edited(db):
     program, framework, _, first_member, _ = foundation(db, name="Legacy Mental Math")
     second = create_competency(
         db, school_group_id=1, program_id=program.id,
         code="FLEX", name="Number Flexibility",
     )
-    second_member, framework = add_framework_competency(
+    _, framework = add_framework_competency(
         db, school_group_id=1, program_id=program.id, framework_id=framework.id,
         competency_id=second.id, expected_revision=framework.revision, grade_level="1",
     )
@@ -623,6 +623,25 @@ def test_cloning_legacy_shared_rubric_expands_it_per_competency(db):
     config = get_framework_configuration(
         db, school_group_id=1, program_id=program.id, framework_id=clone.id
     )
-    assert len(config["rubrics"]) == 2
-    assert all(item["framework_competency_id"] is not None for item in config["rubrics"])
-    assert all(len(item["levels"]) == 1 for item in config["rubrics"])
+    assert len(config["rubrics"]) == 1
+    assert config["rubrics"][0]["framework_competency_id"] is None
+
+    clone_member = db.query(models.FrameworkCompetency).filter_by(
+        framework_version_id=clone.id,
+        talent_competency_id=first_member.talent_competency_id,
+    ).one()
+    migrated, clone = upsert_rubric(
+        db, school_group_id=1, program_id=program.id, framework_id=clone.id,
+        framework_competency_id=clone_member.id, expected_revision=clone.revision,
+        name="Mental Calculation",
+    )
+    migrated_config = get_framework_configuration(
+        db, school_group_id=1, program_id=program.id, framework_id=clone.id
+    )
+    owned = next(
+        item for item in migrated_config["rubrics"]
+        if item["framework_competency_id"] == clone_member.id
+    )
+    assert migrated.framework_competency_id == clone_member.id
+    assert len(owned["levels"]) == 1
+    assert owned["levels"][0]["description"] == "Beginning description"
