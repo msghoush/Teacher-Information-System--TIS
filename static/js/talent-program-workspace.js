@@ -264,22 +264,34 @@
     const subnav=[['competencies','Competencies'],['rubric','Rubric Levels'],['descriptions','Descriptions'],['review','Review']].map(([key,label],index)=>`<a href="${substeps[key]}" class="tp-substep ${key===activeSub?'is-current':subState[key]?'is-complete':''}" ${key===activeSub?'aria-current="step"':''}><span>${subState[key]?icon('check'):index+1}</span>${label}</a>`).join('');
     const rubricGradeSections=descriptorGrades.map((grade,gradeIndex)=>{
       const gradeMembers=members.filter(m=>String(m.grade_level||'')===String(grade));
-      const gradeLabel=grade==='KG'?'KG':`Grade ${grade}`;
+      const gradeLabel=grade==='KG'?'KG':\`Grade \${grade}\`;
       const competencyCards=gradeMembers.map(m=>{
-        const descriptorRows=levels.map(l=>{
-          const d=descriptorFor(m.id,l.id,grade);
-          return `<tr><td>${rubricVisual().badge(l,levels)}</td><td>${esc(d?.descriptor||'Not described yet.')}</td><td>${editable?`<div data-editor="rubric-desc-${m.id}-${l.id}-${grade}">${form(`descriptor:${m.id}:${l.id}:${grade}`,'Achievement description',area('descriptor','Description',d?.descriptor),'Save')}</div>`:''}</td></tr>`;
-        }).join('');
-        return `<article class="tp-card tp-rubric-competency"><div class="tp-section-lede"><div><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div>${editable?button('remove-member','Remove',`data-key="${m.competency_id}"`,'trash'):''}</div>${config?.rubric&&levels.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Level</th><th>Description</th><th>Edit</th></tr></thead><tbody>${descriptorRows}</tbody></table></div>`:`<p class="tp-empty">Add the rubric and its levels to describe this competency.</p>`}</article>`;
+        const rubric=rubricForCompetency(m.id);
+        const memberLevels=rubric?.levels || [];
+        const levelRows=memberLevels.map(l=>\`
+          <div class="tp-rubric-level-node">
+            <div class="tp-level-number" aria-label="Level \${l.order || memberLevels.indexOf(l)+1}">\${l.order || memberLevels.indexOf(l)+1}</div>
+            <div class="tp-level-copy">
+              <strong>\${esc(l.label)}</strong>
+              <p>\${esc(l.description||'No description yet.')}</p>
+            </div>
+            \${editable?\`<div class="tp-row-actions">\${button('reveal-editor','Edit',\`data-editor-key="level-\${l.id}"\`,'edit')}\${button('remove-level','Remove',\`data-key="\${l.id}"\`,'trash')}</div><div data-editor="level-\${l.id}" hidden>\${form(\`level:\${l.id}\`,'Edit Level',field('label','Level name',l.label,'text',true)+area('description','Level description',l.description)+field('numeric_value','Numeric value (optional)',l.numeric_value,'number'),'Save Level')}</div>\`:''}
+          </div>\`
+        ).join('');
+        const rubricBody=rubric
+          ? \`<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">Rubric</span><strong>\${esc(rubric.name)}</strong>\${rubric.description?\`<p>\${esc(rubric.description)}</p>\`:''}</div>\${editable?button('reveal-editor','Edit Rubric',\`data-editor-key="rubric-\${m.id}"\`,'edit'):''}</div>\${editable?\`<div data-editor="rubric-\${m.id}" hidden>\${form(\`competency-rubric:\${m.id}\`,'Edit Rubric',field('name','Rubric name',rubric.name,'text',true)+area('description','Rubric description',rubric.description),'Save Rubric')}</div>\`:''}<div class="tp-rubric-level-list">\${levelRows||'<p class="tp-empty">No levels yet.</p>'}</div>\${editable?\`<button type="button" data-reveal="level-add-\${m.id}">+ Add Level</button><div data-editor="level-add-\${m.id}" hidden>\${form(\`competency-level:\${m.id}\`,'Add Level',field('label','Level name','','text',true)+area('description','Level description')+field('numeric_value','Numeric value (optional)','','number'),'Add Level')}</div>\`:''}</div>\`
+          : editable
+            ? \`<button type="button" data-reveal="rubric-add-\${m.id}">+ Add Rubric</button><div data-editor="rubric-add-\${m.id}" hidden>\${form(\`competency-rubric:\${m.id}\`,'Add Rubric',field('name','Rubric name','', 'text',true)+area('description','Rubric description'),'Add Rubric')}</div>\`
+            : '<p class="tp-empty">No rubric configured.</p>';
+        return \`<article class="tp-card tp-rubric-competency"><div class="tp-competency-node-head"><div><span class="tp-node-label">Competency</span><h4>\${esc(memberName(m))}</h4><p>\${esc(m.description||'')}</p></div>\${editable?button('remove-member','Remove',\`data-key="\${m.competency_id}"\`,'trash'):''}</div>\${rubricBody}</article>\`;
       }).join('');
-      const addCompetencyForm=editable?form(`create-grade-competency:${grade}`,'Add Competency',field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
-      return `<details class="tp-card tp-grade-rubric" ${gradeIndex===0?'open':''}><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}</div></details>`;
+      const addCompetencyForm=editable?form(\`create-grade-competency:\${grade}\`,'Add Competency',field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
+      return \`<details class="tp-card tp-grade-rubric" \${gradeIndex===0?'open':''}><summary><strong>\${esc(gradeLabel)}</strong><span>\${gradeMembers.length} competenc\${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">\${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}\${editable?\`<button type="button" data-reveal="grade-add-\${grade}">+ Add Competency</button><div data-editor="grade-add-\${grade}" hidden>\${addCompetencyForm}</div>\`:''}</div></details>\`;
     }).join('');
     const rubricSetupControls=!framework
-      ? (manage?form('new-version','Create Rubric',field('title','Rubric setup name',`${program.name} rubric`,'text',true)+area('summary','Optional note'),'Create Rubric'):'<p class="tp-empty">Rubric setup has not been created.</p>')
-      : (!editable&&manage?form('new-version','Edit Rubric',field('title','Rubric setup name',`${program.name} updated rubric`,'text',true)+area('summary','What is changing?')+check('clone','Copy the current rubric',true),'Start Editing'):'');
-    const rubricDefinition=framework&&editable?`<section class="tp-card"><h3>Rubric Levels</h3>${config?.rubric?`<p><strong>${esc(config.rubric.name)}</strong></p>${levels.map(l=>`<div class="tp-inline-level">${rubricVisual().badge(l,levels)} <span>${esc(l.description||'')}</span></div>`).join('')}<button type="button" data-reveal="rubric-level-add">+ Add Level</button><div data-editor="rubric-level-add" hidden>${form('add-level','Add Rubric Level',field('code','Short code','','text',true)+field('label','Level name','','text',true)+area('description','Level description')+field('numeric_value','Numeric value (optional)','','number'),'Add Level')}</div>`:`${form('rubric','Add Rubric',field('name','Rubric name',`${program.name} rubric`,'text',true)+area('description','How this rubric is used'),'Add Rubric')}`}</section>`:'';
-    const rubricWorkspace=`<section id="tp-rubric" class="tp-wizard-panel"><div class="tp-section-lede"><div><h2>Evaluation Rubric</h2><p>Configure each eligible Grade independently: Grade → Competency → Level → Description.</p></div></div>${rubricSetupControls}${framework?`${rubricDefinition}<div class="tp-grade-accordion">${rubricGradeSections||'<p class="tp-empty">Assign eligible Grades to this Program first.</p>'}</div><div class="tp-wizard-actions"><a href="#tp-basics">Edit Program Grades</a>${editable?button('finish-rubric','Save Rubric'):''}</div>`:''}</section>`;
+      ? (manage?form('new-version','Create Rubric Structure',field('title','Rubric setup name',\`\${program.name} rubric\`,'text',true)+area('summary','Optional note'),'Create Rubric Structure'):'<p class="tp-empty">Rubric setup has not been created.</p>')
+      : (!editable&&manage?form('new-version','Edit Rubric Structure',field('title','Rubric setup name',\`\${program.name} updated rubric\`,'text',true)+area('summary','What is changing?')+check('clone','Copy the current rubric structure',true),'Start Editing'):'');
+    const rubricWorkspace=\`<section id="tp-rubric" class="tp-wizard-panel"><div class="tp-section-lede"><div><h2>Rubric Structure</h2><p>Grade → Competency → Rubric → Levels. Expand one Grade at a time and build each competency independently.</p></div></div>\${rubricSetupControls}\${framework?\`<div class="tp-grade-accordion">\${rubricGradeSections||'<p class="tp-empty">Assign eligible Grades to this Program first.</p>'}</div><div class="tp-wizard-actions"><a href="#tp-basics">Edit Program Grades</a>\${editable?button('finish-rubric','Save'):''}</div>\`:''}</section>\`;
 
     const setupVersion = !framework
       ? (manage&&program.status!=='retired'?form('new-version','Start assessment setup',field('title','Setup name',`${program.name} assessment setup`,'text',true)+area('summary','What will this setup assess?'),'Start Setup'):'<p class="tp-empty">Assessment setup has not been created.</p>')
@@ -348,6 +360,12 @@
         else if(action==='add-member'){path+='/competencies';method='POST';body.competency_id=Number(d.get('competency_id'));body.grade_level=d.get('grade_level')||null;}
         else if(action.startsWith('member:')){path+=`/competencies/${action.split(':')[1]}`;method='PATCH';Object.assign(body,{grade_level:d.get('grade_level')||null,label:d.get('label'),description:d.get('description')});}
         else if(action==='rubric'){path+='/rubric';Object.assign(body,{name:d.get('name'),description:d.get('description')});}
+        else if(action.startsWith('competency-rubric:')){
+          const memberId=Number(action.split(':')[1]);path+='/rubric';Object.assign(body,{framework_competency_id:memberId,name:d.get('name'),description:d.get('description')});
+        }
+        else if(action.startsWith('competency-level:')){
+          const memberId=Number(action.split(':')[1]);path+='/rubric/levels';method='POST';Object.assign(body,{framework_competency_id:memberId,code:`LEVEL_${Date.now()}`,label:d.get('label'),description:d.get('description'),numeric_value:numeric(d.get('numeric_value'))});
+        }
         else if(action==='add-level'||action.startsWith('level:')){path+='/rubric/levels';method=action==='add-level'?'POST':'PATCH';if(method==='PATCH')path+=`/${action.split(':')[1]}`;Object.assign(body,{label:d.get('label'),description:d.get('description'),numeric_value:numeric(d.get('numeric_value'))});if(method==='POST')body.code=d.get('code');}
         else if(action.startsWith('descriptor:')){const [,m,l,g]=action.split(':');path+='/rubric/descriptors';Object.assign(body,{framework_competency_id:Number(m),rubric_level_id:Number(l),descriptor:d.get('descriptor'),grade_level:g||null});}
         else if(action==='kpi'){path+='/kpi';Object.assign(body,{is_enabled:d.has('is_enabled'),result_scale_min:numeric(d.get('result_scale_min')),result_scale_max:numeric(d.get('result_scale_max')),interpretation:d.get('interpretation'),calculation_method:'weighted_level_average',components:kpiComponents(d,members)});}
