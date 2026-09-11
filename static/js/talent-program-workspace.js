@@ -82,16 +82,17 @@
     const refreshSelectedProgram = async (scope='framework') => {
       if(!pid || !bundleCache || bundleCache.key!==bundleKey || !base) return fullRefresh();
       const data=bundleCache.data;
-      if(scope==='framework'){
+      if(scope==='framework'||scope==='framework-bank'){
         if(!framework) return fullRefresh();
         const requests=[
           api(`${base}/frameworks/${framework.id}`),
           api(`${base}/frameworks/${framework.id}/configuration`),
         ];
-        if(scope==='framework') requests.push(api(`${base}/competencies`));
+        if(scope==='framework-bank') requests.push(api(`${base}/competencies`));
         const [nextFramework,nextConfig,nextBank]=await Promise.all(requests);
-        data.framework=nextFramework; data.config=nextConfig; data.bank=nextBank;
-        framework=nextFramework; config=nextConfig; bank=nextBank;
+        data.framework=nextFramework; data.config=nextConfig;
+        framework=nextFramework; config=nextConfig;
+        if(scope==='framework-bank'){data.bank=nextBank;bank=nextBank;}
       }else if(scope==='program'){
         const [programs,nextAnnual]=await Promise.all([
           api('/api/talent/programs'),
@@ -411,7 +412,7 @@
           const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({code:generatedCode,name,description:d.get('description')})});
           await api(`${fp}/competencies`,{method:'POST',body:JSON.stringify({expected_revision:framework.revision,competency_id:created.id,grade_level:grade,label:d.get('name'),description:d.get('description')})});
           ctx.notify?.('Competency added.');
-          await refreshSelectedProgram('framework');
+          await refreshSelectedProgram('framework-bank');
         }catch(error){
           const feedback=f.querySelector('[data-feedback]');
           if(feedback){feedback.textContent=error.message||'Unable to add competency.';feedback.setAttribute('role','alert');}
@@ -442,7 +443,7 @@
         else if(action==='kpi'){path+='/kpi';Object.assign(body,{is_enabled:d.has('is_enabled'),result_scale_min:numeric(d.get('result_scale_min')),result_scale_max:numeric(d.get('result_scale_max')),interpretation:d.get('interpretation'),calculation_method:'weighted_level_average',components:kpiComponents(d,members)});}
         else return;
       }
-      const refreshMode=action==='new-version'?'none':(action==='basics'||action==='annual'||action==='edit-program'?'program':'framework');
+      const refreshMode=action==='new-version'?'none':(action==='basics'||action==='annual'||action==='edit-program'?'program':action==='create-competency'?'framework-bank':'framework');
       const saved=await mutate(path,method,body,f,refreshMode);
       if(saved&&action==='new-version'){
         if(typeof window!=='undefined'&&window.location.hash!=='#tp-rubric')window.location.hash='#tp-rubric';
