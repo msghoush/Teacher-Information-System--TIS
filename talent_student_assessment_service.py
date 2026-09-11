@@ -207,7 +207,8 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     # Existing schema keeps Cycle status for backward compatibility and analytics.
     # First Assessment activity may mark a legacy Draft context Open internally,
     # but there is no user-facing Open Evaluation prerequisite (ADR 0035).
-    if cycle.status == "draft":
+    context_activated = cycle.status == "draft"
+    if context_activated:
         now = datetime.utcnow()
         cycle.status = "open"
         cycle.opened_at = cycle.opened_at or now
@@ -215,6 +216,18 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
         cycle.updated_by_user_id = getattr(actor, "user_id", None)
         cycle.updated_at = now
         cycle.revision += 1
+
+    # Keep legacy aggregate metadata internally consistent for existing
+    # analytics/readers. It is no longer an eligibility authority (ADR 0035).
+    member_rows = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        school_group_id=school_group_id, cycle_id=cycle.id
+    ).all()
+    cycle.population_count = len(member_rows)
+    if cycle.population_effective_at is not None:
+        from talent_assessment_cycle_service import population_fingerprint, population_member_payload
+        cycle.population_fingerprint = population_fingerprint(
+            cycle, [population_member_payload(row) for row in member_rows]
+        )
 
     assessment = models.TalentStudentAssessment(
         school_group_id=school_group_id, cycle_id=cycle.id, cycle_population_member_id=member.id,
@@ -226,6 +239,12 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     db.add(assessment)
     db.flush()
     _audit(db, assessment, actor=actor, action="create", after=assessment_payload(assessment))
+    if context_activated:
+        _audit(
+            db, assessment, actor=actor, resource_type="assessment_cycle",
+            resource_id=cycle.id, action="assessment_activity",
+            before={"status": "draft"}, after={"status": "open"},
+        )
     return assessment
 
 
