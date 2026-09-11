@@ -125,6 +125,8 @@ PERMISSION_GROUPS = (
             ("talent_programs.manage", "Author talent programs, framework drafts, and competencies"),
             ("talent_programs.govern", "Activate, retire, and transition talent program/framework lifecycle"),
             ("talent_programs.delete", "Permanently delete a Draft Talent Program with no related records"),
+            ("talent_programs.delete_competency", "Delete a Competency from an editable Talent rubric/framework"),
+            ("talent_programs.delete_rubric_level", "Delete a Rubric Level from an editable Talent rubric/framework"),
         ),
     },
     {
