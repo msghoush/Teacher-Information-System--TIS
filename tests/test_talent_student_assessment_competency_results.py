@@ -378,8 +378,12 @@ def test_start_assessment_rejects_malformed_payload_without_500(db):
         })
         assert non_numeric.status_code == 400
         assert non_numeric.json()["code"] == "invalid_input"
+        # This test is about payload validation, not current-rubric selection.
+        # Use the supported legacy population-member form as the valid control;
+        # the normal student_id path is covered separately by the strict
+        # competency-owned-rubric tests.
         valid = client.post("/api/talent/assessments", json={
-            "cycle_id": cycle.id, "student_id": member.student_id,
+            "cycle_id": cycle.id, "cycle_population_member_id": member.id,
         })
         assert valid.status_code == 201
         assert valid.json()["student_id"] == member.student_id
