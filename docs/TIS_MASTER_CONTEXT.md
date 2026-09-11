@@ -1614,9 +1614,24 @@ or level structure plus descriptions, and never copies Student evidence or
 historical Assessment state.
 
 The Programs list uses a bounded summary read instead of per-Program
-annual/framework/configuration fan-out. Same-context refreshes preserve rendered
-workspace content and use localized busy states rather than repeatedly blanking
-the page with full-screen loading.
+annual/framework/configuration fan-out. A selected Program is loaded directly
+rather than through the full Program catalog, and its independent setup reads
+are parallelized. Routine Program/rubric mutations refresh only the affected
+Program, Framework/configuration, competency bank when needed, or Evaluation
+Plan slice instead of re-fetching the whole workspace graph. Same-context
+wizard navigation and Save Rubric can redraw from the current bounded cache with
+zero network reads.
+
+Evaluation Plan edits retain the rendered workspace and refresh only Plan/Cycle
+data; they do not refetch Programs, annual Program configuration, or Frameworks.
+Student Assessment opening parallelizes Program, result, Framework/configuration,
+and educator-input reads after the canonical Assessment is resolved. When an
+Evaluation is already selected, its eligible Student roster is fetched in
+parallel with Assessment/context reads.
+
+Full refresh remains appropriate for real Program/Academic Year/Framework
+context changes, explicit reload, lifecycle changes, or stale-revision recovery.
+Routine saves must not blank the workspace to a full-screen loading message.
 
 Talent operational UI uses the existing TIS light design system with stronger
 semantic status chips, evaluation/program cards, icons, low-to-high result
