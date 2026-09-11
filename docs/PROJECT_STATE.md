@@ -1,11 +1,39 @@
 ---
 title: TIS Project State
-documentation_version: 4.3
+documentation_version: 4.4
 last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Owner Video Acceptance — Immediate Corrective Pass
+
+The latest Owner video/document acceptance pass is implemented on `dev`.
+Configured Programs nested under an Evaluation Period are selectable directly
+from Student Assessments even before a physical Cycle exists. The authorized
+selection reuses the canonical Cycle-create + Period-link contracts and returns
+to the same Student Assessments surface with the selected Program roster.
+Start Assessment retains the selected Evaluation/Program context and opens the
+returned Assessment, whose UI reads that Assessment's exact Program Framework,
+Grade-applicable Competencies, competency-owned criteria, Levels, and
+descriptions. Action failures now render as visible alerts instead of an
+apparently inert click.
+
+Delete Competency is available on immutable Program setup only as a safe
+versioned operation: TIS clones a new editable Framework Version, removes the
+Competency from that new version, and leaves all historical Assessment evidence
+on the old Framework untouched. The KPI disclosure now has a visible collapse
+affordance.
+
+The Students list uses icon-only Add/Delete/Open actions with accessible names.
+A new `students.view_all_branches` permission controls the cross-Branch
+selector and **All branches** option; it is Administrator-default and still
+requires organization/global scope. Without it, the Students list is fixed to
+the actor's assigned authorized Branch. Learning Style aggregate privacy is
+unchanged: a missing governed privacy provider now produces a clear
+"statistics unavailable" panel instead of hiding the whole section, with no
+counts/percentages/bars leaked; privacy-suppressed cohorts stay suppressed.
 
 ## Talent Urgent UX And Recovery Adjustment Batch
 
