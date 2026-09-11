@@ -190,25 +190,9 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
             "This Evaluation does not have an assessment tool/framework.",
         )
 
-    # Owner-directed simple assessment flow: the Evaluation's exact Framework
-    # is the assessment authority. Draft/Active lifecycle labels are not an
-    # additional gate to starting a Student Assessment. What matters here is
-    # whether the referenced tool is actually assessable.
-    has_competency = db.query(models.FrameworkCompetency.id).filter_by(
-        school_group_id=school_group_id,
-        program_id=cycle.program_id,
-        framework_version_id=cycle.framework_version_id,
-    ).first() is not None
-    has_rubric_level = db.query(models.TalentRubricLevel.id).filter_by(
-        school_group_id=school_group_id,
-        program_id=cycle.program_id,
-        framework_version_id=cycle.framework_version_id,
-    ).first() is not None
-    if not has_competency or not has_rubric_level:
-        raise TalentStudentAssessmentError(
-            "assessment_tool_unavailable",
-            "This Evaluation needs at least one competency and one rubric level before Students can be assessed.",
-        )
+    # Current assessment starts use only the canonical competency-owned rubric
+    # structure. Legacy Framework-wide shared rubrics remain readable only
+    # through historical evidence and never make a new Assessment assessable.
 
     if student_id is not None:
         member = _assessment_member_from_current_placement(
@@ -225,6 +209,16 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
                 "invalid_student_context",
                 "Student Assessment context is unavailable. Reload the eligible Students list and try again.",
             )
+
+    snapshot = _assessment_semantic_snapshot(db, framework=framework, grade=member.grade_level)
+    if not snapshot or any(
+        not item.get("rubric") or not item["rubric"].get("levels")
+        for item in snapshot
+    ):
+        raise TalentStudentAssessmentError(
+            "assessment_tool_unavailable",
+            "This Evaluation needs a competency-owned rubric with levels for every applicable Competency.",
+        )
 
     root_cycle_id = int(evaluation_context_cycle_id or cycle.id)
     existing_query = db.query(models.TalentStudentAssessment).filter(
@@ -310,17 +304,12 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade):
         models.FrameworkCompetency.id,
     ).all()
 
-    legacy_rubric = db.query(models.TalentRubric).filter(
-        models.TalentRubric.framework_version_id == framework.id,
-        models.TalentRubric.framework_competency_id.is_(None),
-    ).one_or_none()
-
     result = []
     for member in members:
         rubric = db.query(models.TalentRubric).filter_by(
             framework_version_id=framework.id,
             framework_competency_id=member.id,
-        ).one_or_none() or legacy_rubric
+        ).one_or_none()
         levels = []
         if rubric is not None:
             for level in db.query(models.TalentRubricLevel).filter_by(
@@ -598,10 +587,7 @@ def set_competency_result(db, *, school_group_id, assessment_id, framework_compe
         id=level.rubric_id, school_group_id=school_group_id,
         program_id=assessment.program_id, framework_version_id=assessment.framework_version_id,
     ).one_or_none()
-    if rubric is None or (
-        rubric.framework_competency_id is not None
-        and rubric.framework_competency_id != competency.id
-    ):
+    if rubric is None or rubric.framework_competency_id != competency.id:
         raise TalentStudentAssessmentError(
             "invalid_result_scope",
             "Rubric level must belong to this exact Competency rubric.",
