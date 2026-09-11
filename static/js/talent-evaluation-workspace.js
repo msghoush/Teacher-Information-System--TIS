@@ -37,11 +37,20 @@
       ]);
       ({programs,annual,frameworks}=workspaceCache);
     }else{
-      [plans, programs, cycles] = await Promise.all([
+      const canViewPrograms=can('talent_programs.view');
+      const directBase=programId?`/api/talent/programs/${programId}`:null;
+      const [loadedPlans,loadedPrograms,loadedCycles,loadedAnnual,loadedFrameworks] = await Promise.all([
         api(`/api/talent/evaluation-plans?${query}`),
-        can('talent_programs.view') ? api('/api/talent/programs') : [],
-        can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : [],
+        canViewPrograms
+          ? (programId
+              ? api(directBase).then(program=>[program]).catch(()=>api('/api/talent/programs'))
+              : api('/api/talent/programs'))
+          : Promise.resolve([]),
+        can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : Promise.resolve([]),
+        canViewPrograms&&programId ? api(`${directBase}/academic-years`) : Promise.resolve([]),
+        canViewPrograms&&programId ? api(`${directBase}/frameworks`) : Promise.resolve([]),
       ]);
+      plans=loadedPlans;programs=loadedPrograms;cycles=loadedCycles;annual=loadedAnnual;frameworks=loadedFrameworks;
     }
     if(token!==renderToken)return;
     const program = programs.find(item => String(item.id) === String(programId));
@@ -52,10 +61,6 @@
       return;
     }
     const base = `/api/talent/programs/${program.id}`;
-    if(!planOnly){
-      [annual, frameworks] = await Promise.all([api(`${base}/academic-years`), api(`${base}/frameworks`)]);
-      if(token!==renderToken)return;
-    }
     workspaceCache={key:cacheKey,programs,annual,frameworks};
     root.removeAttribute?.('aria-busy');
     const configuration = annual.find(item => String(item.academic_year_id) === String(year) && item.is_enabled);
