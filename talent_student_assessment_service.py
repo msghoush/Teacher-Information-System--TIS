@@ -92,27 +92,130 @@ def _assert_editable(db, assessment, expected_revision):
         raise TalentStudentAssessmentError("immutable_assessment", "Only an In Progress Assessment can be edited.")
     cycle = _cycle(db, assessment.school_group_id, assessment.cycle_id, lock=True)
     if cycle is None:
-        raise TalentStudentAssessmentError("not_found", "Talent Assessment Cycle was not found.")
-    if cycle.status != "open":
-        raise TalentStudentAssessmentError("cycle_not_open", "Only an Open Cycle accepts Assessment changes.")
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    # ADR 0035: Cycle Draft/Open state is internal compatibility metadata, not
+    # an Assessment-editability gate. The Assessment's own terminal state is
+    # the historical immutability boundary.
     return cycle
 
 
-def start_assessment(db: Session, *, school_group_id, cycle_id, cycle_population_member_id, actor=None):
-    cycle = _cycle(db, school_group_id, cycle_id, lock=True)
-    if cycle is None:
-        raise TalentStudentAssessmentError("not_found", "Talent Assessment Cycle was not found.")
-    if cycle.status != "open":
-        raise TalentStudentAssessmentError("cycle_not_open", "Only an Open Cycle accepts Assessments.")
+def _current_eligible_placement(db, *, cycle, student_id, at):
+    config = db.query(models.TalentProgramAcademicYearConfiguration).filter_by(
+        school_group_id=cycle.school_group_id,
+        program_id=cycle.program_id,
+        academic_year_id=cycle.academic_year_id,
+        is_enabled=True,
+    ).one_or_none()
+    if config is None:
+        raise TalentStudentAssessmentError(
+            "annual_configuration_unavailable",
+            "This Program is not enabled for the selected Academic Year.",
+        )
+    eligible_grades = {value for value in (config.eligible_grade_levels_csv or "").split(",") if value}
+    placement = db.query(models.StudentAcademicPlacement).filter(
+        models.StudentAcademicPlacement.school_group_id == cycle.school_group_id,
+        models.StudentAcademicPlacement.student_id == int(student_id),
+        models.StudentAcademicPlacement.academic_year_id == cycle.academic_year_id,
+        models.StudentAcademicPlacement.grade_level.in_(eligible_grades or {"__none__"}),
+        models.StudentAcademicPlacement.effective_from <= at,
+        (models.StudentAcademicPlacement.effective_to.is_(None) | (models.StudentAcademicPlacement.effective_to > at)),
+    ).order_by(models.StudentAcademicPlacement.effective_from.desc()).one_or_none()
+    if placement is None:
+        raise TalentStudentAssessmentError(
+            "student_not_eligible",
+            "Student must have a current Academic Placement in a Grade included in this Program.",
+        )
+    return placement
+
+
+def _assessment_member_from_current_placement(db, *, cycle, student_id, at):
+    placement = _current_eligible_placement(db, cycle=cycle, student_id=student_id, at=at)
     member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
-        id=cycle_population_member_id, school_group_id=school_group_id, cycle_id=cycle.id,
-        program_id=cycle.program_id, academic_year_id=cycle.academic_year_id,
-        framework_version_id=cycle.framework_version_id,
+        school_group_id=cycle.school_group_id, cycle_id=cycle.id, student_id=int(student_id)
     ).with_for_update().one_or_none()
     if member is None:
-        raise TalentStudentAssessmentError("invalid_population_member", "Student must belong to this Cycle's frozen population.")
+        member = models.TalentAssessmentCyclePopulationMember(
+            school_group_id=cycle.school_group_id,
+            cycle_id=cycle.id,
+            program_id=cycle.program_id,
+            academic_year_id=cycle.academic_year_id,
+            framework_version_id=cycle.framework_version_id,
+            student_id=placement.student_id,
+            academic_placement_id=placement.id,
+            branch_id=placement.branch_id,
+            planning_section_id=placement.planning_section_id,
+            grade_level=placement.grade_level,
+            section_name=placement.section_name,
+            population_effective_at=at,
+            frozen_at=at,
+        )
+        db.add(member)
+        db.flush()
+    else:
+        # Before an Assessment exists this row is only compatibility/provenance
+        # storage. Keep it aligned to the current placement that authorizes the
+        # Assessment start; once evidence exists, duplicate-assessment protection
+        # prevents this path from rewriting historical context.
+        member.academic_placement_id = placement.id
+        member.branch_id = placement.branch_id
+        member.planning_section_id = placement.planning_section_id
+        member.grade_level = placement.grade_level
+        member.section_name = placement.section_name
+        member.population_effective_at = at
+        member.frozen_at = at
+        db.flush()
+    return member
+
+
+def start_assessment(db: Session, *, school_group_id, cycle_id,
+                     cycle_population_member_id=None, student_id=None, actor=None):
+    cycle = _cycle(db, school_group_id, cycle_id, lock=True)
+    if cycle is None:
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+
+    program = db.query(models.TalentProgram).filter_by(
+        id=cycle.program_id, school_group_id=school_group_id
+    ).one_or_none()
+    framework = db.query(models.TalentProgramFrameworkVersion).filter_by(
+        id=cycle.framework_version_id, school_group_id=school_group_id, program_id=cycle.program_id
+    ).one_or_none()
+    if program is None or framework is None or program.status != "active" or framework.status != "active":
+        raise TalentStudentAssessmentError(
+            "assessment_tool_unavailable",
+            "This Program needs an active assessment tool/framework before Students can be assessed.",
+        )
+
+    if student_id is not None:
+        member = _assessment_member_from_current_placement(
+            db, cycle=cycle, student_id=int(student_id), at=datetime.utcnow()
+        )
+    else:
+        member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+            id=cycle_population_member_id, school_group_id=school_group_id, cycle_id=cycle.id,
+            program_id=cycle.program_id, academic_year_id=cycle.academic_year_id,
+            framework_version_id=cycle.framework_version_id,
+        ).with_for_update().one_or_none()
+        if member is None:
+            raise TalentStudentAssessmentError(
+                "invalid_student_context",
+                "Student Assessment context is unavailable. Reload the eligible Students list and try again.",
+            )
+
     if db.query(models.TalentStudentAssessment).filter_by(cycle_id=cycle.id, student_id=member.student_id).first():
-        raise TalentStudentAssessmentError("duplicate_assessment", "Student already has an Assessment for this Cycle.")
+        raise TalentStudentAssessmentError("duplicate_assessment", "Student already has an Assessment for this Evaluation.")
+
+    # Existing schema keeps Cycle status for backward compatibility and analytics.
+    # First Assessment activity may mark a legacy Draft context Open internally,
+    # but there is no user-facing Open Evaluation prerequisite (ADR 0035).
+    if cycle.status == "draft":
+        now = datetime.utcnow()
+        cycle.status = "open"
+        cycle.opened_at = cycle.opened_at or now
+        cycle.opened_by_user_id = cycle.opened_by_user_id or getattr(actor, "user_id", None)
+        cycle.updated_by_user_id = getattr(actor, "user_id", None)
+        cycle.updated_at = now
+        cycle.revision += 1
+
     assessment = models.TalentStudentAssessment(
         school_group_id=school_group_id, cycle_id=cycle.id, cycle_population_member_id=member.id,
         student_id=member.student_id, program_id=cycle.program_id,
