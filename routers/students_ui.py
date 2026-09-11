@@ -339,7 +339,6 @@ def students_bulk_delete_post(
     request: Request,
     student_ids: list[int] = Form([]),
     db: Session = Depends(get_db),
-    force_history: str = Form(""),
     current_user=Depends(get_current_user),
 ):
     user, group_id, denied = _authorize(request, db, current_user, "students.bulk_delete")
