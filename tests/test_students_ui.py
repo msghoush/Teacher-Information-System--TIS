@@ -43,6 +43,9 @@ def test_student_delete_permissions_are_registered_and_configurable():
     assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
     assert "students.view_all_branches" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
     assert "students.view_all_branches" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
+    assert "students.view_all_branches" not in pr.constrain_role_permissions(
+        pr.auth.ROLE_EDITOR, {"students.view_all_branches"}
+    )
 
 
 def test_list_requires_students_view(db, client):
@@ -92,12 +95,13 @@ def test_student_list_uses_accessible_icon_only_management_actions(db, client):
 
 
 def test_only_organization_admin_permission_exposes_student_branch_switcher(db):
-    permissions(db, "students.view", "students.view_all_branches")
     app = FastAPI()
     app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(students_ui.router)
     app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_current_user] = lambda: actor(scope="ORGANIZATION", branch=10)
+    app.dependency_overrides[get_current_user] = lambda: actor(
+        scope="ORGANIZATION", branch=10, role="Administrator"
+    )
     allowed = TestClient(app)
 
     response = allowed.get("/students/")
