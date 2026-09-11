@@ -384,7 +384,7 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
     ).all()
     for framework in candidates:
         snapshot = _assessment_semantic_snapshot(db, framework=framework, grade=grade)
-        if snapshot and any(
+        if snapshot and all(
             item.get("rubric") and item["rubric"].get("levels")
             for item in snapshot
         ):
@@ -477,7 +477,7 @@ def reassessment_requirement(db: Session, assessment):
         )
         if candidate_snapshot == current_snapshot:
             continue
-        if candidate_snapshot and any(
+        if candidate_snapshot and all(
             item.get("rubric") and item["rubric"].get("levels")
             for item in candidate_snapshot
         ):
