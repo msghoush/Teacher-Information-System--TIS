@@ -64,6 +64,11 @@
 .tp-substeps svg,.tp-ready-list svg {width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8}
 .tp-ready-list {display:grid;gap:10px;list-style:none;padding:0}
 .tp-ready-list li {display:flex;align-items:center;gap:8px}
+.tp-readiness-banner{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;padding:12px 14px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-surface)}
+.tp-readiness-banner.is-ready{border-color:var(--app-brand);background:var(--app-brand-soft);color:var(--app-brand-deep)}
+.tp-readiness-banner.is-incomplete strong{color:var(--app-brand-deep)}
+.tp-grade-picker{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-weight:700;color:var(--app-brand-deep)}
+.tp-grade-picker select{min-width:150px}
 .tp-program-summary dl {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin:0}
 .tp-program-summary dl div {padding:14px;border:1px solid var(--app-line);border-radius:10px;background:var(--app-surface)}
 .tp-program-summary dt {font-size:12px;font-weight:700;text-transform:uppercase;color:var(--app-muted)}
