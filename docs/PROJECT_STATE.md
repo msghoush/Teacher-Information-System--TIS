@@ -7,6 +7,20 @@ source_of_truth: true
 
 # TIS Project State
 
+## Talent Assessment Eligibility — Owner Simplification
+
+Per direct Product Owner correction on 2026-09-11, Talent Student Assessment
+eligibility now follows ADR 0035. Current effective Academic Placement plus the
+Program's configured eligible Grades and usable assessment framework/tool are
+the operational authority. Draft/Open Cycle state, frozen population,
+synchronization, reconciliation, and persisted population membership are no
+longer user-facing prerequisites to start an Assessment. Existing Cycle and
+Population Member rows may remain as compatibility/historical provenance
+structures. Assessment creation captures the Student's placement/framework
+context at the time the Assessment starts. ADR 0033 is superseded as an
+eligibility/workflow model.
+
+
 ## Talent Assessment Delete — Zero-Evidence Governance Exception Recorded
 
 Per direct Owner instruction on 2026-09-11, a narrow Administrator-only
