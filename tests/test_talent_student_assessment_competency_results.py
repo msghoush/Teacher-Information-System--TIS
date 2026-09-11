@@ -467,16 +467,18 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
     )
     session.commit()
 
-    # An unchanged clone alone must not force re-evaluation.
+    # An unchanged legacy-compatible clone alone must not force re-evaluation.
     revised = create_framework_draft(
         session, school_group_id=1, program_id=program.id,
         title="Updated rubric", clone_from_id=framework.id,
         supersedes_framework_version_id=framework.id,
     )
-    revised = ensure_competency_owned_rubrics(session, program, revised)
-    assert reassessment_requirement(session, completed) is not None
+    assert reassessment_requirement(session, completed) is None
 
-    # Adding a new Grade-applicable competency materially changes the rubric.
+    # The current authoring model moves the newer version onto complete
+    # competency-owned rubrics. A real Student-facing change then requires
+    # re-evaluation in the original visible Evaluation context.
+    revised = ensure_competency_owned_rubrics(session, program, revised)
     lineage = create_competency(
         session, school_group_id=1, program_id=program.id,
         code="THREE", name="THREE",
@@ -484,6 +486,16 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
     new_member, revised = add_framework_competency(
         session, school_group_id=1, program_id=program.id, framework_id=revised.id,
         competency_id=lineage.id, expected_revision=revised.revision,
+    )
+    _, revised = upsert_rubric(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        framework_competency_id=new_member.id, expected_revision=revised.revision,
+        name="THREE rubric",
+    )
+    _, revised = add_rubric_level(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        framework_competency_id=new_member.id, expected_revision=revised.revision,
+        code="LEVEL_1", label="Beginning", description="THREE Beginning",
     )
     assert reassessment_requirement(session, completed).id == revised.id
 
