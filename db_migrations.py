@@ -6880,9 +6880,10 @@ def _talent_assessment_reassessment_attempts(engine, connection):
     """
     if not _table_exists(connection, "talent_student_assessments"):
         return
+    boolean_default = "TRUE" if engine.dialect.name == "postgresql" else "1"
     _add_column_if_missing(
         connection, connection, "talent_student_assessments",
-        "is_current", "is_current BOOLEAN NOT NULL DEFAULT 1",
+        "is_current", f"is_current BOOLEAN NOT NULL DEFAULT {boolean_default}",
     )
     _add_column_if_missing(
         connection, connection, "talent_student_assessments",
