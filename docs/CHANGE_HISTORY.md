@@ -3535,3 +3535,31 @@ No; this is deterministic Talent configuration/presentation behavior, not AI arc
 
 Reviewer/approval notes:
 Owner-directed correction. No production deployment or production/demo data mutation was performed by this repository change.
+
+## 2026-09-11 - Rebuilt Talent Program/Rubric workflow and added explicit re-evaluation attempts
+
+Area/module:
+Talent & Potential Programs, Framework/Rubric authoring, Student Assessments, Analytics, migrations
+
+Previous state:
+Program authoring still exposed the guided Basics -> What we assess -> Evaluation Plan -> Ready workflow as the primary path. Grade-specific rubric content existed but was split across wizard substeps. Completed Assessments were immutable, but a later rubric change had no explicit operational re-evaluation state/action, and a Draft-labelled Framework with Assessment history could still be semantically edited in place.
+
+New state:
+Program creation/editing is focused on Program identity plus eligible Grades. Each Program has a separate Rubric action. Rubric authoring uses collapsible eligible-Grade sections with Grade-scoped competencies and ordered rubric Levels/achievement descriptions. Program overview summarizes Grade/competency/rubric configuration after save.
+
+ADR 0036 introduces additive Assessment attempt semantics: `is_current` and `reassessment_of_assessment_id` (migration `20260911_003_talent_assessment_reassessment_attempts`). A completed current Assessment is marked Re-evaluation required when a materially different newer assessable Framework exists. Re-evaluation creates a new Cycle and Assessment, preserves the prior completed evidence as historical, marks the prior Assessment non-current, and keeps the replacement current. Framework semantic edits are blocked once any Assessment references that Framework; a new Framework Version is required instead. Analytics current-result queries now ignore superseded Assessment attempts/population members so re-evaluation does not double-count Students.
+
+Reason:
+Direct Product Owner request to simplify the evaluation process and ensure rubric changes force a safe, visible re-evaluation path for already-completed Students without rewriting historical evidence.
+
+Results & Analytics:
+No privacy threshold was invented or hard-coded as a fallback. Production analytics remains governed by ADR 0028 external provider configuration. Missing deployment configuration continues to fail closed.
+
+Documentation updated:
+Yes - ADR 0036, TIS_MASTER_CONTEXT, PROJECT_STATE, CHANGE_HISTORY.
+
+Generated KMS artifacts:
+Pending local `scripts/kms.py sync` after GitHub changes are synced.
+
+Deployment:
+Not performed by this change. Owner deploys after local verification/KMS regeneration.
