@@ -14,6 +14,7 @@ from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import resolve_placement
 from talent_operational_context import authorized_contexts, authorized_payload
+from talent_review_candidate_service import evaluate_review_candidate
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
     complete_assessment, competency_result_payload, delete_assessment,
@@ -148,12 +149,22 @@ def assessment_contexts(request: Request, program_id: int | None = Query(None),
         models.TalentAssessmentCycle.created_at.asc(),
         models.TalentAssessmentCycle.id.asc(),
     ).all()
+    period_ids = {row.planned_evaluation_period_id for row in rows if row.planned_evaluation_period_id is not None}
+    periods = {
+        row.id: row for row in db.query(models.TalentPlannedEvaluationPeriod).filter(
+            models.TalentPlannedEvaluationPeriod.school_group_id == group_id,
+            models.TalentPlannedEvaluationPeriod.id.in_(period_ids or [-1]),
+        ).all()
+    }
     return [{
         "id": row.id,
         "program_id": row.program_id,
         "academic_year_id": row.academic_year_id,
         "framework_version_id": row.framework_version_id,
         "title": row.title,
+        "evaluation_period_id": row.planned_evaluation_period_id,
+        "evaluation_label": periods[row.planned_evaluation_period_id].label if row.planned_evaluation_period_id in periods else row.title,
+        "evaluation_sequence": periods[row.planned_evaluation_period_id].sequence if row.planned_evaluation_period_id in periods else None,
     } for row in rows]
 
 
@@ -316,10 +327,19 @@ def assessments_complete(assessment_id: int, request: Request, payload: dict = B
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     if error:
         return error
-    return _run(db, lambda: _display_payload(db, user, complete_assessment(
-        db, school_group_id=group_id, assessment_id=assessment.id,
-        expected_revision=int(payload.get("expected_revision")), actor=user,
-    )))
+    def work():
+        completed = complete_assessment(
+            db, school_group_id=group_id, assessment_id=assessment.id,
+            expected_revision=int(payload.get("expected_revision")), actor=user,
+        )
+        # Completion deterministically evaluates the existing Framework policy.
+        # No policy/non-qualifying outcome still leaves the Student visible in
+        # Talent Review through the completed-Assessment workspace projection.
+        evaluate_review_candidate(
+            db, school_group_id=group_id, assessment_id=completed.id, actor=user
+        )
+        return _display_payload(db, user, completed)
+    return _run(db, work)
 
 
 @router.post("/{assessment_id}/incomplete")

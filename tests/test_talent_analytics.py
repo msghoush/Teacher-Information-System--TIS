@@ -886,6 +886,10 @@ def test_rubric_distribution_suppressed_under_deterministic_policy(db, scenario)
         assert levels_by_code["ADVANCED"]["state"] == "visible"
         assert levels_by_code["ADVANCED"]["count"] == 3
         assert dist["valid_result_count"] == {"state": "visible", "value": 4}
+        assert dist["average_rank"] is None
+        assert dist["scale_max"] is None
+        assert dist["normalized_percent"] is None
+        assert body["program_result_summary"]["state"] == "restricted"
 
 
 def test_competencies_visible_under_allow_all_asserts_body(db, scenario):
@@ -1513,6 +1517,11 @@ def test_rubric_distribution_coverage_permissive_shows_real_values(db, scenario)
         assert dist["coverage"]["frozen_eligible"] == 9
         assert dist["coverage"]["counts"] == {"unassessed": 2, "in_progress": 1, "completed": 4, "incomplete": 1, "insufficient_evidence": 1}
         assert float(dist["coverage"]["completion_coverage_percentage"]) == pytest.approx(44.44, abs=0.01)
+        assert float(dist["average_rank"]) == pytest.approx(2.5)
+        summary = body["program_result_summary"]
+        assert summary["state"] == "visible"
+        assert float(summary["average"]) == pytest.approx(2.5)
+        assert summary["scale_max"] == 3
 
 
 def test_rubric_distribution_coverage_total_visible_incomplete_suppressed_collapses(db, scenario):

@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import models
+from talent_student_assessment_service import overall_program_result
 from talent_analytics_privacy import Cell, VISIBLE
 from talent_analytics_privacy_closure import apply_primary_privacy_and_close
 from talent_analytics_relationship_graph import PrivacyRelationshipGraph
@@ -95,6 +96,10 @@ class StudentDrillContext:
     grade_level: str
     section_name: str
     assessment_state: str
+    overall_result_average: Optional[float] = None
+    overall_result_scale_max: Optional[int] = None
+    overall_result_percent: Optional[int] = None
+    has_overall_result: bool = False
     kpi_result: Optional[int] = None
     has_kpi_result: bool = False
     candidate_state: Optional[str] = None
@@ -109,6 +114,12 @@ class StudentDrillContext:
             "section_name": self.section_name,
             "assessment_state": self.assessment_state,
         }
+        if self.has_overall_result:
+            payload["overall_result"] = {
+                "average": self.overall_result_average,
+                "scale_max": self.overall_result_scale_max,
+                "normalized_percent": self.overall_result_percent,
+            }
         if self.has_kpi_result:
             payload["kpi_result"] = self.kpi_result
         if self.has_candidate_field:
@@ -253,7 +264,14 @@ def fetch_student_rows(
     contexts_by_student = {student.id: [] for student in students}
     seen_contexts = {student.id: set() for student in students}
     for member, assessment in context_rows:
-        kpi_present = assessment is not None and assessment.status == "completed" and assessment.kpi_result is not None
+        current_completed = (
+            assessment is not None
+            and assessment.status == "completed"
+            and bool(getattr(assessment, "is_current", True))
+        )
+        overall = overall_program_result(db, assessment) if current_completed else None
+        overall_present = bool(overall and overall.get("available") is True)
+        kpi_present = current_completed and assessment.kpi_result is not None
         candidate = candidates_by_member.get(member.id) if has_candidate else None
         identification = identifications_by_member.get(member.id) if has_identification else None
         context = StudentDrillContext(
@@ -261,6 +279,10 @@ def fetch_student_rows(
             branch_id=member.branch_id, grade_level=member.grade_level,
             section_name=member.section_name,
             assessment_state=assessment.status if assessment is not None else "unassessed",
+            overall_result_average=overall.get("average") if overall_present else None,
+            overall_result_scale_max=overall.get("scale_max") if overall_present else None,
+            overall_result_percent=overall.get("normalized_percent") if overall_present else None,
+            has_overall_result=overall_present,
             kpi_result=assessment.kpi_result if kpi_present else None,
             has_kpi_result=kpi_present,
             candidate_state=candidate.status if candidate is not None else None,

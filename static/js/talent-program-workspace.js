@@ -136,21 +136,25 @@
       framework = bundleCache.data.framework; config = bundleCache.data.config;
     } else {
       const token = ++renderToken;
-      root.innerHTML='<p role="status">Loading Programs…</p>';
+      const alreadyRendered=Boolean(root.querySelector?.('.tp-wizard-panel,.tp-program-summary,[data-program-row]'));
+      const existingStatus=root.querySelector?.('[data-status]');
+      if(alreadyRendered){
+        root.setAttribute?.('aria-busy','true');
+        if(existingStatus) existingStatus.textContent='Refreshing Program data…';
+      }else{
+        root.innerHTML='<p role="status">Loading Programs…</p>';
+      }
       const programs=await api('/api/talent/programs');
       if (token !== renderToken) return;
       if(!pid) {
-        const planningGrades=year
-          ? await api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[])
-          : [];
-        const summaries=await Promise.all(programs.map(async program=>{
-          const programBase=`/api/talent/programs/${program.id}`;
-          const [years,frameworks]=await Promise.all([api(`${programBase}/academic-years`),api(`${programBase}/frameworks`)]);
-          const current=years.find(item=>String(item.academic_year_id)===String(year));
-          const active=frameworks.find(item=>item.status==='active');
-          let type='Not set';
-          if(active){const configuration=await api(`${programBase}/frameworks/${active.id}/configuration`);type=configuration.kpi?.enabled?'Numeric + rubric':'Rubric';}
-          return {program,current,type};
+        const [planningGrades,summaryRows]=await Promise.all([
+          year?api(`/api/talent/programs/planning-grades?academic_year_id=${encodeURIComponent(year)}`).catch(()=>[]):Promise.resolve([]),
+          year?api(`/api/talent/programs/summaries?academic_year_id=${encodeURIComponent(year)}`).catch(()=>programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))):Promise.resolve(programs.map(program=>({...program,annual:null,assessment_type:'Not set'}))),
+        ]);
+        const summaries=summaryRows.map(program=>({
+          program,
+          current:program.annual,
+          type:program.assessment_type || 'Not set',
         }));
         if (token !== renderToken) return;
         // ADR 0032: "delete" only ever appears in a Program row's own
@@ -217,10 +221,16 @@
       if(can('talent_evaluation_plans.view')) { const loaded=await api(`/api/talent/evaluation-plans?${new URLSearchParams({academic_year_id:year||'',program_id:pid})}`).catch(()=>[]); plans=Array.isArray(loaded)?loaded:[]; }
       if (token !== renderToken) return;
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
+      root.removeAttribute?.('aria-busy');
     }
     members=framework?.competencies || [];
     const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft' && !framework?.in_use_by_assessments;
     const annualYear=annual.find(a=>String(a.academic_year_id)===String(year));
+    const currentPlan=plans.find(p=>String(p.program_id)===String(program.id)&&String(p.academic_year_id)===String(year)) || null;
+    const currentPeriods=currentPlan?.periods || [];
+    const evaluationSummary=currentPeriods.length
+      ? currentPeriods.map(period=>`<span class="tp-evaluation-chip"><span aria-hidden="true">📅</span>${esc(period.label)}</span>`).join('')
+      : '<span class="tp-muted">No Evaluation Periods configured yet.</span>';
     const levels=config?.levels || [], rubrics=config?.rubrics || [], kpi=config?.kpi;
     const descriptorGrades=annualYear?.eligible_grade_levels || [];
     const memberName=m=>m.label || bank.find(c=>c.id===m.competency_id)?.name || 'Unnamed competency';
@@ -282,8 +292,12 @@
             ${editable?`<div class="tp-row-actions">${button('reveal-editor','Edit',`data-editor-key="level-${l.id}"`,'edit')}${button('remove-level','Remove',`data-key="${l.id}"`,'trash')}</div><div data-editor="level-${l.id}" hidden>${form(`level:${l.id}`,'Edit Level',field('label','Level name',l.label,'text',true)+area('description','Level description',l.description),'Save Level')}</div>`:''}
           </div>`
         ).join('');
+        const copySources=members.filter(source=>source.id!==m.id&&(rubricForCompetency(source.id)?.levels||[]).length).map(source=>[source.id,`${memberName(source)}${source.grade_level?` · ${source.grade_level==='KG'?'KG':`Grade ${source.grade_level}`}`:''}`]);
+        const copyLevelForm=editable&&memberLevels.length===0&&copySources.length
+          ? `<button type="button" data-reveal="level-copy-${m.id}">${icon('copy')}Copy Levels From…</button><div data-editor="level-copy-${m.id}" hidden>${form(`copy-levels:${m.id}`,'Copy Level Structure',select('source_framework_competency_id','Copy from Competency',copySources,'')+check('include_descriptions','Copy level descriptions too',false),'Copy Levels')}</div>`
+          : '';
         const rubricBody=rubric
-          ? `<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">Rubric</span><strong>${esc(rubric.name)}</strong>${rubric.description?`<p>${esc(rubric.description)}</p>`:''}</div>${editable?button('reveal-editor','Edit Rubric',`data-editor-key="rubric-${m.id}"`,'edit'):''}</div>${editable?`<div data-editor="rubric-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Edit Rubric',field('name','Rubric name',rubric.name,'text',true)+area('description','Rubric description',rubric.description),'Save Rubric')}</div>`:''}<div class="tp-rubric-level-list">${levelRows||'<p class="tp-empty">No levels yet.</p>'}</div>${editable?`<button type="button" data-reveal="level-add-${m.id}">+ Add Level</button><div data-editor="level-add-${m.id}" hidden>${form(`competency-level:${m.id}`,'Add Level',field('label','Level name','','text',true)+area('description','Level description'),'Add Level')}</div>`:''}</div>`
+          ? `<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">Rubric</span><strong>${esc(rubric.name)}</strong>${rubric.description?`<p>${esc(rubric.description)}</p>`:''}</div>${editable?button('reveal-editor','Edit Rubric',`data-editor-key="rubric-${m.id}"`,'edit'):''}</div>${editable?`<div data-editor="rubric-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Edit Rubric',field('name','Rubric name',rubric.name,'text',true)+area('description','Rubric description',rubric.description),'Save Rubric')}</div>`:''}<div class="tp-rubric-level-list">${levelRows||'<p class="tp-empty">No levels yet. Add them manually or copy a completed level structure from another Competency.</p>'}</div>${editable?`<div class="tp-rubric-build-actions"><button type="button" data-reveal="level-add-${m.id}">+ Add Level</button>${copyLevelForm}</div><div data-editor="level-add-${m.id}" hidden>${form(`competency-level:${m.id}`,'Add Level',field('label','Level name','','text',true)+area('description','Level description'),'Add Level')}</div>`:''}</div>`
           : editable
             ? `<button type="button" data-reveal="rubric-add-${m.id}">+ Add Rubric</button><div data-editor="rubric-add-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Add Rubric',field('name','Rubric name','', 'text',true)+area('description','Rubric description'),'Add Rubric')}</div>`
             : '<p class="tp-empty">No rubric configured.</p>';
@@ -323,7 +337,7 @@
     const reviewPanel=`<div data-assess-panel="review"><h3>Review</h3><div class="tp-assessment-view">${(descriptorGrades.length?descriptorGrades:[null]).map(grade=>`<section class="tp-card"><h4>${esc(grade?(grade==='KG'?'KG':`Grade ${grade}`):'All Grades')}</h4>${membersForGrade(grade).map(m=>`<article class="tp-competency-row"><div><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div><dl>${levels.map(l=>{const d=descriptorFor(m.id,l.id,grade);return `<div><dt>${rubricVisual().badge(l,levels)}</dt><dd>${esc(d?.descriptor||'Not described yet.')}</dd></div>`;}).join('')}</dl></article>`).join('')||'<p class="tp-empty">No competencies assigned to this Grade.</p>'}</section>`).join('')||'<p class="tp-empty">Assessment setup is incomplete.</p>'}</div><details class="tp-card"><summary>Advanced setup and history</summary><p>Changes to an active assessment setup create a new saved setup so historical evaluations remain unchanged.</p><div class="tp-actions">${versions.map(v=>`<a class="tp-badge" href="${esc(href('programs',{framework_id:v.id}))}#tp-builder-review">${esc(v.title)} · ${esc(v.status)}</a>`).join('')}</div>${setupVersion}${framework?`<details><summary>Optional numeric result</summary>${editable?form('kpi','Numeric result settings',check('is_enabled','Enable numeric result',kpi?.enabled??false)+field('result_scale_min','Scale minimum',kpi?.scale_min,'number')+field('result_scale_max','Scale maximum',kpi?.scale_max,'number')+area('interpretation','How to interpret the result',kpi?.interpretation)+members.map(m=>field(`weight_${m.id}`,`${memberName(m)} weight (%)`,(kpi?.components.find(c=>c.framework_competency_id===m.id)?.weight_basis_points||0)/100,'number')).join('')):''}</details>`:''}</details><div class="tp-wizard-actions"><a href="${substeps.descriptions}">Back</a><a class="tp-primary-link" href="#tp-schedule">Save &amp; Continue</a></div></div>`;
     const assessPanel=`<section id="tp-builder" class="tp-wizard-panel"><h2>What we assess</h2><nav class="tp-substeps" aria-label="Assessment setup steps">${subnav}</nav>${({competencies:competenciesPanel,rubric:rubricPanel,descriptions:descriptionsPanel,review:reviewPanel})[activeSub]}</section>`;
     root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p></div></header>${nav?`<nav class="tp-tabs" aria-label="Program workspace">${nav}</nav>`:''}
-      ${activeStep==='basics'?`<section id="tp-basics" class="tp-wizard-panel"><h2>Program Basics</h2>${manage&&program.status!=='retired'&&year?`<form class="tp-card tp-editor tp-basics-form" data-form="basics"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div>${program.status==='draft'?field('name','Program name',program.name,'text',true):`<h3>${esc(program.name)}</h3>`}<div class="tp-actions"><label class="tp-file-action">${icon('upload')}${program.logo_url?'Replace Logo':'Upload Logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" data-logo-input hidden></label>${program.logo_url?button('remove-logo','Remove Logo','','trash'):''}</div></div></div>${program.status==='draft'?area('description','What does this Program assess?',program.description):`<p>${esc(program.description||'No description added.')}</p>`}<p><strong>Academic Year:</strong> ${esc(yearLabel)}</p>${configuredGrades.length?`<fieldset><legend>Eligible Grades</legend>${configuredGrades.map(g=>check(`grade_${g}`,g==='KG'?'KG':`Grade ${g}`,annualYear?.eligible_grade_levels.includes(g))).join('')}</fieldset>`:'<p class="tp-inline-empty">No Grades are configured in Planning for this Academic Year.</p>'}<div class="tp-wizard-actions"><button type="reset">Reset</button><button type="submit">Save Program</button></div><p data-feedback role="status" aria-live="polite"></p></form>`:`<div class="tp-card"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div><h3>${esc(program.name)}</h3><p>${esc(program.description||'')}</p></div></div><p><strong>Academic Year:</strong> ${esc(yearLabel||'Not selected')}</p><p>${annualYear?.is_enabled?'Enabled':'Not enabled'} · ${(annualYear?.eligible_grade_levels||[]).join(', ')||'No Grades configured'}</p></div><div class="tp-wizard-actions"><a class="tp-primary-link" href="#tp-builder">Continue</a></div>`}</section>`:''}
+      ${activeStep==='basics'?`<section id="tp-basics" class="tp-wizard-panel"><h2>Program Basics</h2>${manage&&program.status!=='retired'&&year?`<form class="tp-card tp-editor tp-basics-form" data-form="basics"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div>${program.status==='draft'?field('name','Program name',program.name,'text',true):`<h3>${esc(program.name)}</h3>`}<div class="tp-actions"><label class="tp-file-action">${icon('upload')}${program.logo_url?'Replace Logo':'Upload Logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" data-logo-input hidden></label>${program.logo_url?button('remove-logo','Remove Logo','','trash'):''}</div></div></div>${program.status==='draft'?area('description','What does this Program assess?',program.description):`<p>${esc(program.description||'No description added.')}</p>`}<p><strong>Academic Year:</strong> ${esc(yearLabel)}</p>${configuredGrades.length?`<fieldset><legend>Eligible Grades</legend>${configuredGrades.map(g=>check(`grade_${g}`,g==='KG'?'KG':`Grade ${g}`,annualYear?.eligible_grade_levels.includes(g))).join('')}</fieldset>`:'<p class="tp-inline-empty">No Grades are configured in Planning for this Academic Year.</p>'}<section class="tp-program-evaluations"><div class="tp-section-heading"><div><p class="tp-eyebrow">Assessment periods</p><h3>Evaluation Periods</h3></div><a class="tp-action-link" href="#tp-schedule">Manage Evaluations →</a></div><p>Choose the user-defined periods when this Program will be assessed during the Academic Year.</p><div class="tp-evaluation-chip-list">${evaluationSummary}</div></section><div class="tp-wizard-actions"><button type="reset">Reset</button><button type="submit">Save Program</button></div><p data-feedback role="status" aria-live="polite"></p></form>`:`<div class="tp-card"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div><h3>${esc(program.name)}</h3><p>${esc(program.description||'')}</p></div></div><p><strong>Academic Year:</strong> ${esc(yearLabel||'Not selected')}</p><p>${annualYear?.is_enabled?'Enabled':'Not enabled'} · ${(annualYear?.eligible_grade_levels||[]).join(', ')||'No Grades configured'}</p><div class="tp-evaluation-chip-list">${evaluationSummary}</div></div><div class="tp-wizard-actions"><a href="#tp-schedule">Manage Evaluations</a><a class="tp-primary-link" href="#tp-builder">Continue</a></div>`}</section>`:''}
       ${activeStep==='rubric'?rubricWorkspace:''}
       ${activeStep==='assess'?assessPanel:''}
       ${activeStep==='schedule'?`<section id="tp-schedule" class="tp-wizard-panel"><h2>Evaluation Plan</h2><div data-embedded-schedule><p role="status">Loading Evaluation Plan…</p></div></section>`:''}
@@ -369,6 +383,13 @@
         }
         else if(action.startsWith('competency-level:')){
           const memberId=Number(action.split(':')[1]);path+='/rubric/levels';method='POST';Object.assign(body,{framework_competency_id:memberId,code:`LEVEL_${Date.now()}`,label:d.get('label'),description:d.get('description')});
+        }
+        else if(action.startsWith('copy-levels:')){
+          const memberId=Number(action.split(':')[1]);path+='/rubric/levels/copy';method='POST';Object.assign(body,{
+            source_framework_competency_id:Number(d.get('source_framework_competency_id')),
+            target_framework_competency_id:memberId,
+            include_descriptions:d.has('include_descriptions'),
+          });
         }
         else if(action==='add-level'||action.startsWith('level:')){path+='/rubric/levels';method=action==='add-level'?'POST':'PATCH';if(method==='PATCH')path+=`/${action.split(':')[1]}`;Object.assign(body,{label:d.get('label'),description:d.get('description'),numeric_value:numeric(d.get('numeric_value'))});if(method==='POST')body.code=d.get('code');}
         else if(action.startsWith('descriptor:')){const [,m,l,g]=action.split(':');path+='/rubric/descriptors';Object.assign(body,{framework_competency_id:Number(m),rubric_level_id:Number(l),descriptor:d.get('descriptor'),grade_level:g||null});}

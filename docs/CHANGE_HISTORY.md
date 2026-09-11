@@ -3625,3 +3625,80 @@ Yes - ADR 0037, TIS_MASTER_CONTEXT, PROJECT_STATE, CHANGE_HISTORY.
 
 Deployment:
 Not performed. Owner deploys only after focused tests and KMS enforcement pass.
+
+## 2026-09-11 - Consolidated Talent evaluation, review, results, analytics, and UX
+
+Area/module:
+Talent & Potential Programs, Rubrics, Student Assessments, Talent Review,
+Results & Analytics, organization Student drill, UI/UX, performance
+
+Owner-approved scope:
+- stop automatic legacy shared-rubric level inheritance in new competency rubrics;
+- add explicit Copy Levels From another current competency, with optional
+  descriptions;
+- preserve assessed legacy rubric data as immutable history;
+- use the Program's own ordered rubric scale for the canonical Overall Program
+  Result;
+- require one coherent rubric length across applicable competencies before
+  Assessment completion;
+- organize Student Assessments as Evaluation Period -> Program -> Student;
+- surface all live-placement eligible Students in the selected Program/Evaluation;
+- preserve and expose Re-evaluation required for materially changed rubrics;
+- make Talent Review include every current completed Assessment, not only
+  materialized Review Candidates;
+- keep Review Candidate and Official Identification separate;
+- surface configured Evaluation Periods in Program settings;
+- show separate multi-Program Student results without a universal cross-Program
+  Talent score;
+- enrich organization/Program analytics using the existing privacy-closed M9/M10
+  architecture;
+- upgrade Talent visual hierarchy, icons, semantic states, result visuals, and
+  responsive presentation;
+- reduce repeated full-page loading and Program-list N+1 requests.
+
+Metric decision:
+ADR 0037 is revised. The canonical Overall Program Result is now the arithmetic
+mean of selected rubric ranks on a coherent Program scale, for example
+`4.4 / 5`, using deterministic half-up rounding to one decimal. A normalized
+percentage may be derived only for visual presentation. Incompatible applicable
+rubric lengths block completion rather than being silently normalized.
+
+Workflow decision:
+ADR 0038 establishes Evaluation Period -> Program -> Student as the primary
+assessment information architecture and all current completed Assessments as the
+Talent Review workspace population. Existing Annual Evaluation Plan/Period,
+live-placement eligibility, tenant/Branch scope, reassessment history, privacy,
+and Official Identification boundaries are preserved.
+
+Analytics:
+For a selected Program, privacy-visible completed rubric distributions may expose
+average rubric rank and Program-scale summary. The governed P7 Student drill may
+show separate Program results and the UI may render a Students Across Programs
+matrix. Organization/Branch/Grade analytics remain on existing privacy providers
+and suppression rules. No universal cross-Program Talent score is introduced.
+
+Performance:
+The Programs list uses one bounded summaries read instead of per-Program
+annual/framework/configuration fan-out. Major Talent refreshes preserve rendered
+content and use localized busy states.
+
+Schema/migrations:
+None introduced by this consolidation.
+
+Documentation updated:
+Yes - ADR 0037, ADR 0038, ADR index, TIS_MASTER_CONTEXT, PROJECT_STATE,
+CHANGE_HISTORY, TIS_MODULE_MAP.
+
+Generated KMS artifacts:
+Require final `scripts/kms.py sync` before integration because included KMS
+Markdown changed.
+
+AI project context:
+No change. This batch affects deterministic Talent workflows/analytics/UI and
+does not change the approved AI boundary, provider, model, entitlement, or
+execution architecture.
+
+Deployment:
+Not performed by repository implementation. Owner retains PR/merge/deployment
+authority after QA and KMS enforcement are green.
+

@@ -10,7 +10,7 @@ import models
 from auth import get_current_user
 from dependencies import get_db
 from talent_operational_context import authorized_contexts, authorized_payload
-from talent_student_assessment_service import overall_program_result
+from talent_student_assessment_service import assessment_payload, overall_program_result, reassessment_requirement
 from talent_review_candidate_service import (
     TalentReviewCandidateError, candidate_payload, evaluate_review_candidate,
     get_candidate, list_candidates, mark_reviewed,
@@ -161,6 +161,77 @@ def review_candidates_mark_reviewed(candidate_id: int, request: Request, db: Ses
         db.rollback()
         return JSONResponse({"detail": "Concurrent Review Candidate review.", "code": "candidate_conflict"}, status_code=409)
     return _display_payload(db, candidate)
+
+
+@router.get("/workspace")
+def talent_review_workspace(
+    request: Request,
+    cycle_id: int | None = Query(None),
+    program_id: int | None = Query(None),
+    academic_year_id: int | None = Query(None),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    """All current Completed Assessments available for educator Talent Review.
+
+    Review Candidate and Official Identification remain separate downstream
+    states. A Student is not hidden merely because no Candidate row exists.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "talent_review_candidates.view")
+    if denied:
+        return denied
+    query = db.query(models.TalentStudentAssessment).filter_by(
+        school_group_id=group_id, status="completed", is_current=True,
+    )
+    if academic_year_id is not None:
+        query = query.filter(models.TalentStudentAssessment.academic_year_id == academic_year_id)
+    if program_id is not None:
+        query = query.filter(models.TalentStudentAssessment.program_id == program_id)
+    if cycle_id is not None:
+        query = query.filter(
+            (models.TalentStudentAssessment.evaluation_context_cycle_id == cycle_id)
+            | (
+                models.TalentStudentAssessment.evaluation_context_cycle_id.is_(None)
+                & (models.TalentStudentAssessment.cycle_id == cycle_id)
+            )
+        )
+    rows = query.order_by(
+        models.TalentStudentAssessment.program_id,
+        models.TalentStudentAssessment.student_id,
+        models.TalentStudentAssessment.id,
+    ).all()
+    if not auth.can_access_all_branches(user):
+        visible = _visible_branch_ids(db, user)
+        member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
+            models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,
+            models.TalentAssessmentCyclePopulationMember.branch_id.in_(visible or [-1]),
+        ).all()}
+        rows = [row for row in rows if row.cycle_population_member_id in member_ids]
+
+    contexts = authorized_contexts(db, group_id, rows)
+    assessment_ids = [row.id for row in rows]
+    candidates = db.query(models.TalentReviewCandidate).filter(
+        models.TalentReviewCandidate.school_group_id == group_id,
+        models.TalentReviewCandidate.assessment_id.in_(assessment_ids or [-1]),
+    ).all()
+    candidate_by_assessment = {row.assessment_id: row for row in candidates}
+    result = []
+    for assessment in rows:
+        candidate = candidate_by_assessment.get(assessment.id)
+        newer = reassessment_requirement(db, assessment)
+        result.append({
+            **assessment_payload(assessment),
+            "context": contexts[assessment.id],
+            "overall_result": overall_program_result(db, assessment),
+            "reassessment": {
+                "required": newer is not None,
+                "framework_version_id": newer.id if newer is not None else None,
+                "framework_version_number": newer.version_number if newer is not None else None,
+            },
+            "candidate": candidate_payload(candidate) if candidate is not None else None,
+            "review_status": candidate.status if candidate is not None else "not_candidate",
+        })
+    return result
 
 
 @router.get("")

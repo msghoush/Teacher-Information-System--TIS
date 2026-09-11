@@ -61,3 +61,4 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0035-live-academic-placement-assessment-eligibility.md`
 - `0036-talent-rubric-reassessment-attempts.md`
 - `0037-talent-overall-program-result.md`
+- `0038-talent-evaluation-first-assessment-review.md`

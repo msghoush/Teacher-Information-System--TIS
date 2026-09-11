@@ -102,7 +102,7 @@ test('Program setup renders one real hash-backed wizard step and one assessment 
   assert.match(root.innerHTML,/id="tp-builder" class="tp-wizard-panel"/);
   assert.doesNotMatch(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"|id="tp-ready" class="tp-wizard-panel"/);
   assert.doesNotMatch(root.innerHTML,/<h3>Grades<\/h3>|<h3>Build your evaluation<\/h3>|tp-step-label/);
-  assert.match(root.innerHTML,/href="#tp-basics"[^>]*data-step="basics"/);
+  assert.doesNotMatch(root.innerHTML,/href="#tp-basics"[^>]*data-step="basics"/);
   assert.match(root.innerHTML,/href="#tp-schedule"[^>]*data-step="schedule"/);
   assert.equal((root.innerHTML.match(/data-assess-panel=/g)||[]).length,1);
   assert.match(root.innerHTML,/data-assess-panel="review"/);
@@ -192,9 +192,8 @@ test('Program index is a compact searchable table with primary actions',async()=
   const feedback={textContent:'',setAttribute(){}},root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
   const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
     if(path==='/api/talent/programs')return [{id:11,name:'Performing Arts',status:'draft'}];
-    if(path.endsWith('/academic-years'))return [{academic_year_id:2026,is_enabled:true,eligible_grade_levels:['7','8']}];
-    if(path.endsWith('/frameworks'))return [{id:31,status:'active'}];
-    if(path.endsWith('/configuration'))return {kpi:null};
+    if(path.startsWith('/api/talent/programs/planning-grades'))return ['7','8'];
+    if(path.startsWith('/api/talent/programs/summaries'))return [{id:11,name:'Performing Arts',status:'draft',annual:{academic_year_id:2026,is_enabled:true,eligible_grade_levels:['7','8']},assessment_type:'Rubric'}];
     throw new Error(`Unexpected ${path}`);
   }};
   await render(ctx);
@@ -234,8 +233,8 @@ test('Program Identity renders the logo on the Programs list (small) and Program
     const root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
     const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
       if(path==='/api/talent/programs')return [{id:11,name:'Mental Math',status:'draft',logo_url:'/organization-assets/1/programs/11/logo/a.png'}];
-      if(path.endsWith('/academic-years'))return [];
-      if(path.endsWith('/frameworks'))return [];
+      if(path.startsWith('/api/talent/programs/planning-grades'))return [];
+      if(path.startsWith('/api/talent/programs/summaries'))return [{id:11,name:'Mental Math',status:'draft',logo_url:'/organization-assets/1/programs/11/logo/a.png',annual:null,assessment_type:'Not set'}];
       throw new Error(`Unexpected ${path}`);
     }};
     return {ctx,root};
@@ -531,17 +530,25 @@ test('Rubric action renders eligible Grades as independent collapsible Grade acc
       {id:62,name:'Number Flexibility',status:'active'}
     ];
     if(!options&&path.endsWith('/configuration'))return {
-      levels:[
-        {id:81,code:'L1',label:'Beginning',description:'Level one',display_order:1},
-        {id:82,code:'L2',label:'Meets',description:'Level two',display_order:2}
+      levels:[],
+      rubrics:[
+        {
+          id:301,framework_competency_id:71,name:'Mental Calculation Scale',
+          levels:[
+            {id:401,code:'L1',label:'Beginning',description:'Grade 1 beginning',order:1},
+            {id:402,code:'L2',label:'Meets',description:'Grade 1 meets',order:2}
+          ]
+        },
+        {
+          id:302,framework_competency_id:72,name:'Number Flexibility Scale',
+          levels:[
+            {id:403,code:'L1',label:'Beginning',description:'Grade 2 beginning',order:1},
+            {id:404,code:'L2',label:'Meets',description:'Grade 2 meets',order:2}
+          ]
+        }
       ],
-      descriptors:[
-        {id:91,framework_competency_id:71,rubric_level_id:81,grade_level:'1',descriptor:'Grade 1 beginning'},
-        {id:92,framework_competency_id:71,rubric_level_id:82,grade_level:'1',descriptor:'Grade 1 meets'},
-        {id:93,framework_competency_id:72,rubric_level_id:81,grade_level:'2',descriptor:'Grade 2 beginning'},
-        {id:94,framework_competency_id:72,rubric_level_id:82,grade_level:'2',descriptor:'Grade 2 meets'}
-      ],
-      rubric:{name:'Mental Math rubric'},kpi:null,review_candidate_policy:null,
+      descriptors:[],
+      rubric:null,kpi:null,review_candidate_policy:null,
       revision:7,semantic_fingerprint:'fingerprint'
     };
     return read(path,options);
@@ -563,6 +570,7 @@ test('Program creation form asks for eligible Grades and keeps rubric as a separ
   const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
     if(path==='/api/talent/programs')return [];
     if(path.startsWith('/api/talent/programs/planning-grades'))return ['1','2','3'];
+    if(path.startsWith('/api/talent/programs/summaries'))return [];
     throw new Error(`Unexpected ${path}`);
   }};
   await render(ctx);
@@ -615,6 +623,54 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
   const write=calls.filter(item=>item.options).at(-1);
   assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric');
   assert.equal(JSON.parse(write.options.body).framework_competency_id,71);
+});
+
+
+test('empty competency rubric offers explicit Copy Levels From another current competency',async()=>{
+  const {ctx,root,calls}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(options){calls.push({path,options});return {};}
+    if(path.endsWith('/frameworks/31'))return {
+      id:31,title:'Mental Math rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[
+        {id:71,competency_id:61,grade_level:'1',label:'Mental Computation'},
+        {id:72,competency_id:62,grade_level:'1',label:'Number Sense'}
+      ]
+    };
+    if(path.endsWith('/configuration'))return {
+      rubric:null,levels:[],rubrics:[
+        {id:301,framework_competency_id:71,name:'Mental scale',levels:[
+          {id:401,code:'L1',label:'Beginning',description:'Source one',order:1},
+          {id:402,code:'L2',label:'Meets',description:'Source two',order:2}
+        ]},
+        {id:302,framework_competency_id:72,name:'Number scale',levels:[]}
+      ],descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Copy Levels From…/);
+  assert.match(root.innerHTML,/Mental Computation/);
+  assert.match(root.innerHTML,/Copy level descriptions too/);
+
+  const old=global.FormData;
+  global.FormData=class extends Map {
+    constructor(){super([['source_framework_competency_id','71'],['include_descriptions','on']]);}
+    has(key){return key==='include_descriptions'||super.has(key);}
+    get(key){return super.get(key);}
+  };
+  try{
+    await root.onsubmit({preventDefault(){},target:{dataset:{form:'copy-levels:72'},querySelector:()=>null}});
+  }finally{global.FormData=old;}
+  const write=calls.filter(item=>item.options).at(-1);
+  assert.equal(write.path,'/api/talent/programs/11/frameworks/31/rubric/levels/copy');
+  const body=JSON.parse(write.options.body);
+  assert.equal(body.source_framework_competency_id,71);
+  assert.equal(body.target_framework_competency_id,72);
+  assert.equal(body.include_descriptions,true);
 });
 
 

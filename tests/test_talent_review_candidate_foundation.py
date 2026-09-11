@@ -523,7 +523,7 @@ def test_migration_is_idempotent_and_widens_audit_check(db):
     assert any(row.migration_id == "20260904_006_talent_review_candidate_foundation" for row in db_migrations.MIGRATIONS)
 
 
-def test_review_payload_includes_normalized_overall_program_result(db):
+def test_review_payload_includes_rubric_scale_overall_program_result(db):
     _, session = db
     _, _, _, members, competencies, levels = foundation(
         session,
@@ -536,7 +536,9 @@ def test_review_payload_includes_normalized_overall_program_result(db):
     )
     assert outcome == "qualified"
     payload = review_display_payload(session, candidate)
-    # Shared 3-level rubric: position 1 -> 0, position 3 -> 100; equal mean = 50.
-    assert payload["overall_result"]["score"] == 50
+    # Shared 3-level rubric: positions 1 and 3 average to 2.0 / 3.
+    assert payload["overall_result"]["available"] is True
+    assert payload["overall_result"]["average"] == 2.0
+    assert payload["overall_result"]["scale_max"] == 3
     assert payload["overall_result"]["competency_count"] == 2
-    assert payload["overall_result"]["calculation_method"] == "equal_competency_normalized_rubric_position"
+    assert payload["overall_result"]["calculation_method"] == "arithmetic_mean_rubric_rank"
