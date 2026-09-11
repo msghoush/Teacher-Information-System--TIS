@@ -190,7 +190,7 @@ test('ADR 0034: Assessment Records omits Delete when the backend-computed action
   assert.doesNotMatch(root.innerHTML,/data-action="delete-assessment"/);
 });
 
-test('arriving on Student Assessments with a Program but no cycle_id auto-opens the one Open evaluation (no extra click)',async()=>{
+test('arriving on Student Assessments with one Evaluation context shows its enrolled Students directly',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const members=[{student_id:501,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
@@ -207,7 +207,7 @@ test('arriving on Student Assessments with a Program but no cycle_id auto-opens 
   assert.match(root.innerHTML,/Start Assessment/);
 });
 
-test('two Open Cycles for the same Program remain an explicit choice, not an auto-guess',async()=>{
+test('two Evaluation contexts for the same Program remain an explicit choice, not an auto-guess',async()=>{
   const root=domRoot();
   const cycleA={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const cycleB={id:62,program_id:11,title:'Term 2',status:'open',population_effective_at:'2026-02-01'};
@@ -218,12 +218,12 @@ test('two Open Cycles for the same Program remain an explicit choice, not an aut
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
-  assert.doesNotMatch(root.innerHTML,/Students/);
+  assert.match(root.innerHTML,/View Students/);
   assert.match(root.innerHTML,/<article class="tp-card"><h3>Term 1/);
   assert.match(root.innerHTML,/<article class="tp-card"><h3>Term 2/);
 });
 
-test('a Program with no Evaluation Cycle at all shows an honest, distinct no-open-evaluation message with a link to the Evaluation Plan',async()=>{
+test('a Program with no Evaluation context shows an honest message with a link to the Evaluation Plan',async()=>{
   const root=domRoot();
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
@@ -239,7 +239,7 @@ test('a Program with no Evaluation Cycle at all shows an honest, distinct no-ope
   assert.doesNotMatch(root.innerHTML,/Students/);
 });
 
-test('an open evaluation with zero frozen Students shows the real reason, not the generic no-assessments message',async()=>{
+test('an Evaluation with zero currently eligible Students shows the enrollment-based empty state',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
@@ -251,11 +251,11 @@ test('an open evaluation with zero frozen Students shows the real reason, not th
     }};
   await withWindow(()=>render(ctx));
   assert.match(root.innerHTML,/Students/);
-  assert.match(root.innerHTML,/No Students were included when this evaluation started\./);
+  assert.match(root.innerHTML,/No currently enrolled Students match this Program and Academic Year\./);
   assert.doesNotMatch(root.innerHTML,/No Evaluation Period is available for this Program/);
 });
 
-test('no Program selected (org-wide) keeps the existing multi-Cycle card chooser and never guesses a Cycle',async()=>{
+test('no Program selected keeps the Evaluation card chooser and never guesses a context',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams(),can:()=>true,notify(){},
