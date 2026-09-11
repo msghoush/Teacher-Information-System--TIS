@@ -1,6 +1,6 @@
 ---
 title: Talent Rubric Re-evaluation Attempts
-documentation_version: 1.3
+documentation_version: 1.4
 last_updated: 2026-09-11
 status: accepted
 module: architecture
@@ -42,6 +42,33 @@ The forward rule remains unchanged: once a Framework has Student Assessment evid
 A bounded compatibility exception exists only for data created before that immutability guard was consistently enforced. If a current completed Assessment remains bound to a Framework Version whose persisted competency-result rubric/level bindings no longer match that same Framework's now-complete competency-owned rubric structure for the Student's recorded Grade, the Assessment is treated as **Re-evaluation required**. An untouched legacy shared-rubric Framework, or a partially configured competency-owned rubric, never triggers this repair.
 
 The repair is operational reset, not evidence deletion: the prior completed attempt becomes non-current and remains immutable; the replacement attempt is current, in progress, contains zero competency results, is linked by `reassessment_of_assessment_id`, and keeps the original visible Evaluation/Term through `evaluation_context_cycle_id`. The same Framework Version may be the replacement target only for this historical compatibility case because the current canonical rubric branch already exists there. No future in-place rubric mutation is authorized by this exception.
+
+## Administrator recovery reset
+
+Automatic `Re-evaluation required` remains the preferred path whenever a
+materially changed rubric can be detected deterministically. A separate,
+explicit operational recovery path is also accepted for a current completed
+Assessment when an authorized administrator needs the Student to be assessed
+again even though that automatic condition is not present.
+
+The permission is `talent_assessments.reset_for_reassessment`, assigned by
+default to Administrator through the standard all-permissions role rule and
+not included in Editor/User defaults.
+
+This action is **not deletion** and does not weaken completed-evidence
+immutability. It:
+
+1. requires the target Assessment to be Completed and current;
+2. marks only that Assessment `is_current = false`;
+3. records an audit action `reset_for_reassessment`;
+4. preserves every competency result, Review Candidate, Official
+   Identification, Educator Input, placement snapshot, Cycle/Framework context,
+   and audit row;
+5. leaves the original visible Evaluation available so the normal Start
+   Assessment flow can create a fresh current attempt with zero results.
+
+ADR 0034 remains unchanged: physical Assessment deletion is still allowed only
+for zero-evidence Assessments.
 
 ## Decision
 
