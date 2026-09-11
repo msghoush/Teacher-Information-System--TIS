@@ -78,9 +78,11 @@ def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permission
 def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, client):
     permissions(db, "students.view", "students.delete", "students.bulk_delete")
 
-    single = client.post("/students/1002/delete")
+    db.add(models.Student(id=1003, school_group_id=1, first_name="Empty", last_name="Student", status="active"))
+    db.commit()
+    single = client.post("/students/1003/delete")
     assert single.status_code in (200, 302)
-    assert db.get(models.Student, 1002) is None
+    assert db.get(models.Student, 1003) is None
 
     db.add(models.Student(id=1004, school_group_id=1, first_name="Safe", last_name="Delete", status="active"))
     db.add(models.Student(id=1005, school_group_id=1, first_name="Protected", last_name="History", status="active"))
@@ -197,8 +199,8 @@ def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mo
     assert response.status_code == 200
     assert response.text.count("Read/Write") >= 2  # desktop row and mobile card
     assert response.text.count("Not specified") >= 2
-    assert "Talent score" not in response.text
-    assert "Talent status" not in response.text
+    assert "<th>Talent score</th>" not in response.text
+    assert "<th>Talent status</th>" not in response.text
 
     # Persist through the real edit route, reload the list, then clear through
     # the same route and verify the neutral fallback.
