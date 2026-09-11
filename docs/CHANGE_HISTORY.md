@@ -3439,3 +3439,46 @@ Yes
 
 Reviewer/approval notes:
 Approved for Phase 2A and Phase 2B only. Platform Owner Knowledge Center, app routes, SaaS flows, database, migrations, landing page implementation, commits, and pushes remain out of scope.
+
+## 2026-09-11 - Simplified Talent assessment controls, expanded analytics demo data, and added explicit Student/Evaluation permissions
+
+Area/module:
+Students, Talent & Potential, permissions, local analytics test data
+
+Previous state:
+Student permanent deletion was not exposed as single/bulk permission-controlled UI actions. Evaluation Period entry into Student Assessments had no dedicated permission distinct from broader Evaluation Plan/Cycle management. The disposable Talent analytics seed used Arabic-script names and a smaller/less visible analytics cohort. Program Criteria controls remained in the normal setup/assessment UI, and assessment entry still carried unnecessary lifecycle-status gating in parts of the implementation.
+
+New state:
+Student single Delete and Bulk Delete are separately permissioned (`students.delete`, `students.bulk_delete`), organization/global scoped, backend-enforced, and blocked when Academic Placement or Talent history exists; bulk deletion is atomic. Evaluation Period selection for entering Student Assessments is separately permissioned as `talent_evaluation_plans.select_period`, enabled by default for Administrator only, configurable through System Configuration role permissions, rendered disabled when absent, and required server-side for Cycle-to-Period linking. The normal Talent setup/assessment UI no longer exposes Program Criteria controls. Student Assessment uses the exact assessable Evaluation framework without Program/Framework lifecycle labels acting as extra start gates. The local-only Talent seed now contains 10 Arabic student names written in Latin script across Grades 3-5, with completed/in-progress assessments sized for privacy-safe analytics review.
+
+Reason:
+Match the Owner-directed simple Talent workflow, ensure every new mutable/destructive action has explicit permission authority, and provide realistic disposable local data for evaluating Results & Analytics UX without touching production or `tis.db`.
+
+Files changed include:
+- `permission_registry.py`
+- `student_academic_service.py`
+- `routers/students.py`
+- `routers/students_ui.py`
+- `templates/students.html`
+- `routers/talent_evaluation_plans.py`
+- `routers/talent_ui.py`
+- `static/js/talent-evaluation-workspace.js`
+- `static/js/talent-operations.js`
+- `static/js/talent-program-workspace.js`
+- `talent_local_test_data.py`
+- focused Student/Talent regression tests
+- `docs/TIS_MASTER_CONTEXT.md`
+- `docs/PROJECT_STATE.md`
+- `docs/CHANGE_HISTORY.md`
+
+Documentation updated:
+Yes
+
+PDF regenerated:
+Pending final local KMS synchronization for this branch.
+
+AI project context updated:
+No; the canonical behavior and implementation-state changes are fully captured in Master Context, Project State, and this Change History entry.
+
+Reviewer/approval notes:
+Owner-directed product simplification and permission hardening. No production data mutation, schema migration, billing change, AI change, or destructive repository operation is introduced.
