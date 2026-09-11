@@ -271,6 +271,37 @@ def test_open_freezes_exact_context_and_fingerprint_then_close_is_final(db):
     assert immutable.value.code == "immutable_cycle"
 
 
+def test_assessment_can_start_directly_from_current_enrollment_without_open_or_frozen_roster(db):
+    """ADR 0035: enrollment + Program Grade + active assessment tool are the
+    operational prerequisites. Draft/Open population lifecycle is not.
+    """
+    _, session = db
+    program, framework, _ = foundation(session, name="Mental Math", grades=("1",))
+    student, placement = student_placement(session, first="Direct", start=datetime(2026, 9, 1))
+    cycle = draft_cycle(session, program, framework, effective=datetime(2026, 8, 30))
+
+    assert cycle.status == "draft"
+    assert session.query(models.TalentAssessmentCyclePopulationMember).filter_by(cycle_id=cycle.id).count() == 0
+
+    assessment = start_assessment(
+        session,
+        school_group_id=1,
+        cycle_id=cycle.id,
+        student_id=student.id,
+    )
+    session.commit()
+
+    assert assessment.status == "in_progress"
+    assert assessment.student_id == student.id
+    member = session.get(models.TalentAssessmentCyclePopulationMember, assessment.cycle_population_member_id)
+    assert member is not None
+    assert member.academic_placement_id == placement.id
+    assert (member.branch_id, member.grade_level, member.section_name) == (10, "1", "A")
+    # Legacy Cycle state may advance internally for compatibility/analytics,
+    # but there was no explicit Open Evaluation prerequisite.
+    assert cycle.status == "open"
+
+
 def test_open_cycle_additively_synchronizes_newly_eligible_student_without_rewriting_evidence(db):
     _, session = db
     program, framework, _ = foundation(session, name="Mental Math", grades=("1",))
