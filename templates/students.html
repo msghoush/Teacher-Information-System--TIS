@@ -135,10 +135,11 @@
           <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
           <td>
             <div class="stu-actions">
-              <a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
+              <a class="stu-btn stu-btn-sm stu-action-btn" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
               {% if can_delete %}
-              <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-name="{{ s.display_name }}">
-                <button class="stu-btn stu-btn-sm" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
+              <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-id="{{ s.id }}" data-student-name="{{ s.display_name }}">
+                <input type="hidden" name="force_history" value="" data-force-history>
+                <button class="stu-btn stu-btn-sm stu-action-btn" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
               </form>
               {% endif %}
             </div>
@@ -176,8 +177,9 @@
       <div class="stu-actions">
         <a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
         {% if can_delete %}
-        <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-name="{{ s.display_name }}">
-          <button class="stu-btn stu-btn-sm" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
+        <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-id="{{ s.id }}" data-student-name="{{ s.display_name }}">
+          <input type="hidden" name="force_history" value="" data-force-history>
+          <button class="stu-btn stu-btn-sm stu-action-btn" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
         </form>
         {% endif %}
       </div>
@@ -211,9 +213,34 @@
     updateBulk();
   });
   document.querySelectorAll('[data-student-delete-form]').forEach(form => {
-    form.addEventListener('submit', event => {
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
       const name = form.dataset.studentName || 'this Student';
-      if (!window.confirm(`Permanently delete ${name}? This works only when no Academic Placement or Talent history exists.`)) event.preventDefault();
+      const studentId = form.dataset.studentId;
+      const forceField = form.querySelector('[data-force-history]');
+      if (forceField) forceField.value = '';
+      try {
+        const response = await fetch(`/students/${studentId}/delete-preview`, {headers:{Accept:'application/json'}});
+        const preview = await response.json();
+        if (!response.ok) throw new Error(preview.detail || 'Unable to check Student history.');
+        if (preview.has_history) {
+          const history = (preview.blockers || []).map(item => item.message).join('\n• ');
+          if (!preview.can_force_delete_history) {
+            window.alert(`This Student has historical records and cannot be deleted with your current permissions.\n\n• ${history}`);
+            return;
+          }
+          const confirmed = window.confirm(
+            `WARNING: ${name} has historical records:\n\n• ${history}\n\nPermanently delete the Student AND all of this historical data? This cannot be undone.`
+          );
+          if (!confirmed) return;
+          if (forceField) forceField.value = 'true';
+        } else if (!window.confirm(`Permanently delete ${name}? This cannot be undone.`)) {
+          return;
+        }
+        form.submit();
+      } catch (error) {
+        window.alert(error.message || 'Unable to prepare Student deletion.');
+      }
     });
   });
   const bulkForm = document.querySelector('[data-student-bulk-delete-form]');
