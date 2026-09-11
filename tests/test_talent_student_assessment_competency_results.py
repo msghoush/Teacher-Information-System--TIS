@@ -23,8 +23,8 @@ from talent_program_service import (
 )
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, complete_assessment, get_assessment,
-    mark_non_complete, remove_competency_result, set_competency_result,
-    start_assessment,
+    mark_non_complete, reassessment_requirement, remove_competency_result, set_competency_result,
+    start_assessment, start_reassessment,
 )
 
 
@@ -425,3 +425,71 @@ def test_assessment_contexts_follow_evaluation_period_sequence_not_creation_orde
         )
         assert response.status_code == 200
         assert [item["title"] for item in response.json()][:2] == ["Term 1", "Term 2"]
+
+
+def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_change(db):
+    _, session = db
+    program, framework, cycle, member, student, _, competencies, levels = foundation(session)
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    assessment = set_all_results(session, assessment, competencies, levels)
+    completed = complete_assessment(
+        session, school_group_id=1, assessment_id=assessment.id,
+        expected_revision=assessment.revision,
+    )
+    session.commit()
+
+    # An unchanged clone alone must not force re-evaluation.
+    revised = create_framework_draft(
+        session, school_group_id=1, program_id=program.id,
+        title="Updated rubric", clone_from_id=framework.id,
+        supersedes_framework_version_id=framework.id,
+    )
+    assert reassessment_requirement(session, completed) is None
+
+    # Adding a new Grade-applicable competency materially changes the rubric.
+    lineage = create_competency(
+        session, school_group_id=1, program_id=program.id,
+        code="THREE", name="THREE",
+    )
+    new_member, revised = add_framework_competency(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        competency_id=lineage.id, expected_revision=revised.revision,
+    )
+    assert reassessment_requirement(session, completed).id == revised.id
+
+    replacement = start_reassessment(
+        session, school_group_id=1, assessment_id=completed.id,
+    )
+    session.flush()
+
+    historical = get_assessment(
+        session, school_group_id=1, assessment_id=completed.id,
+    )
+    assert historical.status == "completed"
+    assert historical.is_current is False
+    assert historical.framework_version_id == framework.id
+    assert replacement.status == "in_progress"
+    assert replacement.is_current is True
+    assert replacement.reassessment_of_assessment_id == completed.id
+    assert replacement.framework_version_id == revised.id
+    assert replacement.student_id == student.id
+    assert replacement.cycle_id != cycle.id
+    # Historical evidence is preserved rather than moved to the new attempt.
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=completed.id
+    ).count() == len(competencies)
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(
+        assessment_id=replacement.id
+    ).count() == 0
+
+
+def test_reassessment_migration_is_additive_and_idempotent(db):
+    engine, _ = db
+    with engine.begin() as connection:
+        db_migrations._talent_assessment_reassessment_attempts(engine, connection)
+        db_migrations._talent_assessment_reassessment_attempts(engine, connection)
+    columns = {row["name"] for row in inspect(engine).get_columns("talent_student_assessments")}
+    assert {"is_current", "reassessment_of_assessment_id"}.issubset(columns)
