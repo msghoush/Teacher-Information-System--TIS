@@ -79,7 +79,7 @@ Each eligible Student is shown with an operational state such as:
 - Completed;
 - Re-evaluation required.
 
-Historical Assessment Records remain separate from the current eligible roster.
+Historical/superseded Assessment attempts remain preserved as backend evidence but are not rendered as a separate Assessment Records/History table in the normal Student Assessment workspace. The current eligible Student row and its current status/action are the sole operational surface.
 
 ### Re-evaluation
 
