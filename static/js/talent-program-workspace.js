@@ -259,7 +259,7 @@
         }).join('');
         return `<article class="tp-card tp-rubric-competency"><div class="tp-section-lede"><div><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div>${editable?button('remove-member','Remove',`data-key="${m.competency_id}"`,'trash'):''}</div>${config?.rubric&&levels.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Level</th><th>Description</th><th>Edit</th></tr></thead><tbody>${descriptorRows}</tbody></table></div>`:`<p class="tp-empty">Add the rubric and its levels to describe this competency.</p>`}</article>`;
       }).join('');
-      const addCompetencyForm=editable?form(`create-grade-competency:${grade}`,'Add Competency',field('code','Short code','','text',true)+field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
+      const addCompetencyForm=editable?form(`create-grade-competency:${grade}`,'Add Competency',field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
       return `<details class="tp-card tp-grade-rubric" ${gradeIndex===0?'open':''}><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}</div></details>`;
     }).join('');
     const rubricSetupControls=!framework
@@ -317,7 +317,9 @@
         if(!framework){return;}
         const grade=action.split(':')[1];
         try{
-          const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({code:d.get('code'),name:d.get('name'),description:d.get('description')})});
+          const name=String(d.get('name')||'').trim();
+          const generatedCode=`${grade}_${name}`.toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'').slice(0,80);
+          const created=await api(`${base}/competencies`,{method:'POST',body:JSON.stringify({code:generatedCode,name,description:d.get('description')})});
           await api(`${fp}/competencies`,{method:'POST',body:JSON.stringify({expected_revision:framework.revision,competency_id:created.id,grade_level:grade,label:d.get('name'),description:d.get('description')})});
           ctx.notify?.('Competency added.');
           await refresh();
