@@ -77,6 +77,36 @@ def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permission
     assert 'data-student-select' in response.text
 
 
+def test_student_list_uses_accessible_icon_only_management_actions(db, client):
+    permissions(db, "students.view", "students.create", "students.delete", "students.bulk_delete")
+    response = client.get("/students/")
+    assert response.status_code == 200
+    text = response.text
+    assert 'aria-label="Add Student"' in text
+    assert 'data-student-bulk-delete' in text and 'aria-label="Delete selected"' in text
+    assert 'class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn"' in text
+    assert 'aria-label="Open Alya Learner"' in text
+    assert 'aria-label="Delete Alya Learner"' in text
+
+
+def test_branch_scoped_student_view_cannot_switch_or_request_all_branches(db):
+    permissions(db, "students.view")
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor(scope="BRANCH", branch=10)
+    scoped = TestClient(app)
+
+    response = scoped.get("/students/?branch_id=11")
+    assert response.status_code == 200
+    assert '<select name="branch_id"' not in response.text
+    assert 'All branches' not in response.text
+    assert 'aria-label="Branch scope"' in response.text
+    assert 'North' in response.text
+    assert 'name="branch_id" value="10"' in response.text
+
+
 def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, client):
     permissions(db, "students.view", "students.delete", "students.bulk_delete")
 
