@@ -144,7 +144,7 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
@@ -166,7 +166,7 @@ test('ADR 0034: Assessment Records offers Delete only when the backend-computed 
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
@@ -182,7 +182,7 @@ test('ADR 0034: Assessment Records omits Delete when the backend-computed action
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
@@ -197,7 +197,7 @@ test('arriving on Student Assessments with one Evaluation context shows its enro
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return {members};
       throw new Error(`Unexpected ${path}`);
     }};
@@ -214,7 +214,7 @@ test('two Evaluation contexts for the same Program remain an explicit choice, no
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycleA,cycleB];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycleA,cycleB];
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -228,7 +228,7 @@ test('a Program with no Evaluation context shows an honest message with a link t
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [];
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -245,7 +245,7 @@ test('an Evaluation with zero currently eligible Students shows the enrollment-b
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return {members:[]};
       throw new Error(`Unexpected ${path}`);
     }};
@@ -261,7 +261,7 @@ test('no Program selected keeps the Evaluation card chooser and never guesses a 
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams(),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -277,7 +277,7 @@ test('a Draft legacy Cycle does not block enrolled Students from assessment',asy
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return eligible;
       throw new Error(`Unexpected ${path}`);
     }};
@@ -302,7 +302,7 @@ test('Start Assessment posts cycle_id plus student_id directly without a populat
     api:async(path,options)=>{
       calls.push({path,options});
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return eligible;
       if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:'2026'};
       throw new Error(`Unexpected ${path}`);
@@ -327,7 +327,7 @@ test('starting an assessment carries the current Program forward in the resultin
     navigate:(target,extra)=>{navigated={target,extra};},
     api:async(path,options)=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
-      if(path.startsWith('/api/talent/assessment-cycles?'))return [cycle];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
       if(path.endsWith('/eligible-students'))return {members};
       if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:'2026'};
       throw new Error(`Unexpected ${path}`);
