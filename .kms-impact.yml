@@ -6,6 +6,8 @@ affected_areas:
   - talent-start-assessment-no-config-required
 kms_files_updated:
   - docs/PROJECT_STATE.md
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/adr/README.md
   - docs/adr/0039-talent-competency-kpi-level-simplification.md
 no_impact_reason:
 major_change_override: no
