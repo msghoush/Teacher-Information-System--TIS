@@ -14,6 +14,7 @@ from dependencies import get_db
 from routers.talent_programs import router
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, add_rubric_level,
+    copy_competency_rubric_levels,
     configure_kpi, configure_review_candidate_policy, create_competency,
     create_framework_draft, create_program, get_framework_configuration,
     remove_descriptor, remove_grade_descriptor, remove_framework_competency, remove_kpi, remove_review_candidate_policy,
@@ -645,3 +646,67 @@ def test_legacy_shared_rubric_migrates_only_when_a_competency_is_edited(db):
     assert migrated.framework_competency_id == clone_member.id
     assert len(owned["levels"]) == 1
     assert owned["levels"][0]["description"] == "Beginning description"
+
+
+def test_competency_rubric_creation_never_auto_copies_legacy_shared_levels(db):
+    _, session = db
+    program = create_program(session, school_group_id=1, name="No Legacy Auto Copy")
+    framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Draft")
+    legacy, framework = upsert_rubric(
+        session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        expected_revision=framework.revision, name="Legacy Shared",
+    )
+    _, framework = add_rubric_level(
+        session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        expected_revision=framework.revision, code="L1", label="Legacy Level",
+    )
+    competency = create_competency(session, school_group_id=1, program_id=program.id, code="NEW", name="New")
+    member, framework = add_framework_competency(
+        session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=competency.id, expected_revision=framework.revision, grade_level="1",
+    )
+    owned, framework = upsert_rubric(
+        session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        framework_competency_id=member.id, expected_revision=framework.revision, name="Owned",
+    )
+    assert session.query(models.TalentRubricLevel).filter_by(rubric_id=owned.id).count() == 0
+    assert session.query(models.TalentRubricLevel).filter_by(rubric_id=legacy.id).count() == 1
+
+
+def test_explicit_copy_levels_from_competency_is_one_time_and_optional_descriptions(db):
+    _, session = db
+    program = create_program(session, school_group_id=1, name="Explicit Copy")
+    framework = create_framework_draft(session, school_group_id=1, program_id=program.id, title="Draft")
+    members = []
+    rubrics = []
+    for code in ("SOURCE", "TARGET"):
+        comp = create_competency(session, school_group_id=1, program_id=program.id, code=code, name=code.title())
+        member, framework = add_framework_competency(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            competency_id=comp.id, expected_revision=framework.revision, grade_level="1",
+        )
+        rubric, framework = upsert_rubric(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=member.id, expected_revision=framework.revision, name=f"{code} rubric",
+        )
+        members.append(member); rubrics.append(rubric)
+    for number, label in enumerate(("Beginning", "Meets", "Exceptional"), 1):
+        _, framework = add_rubric_level(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=members[0].id, expected_revision=framework.revision,
+            code=f"L{number}", label=label, description=f"Source {number}",
+        )
+
+    copied, framework = copy_competency_rubric_levels(
+        session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        source_framework_competency_id=members[0].id,
+        target_framework_competency_id=members[1].id,
+        expected_revision=framework.revision,
+        include_descriptions=False,
+    )
+    assert [row.label for row in copied] == ["Beginning", "Meets", "Exceptional"]
+    assert [row.description for row in copied] == [None, None, None]
+    source_first = session.query(models.TalentRubricLevel).filter_by(rubric_id=rubrics[0].id).order_by(models.TalentRubricLevel.display_order).first()
+    source_first.label = "Changed Source"
+    session.flush()
+    assert session.query(models.TalentRubricLevel).filter_by(rubric_id=rubrics[1].id).order_by(models.TalentRubricLevel.display_order).first().label == "Beginning"
