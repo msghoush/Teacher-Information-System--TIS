@@ -293,6 +293,48 @@ svg:is(
     font-size: 12px;
 }
 
+.sidebar-tree {
+    display: grid;
+    gap: 4px;
+    margin: -2px 0 2px 22px;
+    padding: 2px 0 2px 14px;
+    border-left: 1px solid rgba(255, 255, 255, 0.22);
+}
+
+.sidebar-tree-link {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 34px;
+    padding: 7px 10px;
+    border-radius: 10px;
+    color: rgba(232, 240, 255, 0.82);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 650;
+    transition: background-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.sidebar-tree-link svg[data-tis-icon] {
+    width: 15px;
+    height: 15px;
+    min-width: 15px;
+    min-height: 15px;
+    color: currentColor !important;
+}
+
+.sidebar-tree-link:hover {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.09);
+    transform: translateX(2px);
+}
+
+.sidebar-tree-link.is-active {
+    color: #ffffff;
+    background: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 2px 0 0 #ffffff;
+}
+
 .sidebar-chevron {
     opacity: 0.6;
 }
