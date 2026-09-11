@@ -534,6 +534,54 @@ def test_completed_assessment_requires_and_starts_new_reassessment_after_rubric_
     ).count() == 0
 
 
+def test_same_id_rubric_semantic_edit_after_completion_requires_reassessment(db):
+    _, session = db
+    program, framework, cycle, member, _, _, competencies, levels = foundation(session)
+    assessment = start_assessment(
+        session, school_group_id=1, cycle_id=cycle.id,
+        cycle_population_member_id=member.id,
+    )
+    assessment = set_all_results(session, assessment, competencies, levels)
+    completed = complete_assessment(
+        session, school_group_id=1, assessment_id=assessment.id,
+        expected_revision=assessment.revision,
+    )
+    session.commit()
+
+    # Legacy production state: Student-facing rubric semantics changed in place
+    # after completion but stable IDs were preserved. This used to evade the
+    # ID-binding compatibility check and leave the Student incorrectly Completed.
+    current_rubric = session.query(models.TalentRubric).filter_by(
+        framework_version_id=framework.id,
+        framework_competency_id=competencies[0].id,
+    ).one()
+    current_level = session.query(models.TalentRubricLevel).filter_by(
+        rubric_id=current_rubric.id,
+    ).order_by(models.TalentRubricLevel.display_order).first()
+    current_level.description = "Changed after Student completion"
+    session.add(models.TalentConfigurationAudit(
+        school_group_id=1,
+        program_id=program.id,
+        resource_type="rubric_level",
+        resource_id=current_level.id,
+        action="level_update",
+        before_json=json.dumps({
+            "framework_id": framework.id,
+            "description": "Before",
+        }),
+        after_json=json.dumps({
+            "framework_id": framework.id,
+            "description": current_level.description,
+        }),
+        correlation_id="same-id-rubric-semantic-edit",
+        created_at=completed.completed_at + timedelta(seconds=1),
+    ))
+    session.commit()
+
+    required = reassessment_requirement(session, completed)
+    assert required is not None
+    assert required.id == framework.id
+
 def test_legacy_same_framework_rubric_replacement_resets_completed_student_for_reassessment(db):
     _, session = db
     program, framework, cycle, member, student, _, competencies, levels = foundation(session)
