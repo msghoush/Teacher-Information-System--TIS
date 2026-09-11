@@ -215,7 +215,7 @@
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
     }
     members=framework?.competencies || [];
-    const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft';
+    const fp=framework?`${base}/frameworks/${framework.id}`:'', editable=manage && framework?.status==='draft' && !framework?.in_use_by_assessments;
     const annualYear=annual.find(a=>String(a.academic_year_id)===String(year));
     const levels=config?.levels || [], kpi=config?.kpi;
     const descriptorGrades=annualYear?.eligible_grade_levels || [];
