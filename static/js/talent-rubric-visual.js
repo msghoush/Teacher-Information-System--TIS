@@ -21,6 +21,19 @@
     const strength = intensity(pos.index, pos.count);
     return `<span class="tp-rubric-level${selected?' is-selected':''}" style="--tp-rubric-intensity:${strength.toFixed(3)}" data-rubric-order="${pos.index + 1}"${selected?' aria-current="true"':''}><span class="tp-rubric-order" aria-label="Rubric position ${pos.index + 1} of ${pos.count}">${pos.index + 1}/${pos.count}</span><span>${esc(level.label)}</span>${selected?'<span aria-hidden="true">✓</span>':''}${suffix?`<small>${esc(suffix)}</small>`:''}</span>`;
   }
+  function compactBadge(level, levels) {
+    if (!level) return '<span class="tp-rubric-compact tp-rubric-level-empty" aria-label="No rubric level recorded">—</span>';
+    const pos = level.position && level.total_levels
+      ? {index:Number(level.position)-1, count:Number(level.total_levels)}
+      : position(level, levels);
+    const strength = intensity(pos.index, pos.count);
+    const label = String(level.label || '').trim();
+    const accessible = label
+      ? `Level ${pos.index + 1} of ${pos.count} — ${label}`
+      : `Level ${pos.index + 1} of ${pos.count}`;
+    return `<span class="tp-rubric-compact" style="--tp-rubric-intensity:${strength.toFixed(3)}" data-rubric-order="${pos.index + 1}" aria-label="${esc(accessible)}" title="${esc(accessible)}">${pos.index + 1}</span>`;
+  }
+
   function distribution(levels) {
     const rows = ordered(levels);
     if (!rows.length) return '<p class="tp-empty">No rubric levels are configured.</p>';
@@ -33,5 +46,5 @@
       return `<div class="tp-rubric-row" style="--tp-rubric-intensity:${strength.toFixed(3)}">${badge({...level,position:index+1,total_levels:rows.length},rows)}${track}${value}</div>`;
     }).join('')}</div>`;
   }
-  return {esc, intensity, ordered, position, badge, distribution};
+  return {esc, intensity, ordered, position, badge, compactBadge, distribution};
 });
