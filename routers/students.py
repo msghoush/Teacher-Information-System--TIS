@@ -13,7 +13,8 @@ from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import (
     StudentAcademicError, add_external_identifier, audit_event_payload, correct_placement, create_placement,
-    create_student, deactivate_external_identifier, delete_student, delete_students, end_placement, get_student,
+    create_student, deactivate_external_identifier, delete_student, delete_students, force_delete_student_history,
+    student_delete_blockers, end_placement, get_student,
     list_audit_events, list_placements, list_students, placement_payload, resolve_placement, transition_placement,
     update_student,
 )
@@ -132,17 +133,43 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
         db.rollback(); return _error(exc)
 
 
-@router.delete("/{student_id}")
-def student_delete(student_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+@router.get("/{student_id}/delete-preview")
+def student_delete_preview(student_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "students.delete")
     if denied:
         return denied
     if not auth.can_access_all_branches(user):
         return JSONResponse({"detail": "Organization scope is required to permanently delete a Student."}, status_code=403)
     try:
-        delete_student(db, school_group_id=group_id, student_id=student_id)
+        blockers = student_delete_blockers(db, school_group_id=group_id, student_id=student_id)
+        return {
+            "student_id": student_id,
+            "has_history": bool(blockers),
+            "blockers": blockers,
+            "can_force_delete_history": auth.has_permission(
+                db, user, "students.force_delete_history", school_group_id=group_id
+            ),
+        }
+    except StudentAcademicError as exc:
+        return _error(exc)
+
+
+@router.delete("/{student_id}")
+def student_delete(student_id: int, request: Request, force_history: bool = Query(False), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.delete")
+    if denied:
+        return denied
+    if not auth.can_access_all_branches(user):
+        return JSONResponse({"detail": "Organization scope is required to permanently delete a Student."}, status_code=403)
+    try:
+        if force_history:
+            if not auth.has_permission(db, user, "students.force_delete_history", school_group_id=group_id):
+                return JSONResponse({"detail": "Force delete history permission is required."}, status_code=403)
+            force_delete_student_history(db, school_group_id=group_id, student_id=student_id)
+        else:
+            delete_student(db, school_group_id=group_id, student_id=student_id)
         db.commit()
-        return {"deleted": True, "student_id": student_id}
+        return {"deleted": True, "student_id": student_id, "history_deleted": bool(force_history)}
     except StudentAcademicError as exc:
         db.rollback()
         return _error(exc, status=409 if exc.code == "student_delete_blocked" else 400)
