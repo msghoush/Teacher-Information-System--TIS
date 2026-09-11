@@ -82,7 +82,8 @@ def test_single_delete_removes_only_empty_student_and_bulk_delete_is_atomic(db, 
     db.commit()
     single = client.post("/students/1003/delete")
     assert single.status_code in (200, 302)
-    assert db.get(models.Student, 1003) is None
+    db.expire_all()
+    assert db.query(models.Student).filter_by(id=1003, school_group_id=1).one_or_none() is None
 
     db.add(models.Student(id=1004, school_group_id=1, first_name="Safe", last_name="Delete", status="active"))
     db.add(models.Student(id=1005, school_group_id=1, first_name="Protected", last_name="History", status="active"))
