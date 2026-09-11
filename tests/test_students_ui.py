@@ -34,13 +34,15 @@ def client(db):
 
 def test_student_delete_permissions_are_registered_and_configurable():
     import permission_registry as pr
-    for key in ("students.delete", "students.bulk_delete", "students.force_delete_history"):
+    for key in ("students.delete", "students.bulk_delete", "students.force_delete_history", "students.view_all_branches"):
         assert key in pr.ALL_PERMISSION_KEYS
         assert key in pr.PERMISSION_LABELS
         assert key in pr.DEVELOPER_ASSIGNABLE_PERMISSION_KEYS
         assert key in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_ADMINISTRATOR]
     assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
     assert "students.force_delete_history" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
+    assert "students.view_all_branches" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_EDITOR]
+    assert "students.view_all_branches" not in pr.DEFAULT_ROLE_PERMISSIONS[pr.auth.ROLE_USER]
 
 
 def test_list_requires_students_view(db, client):
@@ -87,6 +89,21 @@ def test_student_list_uses_accessible_icon_only_management_actions(db, client):
     assert 'class="stu-btn stu-btn-sm stu-action-btn stu-icon-btn"' in text
     assert 'aria-label="Open Alya Learner"' in text
     assert 'aria-label="Delete Alya Learner"' in text
+
+
+def test_only_organization_admin_permission_exposes_student_branch_switcher(db):
+    permissions(db, "students.view", "students.view_all_branches")
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor(scope="ORGANIZATION", branch=10)
+    allowed = TestClient(app)
+
+    response = allowed.get("/students/")
+    assert response.status_code == 200
+    assert '<select name="branch_id"' in response.text
+    assert 'All branches' in response.text
 
 
 def test_branch_scoped_student_view_cannot_switch_or_request_all_branches(db):
