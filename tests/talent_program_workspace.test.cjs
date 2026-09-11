@@ -653,38 +653,28 @@ test('Rubric mode selects the newest Draft so Start Editing exposes Add Competen
 });
 
 
-test('legacy all-Grade competency and shared rubric project into each eligible Grade tree',async()=>{
+test('legacy assessed rubric stays historical and is not projected into new Grade authoring',async()=>{
   const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
   const read=ctx.api;
   ctx.api=async(path,options)=>{
     if(!options&&path.endsWith('/frameworks/31'))return {
       id:31,title:'Mental Math rubric',status:'draft',version_number:2,revision:7,
-      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:true,
       competencies:[{id:71,competency_id:61,grade_level:null,label:'Mental Calculation',description:'Mental strategies'}]
     };
     if(!options&&path.endsWith('/configuration'))return {
       rubric:{name:'Mental Math rubric',description:'Legacy shared scale'},
-      levels:[
-        {id:81,code:'L1',label:'Beginning',description:'Beginning description',display_order:1},
-        {id:82,code:'L2',label:'Meets',description:'Meets description',display_order:2}
-      ],
-      rubrics:[],
-      descriptors:[
-        {id:91,framework_competency_id:71,rubric_level_id:81,grade_level:'1',descriptor:'Grade 1 beginning'},
-        {id:92,framework_competency_id:71,rubric_level_id:81,grade_level:'2',descriptor:'Grade 2 beginning'},
-        {id:93,framework_competency_id:71,rubric_level_id:81,grade_level:'3',descriptor:'Grade 3 beginning'}
-      ],
-      kpi:null,review_candidate_policy:null,revision:7,semantic_fingerprint:'fingerprint'
+      levels:[{id:81,code:'L1',label:'Beginning',description:'Beginning description',display_order:1}],
+      rubrics:[],descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
     };
     return read(path,options);
   };
   await render(ctx);
   assert.match(root.innerHTML,/Grade 1/);
   assert.match(root.innerHTML,/Grade 2/);
-  assert.match(root.innerHTML,/Grade 3/);
-  assert.equal((root.innerHTML.match(/Mental Calculation/g)||[]).length >= 3,true);
-  assert.match(root.innerHTML,/Existing shared rubric/);
-  assert.match(root.innerHTML,/Mental Math rubric/);
-  assert.match(root.innerHTML,/Beginning description/);
-  assert.match(root.innerHTML,/Use as this Competency Rubric/);
+  assert.doesNotMatch(root.innerHTML,/Mental Calculation/);
+  assert.doesNotMatch(root.innerHTML,/Existing shared rubric/);
+  assert.match(root.innerHTML,/Copy the current rubric structure \(optional\)/);
+  assert.doesNotMatch(root.innerHTML,/name="clone"[^>]*checked/);
 });
