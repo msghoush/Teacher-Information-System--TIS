@@ -1512,3 +1512,7 @@ The generated booklet output is:
 - Never put customer, personal, production, credential, secret, environment, transaction, invoice, webhook payload, or database-row data into KMS documentation.
 
 Owner-directed Talent simplification: Program Criteria configuration is not part of the normal Program setup UI, and completed Student Assessments do not expose a manual "Check Program Criteria" action. Existing Review Candidate/Official Identification persistence and historical records remain intact for backward compatibility/history unless separately governed for retirement.
+
+## Student Permanent Delete Authority
+
+Owner-approved Students management now includes explicit single and bulk permanent deletion. The capability is separately permissioned as `students.delete` and `students.bulk_delete` and requires organization/global Branch scope because Student identity is SchoolGroup-owned. Permanent deletion is intentionally limited to Students with no Academic Placement and no Talent historical records (Cycle population, Assessment, Review Candidate, Official Identification, or Educator Input). Creation-only Student audit rows and external identifiers are deleted with an otherwise-empty Student. Bulk deletion is atomic: if any selected Student is protected by historical records, no selected Student is deleted and the backend returns the blocker reason. This adds no Student lifecycle state, approval workflow, schema change, or migration.
