@@ -147,16 +147,16 @@ def build_dataset(db):
     db.flush()
 
     student_specs = [
-        ("ليان", "خليل", "female", "active", branch_north.id, "3", "A"),
-        ("آدم", "ناصر", "male", "active", branch_north.id, "3", "A"),
-        ("نور", "حسن", "female", "active", branch_north.id, "3", "B"),
-        ("كريم", "منصور", "male", "active", branch_north.id, "4", "A"),
-        ("تالا", "حداد", "female", "active", branch_north.id, "4", "A"),
-        ("يوسف", "صالح", "male", "active", branch_south.id, "4", "B"),
-        ("ريم", "عزيز", "female", "active", branch_south.id, "5", "A"),
-        ("عمر", "نصار", "male", "active", branch_south.id, "5", "A"),
-        ("سارة", "حمدان", "female", "active", branch_south.id, "5", "B"),
-        ("جاد", "مراد", "male", "active", branch_south.id, "5", "B"),
+        ("Layan", "Khalil", "female", "active", branch_north.id, "3", "A"),
+        ("Adam", "Nasser", "male", "active", branch_north.id, "3", "A"),
+        ("Nour", "Hassan", "female", "active", branch_north.id, "3", "B"),
+        ("Karim", "Mansour", "male", "active", branch_north.id, "4", "A"),
+        ("Tala", "Haddad", "female", "active", branch_north.id, "4", "A"),
+        ("Yousef", "Saleh", "male", "active", branch_south.id, "4", "B"),
+        ("Reem", "Aziz", "female", "active", branch_south.id, "5", "A"),
+        ("Omar", "Nassar", "male", "active", branch_south.id, "5", "A"),
+        ("Sara", "Hamdan", "female", "active", branch_south.id, "5", "B"),
+        ("Jad", "Murad", "male", "active", branch_south.id, "5", "B"),
     ]
     # Talent Program Grade configuration is bounded by operational Planning.
     # Keep the sanctioned local dataset on the same supported contract as the
