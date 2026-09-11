@@ -14,6 +14,7 @@ from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import resolve_placement
 from talent_operational_context import authorized_contexts, authorized_payload
+from talent_review_candidate_service import evaluate_review_candidate
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
     complete_assessment, competency_result_payload, delete_assessment,
@@ -316,10 +317,19 @@ def assessments_complete(assessment_id: int, request: Request, payload: dict = B
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     if error:
         return error
-    return _run(db, lambda: _display_payload(db, user, complete_assessment(
-        db, school_group_id=group_id, assessment_id=assessment.id,
-        expected_revision=int(payload.get("expected_revision")), actor=user,
-    )))
+    def work():
+        completed = complete_assessment(
+            db, school_group_id=group_id, assessment_id=assessment.id,
+            expected_revision=int(payload.get("expected_revision")), actor=user,
+        )
+        # Completion deterministically evaluates the existing Framework policy.
+        # No policy/non-qualifying outcome still leaves the Student visible in
+        # Talent Review through the completed-Assessment workspace projection.
+        evaluate_review_candidate(
+            db, school_group_id=group_id, assessment_id=completed.id, actor=user
+        )
+        return _display_payload(db, user, completed)
+    return _run(db, work)
 
 
 @router.post("/{assessment_id}/incomplete")
