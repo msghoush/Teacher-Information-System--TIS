@@ -8,7 +8,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', compact=true)) }}?v=20260620a">
     <link rel="shortcut icon" type="image/png" href="{{ url_for('static', path=tis_logo_path(theme='light', compact=true)) }}?v=20260620a">
-    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260622a">
+    <link rel="stylesheet" href="{{ url_for('static', path='css/app-shell.css') }}?v=20260911b">
     <link rel="stylesheet" href="{{ url_for('static', path='css/branding.css') }}?v=20260619a">
     <link rel="stylesheet" href="{{ url_for('static', path='css/commercial-badges.css') }}?v=20260818a">
     {% if shell.design_css %}
@@ -104,12 +104,16 @@
                 <h3 class="sidebar-section-title">Navigation</h3>
                 <nav class="sidebar-nav" aria-label="Primary navigation" data-design-component="shell.navigation" data-design-type="navigation">
                     {% for item in shell.nav_items %}
-                    <a class="sidebar-link {% if item.active %}is-active{% endif %}" href="{{ item.href }}">
+                    <a class="sidebar-link {% if item.brand_logo %}sidebar-link--brand{% endif %} {% if item.active %}is-active{% endif %}" href="{{ item.href }}" {% if item.brand_logo %}aria-label="{{ item.label }}"{% endif %}>
                         <span class="sidebar-link-main">
+                            {% if item.brand_logo %}
+                            <img class="sidebar-brand-logo" src="{{ url_for('static', path=item.brand_logo) }}" alt="{{ item.label }} — Ghars">
+                            {% else %}
                             {{ icon(item.icon, "shell-icon") }}
                             <span class="sidebar-link-copy">
                                 <strong>{{ item.label }}</strong>
                             </span>
+                            {% endif %}
                             {% if item.badge_count %}
                             <span class="sidebar-nav-badge" aria-label="{{ item.badge_count }} new notifications">{{ item.badge_count }}</span>
                             {% endif %}

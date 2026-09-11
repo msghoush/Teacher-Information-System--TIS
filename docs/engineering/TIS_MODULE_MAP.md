@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 4.0
+documentation_version: 4.1
 last_updated: 2026-09-11
 source_of_truth: true
 ---
@@ -23,6 +23,13 @@ source_of_truth: true
 - `permission_registry.py`: adds `students.view_all_branches` and constrains it to the Administrator managed role.
 - `routers/students_ui.py`: enforces Students list Branch selection against `students.view_all_branches` plus organization/global scope and projects explicit Learning Style analytics-unavailable state without weakening privacy.
 - `templates/students.html` + `static/css/students.css`: accessible icon-only Student management actions, fixed Branch context for actors without cross-Branch authority, and fail-closed Learning Style availability messaging.
+
+## Ghars Talent Sidebar Branding Ownership
+
+- `static/img/talent-ghars-logo.svg`: Owner-supplied Ghars bilingual Talent module mark, traced into a lightweight white SVG for the dark application sidebar.
+- `ui_shell.py`: keeps the canonical navigation label/permissions/routes and declares the Talent module brand-logo asset.
+- `templates/base.html`: renders the full Ghars mark in place of the generic Talent icon + visible text while retaining the accessible `Talent & Potential` navigation name.
+- `static/css/app-shell.css`: sizes the full logo clearly without changing child-tree behavior or neighboring module navigation.
 
 ## Talent Recovery, Review Filters, And Navigation Ownership
 

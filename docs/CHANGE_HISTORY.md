@@ -1,11 +1,18 @@
 ---
 title: TIS Change History
-documentation_version: 4.1
+documentation_version: 4.2
 last_updated: 2026-09-11
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-11 — Ghars Talent module sidebar branding
+
+- Replaced the generic Talent & Potential sidebar icon/text treatment with the Owner-supplied full Ghars bilingual logo while preserving the canonical `Talent & Potential` accessible/navigation label.
+- The Talent child tree, permissions, routes, expand/active behavior, and context-reset semantics are unchanged.
+- Added a dedicated static Ghars SVG asset and responsive sidebar sizing so the complete mark remains clear on the dark navigation surface.
+
 
 ## 2026-09-11 — Owner video acceptance immediate corrections
 

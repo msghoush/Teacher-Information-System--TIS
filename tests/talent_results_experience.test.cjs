@@ -120,10 +120,11 @@ test('the shared Grade filter is Planning-driven, not a blanket hardcoded KG-12 
   assert.match(fs.readFileSync(path.join(__dirname,'..','templates','talent','workspace.html'),'utf8'),/for="tp-section"/);
 });
 
-test('Talent module expands as a permission-aware sidebar tree with clean top-level destinations', () => {
+test('Talent module expands as a permission-aware sidebar tree with the Ghars brand logo', () => {
   const shellSource = fs.readFileSync(path.join(__dirname, '..', 'ui_shell.py'), 'utf8');
   const base = fs.readFileSync(path.join(__dirname, '..', 'templates', 'base.html'), 'utf8');
   const shellCss = fs.readFileSync(path.join(__dirname, '..', 'static', 'css', 'app-shell.css'), 'utf8');
+  const brandLogoPath = path.join(__dirname, '..', 'static', 'img', 'talent-ghars-logo.svg');
   for (const destination of ['/talent/overview','/talent/programs','/talent/assessments','/talent/reviews','/talent/analytics']) {
     assert.match(shellSource, new RegExp(destination.replaceAll('/','\\/')));
   }
@@ -131,8 +132,15 @@ test('Talent module expands as a permission-aware sidebar tree with clean top-le
   assert.match(shellSource, /talent_assessments\.view/);
   assert.match(shellSource, /talent_review_candidates\.view/);
   assert.match(shellSource, /talent_analytics\.view/);
+  assert.match(shellSource, /"brand_logo": "img\/talent-ghars-logo\.svg"/);
+  assert.match(base, /class="sidebar-brand-logo"/);
+  assert.match(base, /item\.brand_logo/);
+  assert.ok(fs.existsSync(brandLogoPath));
+  assert.match(fs.readFileSync(brandLogoPath,'utf8'), /Talent and Potential Ghars logo/);
   assert.match(base, /class="sidebar-tree"/);
   assert.match(base, /class="sidebar-tree-link/);
+  assert.match(shellCss, /\.sidebar-brand-logo\s*\{/);
+  assert.match(shellCss, /\.sidebar-link--brand/);
   assert.match(shellCss, /\.sidebar-tree\s*\{/);
   assert.match(shellCss, /\.sidebar-tree-link\.is-active/);
 });
