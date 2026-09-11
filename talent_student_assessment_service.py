@@ -288,7 +288,7 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
     return assessment
 
 
-def _assessment_semantic_snapshot(db: Session, *, framework, grade):
+def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy=True):
     """Student-facing assessment structure for one Framework and historical Grade.
 
     Deliberately excludes Framework version/title/supersession metadata so a
@@ -310,12 +310,19 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade):
         models.FrameworkCompetency.id,
     ).all()
 
+    legacy_rubric = None
+    if allow_legacy:
+        legacy_rubric = db.query(models.TalentRubric).filter(
+            models.TalentRubric.framework_version_id == framework.id,
+            models.TalentRubric.framework_competency_id.is_(None),
+        ).one_or_none()
+
     result = []
     for member in members:
         rubric = db.query(models.TalentRubric).filter_by(
             framework_version_id=framework.id,
             framework_competency_id=member.id,
-        ).one_or_none()
+        ).one_or_none() or legacy_rubric
         levels = []
         if rubric is not None:
             for level in db.query(models.TalentRubricLevel).filter_by(
@@ -378,7 +385,9 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
         models.TalentProgramFrameworkVersion.id.desc(),
     ).all()
     for framework in candidates:
-        snapshot = _assessment_semantic_snapshot(db, framework=framework, grade=grade)
+        snapshot = _assessment_semantic_snapshot(
+            db, framework=framework, grade=grade, allow_legacy=False
+        )
         if snapshot and all(
             item.get("rubric") and item["rubric"].get("levels")
             for item in snapshot
@@ -464,11 +473,11 @@ def reassessment_requirement(db: Session, assessment):
         models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
     ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all()
     current_snapshot = _assessment_semantic_snapshot(
-        db, framework=current_framework, grade=grade
+        db, framework=current_framework, grade=grade, allow_legacy=True
     )
     for framework in candidates:
         candidate_snapshot = _assessment_semantic_snapshot(
-            db, framework=framework, grade=grade
+            db, framework=framework, grade=grade, allow_legacy=False
         )
         if candidate_snapshot == current_snapshot:
             continue
