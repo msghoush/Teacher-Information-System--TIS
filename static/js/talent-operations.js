@@ -148,7 +148,12 @@
     // selected remain a deliberate choice, shown as cards below.
     const openCycles=cycles.filter(c=>c.status==='open');
     const cycle=explicitCycle || (!cycleId && pid && openCycles.length===1 ? openCycles[0] : undefined);
-    const population=cycle&&cycle.status!=='draft'&&can('talent_assessment_cycles.view_population')?await api(`/api/talent/assessment-cycles/${cycle.id}/population`):null;
+    const isDraftCycle=cycle&&cycle.status==='draft';
+    const population=cycle&&!isDraftCycle&&can('talent_assessment_cycles.view_population')?await api(`/api/talent/assessment-cycles/${cycle.id}/population`):null;
+    // Draft Cycles have no frozen population yet (ADR 0033/M4): the eligible
+    // list is a live, non-persisted preview derived from current Academic
+    // Placement, distinct from the Open Cycle's frozen membership above.
+    const preview=isDraftCycle&&can('talent_assessment_cycles.view_population')?await api(`/api/talent/assessment-cycles/${cycle.id}/population/preview`):null;
     // Distinct from "No assessments saved in this context yet." below: this is
     // the honest no-open-Evaluation-Period state, only shown when a Program is
     // selected and it truly has no Cycle at all (draft or otherwise) to open -
@@ -168,11 +173,16 @@
       }
       return `<tr><th scope="row">${studentName}</th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td>${esc(statusLabel)}</td><td>${action}</td></tr>`;
     }).join(''):'';
+    const previewRows=preview?preview.members.map(m=>{
+      const studentName=esc(m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ') || 'Student name unavailable');
+      return `<tr><th scope="row">${studentName}</th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td>Eligible — evaluation not opened yet</td></tr>`;
+    }).join(''):'';
     const savedRows=rows.map(r=>`<tr><th scope="row">${esc(r.context?.student_name || 'Student name unavailable')}</th><td>${esc(r.context?.program_name || 'Program name unavailable')}</td><td>${esc(r.context?.grade_level || 'Unavailable')}</td><td>${esc(r.context?.section_name || 'Unavailable')}</td><td>${badge(r.status)}</td><td>${link('assessments',r.status==='in_progress'?'Continue Assessment':'View Assessment',{assessment_id:r.id})} ${(r.actions||[]).includes('delete')?button('delete-assessment','Delete',`data-id="${r.id}"`):''}</td></tr>`).join('');
     const cardsHtml=cycles.length
-      ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)} ${badge(c.status)}</h3><p>Student list date: ${esc(c.population_effective_at || 'Not set')}</p>${link('assessments','Open evaluation students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
+      ?`<div class="tp-grid">${cycles.map(c=>`<article class="tp-card"><h3>${esc(c.title)} ${badge(c.status)}</h3><p>Student list date: ${esc(c.population_effective_at || 'Not set')}</p>${link('assessments',c.status==='draft'?'View eligible Students':'Open evaluation students',{cycle_id:c.id,program_id:c.program_id})}</article>`).join('')}</div>`
       :(noOpenEvaluation?note('No Evaluation Period is open for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
-    mount(`${cardsHtml}${cycle?`<h3>${esc(cycle.title)}</h3>`:''}${population?`<h3>Students in this evaluation</h3>${note('This Student list remains as recorded when the evaluation started.')}${population.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${memberRows}</tbody></table></div>`:note('No Students were included when this evaluation started.')}`:''}<h3>Assessment Records</h3>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
+    const canGovernCycle=can('talent_assessment_cycles.govern');
+    mount(`${cardsHtml}${cycle?`<h3>${esc(cycle.title)}</h3>`:''}${population?`<h3>Students in this evaluation</h3>${note('This Student list remains as recorded when the evaluation started.')}${population.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment status</th><th>Action</th></tr></thead><tbody>${memberRows}</tbody></table></div>`:note('No Students were included when this evaluation started.')}`:''}${preview?`<h3>Eligible Students</h3>${note('This is a live preview from current Academic Placement. It has not been opened for evaluation yet, so no Assessment can be started. Opening the evaluation freezes this list as permanent history.')}${preview.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Status</th></tr></thead><tbody>${previewRows}</tbody></table></div>`:note('No Students are currently eligible for this evaluation.')}${canGovernCycle?`<p class="tp-actions">${button('open-cycle','Open Evaluation','class="tp-primary"')}</p>`:''}`:''}<h3>Assessment Records</h3>${!rows.length?note('No Assessment Records in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Program</th><th>Grade</th><th>Section</th><th>Status</th><th>Action</th></tr></thead><tbody>${savedRows}</tbody></table></div>`}`);
     // Starting an assessment leaves this list to open the new assessment
     // editor directly. That is a real cross-surface navigation (Student
     // Assessments -> a specific assessment), so it must carry the current
@@ -192,6 +202,16 @@
       await api(`/api/talent/assessments/${el.dataset.id}`,{method:'DELETE'});
       await reload();
       notify('Assessment deleted.');
+    });
+    // ADR 0033/M4: opening a Draft Cycle freezes today's preview into the
+    // permanent population. Reuses the same governed, expected-revision
+    // pattern as every other Cycle lifecycle mutation (open/close/synchronize
+    // in routers/talent_assessment_cycles.py).
+    on('open-cycle',async()=>{
+      if(!window.confirm('Open this evaluation? The current eligible Student list becomes permanent history and Assessments can then be started.'))return;
+      await api(`/api/talent/assessment-cycles/${cycle.id}/open`,{method:'POST',body:{expected_revision:cycle.revision}});
+      await reload();
+      notify('Evaluation opened.');
     });
   }
   function localDate(value) {const d=new Date(value.endsWith('Z')||/[+-]\d\d:\d\d$/.test(value)?value:`${value}Z`);return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
