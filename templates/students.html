@@ -11,9 +11,14 @@
       <h1>Students</h1>
       <p class="stu-intro">Every learner in one place, with their current placement and history kept in context.</p>
     </div>
-    {% if can_create %}
+    {% if can_create or can_bulk_delete %}
     <div class="stu-actions">
-      <a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>
+      {% if can_bulk_delete %}
+      <form id="student-bulk-delete" method="post" action="/students/bulk-delete" data-student-bulk-delete-form>
+        <button class="stu-btn" type="submit" data-student-bulk-delete disabled>{{ icon('trash', 'shell-icon') }}Delete selected</button>
+      </form>
+      {% endif %}
+      {% if can_create %}<a class="stu-btn stu-btn-primary" href="/students/new">{{ icon('user-plus', 'shell-icon') }}Add Student</a>{% endif %}
     </div>
     {% endif %}
   </header>
@@ -103,6 +108,7 @@
       <caption class="stu-visually-hidden">Students</caption>
       <thead>
         <tr>
+          {% if can_bulk_delete %}<th scope="col"><input type="checkbox" data-student-select-all aria-label="Select all Students"></th>{% endif %}
           <th scope="col">Student</th>
           <th scope="col">Grade</th>
           <th scope="col">Section</th>
@@ -115,6 +121,7 @@
       <tbody>
         {% for s in students %}
         <tr>
+          {% if can_bulk_delete %}<td><input type="checkbox" name="student_ids" value="{{ s.id }}" form="student-bulk-delete" data-student-select aria-label="Select {{ s.display_name }}"></td>{% endif %}
           <th scope="row">
             <a class="stu-row-name" href="/students/{{ s.id }}">
               <span class="stu-avatar" aria-hidden="true">{{ s.initials }}</span>
@@ -126,7 +133,16 @@
           <td>{{ s.current_placement.branch_name if s.current_placement and s.current_placement.branch_name else '—' }}</td>
           <td>{{ learning_style_badge(s.learning_style) }}</td>
           <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
-          <td><a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a></td>
+          <td>
+            <div class="stu-actions">
+              <a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
+              {% if can_delete %}
+              <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-name="{{ s.display_name }}">
+                <button class="stu-btn stu-btn-sm" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
         </tr>
         {% endfor %}
       </tbody>
@@ -136,11 +152,12 @@
   <!-- Mobile: compact cards, no table (a real table is impractical at this width). -->
   <div class="stu-grid stu-list-cards">
     {% for s in students %}
-    <a class="stu-card" href="/students/{{ s.id }}">
+    <article class="stu-card">
       <div class="stu-card-top">
+        {% if can_bulk_delete %}<input type="checkbox" name="student_ids" value="{{ s.id }}" form="student-bulk-delete" data-student-select aria-label="Select {{ s.display_name }}">{% endif %}
         <span class="stu-avatar" aria-hidden="true">{{ s.initials }}</span>
         <div>
-          <h3>{{ s.display_name }}</h3>
+          <h3><a class="stu-row-name" href="/students/{{ s.id }}">{{ s.display_name }}</a></h3>
           {% if s.gender %}<p class="stu-sub">{{ s.gender }}</p>{% endif %}
         </div>
       </div>
@@ -156,9 +173,55 @@
         <p>No current placement.</p>
         {% endif %}
       </div>
-    </a>
+      <div class="stu-actions">
+        <a class="stu-btn stu-btn-sm" href="/students/{{ s.id }}">{{ icon('open', 'shell-icon') }}Open</a>
+        {% if can_delete %}
+        <form method="post" action="/students/{{ s.id }}/delete" data-student-delete-form data-student-name="{{ s.display_name }}">
+          <button class="stu-btn stu-btn-sm" type="submit">{{ icon('trash', 'shell-icon') }}Delete</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
     {% endfor %}
   </div>
   {% endif %}
 </section>
+{% endblock %}
+
+{% block page_scripts %}
+<script>
+(() => {
+  const selections = Array.from(document.querySelectorAll('[data-student-select]'));
+  const selectAll = document.querySelector('[data-student-select-all]');
+  const bulkButton = document.querySelector('[data-student-bulk-delete]');
+  const updateBulk = () => {
+    const selected = selections.filter(input => input.checked).length;
+    if (bulkButton) {
+      bulkButton.disabled = selected === 0;
+      bulkButton.textContent = selected ? `Delete selected (${selected})` : 'Delete selected';
+    }
+    if (selectAll) {
+      selectAll.checked = selections.length > 0 && selections.every(input => input.checked);
+      selectAll.indeterminate = selections.some(input => input.checked) && !selectAll.checked;
+    }
+  };
+  selections.forEach(input => input.addEventListener('change', updateBulk));
+  if (selectAll) selectAll.addEventListener('change', () => {
+    selections.forEach(input => { input.checked = selectAll.checked; });
+    updateBulk();
+  });
+  document.querySelectorAll('[data-student-delete-form]').forEach(form => {
+    form.addEventListener('submit', event => {
+      const name = form.dataset.studentName || 'this Student';
+      if (!window.confirm(`Permanently delete ${name}? This works only when no Academic Placement or Talent history exists.`)) event.preventDefault();
+    });
+  });
+  const bulkForm = document.querySelector('[data-student-bulk-delete-form]');
+  if (bulkForm) bulkForm.addEventListener('submit', event => {
+    const selected = selections.filter(input => input.checked).length;
+    if (!selected || !window.confirm(`Permanently delete ${selected} selected Student${selected === 1 ? '' : 's'}? If any selected Student has Academic Placement or Talent history, none will be deleted.`)) event.preventDefault();
+  });
+  updateBulk();
+})();
+</script>
 {% endblock %}
