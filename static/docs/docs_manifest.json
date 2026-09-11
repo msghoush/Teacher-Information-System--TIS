@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-11T12:41:45.333614+03:00",
+  "generated_at": "2026-09-11T14:08:15.077995+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "193af77",
+  "commit_sha": "eae50f1",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "9513cddd98b3f7d21ccd8a4b2a11d9e72b1764aa73b4101b3e89b7c4f5d6b264",
-  "pdf_size_bytes": 1697320,
+  "pdf_sha256": "e5cb4362d65d18a9903e4b83c7f698231c0297f9f31c371c0baf0e24b27074fc",
+  "pdf_size_bytes": 1701266,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-11T12:35:52.056812+03:00",
-      "size_bytes": 115973,
-      "sha256": "e502c20fb0016d6172e7377f1941da44b7b69f389859f358fb6e89f1990f75c7",
+      "modified_at": "2026-09-11T14:08:10.465010+03:00",
+      "size_bytes": 117683,
+      "sha256": "1d6020773aa5f4435bc38e0cd2132c112fb7aa6b7f33901e9a12307611b8cddc",
       "pdf_page": 63
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-11T12:35:52.050763+03:00",
-      "size_bytes": 152807,
-      "sha256": "bdc54156e65a597f0b7a842e6a270b4a3083ec524a70d5d3de73c56e0894df4e",
+      "modified_at": "2026-09-11T14:08:10.460516+03:00",
+      "size_bytes": 154051,
+      "sha256": "49df964370c416fc030f96d5344200a23f8573f1306fd4344dbccebd9897ec03",
       "pdf_page": 96
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-11T12:35:52.045721+03:00",
-      "size_bytes": 200335,
-      "sha256": "1e6120c9ca599540f5fe9b2dfbd33dd81e5e350d30301d0cdbeb72cc6266a192",
+      "modified_at": "2026-09-11T14:08:10.456576+03:00",
+      "size_bytes": 202520,
+      "sha256": "e9720c0564a00debf92027036c14e3db8aca4bce280bb9e96ce5dcf4e1612216",
       "pdf_page": 136
     },
     {
