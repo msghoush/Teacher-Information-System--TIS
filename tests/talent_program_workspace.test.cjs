@@ -367,13 +367,13 @@ test('a Program save refreshes only selected Program data and keeps the hash cac
 test('a failed initial fetch never populates the cache, so a subsequent hash-only render safely falls back to a real fetch instead of throwing or reusing a broken bundle',async()=>{
   const {ctx,root}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
   const read=ctx.api;
-  ctx.api=async(path,options)=>{if(!options&&path==='/api/talent/programs')throw new Error('Network error');return read(path,options);};
+  ctx.api=async(path,options)=>{if(!options&&path==='/api/talent/programs/11')throw new Error('Network error');return read(path,options);};
   await assert.rejects(render(ctx));
   ctx.api=read;
   await render(ctx,{viaHash:true});
   assert.match(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);
 });
-test('rapid duplicate hash-only navigations do not accumulate duplicate Program-list requests (cache hit on every repeat)',async()=>{
+test('rapid duplicate hash-only navigations do not accumulate duplicate selected-Program requests (cache hit on every repeat)',async()=>{
   const {ctx,calls}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
   await render(ctx);
   const before=calls.filter(c=>c.path==='/api/talent/programs/11').length;
@@ -452,7 +452,7 @@ test('a stale in-flight response for a previous Program can never overwrite the 
     can: key => key === 'talent_programs.view', notify() {}, navigate() {},
     api: async (path, options) => { if (options) return {}; if (path === '/api/talent/programs/11') { await gate; return mentalMathProgram; } if(path.startsWith('/api/talent/programs/planning-grades'))return []; if(path.endsWith('/academic-years'))return []; if(path.endsWith('/frameworks'))return []; if(path.endsWith('/competencies'))return []; if(path.startsWith('/api/talent/evaluation-plans'))return []; return []; },
   };
-  // Program A (Mental Math) starts rendering first but its Program-list fetch
+  // Program A (Mental Math) starts rendering first but its selected-Program fetch
   // is deliberately held open ("stale/slow response").
   const stalePromise = render(staleCtx);
   // Program B (Chess Club) is selected next on the very same shared root/ctx
