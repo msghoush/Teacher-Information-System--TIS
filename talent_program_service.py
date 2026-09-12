@@ -306,6 +306,59 @@ def create_framework_draft(db, *, school_group_id, program_id, title, summary=No
     return row
 
 
+def recover_accidental_empty_draft(db, *, school_group_id, program_id, empty_draft_id, source_framework_id=None, actor=None):
+    """Owner recovery for the Start Editing "optional clone" defect: an
+    empty Draft was created because the old UI let the Owner leave "Copy
+    the current rubric structure" unchecked (that checkbox has since been
+    removed - Start Editing now always clones automatically). This never
+    reconstructs data by hand and never touches the source Framework or
+    any historical completed Assessment evidence - it only re-runs the
+    existing governed create_framework_draft(clone_from_id=...) mechanism
+    against the correct source, producing a new, independent, fully
+    populated Draft with every Competency, KPI, Level, descriptor, and
+    ordering the source already has. The accidental empty Draft itself is
+    left in place (harmless and unreferenced, since the newly recovered
+    Draft has a higher version number and is what "Start Editing"/rubric
+    mode will select going forward) rather than deleted, unless a caller
+    explicitly chooses to remove it afterward via the ordinary Program
+    lifecycle tools.
+
+    The source Framework defaults to whatever the accidental empty Draft's
+    own `supersedes_framework_version_id` already records - that field is
+    set unconditionally by Start Editing regardless of whether cloning ran,
+    so it reliably names the exact Framework the Owner intended to edit.
+    """
+    empty_draft = _framework(db, school_group_id, program_id, empty_draft_id, lock=True)
+    if empty_draft is None:
+        raise TalentProgramError("not_found", "The accidental empty Draft Framework was not found.")
+    if empty_draft.status != "draft":
+        raise TalentProgramError("not_draft", "Only a Draft Framework can be recovered as an accidental empty Draft.")
+    if db.query(models.FrameworkCompetency.id).filter_by(framework_version_id=empty_draft.id).first() is not None:
+        raise TalentProgramError("draft_not_empty", "This Draft already has Competencies - it is not the accidental empty Draft, and recovery must never overwrite real work.")
+    if db.query(models.TalentStudentAssessment.id).filter_by(school_group_id=school_group_id, program_id=program_id, framework_version_id=empty_draft.id).first() is not None:
+        raise TalentProgramError("framework_in_use", "This Draft already has Assessment history - it cannot be the accidental empty Draft.")
+
+    resolved_source_id = source_framework_id or empty_draft.supersedes_framework_version_id
+    if not resolved_source_id:
+        raise TalentProgramError("source_required", "The correct source Framework could not be determined automatically; pass source_framework_id explicitly.")
+    source = _framework(db, school_group_id, program_id, resolved_source_id)
+    if source is None:
+        raise TalentProgramError("not_found", "The source Framework was not found in this Program.")
+    if source.id == empty_draft.id:
+        raise TalentProgramError("invalid_source", "The source Framework must be different from the accidental empty Draft.")
+    if db.query(models.FrameworkCompetency.id).filter_by(framework_version_id=source.id).first() is None:
+        raise TalentProgramError("source_empty", "The identified source Framework has no Competencies to recover.")
+
+    recovered = create_framework_draft(
+        db, school_group_id=school_group_id, program_id=program_id,
+        title=empty_draft.title,
+        summary=empty_draft.summary or "Recovered the existing assessment criteria after an accidental empty Draft.",
+        supersedes_framework_version_id=empty_draft.supersedes_framework_version_id,
+        clone_from_id=source.id, actor=actor,
+    )
+    return source, empty_draft, recovered
+
+
 def _require_draft(framework, expected_revision=None, expected_fingerprint=None):
     if framework.status != "draft": raise TalentProgramError("immutable_framework", "Active and Retired Framework Versions are immutable.")
     if expected_revision is not None and framework.revision != expected_revision: raise TalentProgramError("stale_framework", "Framework Draft changed; refresh before retrying.")

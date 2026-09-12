@@ -2780,3 +2780,23 @@ preserving, no Grade or annual-configuration gate reintroduced. See
 (ordering assertions plus a real small-QueuePool concurrency
 reproduction of both the old doubled-checkout shape exhausting the pool
 and the fixed shape not exceeding it).
+
+## Start Editing accidental empty-draft recovery + mandatory clone (2026-09-12)
+
+Start Editing's old "Copy the current rubric structure (optional)"
+checkbox could be left unchecked, producing a genuinely empty new Draft
+while the Program's real Competencies stayed safe in the Framework being
+edited. Fixed permanently: the checkbox is removed and the new-version
+form submission always sends `clone_from_id` (`static/js/
+talent-program-workspace.js`). New governed recovery path for any Program
+already caught by the old defect: `talent_program_service.
+recover_accidental_empty_draft` clones from the empty Draft's own
+`supersedes_framework_version_id` after validating it is genuinely empty,
+via the existing `create_framework_draft(clone_from_id=...)` mechanism -
+never hand-reconstructs data, never touches the source Framework or
+historical Assessment evidence. Operator CLI:
+`scripts/recover_talent_accidental_empty_draft.py` (dry-run by default).
+No live Talent data was reachable from this environment (local `tis.db`
+has no talent tables; the only local Postgres is a stale, empty test
+schema) - the recovery function is proven against a synthetic 9-Competency
+reproduction in `tests/test_talent_program_start_editing_recovery.py`.
