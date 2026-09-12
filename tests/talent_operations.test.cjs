@@ -101,6 +101,7 @@ function assessmentApi(overrides={}) {
   const results=overrides.results ?? [{framework_competency_id:101,rubric_level_id:201,evidence:'Solid work'}];
   return async path=>{
     if(path===`/api/talent/assessments/${assessment.id}`)return assessment;
+    if(path===`/api/talent/assessments/${assessment.id}/continue`)return assessment;
     if(path===`/api/talent/assessments/${assessment.id}/competency-results`)return results;
     if(path==='/api/talent/programs/11/frameworks/21')return {competencies:[{id:101,label:'Reading'},{id:102,label:'Writing'}]};
     if(path==='/api/talent/programs/11/frameworks/21/configuration')return {levels:[{id:201,label:'Level 1'}],descriptors:[]};
