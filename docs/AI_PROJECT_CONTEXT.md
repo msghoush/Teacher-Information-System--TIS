@@ -2708,3 +2708,75 @@ A regeneration source is the current populated, mutable, unpublished Draft with
 a usable placement arrangement, regardless of whether its origin is `manual`,
 `generated`, or `regenerated`. An empty starter Draft remains a Generate candidate;
 active, historical, superseded, and archived versions are never source candidates.
+
+## Talent & Potential Owner correction pass (2026-09-12)
+
+UI/UX-only correction pass over ADR 0039's Competency+KPI+Level model, no
+eligibility-gate or architecture change. Fixed a `rubricGradeSections`
+rendering bug (`static/js/talent-program-workspace.js`) that hid a
+no-Grade Competency's entire row - Delete action included - on a genuinely
+new draft Framework; the fix keys the "no Grade = all Grades" behavior on
+`framework.in_use_by_assessments` so an already-used Framework's legacy
+no-Grade Competency still stays out of new-Grade authoring. Competency
+cards are now independently collapsible (`<details>`/`<summary>`), Delete
+Competency uses one unified confirmation across the direct and version-safe
+paths, the Student Assessment editor (`static/js/talent-operations.js`) now
+has a "Back to Students" action that preserves Academic Year/Program/Cycle
+context, and several Talent counters/headings were corrected to Title Case
+("N Competencies", "N Levels", "KPI Overview", "Assessment Status"). The
+Owner-supplied `talent-ghars-symbol.png` sidebar asset was not present in
+this environment and that swap remains deferred.
+
+## Talent & Potential UI action-placement correction (2026-09-12)
+
+Edit/Delete for every Competency, KPI, and Level item in the builder
+(`static/js/talent-program-workspace.js`) are now compact icon-only buttons
+(pencil/trash via a new `iconButton()` helper) beside each item instead of
+visible "Edit/Delete Competency|KPI|Level" text, each with an `aria-label`/
+`title` naming the exact item so there is never ambiguity about which row it
+affects. Applied consistently to both the primary Grade->Competency->KPI->
+Level accordion and the older parallel flat-table wizard view; the
+Competency header also gained an Edit icon it previously lacked, reusing an
+existing edit capability (no new backend behavior). Add actions ("+ Add
+Competency", "+ Add KPI", "+ Add Level", "Copy Levels From...") are
+unchanged and stay in their structural positions, not beside every item. No
+hierarchy/CRUD/eligibility change; no backend files touched.
+
+## Talent & Potential Grade-to-Grade Assessment Criteria Copy (2026-09-12)
+
+New backend `talent_program_service.copy_grade_criteria` +
+`POST /api/talent/programs/{id}/frameworks/{id}/grades/copy`
+(`talent_programs.manage`) copies a Grade's complete Competency/KPI/Level/
+descriptor structure into an empty destination Grade as fully independent
+new records (new `TalentCompetency`/`FrameworkCompetency`/`TalentRubric`/
+`TalentRubricLevel`/descriptor rows) - never shared identity with the
+source. An already-populated destination is always rejected
+(`target_grade_occupied`); no merge/Replace flow was implemented in this
+pass, per explicit Owner instruction to prefer safety over a hidden merge.
+Reuses `_require_mutable_draft` unchanged, so the frontend
+(`static/js/talent-program-workspace.js`) clones an immutable/active
+Framework into a new draft first (the same pattern as versioned Delete
+Competency) before copying. The UI action ("Copy Criteria From Grade...")
+is a structural, always-visible Grade-level action, not an inline icon.
+Same SchoolGroup/Program/Framework scoping as every other Program mutation.
+
+## CRITICAL: Production DB connection-pool exhaustion fixed (2026-09-12)
+
+Root cause of a confirmed production `QueuePool limit of size 5 overflow
+10 reached, connection timed out` release blocker: `main.py`'s
+`inactivity_timeout_middleware` (global, runs on every authenticated
+request app-wide) opened its own `SessionLocal()` and held it checked out
+for the entire `await call_next(request)` downstream request/response
+cycle - on top of the separate connection the route itself acquires via
+`Depends(get_db)` - doubling real per-request pool consumption. Not a
+leak (it always closed eventually); a long-held/duplicated connection.
+Talent Student Assessments' several concurrent API calls per load
+surfaced it first; the pool then stayed globally exhausted for the whole
+app until a Render restart reset it. Fix: the middleware's session is now
+opened, used for the auth/idle-timeout/commercial-access/permission
+checks, and closed before `call_next` is ever awaited - behavior-
+preserving, no Grade or annual-configuration gate reintroduced. See
+`tests/test_db_connection_pool_lifecycle.py` for the regression proof
+(ordering assertions plus a real small-QueuePool concurrency
+reproduction of both the old doubled-checkout shape exhausting the pool
+and the fixed shape not exceeding it).

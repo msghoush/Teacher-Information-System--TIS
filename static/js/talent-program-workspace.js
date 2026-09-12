@@ -23,6 +23,11 @@
     return `<svg class="shell-icon" data-tis-icon="${name}" viewBox="0 0 24 24" aria-hidden="true">${paths[name]||''}</svg>`;
   };
   const button = (action,label,extra='',iconName='') => `<button type="button" data-action="${action}" ${extra}>${iconName?icon(iconName):''}${esc(label)}</button>`;
+  // Compact icon-only action for an item's own Edit/Delete (Owner
+  // correction: no visible "Edit Competency"/"Delete KPI"/"Delete Level"
+  // text beside every created item). The accessible name still names the
+  // exact item so there is never ambiguity about which row it affects.
+  const iconButton = (action,label,extra='',iconName='') => `<button type="button" class="tp-icon-btn" data-action="${action}" aria-label="${esc(label)}" title="${esc(label)}" ${extra}>${icon(iconName)}</button>`;
   const form = (action,title,body,submitLabel='Save') => `<form class="tp-card tp-editor" data-form="${action}"><h3>${esc(title)}</h3>${body}<div class="tp-actions"><button type="submit">${esc(submitLabel)}</button><button type="reset">Reset changes</button></div><p data-feedback role="status" aria-live="polite"></p></form>`;
   const numeric = v => v === '' ? null : Number(v);
   // Programmatic initials fallback for a Program with no uploaded logo: first
@@ -36,6 +41,10 @@
     return (words[0][0] + words[1][0]).toUpperCase();
   }
   const logoBadge = (program, sizeClass) => `<span class="tp-logo-badge ${sizeClass}">${program.logo_url ? `<img src="${esc(program.logo_url)}" alt="${esc(program.name)} logo">` : `<span class="tp-logo-initials" aria-hidden="true">${esc(logoInitials(program.name))}</span>`}</span>`;
+  // One confirmation used by both the direct-delete and version-safe-delete
+  // paths, so Delete Competency reads identically regardless of internal
+  // Framework mutability - the Owner never needs to understand versions.
+  const DELETE_COMPETENCY_CONFIRM = 'Delete this Competency?\n\nThis will also remove its KPI and Levels from the current assessment setup. Historical completed assessments will remain preserved.';
   let unloadGuard, hashGuard;
   // Bounded, same-Program-context cache for the wizard data fetch chain
   // (Program record, annual config, framework versions, competency bank,
@@ -287,6 +296,13 @@
     const fp=framework?`${base}/frameworks/${framework.id}`:'';
     const mutableFramework=framework?.status==='draft' && !framework?.in_use_by_assessments;
     const editable=manage && mutableFramework;
+    // Copy Criteria From Grade... is a structural action, always available
+    // exactly like versioned Delete Competency - the Owner should never
+    // need to know whether the current build is mutable. An immutable/
+    // active build is cloned into a new draft first (handled in the submit
+    // handler), so this only requires manage permission on a real Framework
+    // for a Program that is not retired.
+    const canCopyGradeCriteria=manage && Boolean(framework) && program.status!=='retired';
     const deletableCompetency=canDeleteCompetency && mutableFramework;
     const versionedDeleteCompetency=canDeleteCompetency && manage && Boolean(framework) && !mutableFramework && program.status!=='retired';
     const deletableRubricLevel=canDeleteRubricLevel && mutableFramework;
@@ -298,6 +314,7 @@
       : '<span class="tp-muted">No Evaluation Periods configured yet.</span>';
     const levels=config?.levels || [], rubrics=config?.rubrics || [], kpi=config?.kpi;
     const descriptorGrades=annualYear?.eligible_grade_levels || [];
+    const gradeOptions=[['','All eligible Grades'],...descriptorGrades.map(g=>[g,g==='KG'?'KG':`Grade ${g}`])];
     const memberName=m=>m.label || bank.find(c=>c.id===m.competency_id)?.name || 'Unnamed competency';
     const rubricForCompetency=mid=>rubrics.find(r=>Number(r.framework_competency_id)===Number(mid)) || null;
     const levelsForCompetency=mid=>rubricForCompetency(mid)?.levels || [];
@@ -345,11 +362,11 @@
         const summary=gradeMembers.map(m=>{
           const rubric=rubricForCompetency(m.id);
           const count=rubric?.levels?.length || levels.length;
-          return `<li><strong>${esc(memberName(m))}</strong> — ${esc(rubric?.name||config?.rubric?.name||'KPI not configured')} · ${count} level${count===1?'':'s'}</li>`;
+          return `<li><strong>${esc(memberName(m))}</strong> — ${esc(rubric?.name||config?.rubric?.name||'KPI not configured')} · ${count} Level${count===1?'':'s'}</li>`;
         }).join('');
-        return `<details class="tp-card tp-grade-rubric"><summary><strong>${esc(label)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${gradeMembers.length?`<ul>${summary}</ul>`:'<p class="tp-empty">No competencies configured yet.</p>'}</div></details>`;
+        return `<details class="tp-card tp-grade-rubric"><summary><strong>${esc(label)}</strong><span>${gradeMembers.length} Competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${gradeMembers.length?`<ul>${summary}</ul>`:'<p class="tp-empty">No competencies configured yet.</p>'}</div></details>`;
       }).join('');
-      root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p><p>${esc(yearLabel)} · ${annualYear?.is_enabled?'Enabled':'Not enabled'}</p></div></header><section class="tp-program-summary" aria-label="Program summary"><div class="tp-readiness-banner ${setupComplete?'is-ready':'is-incomplete'}"><strong>${setupComplete?'✓ Ready':'Needs setup'}</strong><span>${setupComplete?'Competency, KPI, and Level are configured. Start Assessment is available.':(missingRequirement||'Complete the Program setup below.')}</span></div><dl><div><dt>Grades</dt><dd>${grades||'Not configured'}</dd></div><div><dt>Competencies</dt><dd>${members.length}</dd></div><div><dt>KPI</dt><dd>${rubrics.filter(r=>r.framework_competency_id!=null).length || (levels.length?1:0)}</dd></div><div><dt>Scoring Mode</dt><dd>${esc(scoringMode)}${kpi?.enabled?` <span class="tp-badge">Numeric result enabled</span>`:''}</dd></div><div><dt>Evaluation Periods</dt><dd>${periodCount}</dd></div></dl></section>${gradeRubricSummary?`<section><h3>KPI overview</h3><div class="tp-grade-accordion">${gradeRubricSummary}</div></section>`:''}<div class="tp-summary-actions">${manage?`<a href="#tp-basics">${icon('edit')}Edit Program</a><a href="#tp-rubric">${icon('edit')}Build / Edit Competency, KPI &amp; Level</a>`:''}${can('talent_evaluation_plans.view')?`<a href="#tp-schedule">Manage Evaluation Plan</a>`:''}${can('talent_assessments.view')?`<a href="${esc(href('assessments'))}">${icon('eye')}Open Assessments</a>`:''}${can('talent_analytics.view')?`<a href="${esc(href('portfolio'))}">${icon('eye')}View Results</a>`:''}${govern&&(program.status==='draft'||framework?.status==='draft')?button('finish-setup','Activate Program (optional)'):''}</div>`;
+      root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p><p>${esc(yearLabel)} · ${annualYear?.is_enabled?'Enabled':'Not enabled'}</p></div></header><section class="tp-program-summary" aria-label="Program summary"><div class="tp-readiness-banner ${setupComplete?'is-ready':'is-incomplete'}"><strong>${setupComplete?'✓ Ready':'Needs setup'}</strong><span>${setupComplete?'Competency, KPI, and Level are configured. Start Assessment is available.':(missingRequirement||'Complete the Program setup below.')}</span></div><dl><div><dt>Grades</dt><dd>${grades||'Not configured'}</dd></div><div><dt>Competencies</dt><dd>${members.length}</dd></div><div><dt>KPI</dt><dd>${rubrics.filter(r=>r.framework_competency_id!=null).length || (levels.length?1:0)}</dd></div><div><dt>Scoring Mode</dt><dd>${esc(scoringMode)}${kpi?.enabled?` <span class="tp-badge">Numeric result enabled</span>`:''}</dd></div><div><dt>Evaluation Periods</dt><dd>${periodCount}</dd></div></dl></section>${gradeRubricSummary?`<section><h3>KPI Overview</h3><div class="tp-grade-accordion">${gradeRubricSummary}</div></section>`:''}<div class="tp-summary-actions">${manage?`<a href="#tp-basics">${icon('edit')}Edit Program</a><a href="#tp-rubric">${icon('edit')}Build / Edit Competency, KPI &amp; Level</a>`:''}${can('talent_evaluation_plans.view')?`<a href="#tp-schedule">Manage Evaluation Plan</a>`:''}${can('talent_assessments.view')?`<a href="${esc(href('assessments'))}">${icon('eye')}Open Assessments</a>`:''}${can('talent_analytics.view')?`<a href="${esc(href('portfolio'))}">${icon('eye')}View Results</a>`:''}${govern&&(program.status==='draft'||framework?.status==='draft')?button('finish-setup','Activate Program (optional)'):''}</div>`;
       return;
     }
     const stepReason={assess:assessRemaining?`${assessRemaining} item${assessRemaining===1?'':'s'} remaining`:''};
@@ -361,8 +378,15 @@
     const requestedGrade=params.get('rubric_grade');
     const selectedGrade=descriptorGrades.includes(requestedGrade)?requestedGrade:(descriptorGrades[0]||'');
     const gradePicker=descriptorGrades.length?`<label class="tp-grade-picker">Grade<select data-rubric-grade>${descriptorGrades.map(g=>option(g,g==='KG'?'KG':`Grade ${g}`,selectedGrade)).join('')}</select></label>`:'';
+    // A Competency with no Grade at all is a genuine "all eligible Grades"
+    // choice only when this Framework has never been used for a real
+    // Assessment - once it has history, an unset Grade is presumed
+    // legacy/pre-migration data and must not be projected into new Grade
+    // authoring (see the dedicated "legacy assessed rubric" regression).
+    const noGradeMatchesAnyGrade=!framework?.in_use_by_assessments;
+    const membersForGradeLevel=g=>members.filter(m=>(noGradeMatchesAnyGrade&&!m.grade_level)||String(m.grade_level)===String(g));
     const rubricGradeSections=(selectedGrade?[selectedGrade]:[]).map((grade)=>{
-      const gradeMembers=members.filter(m=>String(m.grade_level||'')===String(grade));
+      const gradeMembers=membersForGradeLevel(grade);
       const gradeLabel=grade==='KG'?'KG':`Grade ${grade}`;
       const competencyCards=gradeMembers.map(m=>{
         const rubric=rubricForCompetency(m.id);
@@ -374,7 +398,7 @@
               <strong>${l.order || memberLevels.indexOf(l)+1}. ${esc(l.label)}</strong>
               <p>${esc(l.description||'No description yet.')}</p>
             </div>
-            ${editable||deletableRubricLevel?`<div class="tp-row-actions">${editable?button('reveal-editor','Edit',`data-editor-key="level-${l.id}"`,'edit'):''}${deletableRubricLevel?button('remove-level','Delete Level',`data-key="${l.id}"`,'trash'):''}</div>${editable?`<div data-editor="level-${l.id}" hidden>${form(`level:${l.id}`,'Edit Level',field('label','Level name',l.label,'text',true)+area('description','Level description',l.description),'Save Level')}</div>`:''}`:''}
+            ${editable||deletableRubricLevel?`<div class="tp-row-actions tp-icon-actions">${editable?iconButton('reveal-editor',`Edit ${memberName(m)} level ${l.label}`,`data-editor-key="level-${l.id}"`,'edit'):''}${deletableRubricLevel?iconButton('remove-level',`Delete ${memberName(m)} level ${l.label}`,`data-key="${l.id}"`,'trash'):''}</div>${editable?`<div data-editor="level-${l.id}" hidden>${form(`level:${l.id}`,'Edit Level',field('label','Level name',l.label,'text',true)+area('description','Level description',l.description),'Save Level')}</div>`:''}`:''}
           </div>`
         ).join('');
         const copySources=members.filter(source=>source.id!==m.id&&(rubricForCompetency(source.id)?.levels||[]).length).map(source=>[source.id,`${memberName(source)}${source.grade_level?` · ${source.grade_level==='KG'?'KG':`Grade ${source.grade_level}`}`:''}`]);
@@ -382,14 +406,41 @@
           ? `<button type="button" data-reveal="level-copy-${m.id}">${icon('copy')}Copy Levels From…</button><div data-editor="level-copy-${m.id}" hidden>${form(`copy-levels:${m.id}`,'Copy Level Structure',select('source_framework_competency_id','Copy from Competency',copySources,'')+check('include_descriptions','Copy level descriptions too',false),'Copy Levels')}</div>`
           : '';
         const rubricBody=rubric
-          ? `<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">KPI</span><strong>${esc(rubric.name)}</strong>${rubric.description?`<p>${esc(rubric.description)}</p>`:''}</div>${editable?button('reveal-editor','Edit KPI',`data-editor-key="rubric-${m.id}"`,'edit'):''}</div>${editable?`<div data-editor="rubric-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Edit KPI',area('description','KPI description (optional)',rubric.description),'Save KPI')}</div>`:''}<div class="tp-rubric-level-list">${levelRows||'<p class="tp-empty">No levels yet. Add them manually or copy a completed level structure from another Competency.</p>'}</div>${editable?`<div class="tp-rubric-build-actions"><button type="button" data-reveal="level-add-${m.id}">+ Add Level</button>${copyLevelForm}</div><div data-editor="level-add-${m.id}" hidden>${form(`competency-level:${m.id}`,'Add Level',field('label','Level name','','text',true)+area('description','Level description'),'Add Level')}</div>`:''}</div>`
+          ? `<div class="tp-rubric-node"><div class="tp-rubric-node-head"><div><span class="tp-node-label">KPI</span><strong>${esc(rubric.name)}</strong>${rubric.description?`<p>${esc(rubric.description)}</p>`:''}</div>${editable?`<div class="tp-icon-actions">${iconButton('reveal-editor',`Edit ${rubric.name} KPI`,`data-editor-key="rubric-${m.id}"`,'edit')}</div>`:''}</div>${editable?`<div data-editor="rubric-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Edit KPI',area('description','KPI description (optional)',rubric.description),'Save KPI')}</div>`:''}<div class="tp-rubric-level-list">${levelRows||'<p class="tp-empty">No levels yet. Add them manually or copy a completed level structure from another Competency.</p>'}</div>${editable?`<div class="tp-rubric-build-actions"><button type="button" data-reveal="level-add-${m.id}">+ Add Level</button>${copyLevelForm}</div><div data-editor="level-add-${m.id}" hidden>${form(`competency-level:${m.id}`,'Add Level',field('label','Level name','','text',true)+area('description','Level description'),'Add Level')}</div>`:''}</div>`
           : editable
             ? `<button type="button" data-reveal="rubric-add-${m.id}">+ Add KPI</button><div data-editor="rubric-add-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Add KPI',area('description','KPI description (optional)'),'Add KPI')}</div>`
             : '<p class="tp-empty">No rubric configured.</p>';
-        return `<article class="tp-card tp-rubric-competency"><div class="tp-competency-node-head"><div><span class="tp-node-label">Competency</span><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div>${deletableCompetency?button('remove-member','Delete Competency',`data-key="${m.competency_id}"`,'trash'):versionedDeleteCompetency?button('remove-member-versioned','Delete Competency',`data-key="${m.competency_id}"`,'trash'):''}</div>${rubricBody}</article>`;
+        // Each Competency is an independent, initially-collapsed disclosure:
+        // the compact header (name + KPI/Level counter) is always visible;
+        // expanding reveals KPI, Levels, and the Edit/Delete Competency
+        // actions. Delete is always rendered (never hidden for an immutable
+        // Framework) via whichever of the two delete actions the caller is
+        // authorized for and the Framework's mutability requires.
+        const compactCount = rubric ? `${1} KPI · ${memberLevels.length} Level${memberLevels.length===1?'':'s'}` : 'No KPI configured yet';
+        const editAction = editable?iconButton('reveal-editor',`Edit ${memberName(m)}`,`data-editor-key="member-${m.competency_id}"`,'edit'):'';
+        const deleteAction = deletableCompetency?iconButton('remove-member',`Delete ${memberName(m)}`,`data-key="${m.competency_id}"`,'trash'):versionedDeleteCompetency?iconButton('remove-member-versioned',`Delete ${memberName(m)}`,`data-key="${m.competency_id}"`,'trash'):'';
+        const memberEditor=editable?`<div data-editor="member-${m.competency_id}" hidden>${form(`member:${m.competency_id}`,'Edit competency',select('grade_level','Grade',gradeOptions,m.grade_level||'')+field('label','Name',memberName(m),'text',true)+area('description','Description',m.description))}</div>`:'';
+        return `<details class="tp-card tp-rubric-competency"><summary class="tp-competency-summary"><span class="tp-node-label">Competency</span><span class="tp-competency-summary-name">${esc(memberName(m))}</span><span class="tp-competency-summary-count">${esc(compactCount)}</span></summary><div class="tp-competency-node-head"><div>${m.description?`<p>${esc(m.description)}</p>`:''}</div><div class="tp-icon-actions">${editAction}${deleteAction}</div></div>${memberEditor}${rubricBody}</details>`;
       }).join('');
       const addCompetencyForm=editable?form(`create-grade-competency:${grade}`,'Add Competency',field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
-      return `<details class="tp-card tp-grade-rubric" open><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}</div></details>`;
+      // "Copy Criteria From Grade..." is a structural Grade-level action
+      // (Owner correction), not an inline Edit/Delete icon beside an item.
+      // It always appears for every Grade section so the Owner never needs
+      // to know whether the current Framework build is mutable - an
+      // immutable/active build is cloned into a new draft first, exactly
+      // like the existing version-safe Delete Competency flow.
+      const copySourceGrades=descriptorGrades.filter(g=>g!==grade&&membersForGradeLevel(g).length);
+      const copyGradeCriteriaForm=gradeMembers.length
+        ? `<p class="tp-empty">${esc(gradeLabel)} already has Competencies. Remove its existing Competencies first, or copy into an empty Grade.</p>`
+        : (copySourceGrades.length
+            ? form(`copy-grade-criteria:${grade}`,'Copy Criteria From Grade',
+                select('source_grade_level','Copy criteria from Grade',copySourceGrades.map(g=>[g,g==='KG'?'KG':`Grade ${g}`]),''),
+                'Copy Criteria')
+            : `<p class="tp-empty">No other Grade has criteria configured yet to copy from.</p>`);
+      const copyGradeCriteriaAction=canCopyGradeCriteria
+        ? `<button type="button" data-reveal="grade-copy-${grade}">${icon('copy')}Copy Criteria From Grade…</button><div data-editor="grade-copy-${grade}" hidden>${copyGradeCriteriaForm}</div>`
+        : '';
+      return `<details class="tp-card tp-grade-rubric" open><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} Competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}<div class="tp-grade-structural-actions">${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}${copyGradeCriteriaAction}</div></div></details>`;
     }).join('');
     const rubricSetupControls=!framework
       ? (manage?form('new-version','Create Rubric Structure',field('title','Rubric setup name',`${program.name} rubric`,'text',true)+area('summary','Optional note'),'Create Rubric Structure'):'<p class="tp-empty">Rubric setup has not been created.</p>')
@@ -399,11 +450,10 @@
     const setupVersion = !framework
       ? (manage&&program.status!=='retired'?form('new-version','Start assessment setup',field('title','Setup name',`${program.name} assessment setup`,'text',true)+area('summary','What will this setup assess?'),'Start Setup'):'<p class="tp-empty">Assessment setup has not been created.</p>')
       : (!editable&&manage&&program.status!=='retired'?`<button type="button" data-reveal="new-version">${icon('edit')}Edit assessment setup</button><div data-editor="new-version" hidden>${form('new-version','Create an editable setup',field('title','Setup name',`${program.name} updated setup`,'text',true)+area('summary','What is changing?')+check('clone','Copy the current competencies, rubric, and rules',true),'Create Editable Setup')}</div>`:'');
-    const gradeOptions=[['','All eligible Grades'],...descriptorGrades.map(g=>[g,g==='KG'?'KG':`Grade ${g}`])];
-    const competencyRows=members.filter(m=>!selectedGrade||String(m.grade_level||'')===String(selectedGrade)).map(m=>`<tr><th scope="row">${esc(memberName(m))}</th><td>${esc(m.description||'—')}</td><td><div class="tp-row-actions">${editable||deletableCompetency||versionedDeleteCompetency?`${editable?button('reveal-editor','Edit',`data-editor-key="member-${m.competency_id}"`,'edit'):''}${deletableCompetency?button('remove-member','Delete Competency',`data-key="${m.competency_id}"`,'trash'):versionedDeleteCompetency?button('remove-member-versioned','Delete Competency',`data-key="${m.competency_id}"`,'trash'):''}`:''}</div><div data-editor="member-${m.competency_id}" hidden>${editable?form(`member:${m.competency_id}`,'Edit competency',select('grade_level','Grade',gradeOptions,m.grade_level||'')+field('label','Name',memberName(m),'text',true)+area('description','Description',m.description)):''}</div></td></tr>`).join('');
+    const competencyRows=members.filter(m=>!selectedGrade||String(m.grade_level||'')===String(selectedGrade)).map(m=>`<tr><th scope="row">${esc(memberName(m))}</th><td>${esc(m.description||'—')}</td><td><div class="tp-row-actions tp-icon-actions">${editable||deletableCompetency||versionedDeleteCompetency?`${editable?iconButton('reveal-editor',`Edit ${memberName(m)}`,`data-editor-key="member-${m.competency_id}"`,'edit'):''}${deletableCompetency?iconButton('remove-member',`Delete ${memberName(m)}`,`data-key="${m.competency_id}"`,'trash'):versionedDeleteCompetency?iconButton('remove-member-versioned',`Delete ${memberName(m)}`,`data-key="${m.competency_id}"`,'trash'):''}`:''}</div><div data-editor="member-${m.competency_id}" hidden>${editable?form(`member:${m.competency_id}`,'Edit competency',select('grade_level','Grade',gradeOptions,m.grade_level||'')+field('label','Name',memberName(m),'text',true)+area('description','Description',m.description)):''}</div></td></tr>`).join('');
     const competenciesPanel=`<div data-assess-panel="competencies"><h3>Competencies</h3><p class="tp-note">Choose one Grade, then manage its competencies without repeating the Grade on every row.</p>${gradePicker}${framework?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Name</th><th>Description</th><th>Actions</th></tr></thead><tbody>${competencyRows||'<tr><td colspan="3">No competencies yet for this Grade.</td></tr>'}</tbody></table></div>`:setupVersion}${editable?`<p><button type="button" data-reveal="add-competency">+ Add Competency</button></p><div data-editor="add-competency" hidden>${form('create-competency','Add competency',field('code','Short code','','text',true)+field('name','Name','','text',true)+area('description','Description'),'Add Competency')}${bank.some(c=>c.status==='active'&&!members.some(m=>m.competency_id===c.id))?form('add-member','Use an existing competency',select('grade_level','Grade',gradeOptions,'')+select('competency_id','Competency',bank.filter(c=>c.status==='active'&&!members.some(m=>m.competency_id===c.id)).map(c=>[c.id,c.name]),''),'Add Competency'):''}</div>`:''}<div class="tp-wizard-actions"><a href="#tp-basics">Back</a><a class="tp-primary-link" href="${substeps.rubric}">Next: Rubric Levels</a></div></div>`;
-    const levelRows=levels.map(l=>`<tr><th scope="row">${rubricVisual().badge(l,levels)}</th><td>${esc(l.description||'—')}</td><td><div class="tp-row-actions">${editable||deletableRubricLevel?`${editable?button('reveal-editor','Edit',`data-editor-key="level-${l.id}"`,'edit'):''}${deletableRubricLevel?button('remove-level','Delete Level',`data-key="${l.id}"`,'trash'):''}`:''}</div><div data-editor="level-${l.id}" hidden>${editable?form(`level:${l.id}`,'Edit level',field('label','Level name',l.label,'text',true)+area('description','Description',l.description)+field('numeric_value','Numeric value (optional)',l.numeric_value,'number')):''}</div></td></tr>`).join('');
-    const rubricPanel=`<div data-assess-panel="rubric"><h3>Rubric Levels</h3>${framework?`<p><strong>${esc(config.rubric?.name||'Rubric')}</strong> ${editable?button('reveal-editor','Edit rubric',`data-editor-key="rubric"`,'edit'):''}</p><div data-editor="rubric" hidden>${editable?form('rubric','Edit rubric',field('name','Rubric name',config.rubric?.name,'text',true)+area('description','How to use this rubric',config.rubric?.description)):''}</div><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Level</th><th>Description</th><th>Actions</th></tr></thead><tbody>${levelRows||'<tr><td colspan="3">No rubric levels yet.</td></tr>'}</tbody></table></div>${editable&&config.rubric?`<p><button type="button" data-reveal="add-level">+ Add Level</button></p><div data-editor="add-level" hidden>${form('add-level','Add rubric level',field('code','Short code','','text',true)+field('label','Level name','','text',true)+area('description','Description')+field('numeric_value','Numeric value (optional)','','number'),'Add Level')}</div>`:''}`:setupVersion}<div class="tp-wizard-actions"><a href="${substeps.competencies}">Back</a><a class="tp-primary-link" href="${substeps.descriptions}">Next: Achievement Descriptions</a></div></div>`;
+    const levelRows=levels.map(l=>`<tr><th scope="row">${rubricVisual().badge(l,levels)}</th><td>${esc(l.description||'—')}</td><td><div class="tp-row-actions tp-icon-actions">${editable||deletableRubricLevel?`${editable?iconButton('reveal-editor',`Edit level ${l.label}`,`data-editor-key="level-${l.id}"`,'edit'):''}${deletableRubricLevel?iconButton('remove-level',`Delete level ${l.label}`,`data-key="${l.id}"`,'trash'):''}`:''}</div><div data-editor="level-${l.id}" hidden>${editable?form(`level:${l.id}`,'Edit level',field('label','Level name',l.label,'text',true)+area('description','Description',l.description)+field('numeric_value','Numeric value (optional)',l.numeric_value,'number')):''}</div></td></tr>`).join('');
+    const rubricPanel=`<div data-assess-panel="rubric"><h3>Rubric Levels</h3>${framework?`<p><strong>${esc(config.rubric?.name||'Rubric')}</strong> ${editable?iconButton('reveal-editor',`Edit ${config.rubric?.name||'Rubric'}`,`data-editor-key="rubric"`,'edit'):''}</p><div data-editor="rubric" hidden>${editable?form('rubric','Edit rubric',field('name','Rubric name',config.rubric?.name,'text',true)+area('description','How to use this rubric',config.rubric?.description)):''}</div><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Level</th><th>Description</th><th>Actions</th></tr></thead><tbody>${levelRows||'<tr><td colspan="3">No rubric levels yet.</td></tr>'}</tbody></table></div>${editable&&config.rubric?`<p><button type="button" data-reveal="add-level">+ Add Level</button></p><div data-editor="add-level" hidden>${form('add-level','Add rubric level',field('code','Short code','','text',true)+field('label','Level name','','text',true)+area('description','Description')+field('numeric_value','Numeric value (optional)','','number'),'Add Level')}</div>`:''}`:setupVersion}<div class="tp-wizard-actions"><a href="${substeps.competencies}">Back</a><a class="tp-primary-link" href="${substeps.descriptions}">Next: Achievement Descriptions</a></div></div>`;
     const gradeSections=(descriptorGrades.length?descriptorGrades:[null]).map(grade=>{
       const gradeMembers=membersForGrade(grade);
       const heading=grade?(grade==='KG'?'KG':`Grade ${grade}`):'All Grades';
@@ -412,14 +462,14 @@
           const d=descriptorFor(m.id,l.id,grade);
           const exact=config?.descriptors?.find(item=>item.framework_competency_id===m.id&&item.rubric_level_id===l.id&&String(item.grade_level||'')===String(grade||''));
           const key=`description-${grade||'general'}-${m.id}-${l.id}`;
-          return `<tr><td>${rubricVisual().badge(l,levels)}</td><td>${esc(d?.descriptor||'Not described yet.')}${grade&&d&&!exact?'<small class="tp-muted">General descriptor fallback</small>':''}</td><td><div class="tp-row-actions">${editable?button('reveal-editor','Edit',`data-editor-key="${key}"`,'edit'):''}${editable&&exact?button('remove-descriptor','Remove',`data-key="${exact.id}" data-scope="grade"`,'trash'):''}</div><div data-editor="${key}" hidden>${editable?form(`descriptor:${m.id}:${l.id}:${grade||''}`,'Edit achievement description',area('descriptor','Description',d?.descriptor),'Save Description'):''}</div></td></tr>`;
+          return `<tr><td>${rubricVisual().badge(l,levels)}</td><td>${esc(d?.descriptor||'Not described yet.')}${grade&&d&&!exact?'<small class="tp-muted">General descriptor fallback</small>':''}</td><td><div class="tp-row-actions tp-icon-actions">${editable?iconButton('reveal-editor',`Edit ${memberName(m)} description at level ${l.label}`,`data-editor-key="${key}"`,'edit'):''}${editable&&exact?iconButton('remove-descriptor',`Remove ${memberName(m)} description at level ${l.label}`,`data-key="${exact.id}" data-scope="grade"`,'trash'):''}</div><div data-editor="${key}" hidden>${editable?form(`descriptor:${m.id}:${l.id}:${grade||''}`,'Edit achievement description',area('descriptor','Description',d?.descriptor),'Save Description'):''}</div></td></tr>`;
         }).join('');
         return `<article class="tp-card tp-rubric-competency"><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p><div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Level</th><th>Achievement description</th><th>Action</th></tr></thead><tbody>${rows}</tbody></table></div></article>`;
       }).join('');
       return `<section class="tp-grade-rubric"><h4>${esc(heading)}</h4>${competencySections||'<p class="tp-empty">No competencies assigned to this Grade yet.</p>'}</section>`;
     }).join('');
     const descriptionsPanel=`<div data-assess-panel="descriptions"><h3>Achievement Descriptions</h3><p class="tp-note">For each Grade, define every Competency across the ordered rubric Levels. Student assessments use only the competencies assigned to the Student’s recorded Grade.</p>${members.length&&levels.length?gradeSections:'<p class="tp-empty">Add Grade-scoped competencies and rubric levels first.</p>'}<div class="tp-wizard-actions"><a href="${substeps.rubric}">Back</a><a class="tp-primary-link" href="${substeps.review}">Review &amp; Continue</a></div></div>`;
-    const reviewPanel=`<div data-assess-panel="review"><h3>Review</h3><div class="tp-assessment-view">${(descriptorGrades.length?descriptorGrades:[null]).map(grade=>`<section class="tp-card"><h4>${esc(grade?(grade==='KG'?'KG':`Grade ${grade}`):'All Grades')}</h4>${membersForGrade(grade).map(m=>`<article class="tp-competency-row"><div><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div><dl>${levels.map(l=>{const d=descriptorFor(m.id,l.id,grade);return `<div><dt>${rubricVisual().badge(l,levels)}</dt><dd>${esc(d?.descriptor||'Not described yet.')}</dd></div>`;}).join('')}</dl></article>`).join('')||'<p class="tp-empty">No competencies assigned to this Grade.</p>'}</section>`).join('')||'<p class="tp-empty">Assessment setup is incomplete.</p>'}</div><details class="tp-card"><summary>Advanced setup and history</summary><p>Changes to an active assessment setup create a new saved setup so historical evaluations remain unchanged.</p><div class="tp-actions">${versions.map(v=>`<a class="tp-badge" href="${esc(href('programs',{framework_id:v.id}))}#tp-builder-review">${esc(v.title)} · ${esc(v.status)}</a>`).join('')}</div>${setupVersion}${framework?`<details class="tp-kpi-disclosure"><summary>Key Performance Indicator (KPI)</summary>${editable?form('kpi',kpi?'Edit KPI':'Add KPI',check('is_enabled','Enable KPI numeric result',kpi?.enabled??false)+field('result_scale_min','Scale minimum',kpi?.scale_min,'number')+field('result_scale_max','Scale maximum',kpi?.scale_max,'number')+area('interpretation','How to interpret the KPI result',kpi?.interpretation)+members.map(m=>field(`weight_${m.id}`,`${memberName(m)} weight (%)`,(kpi?.components.find(c=>c.framework_competency_id===m.id)?.weight_basis_points||0)/100,'number')).join(''),kpi?'Save KPI':'Add KPI'):''}${editable&&kpi?`<p class="tp-actions">${button('remove-kpi','Delete KPI','','trash')}</p>`:''}</details>`:''}</details><div class="tp-wizard-actions"><a href="${substeps.descriptions}">Back</a><a class="tp-primary-link" href="#tp-schedule">Save &amp; Continue</a></div></div>`;
+    const reviewPanel=`<div data-assess-panel="review"><h3>Review</h3><div class="tp-assessment-view">${(descriptorGrades.length?descriptorGrades:[null]).map(grade=>`<section class="tp-card"><h4>${esc(grade?(grade==='KG'?'KG':`Grade ${grade}`):'All Grades')}</h4>${membersForGrade(grade).map(m=>`<article class="tp-competency-row"><div><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div><dl>${levels.map(l=>{const d=descriptorFor(m.id,l.id,grade);return `<div><dt>${rubricVisual().badge(l,levels)}</dt><dd>${esc(d?.descriptor||'Not described yet.')}</dd></div>`;}).join('')}</dl></article>`).join('')||'<p class="tp-empty">No competencies assigned to this Grade.</p>'}</section>`).join('')||'<p class="tp-empty">Assessment setup is incomplete.</p>'}</div><details class="tp-card"><summary>Advanced setup and history</summary><p>Changes to an active assessment setup create a new saved setup so historical evaluations remain unchanged.</p><div class="tp-actions">${versions.map(v=>`<a class="tp-badge" href="${esc(href('programs',{framework_id:v.id}))}#tp-builder-review">${esc(v.title)} · ${esc(v.status)}</a>`).join('')}</div>${setupVersion}${framework?`<details class="tp-kpi-disclosure"><summary>Key Performance Indicator (KPI)</summary>${editable?form('kpi',kpi?'Edit KPI':'Add KPI',check('is_enabled','Enable KPI numeric result',kpi?.enabled??false)+field('result_scale_min','Scale minimum',kpi?.scale_min,'number')+field('result_scale_max','Scale maximum',kpi?.scale_max,'number')+area('interpretation','How to interpret the KPI result',kpi?.interpretation)+members.map(m=>field(`weight_${m.id}`,`${memberName(m)} weight (%)`,(kpi?.components.find(c=>c.framework_competency_id===m.id)?.weight_basis_points||0)/100,'number')).join(''),kpi?'Save KPI':'Add KPI'):''}${editable&&kpi?`<p class="tp-actions">${iconButton('remove-kpi','Delete KPI','','trash')}</p>`:''}</details>`:''}</details><div class="tp-wizard-actions"><a href="${substeps.descriptions}">Back</a><a class="tp-primary-link" href="#tp-schedule">Save &amp; Continue</a></div></div>`;
     const assessPanel=`<section id="tp-builder" class="tp-wizard-panel"><h2>What we assess</h2><nav class="tp-substeps" aria-label="Assessment setup steps">${subnav}</nav>${({competencies:competenciesPanel,rubric:rubricPanel,descriptions:descriptionsPanel,review:reviewPanel})[activeSub]}</section>`;
     root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p></div></header>${nav?`<nav class="tp-tabs" aria-label="Program workspace">${nav}</nav>`:''}
       ${activeStep==='basics'?`<section id="tp-basics" class="tp-wizard-panel"><h2>Program Basics</h2>${manage&&program.status!=='retired'&&year?`<form class="tp-card tp-editor tp-basics-form" data-form="basics"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div>${program.status==='draft'?field('name','Program name',program.name,'text',true):`<h3>${esc(program.name)}</h3>`}<div class="tp-actions"><label class="tp-file-action">${icon('upload')}${program.logo_url?'Replace Logo':'Upload Logo'}<input type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" data-logo-input hidden></label>${program.logo_url?button('remove-logo','Remove Logo','','trash'):''}</div></div></div>${program.status==='draft'?area('description','What does this Program assess?',program.description):`<p>${esc(program.description||'No description added.')}</p>`}<p><strong>Academic Year:</strong> ${esc(yearLabel)}</p>${configuredGrades.length?`<fieldset><legend>Eligible Grades</legend>${configuredGrades.map(g=>check(`grade_${g}`,g==='KG'?'KG':`Grade ${g}`,annualYear?.eligible_grade_levels.includes(g))).join('')}</fieldset>`:'<p class="tp-inline-empty">No Grades are configured in Planning for this Academic Year.</p>'}<section class="tp-program-evaluations"><div class="tp-section-heading"><div><p class="tp-eyebrow">Assessment periods</p><h3>Evaluation Periods</h3></div><a class="tp-action-link" href="#tp-schedule">Manage Evaluations →</a></div><p>Choose the user-defined periods when this Program will be assessed during the Academic Year.</p><div class="tp-evaluation-chip-list">${evaluationSummary}</div></section><div class="tp-wizard-actions"><button type="reset">Reset</button><button type="submit">Save Program</button></div><p data-feedback role="status" aria-live="polite"></p></form>`:`<div class="tp-card"><div class="tp-identity-row">${logoBadge(program,'tp-logo-md')}<div><h3>${esc(program.name)}</h3><p>${esc(program.description||'')}</p></div></div><p><strong>Academic Year:</strong> ${esc(yearLabel||'Not selected')}</p><p>${annualYear?.is_enabled?'Enabled':'Not enabled'} · ${(annualYear?.eligible_grade_levels||[]).join(', ')||'No Grades configured'}</p><div class="tp-evaluation-chip-list">${evaluationSummary}</div></div><div class="tp-wizard-actions"><a href="#tp-schedule">Manage Evaluations</a><a class="tp-primary-link" href="#tp-builder">Continue</a></div>`}</section>`:''}
@@ -455,6 +505,47 @@
         }catch(error){
           const feedback=f.querySelector('[data-feedback]');
           if(feedback){feedback.textContent=error.message||'Unable to add competency.';feedback.setAttribute('role','alert');}
+        }
+        return;
+      }
+      else if(action.startsWith('copy-grade-criteria:')){
+        if(!framework)return;
+        const targetGrade=action.split(':')[1];
+        const sourceGrade=String(d.get('source_grade_level')||'');
+        if(!sourceGrade)return;
+        const targetLabel=targetGrade==='KG'?'KG':`Grade ${targetGrade}`;
+        const sourceLabel=sourceGrade==='KG'?'KG':`Grade ${sourceGrade}`;
+        if(!window.confirm(`Copy all criteria from ${sourceLabel} to ${targetLabel}?\n\nThis will copy all Competencies, KPIs, Levels, descriptions, and ordering into ${targetLabel}. The copied criteria will be independently editable. ${sourceLabel} will not be changed.`))return;
+        try{
+          // Owner correction: "the same version-safe current-build mechanism
+          // already established for edits/deletes" - an immutable/active
+          // build is cloned into a new draft first, exactly like the
+          // existing versioned Delete Competency flow, so the Owner never
+          // needs to understand Framework cloning/versioning.
+          let targetFramework=framework, targetBase=fp;
+          if(!mutableFramework){
+            const created=await api(`${base}/frameworks`,{method:'POST',body:JSON.stringify({
+              title:`${program.name} updated assessment setup`,
+              summary:`Criteria copied from ${sourceLabel} to ${targetLabel}.`,
+              clone_from_id:framework.id,
+              supersedes_framework_version_id:framework.id,
+            })});
+            targetFramework=created; targetBase=`${base}/frameworks/${created.id}`;
+          }
+          await api(`${targetBase}/grades/copy`,{method:'POST',body:JSON.stringify({
+            source_grade_level:sourceGrade, target_grade_level:targetGrade, expected_revision:targetFramework.revision,
+          })});
+          if(targetFramework.id!==framework.id){
+            params.set('framework_id',String(targetFramework.id));
+            bundleCache=null;
+          }
+          params.set('rubric_grade',targetGrade);
+          if(typeof window!=='undefined')window.location.hash='#tp-rubric';
+          await fullRefresh();
+          ctx.notify?.(`Criteria copied from ${sourceLabel} to ${targetLabel}.`);
+        }catch(error){
+          const feedback=f.querySelector('[data-feedback]');
+          if(feedback){feedback.textContent=error.message||'Unable to copy criteria.';feedback.setAttribute('role','alert');}
         }
         return;
       }
@@ -502,7 +593,10 @@
       }
       const b=event.target.closest('[data-action]');if(!b||busy)return;const a=b.dataset.action;
       if(a==='remove-member-versioned'){
-        if(!window.confirm('This saved assessment setup is immutable. Create a new editable setup and delete this Competency for future assessments? Existing completed evidence will remain unchanged.'))return;
+        // Internal Framework-version cloning is deliberately not exposed to
+        // the Owner - the confirmation and outcome read identically to the
+        // direct-delete path (Delete Competency is one subtree action).
+        if(!window.confirm(DELETE_COMPETENCY_CONFIRM))return;
         const created=await api(`${base}/frameworks`,{method:'POST',body:JSON.stringify({
           title:`${program.name} updated assessment setup`,
           summary:'Competency removed from future assessment setup.',
@@ -514,7 +608,7 @@
         bundleCache=null;
         if(typeof window!=='undefined')window.location.hash='#tp-rubric';
         await fullRefresh();
-        ctx.notify?.('Competency deleted from the new editable assessment setup. Historical evidence is unchanged.');
+        ctx.notify?.('Competency deleted. Historical completed assessments remain preserved.');
         return;
       }
       if(a==='finish-rubric'){
@@ -554,7 +648,7 @@
       else if(a==='remove-logo'){if(!window.confirm('Remove the Program logo? This cannot be undone.'))return;path=`${base}/logo`;method='DELETE';body=undefined;}
       else if(a==='activate-version'){if(!window.confirm('Activate this version for future evaluations? The existing active version will be superseded.'))return;path+='/activate';body.expected_fingerprint=framework.semantic_fingerprint;}
       else if(a==='retire-version'){if(!window.confirm('Retire this version? Existing assessment history is preserved.'))return;path+='/retire';body=undefined;}
-      else if(a==='remove-member'||a==='remove-level'||a==='remove-descriptor'){const message=a==='remove-member'?'Delete this Competency from the editable rubric?':a==='remove-level'?'Delete this Rubric Level from the editable rubric?':'Remove this item from the draft version?';if(!window.confirm(message))return;path+=a==='remove-member'?`/competencies/${b.dataset.key}`:a==='remove-level'?`/rubric/levels/${b.dataset.key}`:b.dataset.scope==='grade'?`/rubric/grade-descriptors/${b.dataset.key}`:`/rubric/descriptors/${b.dataset.key}`;path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
+      else if(a==='remove-member'||a==='remove-level'||a==='remove-descriptor'){const message=a==='remove-member'?DELETE_COMPETENCY_CONFIRM:a==='remove-level'?'Delete this Level?':'Remove this item from the current assessment setup?';if(!window.confirm(message))return;path+=a==='remove-member'?`/competencies/${b.dataset.key}`:a==='remove-level'?`/rubric/levels/${b.dataset.key}`:b.dataset.scope==='grade'?`/rubric/grade-descriptors/${b.dataset.key}`:`/rubric/descriptors/${b.dataset.key}`;path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
       else if(a==='remove-kpi'){if(!window.confirm('Delete this KPI configuration? Historical completed Assessment evidence remains unchanged.'))return;path+='/kpi';path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
       else if(a==='move-member'||a==='move-level'){const i=Number(b.dataset.index),items=(a==='move-member'?members.map(m=>m.competency_id):levels.map(l=>l.id));if(i<1)return;[items[i-1],items[i]]=[items[i],items[i-1]];method='PUT';path+=a==='move-member'?'/competencies/order':'/rubric/levels/order';body[a==='move-member'?'competency_ids':'level_ids']=items;}
       else return;

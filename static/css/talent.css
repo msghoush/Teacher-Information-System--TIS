@@ -50,6 +50,9 @@
 .tp-badge {display: inline-flex; align-items: center; gap: 6px; width: fit-content; border: 1px solid var(--app-line); background: var(--app-brand-soft); color: var(--app-brand-deep); border-radius: 999px; padding: 6px 12px 6px 8px; font-size: var(--tp-text-xs); font-weight: 700; line-height: 1.5; white-space: nowrap}
 .tp-badge svg {width: 14px !important; height: 14px !important; min-width: 14px !important; min-height: 14px !important}
 
+.tp-back-link {display: inline-flex; align-items: center; gap: 6px; color: var(--app-brand-deep); font-weight: 700; font-size: var(--tp-text-sm); text-decoration: none; margin-bottom: var(--tp-space-3)}
+.tp-back-link:hover {text-decoration: underline}
+
 /* Navigation */
 .tp-nav {display: flex; gap: 4px; flex-wrap: wrap; padding: 6px; background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--app-radius-lg); margin-bottom: var(--tp-space-5); box-shadow: var(--app-shadow-sm)}
 .tp a {color: var(--app-brand-deep)}

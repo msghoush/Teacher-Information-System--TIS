@@ -2565,3 +2565,171 @@ loads or explicit recovery.
 
 No new schema migration is introduced by this consolidation.
 
+## Talent & Potential Owner Acceptance-Testing Correction Pass (2026-09-12)
+
+A focused UI/UX correction pass over the already-governed ADR 0039 Competency
++ KPI + Level model, driven directly by Owner acceptance testing on top of
+pushed commit a173555. This pass changes no eligibility gate and no
+architecture; it corrects builder rendering, disclosure, navigation, and
+capitalization defects.
+
+Delete Competency is now genuinely always available in the Competency, KPI &
+Level builder for every current build - new-from-scratch, previously saved, or
+based on a historically-used Framework. Investigation found the true root
+cause was not a hidden/blocked action but a rendering bug: a Competency saved
+with no explicit Grade on a genuinely new draft Framework
+(`framework.in_use_by_assessments === false`) never matched any Grade section
+in `rubricGradeSections` at all, so the entire Competency row - and its Delete
+action - never rendered. The fix treats "no Grade" as "applies to all eligible
+Grades" only for a Framework with no Assessment history yet; a no-Grade
+Competency on an already-used Framework remains legacy/pre-migration data and
+still stays out of new-Grade authoring, preserving the existing historical
+protection. Deleting a Competency (direct on a mutable draft, or via the
+existing version-safe clone-then-delete path on an immutable/active Framework)
+removes only the current KPI, Levels, and descriptors; completed historical
+Assessment evidence is never altered. Both paths now show one unified
+confirmation message so the Owner is never asked to reason about Framework
+versions to remove a Competency from future setup.
+
+Each Competency card in the builder is now an independent, initially-collapsed
+disclosure (native `<details>`/`<summary>`, keyboard-operable, no manual
+`aria-expanded` required) showing only a compact header - name plus a
+"N KPI · N Levels" count - until the Owner opens it; Grade sections remain
+their own independent disclosures as before.
+
+The opened Student Assessment editor now shows an obvious "← Back to
+Students" action that returns to the Student Assessments list for the exact
+same Academic Year, Program, and Evaluation/Cycle context the Assessment was
+opened from - never the Talent landing page. The Assessment editor itself is
+otherwise unchanged in this pass.
+
+Talent & Potential capitalization was corrected to consistent Title Case for
+Competency/Competencies, KPI, and Level/Levels counters and section/column
+headings (e.g. "3 Competencies", "5 Levels", "KPI Overview", "Assessment
+Status"), while normal explanatory sentences remain in ordinary sentence case
+by design.
+
+The Owner-supplied Ghars sidebar symbol-only asset
+(`talent-ghars-symbol.png`) named in this correction request was not actually
+present in this environment (confirmed by a full filesystem search); the
+sidebar branding swap to that asset is deferred until the file is supplied,
+and the current Ghars symbol-and-text sidebar branding from the prior
+corrective pass is unchanged. No backend Python files were touched in this
+pass, and no new schema migration is introduced.
+
+## Talent & Potential UI Action-Placement Correction (2026-09-12)
+
+A further Owner-driven interaction-pattern correction on top of the
+acceptance-testing pass above. Edit and Delete for every created Competency,
+KPI, and Level item are now compact icon-only buttons (pencil = Edit,
+trash = Delete) placed immediately beside that item, replacing all visible
+action text ("Edit Competency", "Delete Competency", "Edit KPI",
+"Delete KPI", "Edit Level", "Delete Level"). Each icon button is a real
+`<button>` with an `aria-label` and matching `title` naming the exact item
+it affects (e.g. "Delete Mental Calculation", "Edit Mental Calculation level
+Beginning"), so there is never ambiguity about which row an action targets,
+and it inherits the workspace's existing keyboard focus-visible styling and
+a compact but sufficient (36px) hit target.
+
+This applies uniformly to both the primary Grade -> Competency -> KPI ->
+Level accordion and the older parallel flat-table "What we assess" wizard
+view, so the pattern reads the same wherever these actions are reachable.
+The Competency header in the accordion also gained an Edit icon (it
+previously exposed only Delete there) by surfacing the existing
+name/description edit capability already used elsewhere in the workspace -
+no new backend behavior was introduced.
+
+Add actions are deliberately unchanged: "+ Add Competency", "+ Add KPI",
+"+ Add Level", and "Copy Levels From..." remain visible text and stay in
+their existing structural position (the Grade section for adding a
+Competency, inside a Competency for adding its KPI, inside the KPI for
+adding a Level) rather than sitting beside every existing item. No
+hierarchy, CRUD behavior, or eligibility gate changed in this pass, and no
+backend Python files were touched.
+
+## Talent & Potential Grade-to-Grade Assessment Criteria Copy (2026-09-12)
+
+An Owner-requested follow-up capability on top of the icon-actions correction
+pass, added before deployment. Each Grade section in the Competency, KPI &
+Level builder now exposes a structural, always-visible "Copy Criteria From
+Grade..." action (not an inline Edit/Delete icon) that copies the complete
+source Grade's assessment structure - Competencies, KPI/rubric definitions,
+Levels, and generic/Grade-specific achievement descriptors, with ordering
+preserved - into an empty destination Grade as entirely independent new
+records. Nothing is shared or linked between source and destination:
+renaming or editing a copied Competency, KPI, or Level afterward never
+changes the source Grade, exactly mirroring the existing "add a Competency
+to a Grade" flow's own precedent of minting a new Competency identity per
+Grade membership.
+
+An already-populated destination Grade is always rejected rather than
+silently merged or overwritten (`target_grade_occupied`) - no automatic
+merge algorithm was implemented; the Owner explicitly authorized keeping
+this first version to empty-target-only copying, in favor of safety over
+hidden merge behavior. The backend service function
+(`talent_program_service.copy_grade_criteria`) reuses the existing
+`_require_mutable_draft` gate unchanged, so it can never mutate a Framework
+with real Assessment history; the client reuses the identical version-safe
+clone-then-mutate orchestration already established for versioned Delete
+Competency (clone an immutable/active Framework into a new draft, then copy
+against that draft) so the Owner never needs to understand Framework
+cloning/versioning to use this feature. Copy scope is bounded to the same
+SchoolGroup, Program, and Framework as every other Program-service mutation,
+reusing the existing authorization/scoping pattern unchanged. Copied items
+retain full ordinary Edit/Delete/collapse behavior identical to
+manually-created items. No new schema migration was introduced.
+## CRITICAL: Production DB Connection-Pool Exhaustion Fixed (2026-09-12)
+
+Root-caused and fixed a confirmed production release blocker:
+`sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 10 reached,
+connection timed out, timeout 30.00`. The default (unconfigured) SQLAlchemy
+QueuePool numbers in the traceback match `database.py`'s `create_engine`
+call exactly - no explicit `pool_size`/`max_overflow`/`pool_timeout` was
+ever set.
+
+Root cause was `main.py`'s `inactivity_timeout_middleware` - a global
+`@app.middleware("http")` that runs on every authenticated request across
+the entire application, not only Talent. It opened its own
+`SessionLocal()` session and wrapped the entire `await call_next(request)`
+call inside the same `try/finally: db.close()` block, holding that
+connection checked out for the full duration of every request's
+downstream processing on top of the separate connection the route handler
+itself acquires via `Depends(get_db)`. Every authenticated request
+therefore consumed two simultaneous pool connections for its whole
+lifetime instead of one. This was not a classic leak - the connection was
+always eventually closed - but a long-held, effectively duplicated
+connection held far longer than the few quick scalar queries it actually
+needed (session-user lookup, idle-timeout check, `current_user`
+resolution, commercial-access/permission checks). Talent Student
+Assessments fires several concurrent API requests per page load, so a
+single load could require up to double the connections purely from this
+doubling, exhausting the default pool under light concurrent traffic -
+explaining why Student Assessments failed first, why other pages then
+hung (the pool was globally exhausted for the whole application), and why
+a Render restart temporarily "fixed" it (restart empties the pool; the
+underlying per-request doubling was unchanged and would recur).
+
+Ruled out during investigation: no additional independent
+`SessionLocal()`/`sessionmaker()`/`engine.connect()` sources exist
+anywhere in the Talent service/router layer (all rely exclusively on the
+injected `Depends(get_db)` session); `dependencies.py`'s `get_db()`
+canonical dependency correctly implements try/yield/finally with no
+rollback gap; the deployment runs a single `uvicorn main:app` process (no
+`--workers` flag), so the observed pool numbers are the single-process
+SQLAlchemy defaults, not a worker-multiplication effect. No Grade gate or
+annual Program-configuration enablement gate was reintroduced -
+`current_placements_for_assessment` and
+`_current_placement_for_assessment` are unchanged.
+
+Fix: `inactivity_timeout_middleware` now opens its session, completes the
+auth/idle-timeout/commercial-access/route-permission checks, and closes
+the session entirely before `call_next` is ever awaited - behavior-
+preserving (every existing early-return outcome is unchanged, only
+restructured through one closing point ahead of `call_next`). New
+regression coverage in `tests/test_db_connection_pool_lifecycle.py`
+proves the session closes before `call_next` starts (including on
+exceptions), proves an unauthenticated/exempt request never opens a
+session, and - against a real small QueuePool - proves the fixed shape
+never exceeds pool capacity under concurrency while a reconstruction of
+the old doubled-checkout shape reliably exhausts the same pool, positively
+proving the doubling was real and is now eliminated.

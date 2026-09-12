@@ -119,6 +119,22 @@ test('an editable assessment shows Clear Result only for competencies with a sav
   assert.match(root.innerHTML,/tp-rubric-level/);
 });
 
+test('opened Student Assessment shows a Back to Students action preserving Academic Year, Program, and Evaluation context',async()=>{
+  const root=domRoot();
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:assessmentApi({assessment:{academic_year_id:'2026',program_id:11,cycle_id:5,evaluation_context_cycle_id:5,context:{cycle_status:'open',student_name:'Alya',cycle_id:5}}})};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/class="tp-back-link"[^>]*>← Back to Students</);
+  const [,hrefValue]=root.innerHTML.match(/class="tp-back-link" href="([^"]*)"/)||[];
+  assert.ok(hrefValue,'Back to Students link must be present');
+  const href=hrefValue.replace(/&amp;/g,'&');
+  assert.match(href,/\/talent\/assessments\?/);
+  assert.doesNotMatch(href,/assessment_id=/);
+  assert.match(href,/academic_year_id=2026/);
+  assert.match(href,/program_id=11/);
+  assert.match(href,/cycle_id=5/);
+});
+
 test('assessment rubric uses the descriptor for the Student historical Grade',async()=>{
   const root=domRoot();
   const base=assessmentApi({assessment:{context:{cycle_status:'open',student_name:'Alya',cycle_id:5,grade_level:'2'}}});
