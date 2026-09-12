@@ -2823,3 +2823,14 @@ row. No Grade or annual Program-configuration gate was reintroduced.
 The Talent & Potential sidebar uses the Owner-supplied symbol-only Ghars PNG at
 `static/img/talent-ghars-symbol.png`, rendered by the existing icon-size shell
 rule with the visible "Talent & Potential" label preserved.
+
+## Organization Analytics availability correction (2026-09-12)
+
+Direct Owner decision removes the commercial runtime gate previously implemented
+through `feature.organization_intelligence`. The seven M10 Results & Analytics
+routes now resolve a permission-scoped availability provider: valid tenant/year
+shape passes availability and the existing `talent_analytics.view` plus
+secondary sensitive-data permissions remain authoritative. No plan,
+subscription, WorkspaceEntitlement, or feature-registry lookup participates in
+Organization Analytics availability. Privacy and breadth providers remain
+fail-closed and unchanged.

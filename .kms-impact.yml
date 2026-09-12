@@ -1,12 +1,15 @@
 knowledge_impact: yes
-summary: "Owner acceptance correction on top of 9d799ed: zero-result current In Progress Student Assessments now continue on the newest saved assessable rubric while evidence-bearing/terminal attempts remain historically pinned; private derived rubric/re-evaluation Cycles are excluded from the normal Evaluation context projection; the roster prefers the newest matching current attempt so an older In Progress row cannot mask a later Completed attempt; and the Owner-supplied symbol-only Ghars PNG is now the Talent & Potential sidebar icon at normal shell icon size. Existing Competency/Level icon CRUD remains unchanged; no destructive KPI contract is invented."
+summary: "Owner-approved 2026-09-12 Organization Analytics availability correction: Results & Analytics no longer queries feature.organization_intelligence or any commercial plan/subscription/workspace-entitlement state. Production availability is permission-scoped to valid tenant/year context, with talent_analytics.view and all existing secondary permissions, tenant/Branch isolation, privacy closure, breadth limits, and REPEATABLE READ preserved unchanged."
 affected_areas:
-  - talent-student-assessment-current-rubric
-  - talent-evaluation-context-projection
-  - talent-assessment-roster-status
-  - talent-sidebar-brand-symbol
+  - talent-results-analytics
+  - organization-analytics-availability
+  - analytics-entitlement-policy
+  - kms-governance
 kms_files_updated:
+  - docs/adr/0028-b11-production-qualification-policy.md
+  - docs/TIS_MASTER_CONTEXT.md
   - docs/PROJECT_STATE.md
   - docs/AI_PROJECT_CONTEXT.md
+  - docs/engineering/TIS_MODULE_MAP.md
 no_impact_reason:
 major_change_override: no

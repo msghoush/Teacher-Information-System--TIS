@@ -2792,3 +2792,19 @@ Progress row from masking a later Completed result.
 The Talent & Potential sidebar now uses the Owner-supplied symbol-only Ghars PNG
 (`static/img/talent-ghars-symbol.png`) in the existing icon-sized brand slot while
 retaining the visible module label and permission-aware child tree.
+
+## Talent Results & Analytics - Commercial Feature Gate Removed (Owner Decision, 2026-09-12)
+
+Per direct Owner instruction, Results & Analytics no longer requires the
+`feature.organization_intelligence` commercial entitlement. Production
+`build_availability_provider()` now resolves
+`PermissionScopedOrganizationAnalyticsAvailabilityProvider`, which accepts
+only a valid positive SchoolGroup and Academic Year and performs no subscription,
+plan, workspace-entitlement, or feature-registry lookup. The existing
+`talent_analytics.view` permission remains mandatory inside
+`resolve_access_context`; Student drill, Candidate, Identification, tenant,
+Branch, and Academic-Year scope checks remain unchanged. Privacy suppression,
+complementary closure, configured cohort-5 policy, 1000/1000/1000 breadth
+ceilings, and M10 REPEATABLE READ behavior are unchanged. The legacy semantic
+feature key remains in the general catalog for compatibility/history but is no
+longer consulted by Organization Analytics runtime availability.

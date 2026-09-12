@@ -37,7 +37,11 @@ class OrganizationAnalyticsError(ValueError):
 
 
 class OrganizationAnalyticsAvailabilityProvider:
-    """Commercial availability adapter, independent from permission checks."""
+    """Runtime availability adapter, independent from permission checks.
+
+    Production availability validates tenant/year shape only; commercial
+    feature entitlement is not an Organization Analytics access dependency.
+    """
 
     availability_version = "unconfigured"
 
@@ -172,7 +176,12 @@ def resolve_access_context(
     academic_year_id: int,
     availability_provider: Optional[OrganizationAnalyticsAvailabilityProvider],
 ) -> OrganizationAnalyticsAccessContext:
-    """Resolve auth -> tenant -> availability -> base permission -> AY -> scope."""
+    """Resolve auth -> tenant -> availability -> base permission -> AY -> scope.
+
+    The production availability provider no longer represents a commercial
+    entitlement decision. talent_analytics.view remains the base authorization
+    boundary for this capability family.
+    """
 
     if user is None or not auth.is_user_active(user):
         raise OrganizationAnalyticsError("authentication_required", "Authentication is required.")

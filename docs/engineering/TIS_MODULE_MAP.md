@@ -1455,3 +1455,16 @@ Related docs/ADRs:
 
 Risks/guardrails:
 - AI features must use verified tenant data and preserve privacy, permissions, and subscription boundaries.
+
+## Organization Analytics permission-scoped availability correction (2026-09-12)
+
+- `talent_organization_analytics_providers.PermissionScopedOrganizationAnalyticsAvailabilityProvider`
+  is the production availability provider for all seven M10 routes.
+- `feature.organization_intelligence` may remain in the generic feature
+  catalog for compatibility/history, but Organization Analytics does not call
+  `organization_feature_available` or any commercial-state/entitlement
+  resolver.
+- `talent_org_intelligence_service.resolve_access_context` still enforces
+  active-user, SchoolGroup, `talent_analytics.view`, Academic Year, Branch
+  scope, and secondary sensitive-data permissions independently from privacy
+  and breadth providers.

@@ -1731,3 +1731,15 @@ suppression. The Student drill may show separate Program results and a
 Students Across Programs matrix when the identifiable P7 gate permits it; the
 browser must not reconstruct a universal cross-Program score.
 
+## Talent Results & Analytics Availability Authority - Owner Amendment 2026-09-12
+
+Results & Analytics is an authorized Talent capability, not a separately
+commercially gated Organization Intelligence product. The seven M10 routes do
+not consult `feature.organization_intelligence`, plan packaging,
+WorkspaceEntitlement, subscription, or commercial state. Availability validates
+tenant/Academic-Year context, then `talent_analytics.view` and the existing
+secondary Student/Candidate/Identification permissions govern access. Tenant
+isolation, Branch scope, privacy suppression/closure, breadth limits, and M10
+REPEATABLE READ remain mandatory and unchanged. The legacy semantic feature key
+may remain registered for compatibility/history but has no runtime authority
+over Results & Analytics.
