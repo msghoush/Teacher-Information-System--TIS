@@ -23,7 +23,7 @@ from talent_program_service import (
     upsert_annual_configuration, upsert_descriptor, upsert_rubric,
 )
 from talent_student_assessment_service import (
-    TalentStudentAssessmentError, complete_assessment, get_assessment,
+    TalentStudentAssessmentError, complete_assessment, continue_empty_assessment_on_current_rubric, get_assessment,
     mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result,
     reset_completed_assessment_for_reassessment, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
@@ -1155,3 +1155,121 @@ def test_assessment_api_exposes_overall_program_result(db):
         assert overall["scale_max"] == 2
         assert overall["normalized_percent"] == 75
         assert overall["competency_count"] == 2
+
+def _new_material_assessable_framework(session, program, source, *, suffix):
+    revised = create_framework_draft(
+        session, school_group_id=1, program_id=program.id,
+        title=f"Updated rubric {suffix}", clone_from_id=source.id,
+        supersedes_framework_version_id=source.id,
+    )
+    revised = ensure_competency_owned_rubrics(session, program, revised)
+    lineage = create_competency(
+        session, school_group_id=1, program_id=program.id,
+        code=f"NEW_{suffix}", name=f"New competency {suffix}",
+    )
+    member, revised = add_framework_competency(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        competency_id=lineage.id, expected_revision=revised.revision,
+    )
+    _, revised = upsert_rubric(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        framework_competency_id=member.id, expected_revision=revised.revision,
+        name=f"New KPI {suffix}",
+    )
+    _, revised = add_rubric_level(
+        session, school_group_id=1, program_id=program.id, framework_id=revised.id,
+        framework_competency_id=member.id, expected_revision=revised.revision,
+        code=f"NEW_LEVEL_{suffix}", label=f"New level {suffix}",
+    )
+    return revised
+
+
+def test_empty_in_progress_assessment_transparently_continues_on_newest_saved_rubric(db):
+    _, session = db
+    program, framework, cycle, _, student, _, _, _ = foundation(session)
+    current = create_framework_draft(
+        session, school_group_id=1, program_id=program.id, title="Current assessable rubric",
+        clone_from_id=framework.id, supersedes_framework_version_id=framework.id,
+    )
+    current = ensure_competency_owned_rubrics(session, program, current)
+    empty = start_assessment_for_evaluation(
+        session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=student.id,
+    )
+    assert empty.framework_version_id == current.id
+    newest = _new_material_assessable_framework(session, program, current, suffix="EMPTY_REFRESH")
+    replacement = continue_empty_assessment_on_current_rubric(
+        session, school_group_id=1, assessment_id=empty.id,
+    )
+    session.flush()
+    assert get_assessment(session, school_group_id=1, assessment_id=empty.id).is_current is False
+    assert replacement.id != empty.id
+    assert replacement.is_current is True
+    assert replacement.status == "in_progress"
+    assert replacement.framework_version_id == newest.id
+    assert replacement.evaluation_context_cycle_id == cycle.id
+    assert session.query(models.TalentStudentCompetencyResult).filter_by(assessment_id=replacement.id).count() == 0
+    assert session.query(models.TalentStudentAssessment).filter_by(
+        school_group_id=1, student_id=student.id, is_current=True
+    ).count() == 1
+
+
+def test_in_progress_assessment_with_saved_result_remains_on_exact_framework(db):
+    _, session = db
+    program, framework, cycle, _, student, _, _, _ = foundation(session)
+    current = create_framework_draft(
+        session, school_group_id=1, program_id=program.id, title="Current assessable rubric",
+        clone_from_id=framework.id, supersedes_framework_version_id=framework.id,
+    )
+    current = ensure_competency_owned_rubrics(session, program, current)
+    assessment = start_assessment_for_evaluation(
+        session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=student.id,
+    )
+    member = session.query(models.FrameworkCompetency).filter_by(
+        school_group_id=1, program_id=program.id, framework_version_id=current.id
+    ).order_by(models.FrameworkCompetency.display_order).first()
+    rubric = session.query(models.TalentRubric).filter_by(
+        school_group_id=1, program_id=program.id, framework_version_id=current.id,
+        framework_competency_id=member.id,
+    ).one()
+    level = session.query(models.TalentRubricLevel).filter_by(
+        school_group_id=1, program_id=program.id, framework_version_id=current.id,
+        rubric_id=rubric.id,
+    ).order_by(models.TalentRubricLevel.display_order).first()
+    _, assessment = set_competency_result(
+        session, school_group_id=1, assessment_id=assessment.id,
+        framework_competency_id=member.id, rubric_level_id=level.id,
+        expected_revision=assessment.revision, evidence="saved learner evidence",
+    )
+    _new_material_assessable_framework(session, program, current, suffix="PINNED_RESULT")
+    continued = continue_empty_assessment_on_current_rubric(
+        session, school_group_id=1, assessment_id=assessment.id,
+    )
+    assert continued.id == assessment.id
+    assert continued.framework_version_id == current.id
+    assert continued.is_current is True
+
+
+def test_assessment_contexts_hide_private_current_rubric_cycle(db):
+    _, session = db
+    program, framework, cycle, _, student, _, _, _ = foundation(session)
+    derived = create_cycle(
+        session, school_group_id=1, program_id=program.id, academic_year_id=100,
+        framework_version_id=framework.id, title="Cycle · Current rubric",
+        population_effective_at=datetime(2026, 11, 1),
+    )
+    start_assessment(
+        session, school_group_id=1, cycle_id=derived.id, student_id=student.id,
+        evaluation_context_cycle_id=cycle.id,
+    )
+    session.commit()
+    admin = _user("1000000099", branch=None, scope="ORGANIZATION")
+    session.add(admin); session.commit()
+    app = FastAPI(); app.include_router(router)
+    app.dependency_overrides[get_db] = lambda: session
+    app.dependency_overrides[get_current_user] = lambda: admin
+    with TestClient(app) as client:
+        response = client.get(f"/api/talent/assessments/contexts?program_id={program.id}&academic_year_id=100")
+        assert response.status_code == 200
+        titles = [item["title"] for item in response.json()]
+        assert cycle.title in titles
+        assert "Cycle · Current rubric" not in titles

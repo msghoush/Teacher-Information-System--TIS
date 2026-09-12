@@ -484,6 +484,80 @@ def start_assessment_for_evaluation(
     )
 
 
+def continue_empty_assessment_on_current_rubric(
+    db: Session, *, school_group_id, assessment_id, actor=None
+):
+    """Continue an empty current Assessment on the newest saved assessable rubric.
+
+    Opening an Assessment is not learner evidence. If the current attempt is
+    still In Progress and has zero persisted Competency Result rows, a newer
+    assessable Framework may replace that empty attempt transparently while the
+    visible Evaluation remains unchanged. Evidence-bearing or terminal attempts
+    are never rebound or rewritten.
+    """
+    assessment = _assessment(db, school_group_id, assessment_id, lock=True)
+    if assessment is None:
+        raise TalentStudentAssessmentError("not_found", "Student Assessment was not found.")
+    if assessment.status != "in_progress" or not bool(getattr(assessment, "is_current", True)):
+        return assessment
+    if db.query(models.TalentStudentCompetencyResult.id).filter_by(
+        school_group_id=school_group_id, assessment_id=assessment.id
+    ).first() is not None:
+        return assessment
+
+    root_cycle_id = assessment.evaluation_context_cycle_id or assessment.cycle_id
+    root_cycle = _cycle(db, school_group_id, root_cycle_id, lock=True)
+    if root_cycle is None:
+        raise TalentStudentAssessmentError("not_found", "Talent Assessment context was not found.")
+    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+        id=assessment.cycle_population_member_id,
+        school_group_id=school_group_id,
+        student_id=assessment.student_id,
+    ).one_or_none()
+    grade = member.grade_level if member is not None else None
+    newest = _newest_assessable_framework(db, cycle=root_cycle, grade=grade)
+    if newest is None or newest.id == assessment.framework_version_id:
+        return assessment
+
+    before = assessment_payload(assessment)
+    assessment.is_current = False
+    assessment.updated_by_user_id = getattr(actor, "user_id", None)
+    assessment.updated_at = datetime.utcnow()
+    db.flush()
+    _audit(
+        db, assessment, actor=actor, action="superseded_empty_for_current_rubric",
+        before=before, after=assessment_payload(assessment),
+    )
+
+    derived_cycle = create_cycle(
+        db,
+        school_group_id=school_group_id,
+        program_id=assessment.program_id,
+        academic_year_id=assessment.academic_year_id,
+        framework_version_id=newest.id,
+        title=f"{root_cycle.title} · Current rubric",
+        description="Internal rubric-version context for an empty current Assessment.",
+        population_effective_at=datetime.utcnow(),
+        actor=actor,
+    )
+    replacement = start_assessment(
+        db,
+        school_group_id=school_group_id,
+        cycle_id=derived_cycle.id,
+        student_id=assessment.student_id,
+        evaluation_context_cycle_id=root_cycle.id,
+        actor=actor,
+    )
+    _audit(
+        db, replacement, actor=actor, action="empty_assessment_refreshed",
+        after={
+            "supersedes_empty_assessment_id": assessment.id,
+            "framework_version_id": newest.id,
+            "evaluation_context_cycle_id": root_cycle.id,
+        },
+    )
+    return replacement
+
 
 def _same_framework_results_are_stale(db: Session, assessment, framework, grade):
     """Detect legacy in-place rubric changes against an already-completed Assessment.

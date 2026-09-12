@@ -17,6 +17,7 @@ from talent_operational_context import authorized_contexts, authorized_payload
 from talent_review_candidate_service import evaluate_review_candidate
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
+    continue_empty_assessment_on_current_rubric,
     complete_assessment, competency_result_payload, delete_assessment,
     get_assessment, list_assessments, list_competency_results,
     mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result,
@@ -156,6 +157,14 @@ def assessment_contexts(request: Request, program_id: int | None = Query(None),
         models.TalentAssessmentCycle.created_at.asc(),
         models.TalentAssessmentCycle.id.asc(),
     ).all()
+    private_cycle_ids = {
+        row[0] for row in db.query(models.TalentStudentAssessment.cycle_id).filter(
+            models.TalentStudentAssessment.school_group_id == group_id,
+            models.TalentStudentAssessment.evaluation_context_cycle_id.isnot(None),
+            models.TalentStudentAssessment.cycle_id != models.TalentStudentAssessment.evaluation_context_cycle_id,
+        ).all()
+    }
+    rows = [row for row in rows if row.id not in private_cycle_ids]
     period_ids = {row.planned_evaluation_period_id for row in rows if row.planned_evaluation_period_id is not None}
     periods = {
         row.id: row for row in db.query(models.TalentPlannedEvaluationPeriod).filter(
@@ -259,6 +268,22 @@ def assessments_read(assessment_id: int, request: Request, db: Session = Depends
         return denied
     assessment, error = _read_assessment(db, group_id, user, assessment_id)
     return error or _display_payload(db, user, assessment)
+
+
+@router.post("/{assessment_id}/continue")
+def assessments_continue(assessment_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Refresh only a zero-result current In Progress attempt to the latest rubric."""
+    user, group_id, denied = _authorize(request, db, current_user, "talent_assessments.manage")
+    if denied:
+        return denied
+    assessment, error = _read_assessment(db, group_id, user, assessment_id)
+    if error:
+        return error
+    return _run(db, lambda: _display_payload(
+        db, user, continue_empty_assessment_on_current_rubric(
+            db, school_group_id=group_id, assessment_id=assessment.id, actor=user
+        )
+    ))
 
 
 @router.get("/{assessment_id}/competency-results")

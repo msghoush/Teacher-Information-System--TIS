@@ -2724,8 +2724,10 @@ paths, the Student Assessment editor (`static/js/talent-operations.js`) now
 has a "Back to Students" action that preserves Academic Year/Program/Cycle
 context, and several Talent counters/headings were corrected to Title Case
 ("N Competencies", "N Levels", "KPI Overview", "Assessment Status"). The
-Owner-supplied `talent-ghars-symbol.png` sidebar asset was not present in
-this environment and that swap remains deferred.
+Owner-supplied symbol-only Ghars asset is now present as
+`static/img/talent-ghars-symbol.png` and is used by the Talent & Potential
+sidebar entry through the existing icon-sized brand slot; the visible module
+label remains unchanged.
 
 ## Talent & Potential UI action-placement correction (2026-09-12)
 
@@ -2800,3 +2802,24 @@ No live Talent data was reachable from this environment (local `tis.db`
 has no talent tables; the only local Postgres is a stale, empty test
 schema) - the recovery function is proven against a synthetic 9-Competency
 reproduction in `tests/test_talent_program_start_editing_recovery.py`.
+
+## Talent Student Assessment empty-attempt rubric refresh + context cleanup (2026-09-12)
+
+The learner-evidence boundary is now persisted Competency Results, not existence
+of an Assessment row. `continue_empty_assessment_on_current_rubric` replaces
+only a current In Progress attempt with zero `TalentStudentCompetencyResult`
+rows when a newer assessable Framework exists. The prior empty row becomes
+non-current; the replacement remains attached to the original visible Evaluation.
+Any saved Competency Result and every terminal Assessment remain bound to their
+exact historical Framework.
+
+`GET /api/talent/assessments/contexts` omits private derived physical Cycles
+whose Assessment `cycle_id` differs from `evaluation_context_cycle_id`, while
+retaining those rows internally for provenance. The roster selects the newest
+matching current attempt if legacy/bad data exposes more than one, so a newer
+Completed attempt cannot be masked as Continue Assessment by an older In Progress
+row. No Grade or annual Program-configuration gate was reintroduced.
+
+The Talent & Potential sidebar uses the Owner-supplied symbol-only Ghars PNG at
+`static/img/talent-ghars-symbol.png`, rendered by the existing icon-size shell
+rule with the visible "Talent & Potential" label preserved.
