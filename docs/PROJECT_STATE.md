@@ -2733,3 +2733,42 @@ session, and - against a real small QueuePool - proves the fixed shape
 never exceeds pool capacity under concurrency while a reconstruction of
 the old doubled-checkout shape reliably exhausts the same pool, positively
 proving the doubling was real and is now eliminated.
+
+## Start Editing Accidental Empty-Draft Recovery + Mandatory Clone (2026-09-12)
+
+Owner-reported priority incident: a Program with existing Competencies
+(reported at approximately 9) showed an empty Draft after Start Editing,
+because the old UI made "Copy the current rubric structure" an optional
+checkbox - leaving it unchecked produced a genuinely empty new Draft while
+the real Competencies remained safe and untouched in the Framework Start
+Editing was invoked from.
+
+No live Talent data was reachable from this development environment to
+operate on directly (the local `tis.db` has no `talent_*` tables migrated;
+the only reachable local Postgres instance is a stale, empty B11C
+concurrency-test schema). The actual reported incident lives in a deployed
+environment this session has no database access to. Delivered instead: a
+governed, fully tested recovery mechanism ready to run against the real
+data, plus the permanent fix that prevents recurrence everywhere.
+
+`talent_program_service.recover_accidental_empty_draft` identifies the
+correct source Framework (via the accidental empty Draft's own
+`supersedes_framework_version_id`, which Start Editing always records
+regardless of whether cloning ran) and, after verifying the Draft is
+genuinely empty (zero Competencies, zero Assessment history), re-runs the
+existing governed `create_framework_draft(clone_from_id=...)` mechanism to
+produce a new, fully populated, independently editable Draft with every
+Competency, KPI, Level, descriptor, and ordering already in the source.
+Nothing is reconstructed by hand, the source Framework and its historical
+completed Assessment evidence are never touched, and the accidental empty
+Draft itself is left in place (harmless, since the recovered Draft's
+higher version number is what Start Editing/rubric mode selects going
+forward) rather than deleted. `scripts/recover_talent_accidental_empty_draft.py`
+is the operator-facing CLI (dry-run by default, `--apply` to commit).
+
+The permanent fix: Start Editing's "Copy the current rubric structure
+(optional)" checkbox is removed entirely - the new-version form submission
+now always sends `clone_from_id` unconditionally (naturally omitted only
+for the very first Rubric Structure creation, where there is nothing yet
+to clone), so a Start Editing action can never again produce an empty
+Draft.

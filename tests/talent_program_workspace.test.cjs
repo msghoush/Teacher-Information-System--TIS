@@ -1008,8 +1008,11 @@ test('legacy assessed rubric stays historical and is not projected into new Grad
   assert.match(root.innerHTML,/Grade 2/);
   assert.doesNotMatch(root.innerHTML,/Mental Calculation/);
   assert.doesNotMatch(root.innerHTML,/Existing shared rubric/);
-  assert.match(root.innerHTML,/Copy the current rubric structure \(optional\)/);
-  assert.doesNotMatch(root.innerHTML,/name="clone"[^>]*checked/);
+  // Owner correction: Start Editing must always clone automatically -
+  // there is no longer an optional checkbox that could be left unchecked.
+  assert.match(root.innerHTML,/data-form="new-version"[^>]*>[\s\S]*?Start Editing/);
+  assert.doesNotMatch(root.innerHTML,/Copy the current rubric structure/);
+  assert.doesNotMatch(root.innerHTML,/name="clone"/);
 });
 
 function copyGradeFixture({destinationGrade='2', destinationHasCriteria=false, grades=['1','2']}={}) {
@@ -1121,4 +1124,80 @@ test('copying into an immutable/active build first clones a new draft, then copi
   assert.equal(clonePayload.supersedes_framework_version_id,31);
   const copyCall=calls.find(call=>call.options&&String(call.path).endsWith('/frameworks/32/grades/copy'));
   assert.ok(copyCall,'the copy must run against the new draft clone, never the immutable original');
+});
+
+test('Start Editing always sends clone_from_id automatically - no optional checkbox to leave unchecked (Owner recovery correction)',async()=>{
+  const {ctx,root,calls}=fixture(true,'active',{hash:'#tp-rubric',complete:true});
+  ctx.can=key=>['talent_programs.view','talent_programs.manage'].includes(key);
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    calls.push({path,options});
+    if(options&&path==='/api/talent/programs/11/frameworks'&&options.method==='POST')return {id:32,revision:1,status:'draft',in_use_by_assessments:false};
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'active',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[
+        {id:71,competency_id:61,grade_level:'1',label:'Mental Calculation',description:''},
+        {id:72,competency_id:62,grade_level:'1',label:'Number Sense',description:''},
+      ],
+    };
+    if(!options&&path.endsWith('/frameworks/32'))return {id:32,status:'draft',version_number:3,revision:1,semantic_fingerprint:'copied',in_use_by_assessments:false,competencies:[]};
+    if(!options&&(path.endsWith('/frameworks/31/configuration')||path.endsWith('/frameworks/32/configuration')))return {
+      rubric:null,levels:[],rubrics:[],descriptors:[],kpi:null,review_candidate_policy:null,revision:7,semantic_fingerprint:'fingerprint',
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  // No optional checkbox is ever offered - the accidental empty Draft this
+  // Owner correction recovers from was caused by exactly this checkbox
+  // being left unchecked.
+  assert.doesNotMatch(root.innerHTML,/Copy the current rubric structure/);
+  assert.doesNotMatch(root.innerHTML,/name="clone"/);
+
+  const oldFormData=global.FormData;
+  global.FormData=class extends Map {constructor(){super([['title','Arts rubric updated'],['summary','Recovering lost Competencies']]);}};
+  try{
+    await root.onsubmit({preventDefault(){},target:{dataset:{form:'new-version'},querySelector:()=>null}});
+  } finally { global.FormData=oldFormData; }
+
+  const created=calls.find(call=>call.options&&call.path==='/api/talent/programs/11/frameworks'&&call.options.method==='POST');
+  assert.ok(created,'Start Editing must create a new Framework version');
+  const payload=JSON.parse(created.options.body);
+  // clone_from_id is sent unconditionally - there was never a checkbox for
+  // the Owner to leave unchecked, so the new Draft is never empty.
+  assert.equal(payload.clone_from_id,31);
+});
+
+test('the very first Rubric Structure for a Program with no Framework yet never sends a meaningless clone_from_id',async()=>{
+  const root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
+  const calls=[];
+  const ctx={
+    root,year:'2026',yearLabel:'2026–2027',hash:'#tp-rubric',
+    params:new URLSearchParams('program_id=11'),
+    can:key=>key==='talent_programs.view'||key==='talent_programs.manage',
+    api:async(path,options)=>{
+      calls.push({path,options});
+      if(options)return {id:31,revision:1};
+      if(path==='/api/talent/programs')return [{id:11,name:'Mental Math',status:'active'}];
+      if(path.startsWith('/api/talent/programs/planning-grades'))return ['1','2'];
+      if(path.endsWith('/academic-years'))return [{academic_year_id:2026,is_enabled:true,eligible_grade_levels:['1','2']}];
+      if(path.endsWith('/frameworks'))return [];
+      if(path.endsWith('/competencies'))return [];
+      if(path.startsWith('/api/talent/evaluation-plans?'))return [];
+      throw new Error(`Unexpected ${path}`);
+    }
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/Create Rubric Structure/);
+
+  const oldFormData=global.FormData;
+  global.FormData=class extends Map {constructor(){super([['title','Mental Math rubric'],['summary','']]);}};
+  try{
+    await root.onsubmit({preventDefault(){},target:{dataset:{form:'new-version'},querySelector:()=>null}});
+  } finally { global.FormData=oldFormData; }
+
+  const created=calls.find(call=>call.options&&call.path==='/api/talent/programs/11/frameworks'&&call.options.method==='POST');
+  assert.ok(created);
+  const payload=JSON.parse(created.options.body);
+  assert.equal(payload.clone_from_id,undefined);
 });

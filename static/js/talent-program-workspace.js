@@ -444,7 +444,12 @@
     }).join('');
     const rubricSetupControls=!framework
       ? (manage?form('new-version','Create Rubric Structure',field('title','Rubric setup name',`${program.name} rubric`,'text',true)+area('summary','Optional note'),'Create Rubric Structure'):'<p class="tp-empty">Rubric setup has not been created.</p>')
-      : (!editable&&manage?form('new-version','Edit Rubric Structure',field('title','Rubric setup name',`${program.name} updated rubric`,'text',true)+area('summary','What is changing?')+check('clone','Copy the current rubric structure (optional)',false),'Start Editing'):'');
+      // Owner correction: Start Editing must never offer an empty Draft as
+      // a choice. Copying the current rubric structure into the new Draft
+      // is not optional - an unchecked box previously produced an
+      // accidental empty Draft that looked like every Competency had been
+      // lost, when they were only ever missing from the new Draft.
+      : (!editable&&manage?form('new-version','Edit Rubric Structure',field('title','Rubric setup name',`${program.name} updated rubric`,'text',true)+area('summary','What is changing?'),'Start Editing'):'');
     const rubricWorkspace=`<section id="tp-rubric" class="tp-wizard-panel"><div class="tp-section-lede"><div><h2>Assessment Criteria</h2><p>Choose one Grade, then build Competency → criteria → Levels. Each competency remains independent.</p></div></div>${rubricSetupControls}${framework?`${gradePicker}<div class="tp-grade-accordion">${rubricGradeSections||'<p class="tp-empty">Assign eligible Grades to this Program first.</p>'}</div><div class="tp-wizard-actions"><a href="#tp-basics">Edit Program Grades</a>${editable?button('finish-rubric','Save'):''}</div>`:''}</section>`;
 
     const setupVersion = !framework
@@ -491,7 +496,15 @@
       }
       else if(action==='edit-program'){method='PATCH';body={name:d.get('name'),description:d.get('description')};}
       else if(action==='annual'){path+=`/academic-years/${year}`;body={is_enabled:d.has('is_enabled'),eligible_grade_levels:configuredGrades.filter(g=>d.has(`grade_${g}`))};}
-      else if(action==='new-version'){path+='/frameworks';method='POST';body={title:d.get('title'),summary:d.get('summary'),...(d.has('clone')?{clone_from_id:framework.id}:{}),supersedes_framework_version_id:versions.find(v=>v.status==='active')?.id||null};}
+      else if(action==='new-version'){
+        // Start Editing (an existing Framework being edited) must always
+        // clone the current structure into the new Draft - never leave the
+        // choice to the Owner. The very first "Create Rubric Structure" for
+        // a Program with no Framework yet has nothing to clone from, so
+        // framework?.id is undefined there and clone_from_id is naturally
+        // omitted (JSON.stringify drops undefined-valued keys).
+        path+='/frameworks';method='POST';body={title:d.get('title'),summary:d.get('summary'),clone_from_id:framework?.id,supersedes_framework_version_id:versions.find(v=>v.status==='active')?.id||null};
+      }
       else if(action==='create-competency'){path+='/competencies';method='POST';body={code:d.get('code'),name:d.get('name'),description:d.get('description')};}
       else if(action.startsWith('create-grade-competency:')){
         if(!framework){return;}
