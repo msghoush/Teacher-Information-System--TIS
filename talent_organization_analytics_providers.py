@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Callable
 
 import auth
 from talent_analytics_privacy import (
@@ -91,27 +90,16 @@ class ConfiguredRelease1PrivacyPolicy(TalentAnalyticsPrivacyPolicy):
         return PrivacyDecision(VISIBLE, value=raw_value)
 
 
-class EntitlementOrganizationAnalyticsAvailabilityProvider(OrganizationAnalyticsAvailabilityProvider):
-    availability_version = "organization-intelligence-entitlement-v1"
+class PermissionScopedOrganizationAnalyticsAvailabilityProvider(OrganizationAnalyticsAvailabilityProvider):
+    """Owner-approved Release 1 availability without a commercial feature gate."""
 
-    def __init__(self, db, evaluator: Callable | None = None):
-        self._db = db
-        self._evaluator = evaluator
+    availability_version = "permission-scoped-owner-2026-09-12"
 
     def is_available(self, *, school_group_id: int, academic_year_id: int) -> bool:
-        if type(school_group_id) is not int or school_group_id <= 0:
-            return False
-        if type(academic_year_id) is not int or academic_year_id <= 0:
-            return False
-        try:
-            if self._evaluator is not None:
-                return self._evaluator(self._db, school_group_id, ORGANIZATION_INTELLIGENCE_FEATURE_KEY) is True
-            from saas.entitlement_service import organization_feature_available
-            return organization_feature_available(
-                self._db, school_group_id, ORGANIZATION_INTELLIGENCE_FEATURE_KEY,
-            ) is True
-        except Exception:
-            return False
+        return (
+            type(school_group_id) is int and school_group_id > 0
+            and type(academic_year_id) is int and academic_year_id > 0
+        )
 
 
 class LocalOrganizationAnalyticsAvailabilityProvider(OrganizationAnalyticsAvailabilityProvider):
@@ -182,7 +170,10 @@ def build_availability_provider(db) -> OrganizationAnalyticsAvailabilityProvider
             return LocalOrganizationAnalyticsAvailabilityProvider()
     except Exception:
         pass
-    return EntitlementOrganizationAnalyticsAvailabilityProvider(db)
+    # Owner correction (2026-09-12): Results & Analytics is not commercially
+    # gated by feature.organization_intelligence. Authorization, tenant/year
+    # scope, privacy, and breadth controls remain independent and unchanged.
+    return PermissionScopedOrganizationAnalyticsAvailabilityProvider()
 
 
 def build_breadth_provider() -> OrganizationAnalyticsBreadthPolicy | None:

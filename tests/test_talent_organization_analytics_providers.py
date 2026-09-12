@@ -1,8 +1,6 @@
 """Focused B11-E F1 provider and sanctioned-local-path checks."""
 
 from pathlib import Path
-from types import SimpleNamespace
-
 import pytest
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -11,13 +9,7 @@ from fastapi.testclient import TestClient
 from auth import get_current_user
 from dependencies import get_db, get_m10_organization_analytics_db
 from routers import talent_organization_analytics, talent_ui
-from saas import (
-    commercial_state_service,
-    customer_feature_policy,
-    demo_feature_registry,
-    entitlement_service,
-    models as saas_models,
-)
+from saas import customer_feature_policy, demo_feature_registry
 from talent_analytics_privacy import (
     SUPPRESSED,
     VISIBLE,
@@ -104,51 +96,23 @@ def test_feature_key_is_registered_in_customer_and_demo_registries():
     assert demo_feature_registry.get_feature(key).enabled is True
 
 
-@pytest.mark.parametrize("decision", [True, False])
-def test_availability_uses_exact_semantic_key_and_returns_canonical_decision(decision):
-    calls = []
-    evaluator = lambda db, group_id, key: calls.append((db, group_id, key)) or decision
-    provider = providers.EntitlementOrganizationAnalyticsAvailabilityProvider("session", evaluator)
-    assert provider.is_available(school_group_id=7, academic_year_id=9) is decision
-    assert calls == [("session", 7, "feature.organization_intelligence")]
+def test_production_availability_is_permission_scoped_not_commercially_gated():
+    provider = providers.PermissionScopedOrganizationAnalyticsAvailabilityProvider()
+    assert provider.is_available(school_group_id=7, academic_year_id=9)
+    assert not provider.is_available(school_group_id=0, academic_year_id=9)
+    assert not provider.is_available(school_group_id=7, academic_year_id=0)
 
 
-def test_availability_missing_or_exception_fails_closed():
-    assert not providers.EntitlementOrganizationAnalyticsAvailabilityProvider(
-        None, lambda *_: None
-    ).is_available(school_group_id=1, academic_year_id=1)
-
-
-def test_canonical_organization_feature_evaluation_is_permission_free(monkeypatch, db):
-    db.add(saas_models.EntitlementDefinition(
-        key=providers.ORGANIZATION_INTELLIGENCE_FEATURE_KEY,
-        display_name="Organization Intelligence", category="feature",
-        scope="organization", value_type="boolean", active=True,
-    ))
-    db.commit()
-    workspace = SimpleNamespace(active=True, entitlements={})
-    active = SimpleNamespace(
-        resolved=True, commercial_state="customer_paid_active",
-        workspace_entitlement=workspace,
-    )
-    monkeypatch.setattr(commercial_state_service, "resolve_commercial_state", lambda *_: active)
-    assert entitlement_service.organization_feature_available(
-        db, 1, providers.ORGANIZATION_INTELLIGENCE_FEATURE_KEY,
-    )
-    assert not entitlement_service.organization_feature_available(db, 1, "feature.missing")
-    workspace.active = False
-    assert not entitlement_service.organization_feature_available(
-        db, 1, providers.ORGANIZATION_INTELLIGENCE_FEATURE_KEY,
-    )
-    assert not providers.EntitlementOrganizationAnalyticsAvailabilityProvider(
-        None, lambda *_: (_ for _ in ()).throw(RuntimeError("secret"))
-    ).is_available(school_group_id=1, academic_year_id=1)
+def test_build_availability_provider_never_returns_entitlement_gate(monkeypatch):
+    clear_provider_environment(monkeypatch)
+    monkeypatch.setenv("TIS_ENV", "production")
+    provider = providers.build_availability_provider(object())
+    assert isinstance(provider, providers.PermissionScopedOrganizationAnalyticsAvailabilityProvider)
+    assert provider.is_available(school_group_id=1, academic_year_id=1)
 
 
 def test_permission_is_enforced_independently_after_availability(db):
-    provider = providers.EntitlementOrganizationAnalyticsAvailabilityProvider(
-        db, lambda *_: True
-    )
+    provider = providers.PermissionScopedOrganizationAnalyticsAvailabilityProvider()
     with pytest.raises(OrganizationAnalyticsError) as exc:
         resolve_access_context(
             db, user=actor(), academic_year_id=100, availability_provider=provider,
@@ -245,7 +209,7 @@ def test_production_like_environment_never_activates_local_providers(monkeypatch
     assert providers.build_privacy_provider() is None
     assert providers.build_breadth_provider() is None
     availability = providers.build_availability_provider(object())
-    assert isinstance(availability, providers.EntitlementOrganizationAnalyticsAvailabilityProvider)
+    assert isinstance(availability, providers.PermissionScopedOrganizationAnalyticsAvailabilityProvider)
 
 
 def test_other_nonproduction_database_never_activates_sanctioned_local_path(monkeypatch):

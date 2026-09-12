@@ -38,16 +38,22 @@ consumes governed external configuration. F1 implements it through
 or a permissive/default threshold and preserves P1-P7 primary plus
 relationship-aware complementary suppression.
 
-### Commercial availability
+### Availability and authorization
 
-Talent Organization Analytics remains plan-agnostic: M10 feature code contains
-no plan name, plan code, price, or packaging logic. Permission and entitlement
-remain separate. The availability provider consumes the existing canonical
-`entitlement_service`/feature-registry decision pattern and returns only
-availability; provider missing, false, or exception remains fail closed.
-F1 registers and uses the semantic key `feature.organization_intelligence`.
-Exact plan-to-feature packaging remains external commercial configuration and
-is not encoded in M10 provider or route code.
+**Owner amendment - 2026-09-12.** Results & Analytics is no longer commercially
+gated by `feature.organization_intelligence`. The semantic key may remain in
+the general feature catalog for compatibility/history, but the seven M10
+Organization Intelligence routes must not query it or any plan/workspace
+entitlement when deciding whether an authorized Talent user can access
+analytics.
+
+Production availability is permission-scoped: a valid SchoolGroup/Academic-Year
+context passes the availability seam, then the existing
+`talent_analytics.view` permission and secondary Student/Candidate/
+Identification permissions remain authoritative. Tenant isolation, Branch
+scope, privacy closure, breadth limits, and REPEATABLE READ are unchanged.
+There is no plan name, plan code, price, packaging, subscription, or entitlement
+dependency in the Organization Analytics request path.
 
 ### Breadth policy
 
@@ -136,13 +142,15 @@ Memory/OOM qualification blocks release, not the start of B11-C.
 
 Privacy thresholds and breadth limits follow existing external environment/
 configuration conventions; M10 does not introduce a new central settings
-architecture. Commercial availability uses the existing
-`entitlement_service`/feature-registry architecture. KMS must contain no
-credentials, secrets, or environment-specific values.
+architecture. Organization Analytics availability is permission-scoped and has no commercial
+entitlement dependency. KMS must contain no credentials, secrets, or
+environment-specific values.
 
 Existing fail-closed behavior remains authoritative for privacy provider
-missing/exception; availability provider missing/false/exception; and breadth
-provider missing/reject/exception. No HTTP-contract change is approved.
+missing/exception and breadth provider missing/reject/exception. The
+availability seam still rejects malformed tenant/year context, but commercial
+feature/entitlement state is no longer an availability input. No response
+schema change is introduced.
 
 ## Qualification Entry And Release Gates
 
@@ -165,7 +173,7 @@ configuration. Current `READ COMMITTED` behavior must be tested first.
 
 B11 cannot be CLOSED until all of the following are complete: the production
 privacy provider is implemented/configured; privacy-threshold governance and
-commercial availability mapping are complete; production breadth configuration
+the Owner-approved permission-scoped availability rule are complete; production breadth configuration
 is complete; B11-C PostgreSQL performance evidence and B11-D concurrency/
 consistency evidence are complete; memory/OOM evidence is complete; B11-B
 observability is present; the integrated seven-route security regression is
