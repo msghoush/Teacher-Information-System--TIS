@@ -2772,3 +2772,23 @@ now always sends `clone_from_id` unconditionally (naturally omitted only
 for the very first Rubric Structure creation, where there is nothing yet
 to clone), so a Start Editing action can never again produce an empty
 Draft.
+
+## Talent Student Assessment current-rubric + roster-state acceptance correction (2026-09-12)
+
+Opening an Assessment is not learner evidence by itself. A current `in_progress`
+Assessment with zero persisted `TalentStudentCompetencyResult` rows now
+transparently continues on the newest saved assessable Framework when reopened.
+The prior empty attempt becomes non-current provenance and the replacement keeps
+the same visible Evaluation through `evaluation_context_cycle_id`. Once any
+Competency Result exists, or once an Assessment is terminal, its exact historical
+Framework remains authoritative and immutable.
+
+Normal Student Assessment contexts now exclude private physical Cycles used only
+for current-rubric/re-evaluation provenance, so "Current rubric" no longer appears
+as a duplicate Evaluation. The roster chooses the newest matching current attempt
+when legacy/bad data exposes duplicate-current rows, preventing an older In
+Progress row from masking a later Completed result.
+
+The Talent & Potential sidebar now uses the Owner-supplied symbol-only Ghars PNG
+(`static/img/talent-ghars-symbol.png`) in the existing icon-sized brand slot while
+retaining the visible module label and permission-aware child tree.

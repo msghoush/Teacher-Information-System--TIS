@@ -101,6 +101,7 @@ function assessmentApi(overrides={}) {
   const results=overrides.results ?? [{framework_competency_id:101,rubric_level_id:201,evidence:'Solid work'}];
   return async path=>{
     if(path===`/api/talent/assessments/${assessment.id}`)return assessment;
+    if(path===`/api/talent/assessments/${assessment.id}/continue`)return assessment;
     if(path===`/api/talent/assessments/${assessment.id}/competency-results`)return results;
     if(path==='/api/talent/programs/11/frameworks/21')return {competencies:[{id:101,label:'Reading'},{id:102,label:'Writing'}]};
     if(path==='/api/talent/programs/11/frameworks/21/configuration')return {levels:[{id:201,label:'Level 1'}],descriptors:[]};
@@ -512,4 +513,25 @@ test('completed assessment shows rubric-scale overall Program result without imp
   assert.match(root.innerHTML,/Overall Program Result/);
   assert.match(root.innerHTML,/Overall Program Result 3\.6 out of 5/);
   assert.doesNotMatch(root.innerHTML,/Officially identified/);
+});
+
+test('Student roster prefers newest current attempt so Completed is not masked by older In Progress',async()=>{
+  const root=domRoot();
+  const cycle={id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',status:'open'};
+  const members=[{student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
+  const rows=[
+    {id:501,student_id:103,status:'in_progress',is_current:true,academic_year_id:'2026',program_id:'11',evaluation_context_cycle_id:61},
+    {id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:'11',evaluation_context_cycle_id:61,reassessment:{required:false},actions:[]},
+  ];
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
+    api:async path=>{
+      if(path.startsWith('/api/talent/assessments?'))return rows;
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
+      if(path.endsWith('/eligible-students'))return {members};
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/Completed/);
+  assert.match(root.innerHTML,/assessment_id=502[^"]*">View Assessment/);
+  assert.doesNotMatch(root.innerHTML,/assessment_id=501[^"]*">Continue Assessment/);
 });

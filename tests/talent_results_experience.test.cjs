@@ -124,7 +124,7 @@ test('Talent module expands as a permission-aware sidebar tree with the Ghars br
   const shellSource = fs.readFileSync(path.join(__dirname, '..', 'ui_shell.py'), 'utf8');
   const base = fs.readFileSync(path.join(__dirname, '..', 'templates', 'base.html'), 'utf8');
   const shellCss = fs.readFileSync(path.join(__dirname, '..', 'static', 'css', 'app-shell.css'), 'utf8');
-  const brandLogoPath = path.join(__dirname, '..', 'static', 'img', 'talent-ghars-logo.svg');
+  const brandLogoPath = path.join(__dirname, '..', 'static', 'img', 'talent-ghars-symbol.png');
   for (const destination of ['/talent/overview','/talent/programs','/talent/assessments','/talent/reviews','/talent/analytics']) {
     assert.match(shellSource, new RegExp(destination.replaceAll('/','\\/')));
   }
@@ -132,7 +132,7 @@ test('Talent module expands as a permission-aware sidebar tree with the Ghars br
   assert.match(shellSource, /talent_assessments\.view/);
   assert.match(shellSource, /talent_review_candidates\.view/);
   assert.match(shellSource, /talent_analytics\.view/);
-  assert.match(shellSource, /"brand_logo": "img\/talent-ghars-logo\.svg"/);
+  assert.match(shellSource, /"brand_logo": "img\/talent-ghars-symbol\.png"/);
   // The Ghars mark renders small (icon-sized), and the visible
   // "Talent & Potential" text is never suppressed - only the icon glyph
   // swaps between the brand symbol and the default module icon.
@@ -140,7 +140,8 @@ test('Talent module expands as a permission-aware sidebar tree with the Ghars br
   assert.match(base, /item\.brand_logo/);
   assert.match(base, /<span class="sidebar-link-copy">/);
   assert.ok(fs.existsSync(brandLogoPath));
-  assert.match(fs.readFileSync(brandLogoPath,'utf8'), /Talent and Potential Ghars logo/);
+  assert.ok(fs.statSync(brandLogoPath).size > 0);
+  assert.match(shellCss, /\.sidebar-brand-symbol\s*\{[\s\S]*width:\s*var\(--app-icon-size\)[\s\S]*height:\s*var\(--app-icon-size\)[\s\S]*object-fit:\s*contain/);
   assert.match(base, /class="sidebar-tree"/);
   assert.match(base, /class="sidebar-tree-link/);
   assert.match(shellCss, /\.sidebar-brand-symbol\s*\{/);

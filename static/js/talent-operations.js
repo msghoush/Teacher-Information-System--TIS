@@ -143,6 +143,22 @@
     }
     if(params.get('assessment_id')) {
       let assessment=await api(`/api/talent/assessments/${encodeURIComponent(params.get('assessment_id'))}`);
+      if(assessment.status==='in_progress' && assessment.is_current!==false && can('talent_assessments.manage')) {
+        const originalId=assessment.id;
+        assessment=await api(`/api/talent/assessments/${assessment.id}/continue`,{method:'POST'});
+        if(String(assessment.id)!==String(originalId)) {
+          params.set('assessment_id',String(assessment.id));
+          params.set('cycle_id',String(assessment.evaluation_context_cycle_id||assessment.cycle_id||''));
+          params.set('program_id',String(assessment.program_id||''));
+          if(typeof window!=='undefined'&&window.history?.replaceState) {
+            window.history.replaceState(null,'',url('assessments',{
+              assessment_id:assessment.id,
+              cycle_id:assessment.evaluation_context_cycle_id||assessment.cycle_id||'',
+              program_id:assessment.program_id||'',
+            }));
+          }
+        }
+      }
       const base=`/api/talent/programs/${assessment.program_id}/frameworks/${assessment.framework_version_id}`;
       const canViewPrograms=can('talent_programs.view');
       const canViewInputs=can('talent_educator_inputs.view');
@@ -261,12 +277,13 @@
     const eligible=explicitEligible || (cycle&&!cycleId?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null);
     const assessmentFor=(studentId,context)=>{
       if(!context)return null;
-      return currentRows.find(r=>{
+      const matches=currentRows.filter(r=>{
         const rowContextId=r.evaluation_context_cycle_id || r.cycle_id;
         return String(r.student_id)===String(studentId)
           && String(r.program_id)===String(context.program_id)
           && (rowContextId==null || String(rowContextId)===String(context.id));
-      }) || null;
+      });
+      return matches.sort((a,b)=>Number(b.id||0)-Number(a.id||0))[0] || null;
     };
 
     const eligibleRows=eligible?eligible.members.map(m=>{
