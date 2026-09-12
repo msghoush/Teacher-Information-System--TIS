@@ -1,15 +1,10 @@
-knowledge_impact: yes
-summary: "Owner-approved 2026-09-12 Organization Analytics availability correction: Results & Analytics no longer queries feature.organization_intelligence or any commercial plan/subscription/workspace-entitlement state. Production availability is permission-scoped to valid tenant/year context, with talent_analytics.view and all existing secondary permissions, tenant/Branch isolation, privacy closure, breadth limits, and REPEATABLE READ preserved unchanged."
+knowledge_impact: no
+summary: "Owner acceptance presentation and interaction refinements for Talent: preserve open Grade/Competency state after rubric saves, suppress internal Current-rubric/Re-assessment labels from the normal Evaluation UI, mark the selected Term in-place, use the supplied Ghars emblem treatment, clarify analytics empty states, and add a section-local one-Program rubric-distribution filter with first-Program default."
 affected_areas:
-  - talent-results-analytics
-  - organization-analytics-availability
-  - analytics-entitlement-policy
-  - kms-governance
+  - talent-program-builder-ux
+  - talent-student-assessment-presentation
+  - talent-navigation-branding
+  - talent-results-analytics-presentation
 kms_files_updated:
-  - docs/adr/0028-b11-production-qualification-policy.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/engineering/TIS_MODULE_MAP.md
-no_impact_reason:
+no_impact_reason: "This pass implements Owner acceptance UI behavior over already-approved Talent contracts. It changes no architecture, API contract, schema, migration, tenant/Branch isolation, permissions, privacy threshold or suppression rules, scoring, assessment evidence semantics, Program lifecycle, or analytics metric definitions; existing KMS already governs the underlying current-rubric provenance and deterministic analytics semantics."
 major_change_override: no
