@@ -7,13 +7,21 @@ body[data-page-key="talent"] .sidebar-tree-link.is-active {
   box-shadow: none;
 }
 
-/* Ghars branding: compact emblem in the navy sidebar; full transparent
-   wordmark only in the Talent Overview header. */
+/* Ghars branding: compact Owner-supplied emblem in the navy sidebar
+   (static/img/talent-ghars-symbol.png). The Talent Overview header below is
+   BLOCKED PENDING ASSET: the Owner's full Ghars wordmark image has not been
+   supplied as a file in this environment. Do not fabricate/recreate the
+   logo from a description. This container is deliberately wired to a
+   documented, not-yet-present path
+   (static/img/ghars-full-wordmark-dark.png) so dropping in the real,
+   Owner-supplied asset at that path is the only remaining step. Until then
+   the container renders empty (no fake artwork) and the accessible title
+   text below remains available to assistive technology. */
 body[data-page-key="talent"] .sidebar-brand-symbol { filter: brightness(0) invert(1); }
 body.tp-overview-branding .page-title { position:relative; width:min(360px,52vw); min-height:82px; display:inline-flex; align-items:center; }
 body.tp-overview-branding .page-title .page-title-icon { display:none; }
 body.tp-overview-branding .page-title > span { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
-body.tp-overview-branding .page-title::before { content:""; display:block; width:100%; height:82px; background:url("../img/talent-ghars-logo.svg") left center / contain no-repeat; }
+body.tp-overview-branding .page-title::before { content:""; display:block; width:100%; height:82px; background:url("../img/ghars-full-wordmark-dark.png") left center / contain no-repeat; }
 
 .tp-selected-badge {
   margin-left: auto;

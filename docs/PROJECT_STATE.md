@@ -2830,3 +2830,14 @@ Protected/no-data states never receive magnitude coloring. Student Assessment
 Competency/KPI/Level entry uses a responsive professional hierarchy without
 changing write contracts. Ghars uses the compact sidebar emblem and the
 transparent full wordmark only in Talent Overview. No schema or migration.
+
+## Talent Owner Adjustment Package - Correction (2026-09-12, follow-up)
+
+The Talent Overview full Ghars wordmark remains **blocked pending asset**: a
+locally traced/reconstructed SVG was removed from the header wiring (it is not
+the Owner-supplied file) and replaced with a documented, not-yet-present path
+(`static/img/ghars-full-wordmark-dark.png`); the header renders empty until
+the Owner supplies the real asset. The separate duplicated "Selected
+Evaluation" panel below the Evaluation Period cards in Student Assessments has
+been removed; the selected card's in-place `is-selected`/`aria-current`
+marking is now the only selection indicator. No schema/migration change.

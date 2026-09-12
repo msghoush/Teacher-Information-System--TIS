@@ -372,8 +372,10 @@
           :`<span class="tp-evaluation-program-card is-disabled" aria-disabled="true"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · ask an organization-authorized manager to open Student Assessments</small></span><span aria-hidden="true">—</span></span>`;}).join('')}</div></section>`;}).join('')}</div>`
       :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
 
-    const selectedHeading=cycle?`<div class="tp-selected-evaluation"><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">Selected Evaluation</p><h3>${esc(cycle.evaluation_label||cycle.title)}</h3><p>${esc(programById.get(String(cycle.program_id))?.name||'Program')}</p></div></div>`:'';
-    mount(`${cardsHtml}${selectedHeading}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+    // The selected real Evaluation is marked in place on its own card above
+    // (is-selected class + aria-current) rather than repeated in a separate
+    // duplicated "Selected Evaluation" panel here.
+    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
 
     on('select-planned-evaluation',async el=>{
       const programId=Number(el.dataset.program), periodId=Number(el.dataset.period);

@@ -1763,3 +1763,12 @@ analytics magnitudes use a low-to-high blue intensity scale; privacy/no-data
 states remain categorical. Learning Style retains per-style categorical colors
 without exposing suppressed magnitude. The full transparent Ghars wordmark is
 Talent Overview-header-only; the sidebar uses the compact emblem.
+
+## Talent Owner Adjustment Package - Correction (2026-09-12, follow-up)
+
+The Talent Overview full Ghars wordmark is blocked pending the Owner's actual
+asset file; a non-Owner-supplied traced SVG was removed from that header and
+replaced with an empty container pointing at a documented, not-yet-present
+path (`static/img/ghars-full-wordmark-dark.png`). The duplicated "Selected
+Evaluation" panel in Student Assessments has been removed; only the in-place
+selected-card marking remains. No schema, permission, or scoring change.

@@ -106,7 +106,7 @@ test('phase-2 owner package wires roster and identification filters plus ordered
   assert.match(experience,/Identification Classification/);
   assert.match(experience,/tp-overview-branding/);
   assert.equal(api.magnitudeBucket(5),1);assert.equal(api.magnitudeBucket(45),3);assert.equal(api.magnitudeBucket(95),5);
-  assert.match(css,/talent-ghars-logo\.svg/);assert.match(css,/body\.tp-overview-branding \.page-title/);assert.match(css,/tp-magnitude-5/);
+  assert.match(css,/ghars-full-wordmark-dark\.png/);assert.doesNotMatch(css,/talent-ghars-logo\.svg/);assert.match(css,/body\.tp-overview-branding \.page-title/);assert.match(css,/tp-magnitude-5/);
 });
 test('phase-2 assessment editor never falls back across Grade and has professional KPI hierarchy',()=>{
   const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent-operations.js'),'utf8');

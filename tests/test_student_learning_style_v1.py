@@ -8,6 +8,7 @@ suppression contract for aggregate distribution - never a new/weaker rule.
 """
 
 import pathlib
+import re
 
 import pytest
 from fastapi import FastAPI
@@ -428,6 +429,33 @@ def test_html_students_page_renders_the_distribution_panel_when_policy_is_availa
     assert response.status_code == 200
     assert "Learning Style distribution" in response.text
     assert "not a talent score" in response.text.lower()
+
+
+def test_learning_style_badge_and_distribution_bar_use_the_same_accent_color_token():
+    """Owner correction: whatever color a Learning Style uses in the Student
+    row badge/chip (`templates/_learning_style.html`'s shared `ls_accent`
+    map) must match the color used for that same style in the distribution
+    bar/indicator (`templates/students.html`'s `ls_accent_map`) - one
+    semantic token per style, everywhere, not two maps that could drift."""
+    root = pathlib.Path(__file__).resolve().parents[1]
+    badge_source = (root / "templates" / "_learning_style.html").read_text(encoding="utf-8")
+    distribution_source = (root / "templates" / "students.html").read_text(encoding="utf-8")
+
+    badge_match = re.search(r"ls_accent\s*=\s*(\{[^}]*\})", badge_source)
+    distribution_match = re.search(r"ls_accent_map\s*=\s*(\{[^}]*\})", distribution_source)
+    assert badge_match and distribution_match, "both accent color maps must be present in their templates"
+
+    def _parse_map(literal: str) -> dict:
+        return dict(re.findall(r"'([^']+)'\s*:\s*'([^']+)'", literal))
+
+    badge_accent = _parse_map(badge_match.group(1))
+    distribution_accent = _parse_map(distribution_match.group(1))
+
+    assert set(badge_accent) == {"Visual", "Auditory", "Read/Write", "Kinesthetic"}
+    for style, token in badge_accent.items():
+        assert distribution_accent.get(style) == token, (
+            f"{style} uses {token} in the badge but {distribution_accent.get(style)!r} in the distribution bar"
+        )
 
 
 def test_html_students_page_explains_when_privacy_policy_is_unavailable(db, monkeypatch):

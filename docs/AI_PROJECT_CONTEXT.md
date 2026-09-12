@@ -2853,3 +2853,19 @@ without revealing suppressed magnitude, Students nested under Talent for
 Talent-capable users with students-only fallback, natural Student table page
 flow, and Overview-only full transparent Ghars wordmark. No permission, privacy
 threshold, scoring, schema, migration, or write-contract change.
+
+## Talent Owner Adjustment Package - Correction (2026-09-12, follow-up)
+
+Two corrections to the same-day package above. First, the Talent Overview
+header wordmark is **blocked pending the Owner-supplied asset file**, not
+delivered: the prior pass had wired the header to a locally
+traced/reconstructed SVG (`static/img/talent-ghars-logo.svg`), which is not an
+Owner-supplied file and must not be presented as the delivered logo. The
+header container/CSS now points at a documented, not-yet-present path
+(`static/img/ghars-full-wordmark-dark.png`) and renders empty until the Owner
+supplies that exact asset file; no logo is fabricated from a description.
+Second, Student Assessments' Evaluation Period cards mark the selected
+Evaluation in place (`is-selected` + `aria-current`); the separate duplicated
+"Selected Evaluation" panel that still rendered under the cards has been
+removed, completing the single-card-per-Evaluation-per-Program presentation
+rule. No schema, permission, privacy, or scoring change.
