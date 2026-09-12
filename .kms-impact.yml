@@ -1,17 +1,7 @@
-knowledge_impact: yes
-summary: "Owner-approved Talent adjustment package: strict Grade-aligned assessment criteria without cross-Grade fallback, Student Assessment and Talent Review filters, analytics/Learning Style presentation, KPI assessment UX, Students navigation/table cleanup, and Overview-only Ghars branding. Follow-up correction: the Overview wordmark was wired to a non-Owner-supplied traced SVG and is now correctly blocked-pending-asset; the duplicated Selected Evaluation panel (superseded by in-place card marking) has been removed. Closed two remaining audit gaps: added dedicated regression coverage for the sidebar Students-nesting/students-only-fallback logic (tests/test_ui_shell_talent_nav.py, exercising ui_shell._build_nav_items directly) and for Learning Style badge/distribution-bar color-token consistency (tests/test_student_learning_style_v1.py, comparing the two accent maps directly from their template source so they can never silently drift). Verified without further changes: the Program selector for Competency Rubric Distributions (own selector, single Program, auto-selects first authorized, scoped refresh), the Official Identification empty-state wording, and that feature.organization_intelligence is not used to gate Results & Analytics anywhere in the codebase."
+knowledge_impact: no
+summary: "Ghars sidebar logo asset-only investigation (issue #352, commits 9f5e5fc/193fd66/c76b57e): verified static/img/talent-ghars-symbol.png is a valid, correctly-transparent white Ghars emblem PNG (48x47 RGBA) via Pillow decode of the working tree, an independent decode of the exact committed git blob, and a live FastAPI TestClient fetch of /static/img/talent-ghars-symbol.png confirming byte-identical, correctly-served, decodable content. No code, template, CSS, path, or behavior was changed - the file was already correct at HEAD. The GitHub compare view's 'Unable to render rich display / Invalid image source' message is GitHub's own binary-diff previewer failing on a small, mostly-transparent PNG, not evidence of file corruption; the file decodes and renders correctly everywhere it is actually used (browser, static file server)."
 affected_areas:
-  - talent-student-assessments
-  - talent-review
-  - talent-results-analytics
-  - students-learning-style
   - talent-navigation-branding
-  - kms-governance
 kms_files_updated:
-  - docs/PROJECT_STATE.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/AI_PROJECT_CONTEXT.md
-  - docs/adr/0039-talent-competency-kpi-level-simplification.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
-no_impact_reason:
+no_impact_reason: "Read-only asset verification: confirmed the existing sidebar PNG (already committed in prior commits) is valid, correctly transparent, and correctly served/rendered. No source file, template, CSS, path, permission, business-logic, or documented behavior was changed in this pass; GitHub's binary-diff preview limitation is not a KMS-relevant fact about the application."
 major_change_override: no
