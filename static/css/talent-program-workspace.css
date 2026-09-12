@@ -24,6 +24,11 @@
 .tp-program-workspace button:hover:not(:disabled) {box-shadow:var(--app-shadow-sm);filter:brightness(.97)}
 .tp-program-workspace button:disabled {opacity:.5;cursor:not-allowed}
 .tp-program-workspace :focus-visible {outline:3px solid var(--app-brand);outline-offset:3px}
+.tp-icon-actions {display:flex;align-items:center;gap:4px;flex-shrink:0}
+.tp-program-workspace .tp-icon-btn {display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;padding:0;border-radius:8px;background:transparent;border-color:transparent;color:var(--app-muted)}
+.tp-program-workspace .tp-icon-btn:hover:not(:disabled) {background:var(--app-surface-muted);color:var(--app-brand-deep);box-shadow:none;filter:none}
+.tp-program-workspace .tp-icon-btn[data-action^=remove] {color:var(--app-danger,#b3261e)}
+.tp-program-workspace .tp-icon-btn .shell-icon {width:17px;height:17px;min-width:17px;min-height:17px}
 .tp-program-workspace .tp-card .tp-editor {box-shadow:none;background:var(--app-surface);padding:16px}
 .tp-program-workspace .tp-editor[data-dirty=true] {border-color:var(--app-brand);box-shadow:inset 3px 0 var(--app-brand)}
 .tp-program-workspace [data-feedback]:empty {display:none}

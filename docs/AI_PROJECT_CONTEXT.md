@@ -2726,3 +2726,18 @@ context, and several Talent counters/headings were corrected to Title Case
 ("N Competencies", "N Levels", "KPI Overview", "Assessment Status"). The
 Owner-supplied `talent-ghars-symbol.png` sidebar asset was not present in
 this environment and that swap remains deferred.
+
+## Talent & Potential UI action-placement correction (2026-09-12)
+
+Edit/Delete for every Competency, KPI, and Level item in the builder
+(`static/js/talent-program-workspace.js`) are now compact icon-only buttons
+(pencil/trash via a new `iconButton()` helper) beside each item instead of
+visible "Edit/Delete Competency|KPI|Level" text, each with an `aria-label`/
+`title` naming the exact item so there is never ambiguity about which row it
+affects. Applied consistently to both the primary Grade->Competency->KPI->
+Level accordion and the older parallel flat-table wizard view; the
+Competency header also gained an Edit icon it previously lacked, reusing an
+existing edit capability (no new backend behavior). Add actions ("+ Add
+Competency", "+ Add KPI", "+ Add Level", "Copy Levels From...") are
+unchanged and stay in their structural positions, not beside every item. No
+hierarchy/CRUD/eligibility change; no backend files touched.

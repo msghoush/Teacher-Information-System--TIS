@@ -109,7 +109,7 @@ test('saved descriptor IDs expose the existing precise removal action',async()=>
     return read(path,options);
   };
   await render(ctx);
-  assert.match(root.innerHTML,/data-action="remove-descriptor" data-key="91"/);
+  assert.match(root.innerHTML,/data-action="remove-descriptor"[^>]*data-key="91"/);
 });
 
 test('Program setup no longer exposes Program criteria configuration',async()=>{
@@ -694,8 +694,12 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
   assert.match(root.innerHTML,/Beginning/);
   assert.match(root.innerHTML,/Reads with limited accuracy/);
   assert.match(root.innerHTML,/\+ Add Competency/);
-  assert.match(root.innerHTML,/Delete Competency/);
-  assert.match(root.innerHTML,/Delete Level/);
+  // Owner correction: Edit/Delete are compact icon-only actions, never
+  // visible "Edit/Delete Competency|KPI|Level" text beside every item.
+  assert.match(root.innerHTML,/data-action="remove-member"[^>]*aria-label="Delete Reading Fluency"/);
+  assert.match(root.innerHTML,/data-action="remove-level"[^>]*aria-label="Delete Reading Fluency level Beginning"/);
+  assert.doesNotMatch(root.innerHTML,/>Delete Competency</);
+  assert.doesNotMatch(root.innerHTML,/>Delete Level</);
   assert.doesNotMatch(root.innerHTML,/<h3>Rubric Levels<\/h3>/);
 
   const old=global.FormData;
@@ -740,6 +744,47 @@ test('Delete Competency is always available for a normal mutable current build (
     await root.onclick({target:{closest:selector=>selector==='[data-action]'?{dataset:{action:'remove-member',key:'61'}}:null}});
   }finally{global.window=old;}
   assert.equal(confirmMessage,'Delete this Competency?\n\nThis will also remove its KPI and Levels from the current assessment setup. Historical completed assessments will remain preserved.');
+});
+
+test('Competency/KPI/Level Edit and Delete are compact icon actions, never visible action text (Owner correction: UI action placement)',async()=>{
+  const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Mental Calculation',description:''}]
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],
+      rubrics:[{id:301,framework_competency_id:71,name:'Oral Reading',levels:[{id:401,rubric_id:301,framework_competency_id:71,code:'L1',label:'Beginning',order:1}]}],
+      descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  // No visible "Edit/Delete Competency|KPI|Level" text is ever rendered
+  // beside an item - only compact icon buttons with accessible names.
+  // (An "Edit KPI"/"Edit Level" heading is still fine inside the opened
+  // editor dialog itself - it is a form title, not an inline item action.)
+  assert.doesNotMatch(root.innerHTML,/<button[^>]*>Edit Competency</);
+  assert.doesNotMatch(root.innerHTML,/<button[^>]*>Delete Competency</);
+  assert.doesNotMatch(root.innerHTML,/<button[^>]*>Edit KPI</);
+  assert.doesNotMatch(root.innerHTML,/<button[^>]*>Delete KPI</);
+  assert.doesNotMatch(root.innerHTML,/<button[^>]*>Edit Level</);
+  assert.doesNotMatch(root.innerHTML,/<button[^>]*>Delete Level</);
+  // Every Edit/Delete icon has an accessible name that identifies exactly
+  // which item it affects, a title tooltip, and a real, focusable <button>.
+  assert.match(root.innerHTML,/<button type="button" class="tp-icon-btn" data-action="reveal-editor" aria-label="Edit Mental Calculation" title="Edit Mental Calculation" data-editor-key="member-61">/);
+  assert.match(root.innerHTML,/<button type="button" class="tp-icon-btn" data-action="remove-member" aria-label="Delete Mental Calculation" title="Delete Mental Calculation" data-key="61">/);
+  assert.match(root.innerHTML,/aria-label="Edit Oral Reading KPI" title="Edit Oral Reading KPI"/);
+  assert.match(root.innerHTML,/aria-label="Edit Mental Calculation level Beginning" title="Edit Mental Calculation level Beginning"/);
+  assert.match(root.innerHTML,/aria-label="Delete Mental Calculation level Beginning" title="Delete Mental Calculation level Beginning"/);
+  // Add actions stay in their structural position (Grade section, inside a
+  // Competency, inside the KPI) and remain visible text, not icons.
+  assert.match(root.innerHTML,/\+ Add Competency/);
+  assert.match(root.innerHTML,/\+ Add Level/);
 });
 
 test('grade rubric section header uses capitalized "N Competencies" (Owner correction: capitalization consistency)',async()=>{
@@ -852,8 +897,8 @@ test('dedicated rubric delete permissions work without edit/manage permission',a
     return read(path,options);
   };
   await render(ctx);
-  assert.match(root.innerHTML,/Delete Competency/);
-  assert.match(root.innerHTML,/Delete Level/);
+  assert.match(root.innerHTML,/data-action="remove-member"[^>]*aria-label="Delete Reading Fluency"/);
+  assert.match(root.innerHTML,/data-action="remove-level"[^>]*aria-label="Delete Reading Fluency level Beginning"/);
   assert.doesNotMatch(root.innerHTML,/Edit Rubric/);
   assert.doesNotMatch(root.innerHTML,/\+ Add Level/);
 });

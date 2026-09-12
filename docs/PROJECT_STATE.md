@@ -2617,3 +2617,33 @@ and the current Ghars symbol-and-text sidebar branding from the prior
 corrective pass is unchanged. No backend Python files were touched in this
 pass, and no new schema migration is introduced.
 
+## Talent & Potential UI Action-Placement Correction (2026-09-12)
+
+A further Owner-driven interaction-pattern correction on top of the
+acceptance-testing pass above. Edit and Delete for every created Competency,
+KPI, and Level item are now compact icon-only buttons (pencil = Edit,
+trash = Delete) placed immediately beside that item, replacing all visible
+action text ("Edit Competency", "Delete Competency", "Edit KPI",
+"Delete KPI", "Edit Level", "Delete Level"). Each icon button is a real
+`<button>` with an `aria-label` and matching `title` naming the exact item
+it affects (e.g. "Delete Mental Calculation", "Edit Mental Calculation level
+Beginning"), so there is never ambiguity about which row an action targets,
+and it inherits the workspace's existing keyboard focus-visible styling and
+a compact but sufficient (36px) hit target.
+
+This applies uniformly to both the primary Grade -> Competency -> KPI ->
+Level accordion and the older parallel flat-table "What we assess" wizard
+view, so the pattern reads the same wherever these actions are reachable.
+The Competency header in the accordion also gained an Edit icon (it
+previously exposed only Delete there) by surfacing the existing
+name/description edit capability already used elsewhere in the workspace -
+no new backend behavior was introduced.
+
+Add actions are deliberately unchanged: "+ Add Competency", "+ Add KPI",
+"+ Add Level", and "Copy Levels From..." remain visible text and stay in
+their existing structural position (the Grade section for adding a
+Competency, inside a Competency for adding its KPI, inside the KPI for
+adding a Level) rather than sitting beside every existing item. No
+hierarchy, CRUD behavior, or eligibility gate changed in this pass, and no
+backend Python files were touched.
+
