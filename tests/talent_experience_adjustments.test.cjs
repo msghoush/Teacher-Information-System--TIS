@@ -104,6 +104,8 @@ test('phase-2 owner package wires roster and identification filters plus ordered
   const api=require('../static/js/talent-experience.js');
   assert.match(experience,/tp-assessment-roster-filters/);
   assert.match(experience,/Identification Classification/);
+  const operations=fs.readFileSync(path.join(__dirname,'..','static','js','talent-operations.js'),'utf8');
+  assert.match(operations,/<th>Official Identification<\/th>/);
   assert.match(experience,/tp-overview-branding/);
   assert.equal(api.magnitudeBucket(5),1);assert.equal(api.magnitudeBucket(45),3);assert.equal(api.magnitudeBucket(95),5);
   assert.match(css,/ghars-full-wordmark-dark\.png/);assert.doesNotMatch(css,/talent-ghars-logo\.svg/);assert.match(css,/body\.tp-overview-branding \.page-title/);assert.match(css,/tp-magnitude-5/);
