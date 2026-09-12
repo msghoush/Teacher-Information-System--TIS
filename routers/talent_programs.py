@@ -13,7 +13,7 @@ from dependencies import get_db
 from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, create_competency,
-    add_rubric_level, copy_competency_rubric_levels, configure_kpi, configure_review_candidate_policy,
+    add_rubric_level, copy_competency_rubric_levels, copy_grade_criteria, configure_kpi, configure_review_candidate_policy,
     create_framework_draft, create_program, delete_program, framework_payload, get_program, list_programs,
     get_framework_configuration, program_delete_blockers,
     program_payload, remove_framework_competency, remove_program_logo, reorder_framework_competencies,
@@ -60,7 +60,7 @@ def _with_actions(db, user, group_id, row):
 
 
 def _error(exc):
-    status = 404 if exc.code == "not_found" else 409 if exc.code in {"stale_framework", "duplicate_program", "duplicate_competency", "duplicate_membership", "supersession_required", "duplicate_level", "duplicate_order", "duplicate_rule"} else 403 if exc.code == "organization_authority_required" else 400
+    status = 404 if exc.code == "not_found" else 409 if exc.code in {"stale_framework", "duplicate_program", "duplicate_competency", "duplicate_membership", "supersession_required", "duplicate_level", "duplicate_order", "duplicate_rule", "target_grade_occupied"} else 403 if exc.code == "organization_authority_required" else 400
     return JSONResponse({"detail": exc.message, "code": exc.code}, status_code=status)
 
 
@@ -484,6 +484,24 @@ def framework_competencies_remove(program_id: int, framework_id: int, competency
     if denied: return denied
     return _run(db, lambda: {"framework_revision": remove_framework_competency(db, school_group_id=group_id, program_id=program_id,
         framework_id=framework_id, competency_id=competency_id, expected_revision=expected_revision, actor=user).revision})
+
+
+@router.post("/{program_id}/frameworks/{framework_id}/grades/copy")
+def framework_grade_criteria_copy(program_id: int, framework_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Owner correction: "Copy Criteria From Grade..." - copy the complete
+    Competency/KPI/Level/descriptor structure from one Grade to another
+    empty Grade within the same current Framework build, as independent
+    editable records (never shared identity with the source Grade)."""
+    user, group_id, denied = _authorize(request, db, current_user, "talent_programs.manage")
+    if denied: return denied
+    def work():
+        framework = copy_grade_criteria(
+            db, school_group_id=group_id, program_id=program_id, framework_id=framework_id,
+            source_grade_level=payload.get("source_grade_level"), target_grade_level=payload.get("target_grade_level"),
+            expected_revision=int(payload.get("expected_revision")), actor=user,
+        )
+        return {"framework_revision": framework.revision, "framework_fingerprint": framework.semantic_fingerprint}
+    return _run(db, work, created=True)
 
 
 @router.get("/{program_id}/frameworks/{framework_id}/configuration")

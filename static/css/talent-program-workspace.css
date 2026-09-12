@@ -25,6 +25,7 @@
 .tp-program-workspace button:disabled {opacity:.5;cursor:not-allowed}
 .tp-program-workspace :focus-visible {outline:3px solid var(--app-brand);outline-offset:3px}
 .tp-icon-actions {display:flex;align-items:center;gap:4px;flex-shrink:0}
+.tp-grade-structural-actions {display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
 .tp-program-workspace .tp-icon-btn {display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;padding:0;border-radius:8px;background:transparent;border-color:transparent;color:var(--app-muted)}
 .tp-program-workspace .tp-icon-btn:hover:not(:disabled) {background:var(--app-surface-muted);color:var(--app-brand-deep);box-shadow:none;filter:none}
 .tp-program-workspace .tp-icon-btn[data-action^=remove] {color:var(--app-danger,#b3261e)}

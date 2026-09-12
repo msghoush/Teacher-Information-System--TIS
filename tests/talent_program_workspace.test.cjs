@@ -1011,3 +1011,114 @@ test('legacy assessed rubric stays historical and is not projected into new Grad
   assert.match(root.innerHTML,/Copy the current rubric structure \(optional\)/);
   assert.doesNotMatch(root.innerHTML,/name="clone"[^>]*checked/);
 });
+
+function copyGradeFixture({destinationGrade='2', destinationHasCriteria=false, grades=['1','2']}={}) {
+  const {ctx,root,calls}=fixture(true,'draft',{hash:'#tp-rubric',complete:true,configuredGrades:grades});
+  ctx.params=new URLSearchParams(`program_id=11&step=assess&rubric_grade=${destinationGrade}`);
+  const read=ctx.api;
+  const competencies=[{id:71,competency_id:61,grade_level:'1',label:'Mental Calculation',description:'Grade 1 source'}];
+  if(destinationHasCriteria)competencies.push({id:72,competency_id:62,grade_level:destinationGrade,label:'Existing Destination Competency',description:''});
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/academic-years'))return [{academic_year_id:2026,is_enabled:true,eligible_grade_levels:grades}];
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Mental Math rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies,
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],rubrics:[{id:301,framework_competency_id:71,name:'Mental Calculation KPI',levels:[{id:401,code:'L1',label:'Beginning',order:1}]}],
+      descriptors:[],kpi:null,review_candidate_policy:null,revision:7,semantic_fingerprint:'fingerprint',
+    };
+    return read(path,options);
+  };
+  return {ctx,root,calls};
+}
+
+test('Copy Criteria From Grade… appears at Grade level and excludes the current destination Grade from source choices',async()=>{
+  const {ctx,root}=copyGradeFixture();
+  await render(ctx);
+  assert.match(root.innerHTML,/Copy Criteria From Grade…/);
+  assert.match(root.innerHTML,/data-form="copy-grade-criteria:2"/);
+  // Grade 2 (the current destination) must never be offered as its own source.
+  assert.doesNotMatch(root.innerHTML,/data-form="copy-grade-criteria:2"[\s\S]*?<option value="2"/);
+  assert.match(root.innerHTML,/data-form="copy-grade-criteria:2"[\s\S]*?<option value="1"[^>]*>Grade 1<\/option>/);
+});
+
+test('Grades without configured criteria do not appear as source choices for Copy Criteria From Grade…',async()=>{
+  const {ctx,root}=copyGradeFixture({destinationGrade:'3',grades:['1','2','3']});
+  await render(ctx);
+  const [formHtml]=root.innerHTML.match(/data-form="copy-grade-criteria:3">[\s\S]*?<\/form>/)||[];
+  assert.ok(formHtml,'copy form must be present');
+  assert.match(formHtml,/<option value="1"[^>]*>Grade 1<\/option>/);
+  // Grade 2 has no criteria in this fixture, so it must not appear at all.
+  assert.doesNotMatch(formHtml,/<option value="2"/);
+});
+
+test('an already-populated destination Grade blocks the copy with a clear message instead of a source selector',async()=>{
+  const {ctx,root}=copyGradeFixture({destinationHasCriteria:true});
+  await render(ctx);
+  assert.match(root.innerHTML,/Copy Criteria From Grade…/);
+  assert.match(root.innerHTML,/Grade 2 already has Competencies\. Remove its existing Competencies first, or copy into an empty Grade\./);
+  assert.doesNotMatch(root.innerHTML,/data-form="copy-grade-criteria:2"/);
+});
+
+test('submitting Copy Criteria From Grade… confirms, calls the copy endpoint with the exact source/target/revision, and refreshes the destination Grade',async()=>{
+  const {ctx,root,calls}=copyGradeFixture();
+  await render(ctx);
+  const oldWindow=global.window;
+  let confirmMessage=null;
+  global.window={confirm:msg=>{confirmMessage=msg;return true;},scrollY:0,scrollTo(){},addEventListener(){},removeEventListener(){},location:{hash:'#tp-rubric',pathname:'/talent/programs',search:'?program_id=11'}};
+  try{
+    const form={dataset:{form:'copy-grade-criteria:2'},querySelector:()=>null};
+    const oldFormData=global.FormData;
+    global.FormData=class extends Map {constructor(){super([['source_grade_level','1']]);}};
+    try{
+      await root.onsubmit({preventDefault(){},target:form});
+    } finally { global.FormData=oldFormData; }
+  } finally { global.window=oldWindow; }
+  assert.equal(confirmMessage,'Copy all criteria from Grade 1 to Grade 2?\n\nThis will copy all Competencies, KPIs, Levels, descriptions, and ordering into Grade 2. The copied criteria will be independently editable. Grade 1 will not be changed.');
+  const copyCall=calls.find(call=>call.options&&String(call.path).endsWith('/grades/copy'));
+  assert.ok(copyCall,'the grades/copy endpoint must be called');
+  const payload=JSON.parse(copyCall.options.body);
+  assert.deepEqual(payload,{source_grade_level:'1',target_grade_level:'2',expected_revision:7});
+});
+
+test('copying into an immutable/active build first clones a new draft, then copies against the clone (version-safe, historical evidence untouched)',async()=>{
+  const {ctx,root,calls}=fixture(true,'active',{hash:'#tp-rubric',complete:true});
+  ctx.can=key=>['talent_programs.view','talent_programs.manage'].includes(key);
+  ctx.params=new URLSearchParams('program_id=11&step=assess&rubric_grade=2');
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    calls.push({path,options});
+    if(options&&path==='/api/talent/programs/11/frameworks'&&options.method==='POST')return {id:32,revision:1,status:'draft',in_use_by_assessments:false};
+    if(options&&String(path).endsWith('/frameworks/32/grades/copy'))return {framework_revision:2,framework_fingerprint:'copied'};
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Mental Math rubric',status:'active',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:true,
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Mental Calculation',description:''}],
+    };
+    if(!options&&path.endsWith('/frameworks/32'))return {id:32,status:'draft',version_number:3,revision:1,semantic_fingerprint:'copied',in_use_by_assessments:false,competencies:[]};
+    if(!options&&(path.endsWith('/frameworks/31/configuration')||path.endsWith('/frameworks/32/configuration')))return {
+      rubric:null,levels:[],rubrics:[{id:301,framework_competency_id:71,name:'Mental Calculation KPI',levels:[{id:401,code:'L1',label:'Beginning',order:1}]}],
+      descriptors:[],kpi:null,review_candidate_policy:null,revision:7,semantic_fingerprint:'fingerprint',
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  const oldWindow=global.window;
+  global.window={confirm:()=>true,scrollY:0,scrollTo(){},addEventListener(){},removeEventListener(){},location:{hash:'#tp-rubric',pathname:'/talent/programs',search:'?program_id=11'}};
+  try{
+    const oldFormData=global.FormData;
+    global.FormData=class extends Map {constructor(){super([['source_grade_level','1']]);}};
+    try{
+      await root.onsubmit({preventDefault(){},target:{dataset:{form:'copy-grade-criteria:2'},querySelector:()=>null}});
+    } finally { global.FormData=oldFormData; }
+  } finally { global.window=oldWindow; }
+  const cloneCall=calls.find(call=>call.options&&call.path==='/api/talent/programs/11/frameworks'&&call.options.method==='POST');
+  assert.ok(cloneCall,'an immutable build must be cloned into a new draft first');
+  const clonePayload=JSON.parse(cloneCall.options.body);
+  assert.equal(clonePayload.clone_from_id,31);
+  assert.equal(clonePayload.supersedes_framework_version_id,31);
+  const copyCall=calls.find(call=>call.options&&String(call.path).endsWith('/frameworks/32/grades/copy'));
+  assert.ok(copyCall,'the copy must run against the new draft clone, never the immutable original');
+});

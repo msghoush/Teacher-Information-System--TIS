@@ -19,7 +19,7 @@ from student_academic_service import create_placement, create_student, transitio
 from talent_assessment_cycle_service import create_cycle, open_cycle
 from talent_program_service import (
     TalentProgramError, activate_framework, add_framework_competency, add_rubric_level, configure_kpi,
-    create_competency, create_framework_draft, create_program, remove_framework_competency, transition_program,
+    copy_grade_criteria, create_competency, create_framework_draft, create_program, remove_framework_competency, transition_program,
     upsert_annual_configuration, upsert_descriptor, upsert_rubric,
 )
 from talent_student_assessment_service import (
@@ -824,6 +824,19 @@ def test_framework_with_assessment_history_requires_new_version_before_semantic_
             competency_id=existing_member.talent_competency_id, expected_revision=framework.revision,
         )
     assert blocked_delete.value.code == "framework_in_use"
+    # Owner correction: "Copy Criteria From Grade..." must use the same
+    # version-safe current-build mechanism already established for
+    # edits/deletes - it can never mutate a Framework with Assessment
+    # history directly. The Owner should not have to understand Framework
+    # cloning to be protected here; the frontend clones into a new draft
+    # first (exactly like the existing versioned-delete flow) before this
+    # copy can run.
+    with pytest.raises(TalentProgramError) as blocked_copy:
+        copy_grade_criteria(
+            session, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            source_grade_level="1", target_grade_level="2", expected_revision=framework.revision,
+        )
+    assert blocked_copy.value.code == "framework_in_use"
     assert get_assessment(session, school_group_id=1, assessment_id=assessment.id).framework_version_id == framework.id
 
 

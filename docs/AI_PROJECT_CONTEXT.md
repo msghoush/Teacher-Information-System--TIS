@@ -2741,3 +2741,21 @@ existing edit capability (no new backend behavior). Add actions ("+ Add
 Competency", "+ Add KPI", "+ Add Level", "Copy Levels From...") are
 unchanged and stay in their structural positions, not beside every item. No
 hierarchy/CRUD/eligibility change; no backend files touched.
+
+## Talent & Potential Grade-to-Grade Assessment Criteria Copy (2026-09-12)
+
+New backend `talent_program_service.copy_grade_criteria` +
+`POST /api/talent/programs/{id}/frameworks/{id}/grades/copy`
+(`talent_programs.manage`) copies a Grade's complete Competency/KPI/Level/
+descriptor structure into an empty destination Grade as fully independent
+new records (new `TalentCompetency`/`FrameworkCompetency`/`TalentRubric`/
+`TalentRubricLevel`/descriptor rows) - never shared identity with the
+source. An already-populated destination is always rejected
+(`target_grade_occupied`); no merge/Replace flow was implemented in this
+pass, per explicit Owner instruction to prefer safety over a hidden merge.
+Reuses `_require_mutable_draft` unchanged, so the frontend
+(`static/js/talent-program-workspace.js`) clones an immutable/active
+Framework into a new draft first (the same pattern as versioned Delete
+Competency) before copying. The UI action ("Copy Criteria From Grade...")
+is a structural, always-visible Grade-level action, not an inline icon.
+Same SchoolGroup/Program/Framework scoping as every other Program mutation.

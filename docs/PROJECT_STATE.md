@@ -2647,3 +2647,35 @@ adding a Level) rather than sitting beside every existing item. No
 hierarchy, CRUD behavior, or eligibility gate changed in this pass, and no
 backend Python files were touched.
 
+## Talent & Potential Grade-to-Grade Assessment Criteria Copy (2026-09-12)
+
+An Owner-requested follow-up capability on top of the icon-actions correction
+pass, added before deployment. Each Grade section in the Competency, KPI &
+Level builder now exposes a structural, always-visible "Copy Criteria From
+Grade..." action (not an inline Edit/Delete icon) that copies the complete
+source Grade's assessment structure - Competencies, KPI/rubric definitions,
+Levels, and generic/Grade-specific achievement descriptors, with ordering
+preserved - into an empty destination Grade as entirely independent new
+records. Nothing is shared or linked between source and destination:
+renaming or editing a copied Competency, KPI, or Level afterward never
+changes the source Grade, exactly mirroring the existing "add a Competency
+to a Grade" flow's own precedent of minting a new Competency identity per
+Grade membership.
+
+An already-populated destination Grade is always rejected rather than
+silently merged or overwritten (`target_grade_occupied`) - no automatic
+merge algorithm was implemented; the Owner explicitly authorized keeping
+this first version to empty-target-only copying, in favor of safety over
+hidden merge behavior. The backend service function
+(`talent_program_service.copy_grade_criteria`) reuses the existing
+`_require_mutable_draft` gate unchanged, so it can never mutate a Framework
+with real Assessment history; the client reuses the identical version-safe
+clone-then-mutate orchestration already established for versioned Delete
+Competency (clone an immutable/active Framework into a new draft, then copy
+against that draft) so the Owner never needs to understand Framework
+cloning/versioning to use this feature. Copy scope is bounded to the same
+SchoolGroup, Program, and Framework as every other Program-service mutation,
+reusing the existing authorization/scoping pattern unchanged. Copied items
+retain full ordinary Edit/Delete/collapse behavior identical to
+manually-created items. No new schema migration was introduced.
+

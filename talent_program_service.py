@@ -487,6 +487,119 @@ def remove_framework_competency(db, *, school_group_id, program_id, framework_id
     _audit(db, group_id=school_group_id, program_id=program_id, actor=actor, resource_type="framework_competency", resource_id=row.id, action="remove", before=before); return framework
 
 
+def _next_competency_code(db, *, school_group_id, program_id, base_name, suffix_hint):
+    base_code = re.sub(r"[^A-Z0-9]+", "_", str(base_name or "").upper()).strip("_")[:55] or "COMPETENCY"
+    candidate = f"{base_code}_{suffix_hint}"
+    attempt = 2
+    while db.query(models.TalentCompetency.id).filter_by(school_group_id=school_group_id, program_id=program_id, code=candidate).first() is not None:
+        candidate = f"{base_code}_{suffix_hint}_{attempt}"; attempt += 1
+    return candidate
+
+
+def copy_grade_criteria(db, *, school_group_id, program_id, framework_id, source_grade_level, target_grade_level, expected_revision, actor=None):
+    """Owner correction: "Copy Criteria From Grade..." copies the complete
+    Assessment Criteria (Competencies, KPI/rubric, Levels, and descriptors)
+    from one Grade into another, entirely within the same governed current
+    Framework build. The destination Grade receives independent new records
+    - never a shared/linked identity with the source - exactly mirroring the
+    existing "add a Competency to a Grade" flow, which always mints a new
+    TalentCompetency per Grade membership (a Competency can only belong to
+    one Grade at a time in this Framework's own uniqueness model). Historical
+    completed Assessment evidence is untouched because this only ever writes
+    to a mutable draft Framework (see _require_mutable_draft); an immutable/
+    active Framework must be cloned into a new draft first via the existing
+    create_framework_draft(clone_from_id=...) path, exactly like the
+    established version-safe Delete Competency flow, before this is called.
+    """
+    framework = _framework(db, school_group_id, program_id, framework_id, lock=True)
+    if framework is None: raise TalentProgramError("not_found", "Framework Version was not found.")
+    _require_mutable_draft(db, framework, expected_revision)
+    source_grade = normalize_grade_level(source_grade_level) if str(source_grade_level or "").strip() else None
+    target_grade = normalize_grade_level(target_grade_level) if str(target_grade_level or "").strip() else None
+    if not source_grade or not target_grade:
+        raise TalentProgramError("invalid_grade", "A source Grade and a destination Grade are both required.")
+    if source_grade == target_grade:
+        raise TalentProgramError("same_grade", "Source and destination Grade must be different.")
+    members = _framework_members(db, framework.id)
+    source_members = sorted((m for m in members if m.grade_level == source_grade), key=lambda m: m.display_order)
+    if not source_members:
+        raise TalentProgramError("source_grade_empty", "The selected source Grade has no Competencies to copy.")
+    if any(m.grade_level == target_grade for m in members):
+        # Prefer safety over a hidden merge/overwrite: the Owner must clear
+        # the destination Grade (or use Delete Competency) before copying
+        # into it. No automatic merge algorithm is implemented.
+        raise TalentProgramError("target_grade_occupied", "The destination Grade already has Competencies. Remove its existing Competencies before copying, or choose an empty Grade.")
+
+    before = _m3_semantic_payload(db, framework.id)
+    order_base = int(db.query(func.max(models.FrameworkCompetency.display_order)).filter_by(framework_version_id=framework.id).scalar() or 0)
+    resources = []
+    for offset, member in enumerate(source_members, start=1):
+        source_competency = db.query(models.TalentCompetency).filter_by(
+            id=member.talent_competency_id, school_group_id=school_group_id, program_id=program_id
+        ).one_or_none()
+        source_name = (source_competency.name if source_competency else None) or member.label
+        new_competency = models.TalentCompetency(
+            school_group_id=school_group_id, program_id=program_id,
+            code=_next_competency_code(db, school_group_id=school_group_id, program_id=program_id, base_name=source_name, suffix_hint=target_grade),
+            name=source_name,
+            description=(source_competency.description if source_competency else None),
+            status="active",
+            created_by_user_id=getattr(actor, "user_id", None), updated_by_user_id=getattr(actor, "user_id", None),
+        )
+        db.add(new_competency); db.flush()
+        resources.append(("competency", new_competency.id))
+
+        new_member = models.FrameworkCompetency(
+            school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id,
+            talent_competency_id=new_competency.id, display_order=order_base + offset,
+            grade_level=target_grade, label=member.label, description=member.description,
+        )
+        db.add(new_member); db.flush()
+        resources.append(("framework_competency", new_member.id))
+
+        source_rubric = _rubric(db, framework.id, member.id)
+        if source_rubric is None:
+            continue
+        new_rubric = models.TalentRubric(
+            school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id,
+            framework_competency_id=new_member.id, name=source_rubric.name, description=source_rubric.description,
+        )
+        db.add(new_rubric); db.flush()
+        resources.append(("rubric", new_rubric.id))
+
+        level_map = {}
+        for level in db.query(models.TalentRubricLevel).filter_by(rubric_id=source_rubric.id).order_by(models.TalentRubricLevel.display_order):
+            new_level = models.TalentRubricLevel(
+                school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id,
+                rubric_id=new_rubric.id, code=level.code, label=level.label, description=level.description,
+                display_order=level.display_order, numeric_value=level.numeric_value,
+            )
+            db.add(new_level); db.flush()
+            level_map[level.id] = new_level.id
+            resources.append(("rubric_level", new_level.id))
+
+        for descriptor in db.query(models.TalentCompetencyRubricDescriptor).filter_by(framework_competency_id=member.id):
+            new_descriptor = models.TalentCompetencyRubricDescriptor(
+                school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id,
+                rubric_id=new_rubric.id, framework_competency_id=new_member.id,
+                rubric_level_id=level_map[descriptor.rubric_level_id], descriptor=descriptor.descriptor,
+            )
+            db.add(new_descriptor); db.flush()
+            resources.append(("rubric_descriptor", new_descriptor.id))
+
+        for descriptor in db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(framework_competency_id=member.id):
+            new_grade_descriptor = models.TalentGradeCompetencyRubricDescriptor(
+                school_group_id=school_group_id, program_id=program_id, framework_version_id=framework.id,
+                rubric_id=new_rubric.id, framework_competency_id=new_member.id,
+                rubric_level_id=level_map[descriptor.rubric_level_id],
+                grade_level=target_grade, descriptor=descriptor.descriptor,
+            )
+            db.add(new_grade_descriptor); db.flush()
+            resources.append(("rubric_descriptor", new_grade_descriptor.id))
+
+    return _m3_mutation(db, framework, actor=actor, action="copy_grade_criteria", before=before, resources=resources)
+
+
 def activate_framework(db, *, school_group_id, program_id, framework_id, expected_revision, expected_fingerprint, organization_authorized, actor=None):
     if not organization_authorized: raise TalentProgramError("organization_authority_required", "Organization authority is required to activate a Framework Version.")
     if not expected_fingerprint: raise TalentProgramError("stale_framework", "The reviewed Framework fingerprint is required for activation.")

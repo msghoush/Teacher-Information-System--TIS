@@ -296,6 +296,13 @@
     const fp=framework?`${base}/frameworks/${framework.id}`:'';
     const mutableFramework=framework?.status==='draft' && !framework?.in_use_by_assessments;
     const editable=manage && mutableFramework;
+    // Copy Criteria From Grade... is a structural action, always available
+    // exactly like versioned Delete Competency - the Owner should never
+    // need to know whether the current build is mutable. An immutable/
+    // active build is cloned into a new draft first (handled in the submit
+    // handler), so this only requires manage permission on a real Framework
+    // for a Program that is not retired.
+    const canCopyGradeCriteria=manage && Boolean(framework) && program.status!=='retired';
     const deletableCompetency=canDeleteCompetency && mutableFramework;
     const versionedDeleteCompetency=canDeleteCompetency && manage && Boolean(framework) && !mutableFramework && program.status!=='retired';
     const deletableRubricLevel=canDeleteRubricLevel && mutableFramework;
@@ -371,14 +378,15 @@
     const requestedGrade=params.get('rubric_grade');
     const selectedGrade=descriptorGrades.includes(requestedGrade)?requestedGrade:(descriptorGrades[0]||'');
     const gradePicker=descriptorGrades.length?`<label class="tp-grade-picker">Grade<select data-rubric-grade>${descriptorGrades.map(g=>option(g,g==='KG'?'KG':`Grade ${g}`,selectedGrade)).join('')}</select></label>`:'';
+    // A Competency with no Grade at all is a genuine "all eligible Grades"
+    // choice only when this Framework has never been used for a real
+    // Assessment - once it has history, an unset Grade is presumed
+    // legacy/pre-migration data and must not be projected into new Grade
+    // authoring (see the dedicated "legacy assessed rubric" regression).
+    const noGradeMatchesAnyGrade=!framework?.in_use_by_assessments;
+    const membersForGradeLevel=g=>members.filter(m=>(noGradeMatchesAnyGrade&&!m.grade_level)||String(m.grade_level)===String(g));
     const rubricGradeSections=(selectedGrade?[selectedGrade]:[]).map((grade)=>{
-      // A Competency with no Grade at all is a genuine "all eligible Grades"
-      // choice only when this Framework has never been used for a real
-      // Assessment - once it has history, an unset Grade is presumed
-      // legacy/pre-migration data and must not be projected into new Grade
-      // authoring (see the dedicated "legacy assessed rubric" regression).
-      const noGradeMatchesAnyGrade=!framework?.in_use_by_assessments;
-      const gradeMembers=members.filter(m=>(noGradeMatchesAnyGrade&&!m.grade_level)||String(m.grade_level)===String(grade));
+      const gradeMembers=membersForGradeLevel(grade);
       const gradeLabel=grade==='KG'?'KG':`Grade ${grade}`;
       const competencyCards=gradeMembers.map(m=>{
         const rubric=rubricForCompetency(m.id);
@@ -415,7 +423,24 @@
         return `<details class="tp-card tp-rubric-competency"><summary class="tp-competency-summary"><span class="tp-node-label">Competency</span><span class="tp-competency-summary-name">${esc(memberName(m))}</span><span class="tp-competency-summary-count">${esc(compactCount)}</span></summary><div class="tp-competency-node-head"><div>${m.description?`<p>${esc(m.description)}</p>`:''}</div><div class="tp-icon-actions">${editAction}${deleteAction}</div></div>${memberEditor}${rubricBody}</details>`;
       }).join('');
       const addCompetencyForm=editable?form(`create-grade-competency:${grade}`,'Add Competency',field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
-      return `<details class="tp-card tp-grade-rubric" open><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} Competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}</div></details>`;
+      // "Copy Criteria From Grade..." is a structural Grade-level action
+      // (Owner correction), not an inline Edit/Delete icon beside an item.
+      // It always appears for every Grade section so the Owner never needs
+      // to know whether the current Framework build is mutable - an
+      // immutable/active build is cloned into a new draft first, exactly
+      // like the existing version-safe Delete Competency flow.
+      const copySourceGrades=descriptorGrades.filter(g=>g!==grade&&membersForGradeLevel(g).length);
+      const copyGradeCriteriaForm=gradeMembers.length
+        ? `<p class="tp-empty">${esc(gradeLabel)} already has Competencies. Remove its existing Competencies first, or copy into an empty Grade.</p>`
+        : (copySourceGrades.length
+            ? form(`copy-grade-criteria:${grade}`,'Copy Criteria From Grade',
+                select('source_grade_level','Copy criteria from Grade',copySourceGrades.map(g=>[g,g==='KG'?'KG':`Grade ${g}`]),''),
+                'Copy Criteria')
+            : `<p class="tp-empty">No other Grade has criteria configured yet to copy from.</p>`);
+      const copyGradeCriteriaAction=canCopyGradeCriteria
+        ? `<button type="button" data-reveal="grade-copy-${grade}">${icon('copy')}Copy Criteria From Grade…</button><div data-editor="grade-copy-${grade}" hidden>${copyGradeCriteriaForm}</div>`
+        : '';
+      return `<details class="tp-card tp-grade-rubric" open><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} Competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}<div class="tp-grade-structural-actions">${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}${copyGradeCriteriaAction}</div></div></details>`;
     }).join('');
     const rubricSetupControls=!framework
       ? (manage?form('new-version','Create Rubric Structure',field('title','Rubric setup name',`${program.name} rubric`,'text',true)+area('summary','Optional note'),'Create Rubric Structure'):'<p class="tp-empty">Rubric setup has not been created.</p>')
@@ -480,6 +505,47 @@
         }catch(error){
           const feedback=f.querySelector('[data-feedback]');
           if(feedback){feedback.textContent=error.message||'Unable to add competency.';feedback.setAttribute('role','alert');}
+        }
+        return;
+      }
+      else if(action.startsWith('copy-grade-criteria:')){
+        if(!framework)return;
+        const targetGrade=action.split(':')[1];
+        const sourceGrade=String(d.get('source_grade_level')||'');
+        if(!sourceGrade)return;
+        const targetLabel=targetGrade==='KG'?'KG':`Grade ${targetGrade}`;
+        const sourceLabel=sourceGrade==='KG'?'KG':`Grade ${sourceGrade}`;
+        if(!window.confirm(`Copy all criteria from ${sourceLabel} to ${targetLabel}?\n\nThis will copy all Competencies, KPIs, Levels, descriptions, and ordering into ${targetLabel}. The copied criteria will be independently editable. ${sourceLabel} will not be changed.`))return;
+        try{
+          // Owner correction: "the same version-safe current-build mechanism
+          // already established for edits/deletes" - an immutable/active
+          // build is cloned into a new draft first, exactly like the
+          // existing versioned Delete Competency flow, so the Owner never
+          // needs to understand Framework cloning/versioning.
+          let targetFramework=framework, targetBase=fp;
+          if(!mutableFramework){
+            const created=await api(`${base}/frameworks`,{method:'POST',body:JSON.stringify({
+              title:`${program.name} updated assessment setup`,
+              summary:`Criteria copied from ${sourceLabel} to ${targetLabel}.`,
+              clone_from_id:framework.id,
+              supersedes_framework_version_id:framework.id,
+            })});
+            targetFramework=created; targetBase=`${base}/frameworks/${created.id}`;
+          }
+          await api(`${targetBase}/grades/copy`,{method:'POST',body:JSON.stringify({
+            source_grade_level:sourceGrade, target_grade_level:targetGrade, expected_revision:targetFramework.revision,
+          })});
+          if(targetFramework.id!==framework.id){
+            params.set('framework_id',String(targetFramework.id));
+            bundleCache=null;
+          }
+          params.set('rubric_grade',targetGrade);
+          if(typeof window!=='undefined')window.location.hash='#tp-rubric';
+          await fullRefresh();
+          ctx.notify?.(`Criteria copied from ${sourceLabel} to ${targetLabel}.`);
+        }catch(error){
+          const feedback=f.querySelector('[data-feedback]');
+          if(feedback){feedback.textContent=error.message||'Unable to copy criteria.';feedback.setAttribute('role','alert');}
         }
         return;
       }
