@@ -1,0 +1,97 @@
+/* Owner-approved Talent interaction refinements. Keep these selectors scoped to
+   the Talent shell so the shared navigation/header remain unchanged elsewhere. */
+body[data-page-key="talent"] .sidebar-tree {
+  border-left: 0;
+}
+body[data-page-key="talent"] .sidebar-tree-link.is-active {
+  box-shadow: none;
+}
+
+/* Talent module header: emblem only visually, while the existing title text
+   remains available to assistive technology. */
+body[data-page-key="talent"] .page-title {
+  position: relative;
+  min-height: 50px;
+  display: inline-flex;
+  align-items: center;
+}
+body[data-page-key="talent"] .page-title .page-title-icon {
+  display: none;
+}
+body[data-page-key="talent"] .page-title > span {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+body[data-page-key="talent"] .page-title::before {
+  content: "";
+  display: block;
+  width: 52px;
+  height: 52px;
+  background: url("../img/talent-ghars-symbol.png") center / contain no-repeat;
+}
+
+.tp-selected-badge {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--app-brand);
+  color: #fff;
+  font-size: var(--tp-text-xs);
+  font-weight: 850;
+  line-height: 1;
+  box-shadow: var(--app-shadow-sm);
+}
+.tp-evaluation-group.is-selected {
+  border-width: 2px;
+  background: color-mix(in srgb, var(--app-brand-soft) 42%, var(--app-surface-strong));
+}
+.tp-evaluation-group.is-selected > header {
+  background: linear-gradient(120deg, color-mix(in srgb, var(--app-brand-soft) 82%, #fff), var(--app-surface-strong));
+}
+
+.tp-rubric-filter-heading {
+  align-items: end;
+  gap: 18px;
+}
+.tp-rubric-program-filter {
+  display: grid;
+  gap: 5px;
+  min-width: min(280px, 100%);
+  color: var(--app-text-muted);
+  font-size: var(--tp-text-sm);
+  font-weight: 750;
+}
+.tp-rubric-program-filter select {
+  width: 100%;
+  min-height: 40px;
+}
+[data-tp-rubric-section] {
+  scroll-margin-top: 24px;
+}
+[data-tp-rubric-results] {
+  display: grid;
+  gap: 12px;
+}
+
+@media (max-width: 680px) {
+  body[data-page-key="talent"] .page-title::before {
+    width: 44px;
+    height: 44px;
+  }
+  .tp-rubric-filter-heading {
+    align-items: stretch;
+  }
+  .tp-rubric-program-filter {
+    width: 100%;
+  }
+}
