@@ -7,4 +7,4 @@ affected_areas:
   - talent-results-analytics-presentation
 kms_files_updated:
 no_impact_reason: "This pass implements Owner acceptance UI behavior over already-approved Talent contracts. It changes no architecture, API contract, schema, migration, tenant/Branch isolation, permissions, privacy threshold or suppression rules, scoring, assessment evidence semantics, Program lifecycle, or analytics metric definitions; existing KMS already governs the underlying current-rubric provenance and deterministic analytics semantics."
-major_change_override: yes
+major_change_override: no
