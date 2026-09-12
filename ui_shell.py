@@ -441,6 +441,15 @@ def _build_nav_items(
     ):
         if item.get("teacher_only") and not has_teacher_identity:
             continue
+        if item.get("href") == "/students/" and can_any(
+            "talent_programs.view",
+            "talent_evaluation_plans.view",
+            "talent_assessments.view",
+            "talent_review_candidates.view",
+            "talent_learner_profiles.view",
+            "talent_analytics.view",
+        ):
+            continue
         permission_mode = item.get("permission_mode", "all")
         permission_keys = tuple(item.get("permission_keys", ()))
         if permission_mode == "any":
@@ -459,6 +468,8 @@ def _build_nav_items(
             else is_active("/dashboard")
         }
         if item["href"] == "/talent":
+            if current_path == "/students" or current_path.startswith("/students/"):
+                nav_item["active"] = True
             talent_children = [
                 {"label": "Students", "href": "/students/", "icon": "users", "allowed": can("students.view")},
                 {"label": "Overview", "href": "/talent/overview", "icon": "dashboard", "allowed": True},

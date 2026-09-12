@@ -124,6 +124,62 @@
     });
   }
 
+
+  function assessmentStatusKey(row) {
+    if (row?.querySelector?.('.tp-status-chip.is-warning')?.textContent?.match(/re-evaluation/i)) return 're_evaluation_required';
+    const text=row?.querySelector?.('.tp-status-chip')?.textContent?.trim().toLowerCase()||'';
+    if (/completed/.test(text)) return 'completed';
+    if (/in progress/.test(text)) return 'in_progress';
+    if (/insufficient/.test(text)) return 'insufficient_evidence';
+    if (/incomplete/.test(text)) return 'incomplete';
+    return 'not_started';
+  }
+
+  function addAssessmentRosterFilters(scope) {
+    if (!scope?.querySelector || document.getElementById('tp-assessment-roster-filters')) return;
+    const table=[...scope.querySelectorAll('table')].find(node=>/Assessment Status/i.test(node.querySelector('thead')?.textContent||'')&&/Student/i.test(node.querySelector('thead')?.textContent||''));
+    if(!table) return;
+    const rows=[...table.querySelectorAll('tbody tr')]; if(!rows.length) return;
+    const heads=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim().toLowerCase());
+    const gradeIndex=heads.indexOf('grade'), sectionIndex=heads.indexOf('section');
+    if(gradeIndex<0||sectionIndex<0) return;
+    const grades=[...new Set(rows.map(row=>row.children[gradeIndex]?.textContent?.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    const sections=[...new Set(rows.map(row=>row.children[sectionIndex]?.textContent?.trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,undefined,{numeric:true}));
+    rows.forEach(row=>{row.dataset.rosterGrade=row.children[gradeIndex]?.textContent?.trim()||'';row.dataset.rosterSection=row.children[sectionIndex]?.textContent?.trim()||'';row.dataset.assessmentStatus=assessmentStatusKey(row);});
+    const wrap=document.createElement('div'); wrap.id='tp-assessment-roster-filters'; wrap.className='tp-local-filterbar';
+    wrap.innerHTML=`<label>Grade<select data-roster-filter="grade"><option value="">All Grades</option>${grades.map(v=>`<option value="${esc(v)}">${esc(v==='KG'?'KG':`Grade ${v}`)}</option>`).join('')}</select></label><label>Section<select data-roster-filter="section"><option value="">All Sections</option>${sections.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}</select></label><label>Assessment Status<select data-roster-filter="status"><option value="">All Statuses</option><option value="not_started">Not started</option><option value="in_progress">In progress</option><option value="completed">Completed</option><option value="re_evaluation_required">Re-evaluation required</option><option value="incomplete">Incomplete</option><option value="insufficient_evidence">Insufficient evidence</option></select></label><span class="tp-local-filter-count" aria-live="polite"></span>`;
+    table.closest('.tp-table-wrap')?.before(wrap);
+    const apply=()=>{const grade=wrap.querySelector('[data-roster-filter="grade"]').value,section=wrap.querySelector('[data-roster-filter="section"]').value,status=wrap.querySelector('[data-roster-filter="status"]').value;let visible=0;rows.forEach(row=>{const show=(!grade||row.dataset.rosterGrade===grade)&&(!section||row.dataset.rosterSection===section)&&(!status||row.dataset.assessmentStatus===status);row.hidden=!show;if(show)visible++;});wrap.querySelector('.tp-local-filter-count').textContent=`${visible} Student${visible===1?'':'s'} shown`;};
+    wrap.addEventListener('change',apply); apply();
+  }
+
+  function addReviewIdentificationFilter(scope) {
+    if(!scope?.querySelector||document.getElementById('tp-identification-filter')) return;
+    const table=[...scope.querySelectorAll('table')].find(node=>/Official Identification/i.test(node.querySelector('thead')?.textContent||'')); if(!table)return;
+    const heads=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim().toLowerCase()),index=heads.findIndex(v=>v.includes('official identification')); if(index<0)return;
+    const rows=[...table.querySelectorAll('tbody tr')];
+    rows.forEach(row=>{const text=row.children[index]?.textContent?.trim().toLowerCase()||'';row.dataset.identificationClass=/not identified/.test(text)?'not_identified':/identified/.test(text)?'identified':'undecided';});
+    const wrap=document.createElement('div');wrap.id='tp-identification-filter';wrap.className='tp-local-filterbar tp-review-identification-filter';
+    wrap.innerHTML='<label>Identification Classification<select><option value="">All Classifications</option><option value="identified">Identified</option><option value="not_identified">Not Identified</option><option value="undecided">Not yet decided</option></select></label><span class="tp-local-filter-count" aria-live="polite"></span>';
+    table.closest('.tp-table-wrap')?.before(wrap);const select=wrap.querySelector('select');
+    const apply=()=>{let visible=0;rows.forEach(row=>{const show=!select.value||row.dataset.identificationClass===select.value;row.hidden=!show;if(show)visible++;});wrap.querySelector('.tp-local-filter-count').textContent=`${visible} Student${visible===1?'':'s'} shown`;};select.addEventListener('change',apply);apply();
+  }
+
+  function magnitudeBucket(value) {
+    const n=Number(value); if(!Number.isFinite(n)) return 0;
+    const p=Math.max(0,Math.min(100,n)); return p<20?1:p<40?2:p<60?3:p<80?4:5;
+  }
+
+  function applyAnalyticsMagnitudeColors(scope) {
+    if(!scope?.querySelectorAll)return;
+    scope.querySelectorAll('.tp-radial,.tp-progress-track,.tp-grade-track,.tp-result-meter').forEach(node=>{
+      let value=NaN;const label=node.getAttribute?.('aria-label')||'',percent=label.match(/([0-9]+(?:\.[0-9]+)?)\s*percent/i);
+      if(percent)value=Number(percent[1]);
+      if(!Number.isFinite(value)){const width=node.querySelector?.('[style*="width"]')?.style?.width||'',match=width.match(/([0-9]+(?:\.[0-9]+)?)%/);if(match)value=Number(match[1]);}
+      const bucket=magnitudeBucket(value);if(!bucket)return;for(let i=1;i<=5;i++)node.classList.remove(`tp-magnitude-${i}`);node.classList.add(`tp-magnitude-${bucket}`);
+    });
+  }
+
   function clarifyAnalyticsEmptyStates(scope) {
     if (!scope?.querySelector) return;
     const identified = scope.querySelector('.tp-primary-indicator');
@@ -275,6 +331,7 @@
     const workspace = document.getElementById('talent-workspace');
     const scope = document.getElementById('tp-content');
     if (!workspace || !scope) return;
+    document.body?.classList?.toggle('tp-overview-branding', workspace.dataset.view === 'overview');
 
     let rememberedDisclosureState = snapshotDisclosureState(scope);
     document.addEventListener('submit', event => {
@@ -295,7 +352,10 @@
       annotateDisclosures(scope);
       restoreDisclosureState(scope, rememberedDisclosureState);
       cleanupAssessmentContexts(scope);
+      addAssessmentRosterFilters(scope);
+      addReviewIdentificationFilter(scope);
       clarifyAnalyticsEmptyStates(scope);
+      applyAnalyticsMagnitudeColors(scope);
       ensureRubricSection(scope).catch(() => {});
     };
 
@@ -314,6 +374,8 @@
     cleanupAssessmentContexts,
     clarifyAnalyticsEmptyStates,
     rubricDistributionHtml,
+    assessmentStatusKey,
+    magnitudeBucket,
   };
 
   if (typeof document !== 'undefined') {

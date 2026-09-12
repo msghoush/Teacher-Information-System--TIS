@@ -108,7 +108,7 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-placement-action-panel { flex-basis: 100%; border-top: 1px solid var(--app-line); padding-top: var(--stu-space-3); }
 
 /* Tables (precise records) */
-.stu-table-wrap { overflow: auto; border: 1px solid var(--app-line); border-radius: 12px; background: var(--app-surface); box-shadow: var(--app-shadow-sm); margin-bottom: var(--stu-space-5); }
+.stu-table-wrap { overflow-x: auto; overflow-y: visible; max-height: none; border: 1px solid var(--app-line); border-radius: 12px; background: var(--app-surface); box-shadow: var(--app-shadow-sm); margin-bottom: var(--stu-space-5); }
 .stu-table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .stu-table caption { text-align: left; padding: 12px 16px; font-weight: 700; }
 .stu-table th, .stu-table td { padding: 12px 16px; border-top: 1px solid var(--app-line); text-align: left; vertical-align: middle; }
@@ -176,10 +176,11 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-ls-panel { margin-bottom: var(--stu-space-5); }
 .stu-ls-chart { display: grid; gap: var(--stu-space-2); margin-top: var(--stu-space-3); }
 .stu-ls-row { display: grid; grid-template-columns: 110px 1fr auto auto; align-items: center; gap: var(--stu-space-3); font-size: 13px; }
-.stu-ls-row-label { font-weight: 700; }
-.stu-ls-track { height: 10px; border-radius: 999px; background: var(--app-surface-muted); overflow: hidden; }
+.stu-ls-row-label { font-weight: 700; color: var(--stu-ls-accent, var(--app-ink)); }
+.stu-ls-row-label::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 7px; border-radius: 50%; background: var(--stu-ls-accent, var(--app-muted, #5d6b82)); vertical-align: 1px; }
+.stu-ls-track { height: 10px; border-radius: 999px; background: var(--app-surface-muted); overflow: hidden; border: 1px solid color-mix(in srgb, var(--stu-ls-accent, var(--app-line)) 35%, var(--app-line)); }
 .stu-ls-track span { display: block; height: 100%; background: var(--stu-ls-accent, var(--app-brand)); border-radius: inherit; }
-.stu-ls-track-state { background: repeating-linear-gradient(45deg, var(--app-surface-muted), var(--app-surface-muted) 6px, var(--app-line) 6px, var(--app-line) 12px); }
+.stu-ls-track-state { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--stu-ls-accent, var(--app-surface-muted)) 9%, var(--app-surface-muted)), color-mix(in srgb, var(--stu-ls-accent, var(--app-surface-muted)) 9%, var(--app-surface-muted)) 6px, var(--app-line) 6px, var(--app-line) 12px); border-color: color-mix(in srgb, var(--stu-ls-accent, var(--app-line)) 55%, var(--app-line)); }
 .stu-protected { color: var(--app-muted, #5d6b82); font-style: italic; font-size: 13px; margin: 0; }
 /* Panel-level protected-state explanation: shown once when every category in
    the current selection is suppressed, replacing a "Protected for privacy"

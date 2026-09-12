@@ -2834,3 +2834,22 @@ secondary sensitive-data permissions remain authoritative. No plan,
 subscription, WorkspaceEntitlement, or feature-registry lookup participates in
 Organization Analytics availability. Privacy and breadth providers remain
 fail-closed and unchanged.
+
+## Talent Owner Adjustment Package - Current Grade/UX Contract (2026-09-12)
+
+Owner amendment supersedes ADR 0039's prior cross-Grade fallback. Grade remains
+non-gating for roster membership, but a current Assessment can use only criteria
+aligned to the Student's Grade plus intentionally unscoped criteria. No other
+Grade's Competency/KPI/Level set may substitute. Start blocks with a
+Grade-specific setup message if none applies; zero-result In Progress reload
+follows only a newer applicable Grade build. Persisted evidence and terminal
+history remain immutable.
+
+Presentation additions are Student Assessment Grade/Section/status filters,
+Talent Review identification classification filtering, responsive KPI/Level
+assessment cards, ordered blue low-to-high coloring for visible analytics
+magnitudes, categorical Learning Style indicators retaining style colors
+without revealing suppressed magnitude, Students nested under Talent for
+Talent-capable users with students-only fallback, natural Student table page
+flow, and Overview-only full transparent Ghars wordmark. No permission, privacy
+threshold, scoring, schema, migration, or write-contract change.
