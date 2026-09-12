@@ -36,6 +36,10 @@
     return (words[0][0] + words[1][0]).toUpperCase();
   }
   const logoBadge = (program, sizeClass) => `<span class="tp-logo-badge ${sizeClass}">${program.logo_url ? `<img src="${esc(program.logo_url)}" alt="${esc(program.name)} logo">` : `<span class="tp-logo-initials" aria-hidden="true">${esc(logoInitials(program.name))}</span>`}</span>`;
+  // One confirmation used by both the direct-delete and version-safe-delete
+  // paths, so Delete Competency reads identically regardless of internal
+  // Framework mutability - the Owner never needs to understand versions.
+  const DELETE_COMPETENCY_CONFIRM = 'Delete this Competency?\n\nThis will also remove its KPI and Levels from the current assessment setup. Historical completed assessments will remain preserved.';
   let unloadGuard, hashGuard;
   // Bounded, same-Program-context cache for the wizard data fetch chain
   // (Program record, annual config, framework versions, competency bank,
@@ -345,11 +349,11 @@
         const summary=gradeMembers.map(m=>{
           const rubric=rubricForCompetency(m.id);
           const count=rubric?.levels?.length || levels.length;
-          return `<li><strong>${esc(memberName(m))}</strong> — ${esc(rubric?.name||config?.rubric?.name||'KPI not configured')} · ${count} level${count===1?'':'s'}</li>`;
+          return `<li><strong>${esc(memberName(m))}</strong> — ${esc(rubric?.name||config?.rubric?.name||'KPI not configured')} · ${count} Level${count===1?'':'s'}</li>`;
         }).join('');
-        return `<details class="tp-card tp-grade-rubric"><summary><strong>${esc(label)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${gradeMembers.length?`<ul>${summary}</ul>`:'<p class="tp-empty">No competencies configured yet.</p>'}</div></details>`;
+        return `<details class="tp-card tp-grade-rubric"><summary><strong>${esc(label)}</strong><span>${gradeMembers.length} Competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${gradeMembers.length?`<ul>${summary}</ul>`:'<p class="tp-empty">No competencies configured yet.</p>'}</div></details>`;
       }).join('');
-      root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p><p>${esc(yearLabel)} · ${annualYear?.is_enabled?'Enabled':'Not enabled'}</p></div></header><section class="tp-program-summary" aria-label="Program summary"><div class="tp-readiness-banner ${setupComplete?'is-ready':'is-incomplete'}"><strong>${setupComplete?'✓ Ready':'Needs setup'}</strong><span>${setupComplete?'Competency, KPI, and Level are configured. Start Assessment is available.':(missingRequirement||'Complete the Program setup below.')}</span></div><dl><div><dt>Grades</dt><dd>${grades||'Not configured'}</dd></div><div><dt>Competencies</dt><dd>${members.length}</dd></div><div><dt>KPI</dt><dd>${rubrics.filter(r=>r.framework_competency_id!=null).length || (levels.length?1:0)}</dd></div><div><dt>Scoring Mode</dt><dd>${esc(scoringMode)}${kpi?.enabled?` <span class="tp-badge">Numeric result enabled</span>`:''}</dd></div><div><dt>Evaluation Periods</dt><dd>${periodCount}</dd></div></dl></section>${gradeRubricSummary?`<section><h3>KPI overview</h3><div class="tp-grade-accordion">${gradeRubricSummary}</div></section>`:''}<div class="tp-summary-actions">${manage?`<a href="#tp-basics">${icon('edit')}Edit Program</a><a href="#tp-rubric">${icon('edit')}Build / Edit Competency, KPI &amp; Level</a>`:''}${can('talent_evaluation_plans.view')?`<a href="#tp-schedule">Manage Evaluation Plan</a>`:''}${can('talent_assessments.view')?`<a href="${esc(href('assessments'))}">${icon('eye')}Open Assessments</a>`:''}${can('talent_analytics.view')?`<a href="${esc(href('portfolio'))}">${icon('eye')}View Results</a>`:''}${govern&&(program.status==='draft'||framework?.status==='draft')?button('finish-setup','Activate Program (optional)'):''}</div>`;
+      root.innerHTML=`<div data-status role="status" aria-live="polite"></div><a href="${esc(href('programs',{program_id:''}))}">← All Programs</a><header id="tp-overview" class="tp-section-lede">${logoBadge(program,'tp-logo-md')}<div><span class="tp-badge">${esc(program.status)}</span><h2>${esc(program.name)}</h2><p>${esc(program.description||'')}</p><p>${esc(yearLabel)} · ${annualYear?.is_enabled?'Enabled':'Not enabled'}</p></div></header><section class="tp-program-summary" aria-label="Program summary"><div class="tp-readiness-banner ${setupComplete?'is-ready':'is-incomplete'}"><strong>${setupComplete?'✓ Ready':'Needs setup'}</strong><span>${setupComplete?'Competency, KPI, and Level are configured. Start Assessment is available.':(missingRequirement||'Complete the Program setup below.')}</span></div><dl><div><dt>Grades</dt><dd>${grades||'Not configured'}</dd></div><div><dt>Competencies</dt><dd>${members.length}</dd></div><div><dt>KPI</dt><dd>${rubrics.filter(r=>r.framework_competency_id!=null).length || (levels.length?1:0)}</dd></div><div><dt>Scoring Mode</dt><dd>${esc(scoringMode)}${kpi?.enabled?` <span class="tp-badge">Numeric result enabled</span>`:''}</dd></div><div><dt>Evaluation Periods</dt><dd>${periodCount}</dd></div></dl></section>${gradeRubricSummary?`<section><h3>KPI Overview</h3><div class="tp-grade-accordion">${gradeRubricSummary}</div></section>`:''}<div class="tp-summary-actions">${manage?`<a href="#tp-basics">${icon('edit')}Edit Program</a><a href="#tp-rubric">${icon('edit')}Build / Edit Competency, KPI &amp; Level</a>`:''}${can('talent_evaluation_plans.view')?`<a href="#tp-schedule">Manage Evaluation Plan</a>`:''}${can('talent_assessments.view')?`<a href="${esc(href('assessments'))}">${icon('eye')}Open Assessments</a>`:''}${can('talent_analytics.view')?`<a href="${esc(href('portfolio'))}">${icon('eye')}View Results</a>`:''}${govern&&(program.status==='draft'||framework?.status==='draft')?button('finish-setup','Activate Program (optional)'):''}</div>`;
       return;
     }
     const stepReason={assess:assessRemaining?`${assessRemaining} item${assessRemaining===1?'':'s'} remaining`:''};
@@ -362,7 +366,13 @@
     const selectedGrade=descriptorGrades.includes(requestedGrade)?requestedGrade:(descriptorGrades[0]||'');
     const gradePicker=descriptorGrades.length?`<label class="tp-grade-picker">Grade<select data-rubric-grade>${descriptorGrades.map(g=>option(g,g==='KG'?'KG':`Grade ${g}`,selectedGrade)).join('')}</select></label>`:'';
     const rubricGradeSections=(selectedGrade?[selectedGrade]:[]).map((grade)=>{
-      const gradeMembers=members.filter(m=>String(m.grade_level||'')===String(grade));
+      // A Competency with no Grade at all is a genuine "all eligible Grades"
+      // choice only when this Framework has never been used for a real
+      // Assessment - once it has history, an unset Grade is presumed
+      // legacy/pre-migration data and must not be projected into new Grade
+      // authoring (see the dedicated "legacy assessed rubric" regression).
+      const noGradeMatchesAnyGrade=!framework?.in_use_by_assessments;
+      const gradeMembers=members.filter(m=>(noGradeMatchesAnyGrade&&!m.grade_level)||String(m.grade_level)===String(grade));
       const gradeLabel=grade==='KG'?'KG':`Grade ${grade}`;
       const competencyCards=gradeMembers.map(m=>{
         const rubric=rubricForCompetency(m.id);
@@ -386,10 +396,18 @@
           : editable
             ? `<button type="button" data-reveal="rubric-add-${m.id}">+ Add KPI</button><div data-editor="rubric-add-${m.id}" hidden>${form(`competency-rubric:${m.id}`,'Add KPI',area('description','KPI description (optional)'),'Add KPI')}</div>`
             : '<p class="tp-empty">No rubric configured.</p>';
-        return `<article class="tp-card tp-rubric-competency"><div class="tp-competency-node-head"><div><span class="tp-node-label">Competency</span><h4>${esc(memberName(m))}</h4><p>${esc(m.description||'')}</p></div>${deletableCompetency?button('remove-member','Delete Competency',`data-key="${m.competency_id}"`,'trash'):versionedDeleteCompetency?button('remove-member-versioned','Delete Competency',`data-key="${m.competency_id}"`,'trash'):''}</div>${rubricBody}</article>`;
+        // Each Competency is an independent, initially-collapsed disclosure:
+        // the compact header (name + KPI/Level counter) is always visible;
+        // expanding reveals KPI, Levels, and the Edit/Delete Competency
+        // actions. Delete is always rendered (never hidden for an immutable
+        // Framework) via whichever of the two delete actions the caller is
+        // authorized for and the Framework's mutability requires.
+        const compactCount = rubric ? `${1} KPI · ${memberLevels.length} Level${memberLevels.length===1?'':'s'}` : 'No KPI configured yet';
+        const deleteAction = deletableCompetency?button('remove-member','Delete Competency',`data-key="${m.competency_id}"`,'trash'):versionedDeleteCompetency?button('remove-member-versioned','Delete Competency',`data-key="${m.competency_id}"`,'trash'):'';
+        return `<details class="tp-card tp-rubric-competency"><summary class="tp-competency-summary"><span class="tp-node-label">Competency</span><span class="tp-competency-summary-name">${esc(memberName(m))}</span><span class="tp-competency-summary-count">${esc(compactCount)}</span></summary><div class="tp-competency-node-head"><div>${m.description?`<p>${esc(m.description)}</p>`:''}</div>${deleteAction}</div>${rubricBody}</details>`;
       }).join('');
       const addCompetencyForm=editable?form(`create-grade-competency:${grade}`,'Add Competency',field('name','Competency name','','text',true)+area('description','Competency description'),'Add Competency'):'';
-      return `<details class="tp-card tp-grade-rubric" open><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}</div></details>`;
+      return `<details class="tp-card tp-grade-rubric" open><summary><strong>${esc(gradeLabel)}</strong><span>${gradeMembers.length} Competenc${gradeMembers.length===1?'y':'ies'}</span></summary><div class="tp-grade-rubric-body">${competencyCards||'<p class="tp-empty">No competencies yet for this Grade.</p>'}${editable?`<button type="button" data-reveal="grade-add-${grade}">+ Add Competency</button><div data-editor="grade-add-${grade}" hidden>${addCompetencyForm}</div>`:''}</div></details>`;
     }).join('');
     const rubricSetupControls=!framework
       ? (manage?form('new-version','Create Rubric Structure',field('title','Rubric setup name',`${program.name} rubric`,'text',true)+area('summary','Optional note'),'Create Rubric Structure'):'<p class="tp-empty">Rubric setup has not been created.</p>')
@@ -502,7 +520,10 @@
       }
       const b=event.target.closest('[data-action]');if(!b||busy)return;const a=b.dataset.action;
       if(a==='remove-member-versioned'){
-        if(!window.confirm('This saved assessment setup is immutable. Create a new editable setup and delete this Competency for future assessments? Existing completed evidence will remain unchanged.'))return;
+        // Internal Framework-version cloning is deliberately not exposed to
+        // the Owner - the confirmation and outcome read identically to the
+        // direct-delete path (Delete Competency is one subtree action).
+        if(!window.confirm(DELETE_COMPETENCY_CONFIRM))return;
         const created=await api(`${base}/frameworks`,{method:'POST',body:JSON.stringify({
           title:`${program.name} updated assessment setup`,
           summary:'Competency removed from future assessment setup.',
@@ -514,7 +535,7 @@
         bundleCache=null;
         if(typeof window!=='undefined')window.location.hash='#tp-rubric';
         await fullRefresh();
-        ctx.notify?.('Competency deleted from the new editable assessment setup. Historical evidence is unchanged.');
+        ctx.notify?.('Competency deleted. Historical completed assessments remain preserved.');
         return;
       }
       if(a==='finish-rubric'){
@@ -554,7 +575,7 @@
       else if(a==='remove-logo'){if(!window.confirm('Remove the Program logo? This cannot be undone.'))return;path=`${base}/logo`;method='DELETE';body=undefined;}
       else if(a==='activate-version'){if(!window.confirm('Activate this version for future evaluations? The existing active version will be superseded.'))return;path+='/activate';body.expected_fingerprint=framework.semantic_fingerprint;}
       else if(a==='retire-version'){if(!window.confirm('Retire this version? Existing assessment history is preserved.'))return;path+='/retire';body=undefined;}
-      else if(a==='remove-member'||a==='remove-level'||a==='remove-descriptor'){const message=a==='remove-member'?'Delete this Competency from the editable rubric?':a==='remove-level'?'Delete this Rubric Level from the editable rubric?':'Remove this item from the draft version?';if(!window.confirm(message))return;path+=a==='remove-member'?`/competencies/${b.dataset.key}`:a==='remove-level'?`/rubric/levels/${b.dataset.key}`:b.dataset.scope==='grade'?`/rubric/grade-descriptors/${b.dataset.key}`:`/rubric/descriptors/${b.dataset.key}`;path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
+      else if(a==='remove-member'||a==='remove-level'||a==='remove-descriptor'){const message=a==='remove-member'?DELETE_COMPETENCY_CONFIRM:a==='remove-level'?'Delete this Level?':'Remove this item from the current assessment setup?';if(!window.confirm(message))return;path+=a==='remove-member'?`/competencies/${b.dataset.key}`:a==='remove-level'?`/rubric/levels/${b.dataset.key}`:b.dataset.scope==='grade'?`/rubric/grade-descriptors/${b.dataset.key}`:`/rubric/descriptors/${b.dataset.key}`;path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
       else if(a==='remove-kpi'){if(!window.confirm('Delete this KPI configuration? Historical completed Assessment evidence remains unchanged.'))return;path+='/kpi';path+=`?expected_revision=${framework.revision}`;method='DELETE';body=undefined;}
       else if(a==='move-member'||a==='move-level'){const i=Number(b.dataset.index),items=(a==='move-member'?members.map(m=>m.competency_id):levels.map(l=>l.id));if(i<1)return;[items[i-1],items[i]]=[items[i],items[i-1]];method='PUT';path+=a==='move-member'?'/competencies/order':'/rubric/levels/order';body[a==='move-member'?'competency_ids':'level_ids']=items;}
       else return;

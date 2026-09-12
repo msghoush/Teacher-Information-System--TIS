@@ -2708,3 +2708,21 @@ A regeneration source is the current populated, mutable, unpublished Draft with
 a usable placement arrangement, regardless of whether its origin is `manual`,
 `generated`, or `regenerated`. An empty starter Draft remains a Generate candidate;
 active, historical, superseded, and archived versions are never source candidates.
+
+## Talent & Potential Owner correction pass (2026-09-12)
+
+UI/UX-only correction pass over ADR 0039's Competency+KPI+Level model, no
+eligibility-gate or architecture change. Fixed a `rubricGradeSections`
+rendering bug (`static/js/talent-program-workspace.js`) that hid a
+no-Grade Competency's entire row - Delete action included - on a genuinely
+new draft Framework; the fix keys the "no Grade = all Grades" behavior on
+`framework.in_use_by_assessments` so an already-used Framework's legacy
+no-Grade Competency still stays out of new-Grade authoring. Competency
+cards are now independently collapsible (`<details>`/`<summary>`), Delete
+Competency uses one unified confirmation across the direct and version-safe
+paths, the Student Assessment editor (`static/js/talent-operations.js`) now
+has a "Back to Students" action that preserves Academic Year/Program/Cycle
+context, and several Talent counters/headings were corrected to Title Case
+("N Competencies", "N Levels", "KPI Overview", "Assessment Status"). The
+Owner-supplied `talent-ghars-symbol.png` sidebar asset was not present in
+this environment and that swap remains deferred.

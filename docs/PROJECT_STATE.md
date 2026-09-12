@@ -2565,3 +2565,55 @@ loads or explicit recovery.
 
 No new schema migration is introduced by this consolidation.
 
+## Talent & Potential Owner Acceptance-Testing Correction Pass (2026-09-12)
+
+A focused UI/UX correction pass over the already-governed ADR 0039 Competency
++ KPI + Level model, driven directly by Owner acceptance testing on top of
+pushed commit a173555. This pass changes no eligibility gate and no
+architecture; it corrects builder rendering, disclosure, navigation, and
+capitalization defects.
+
+Delete Competency is now genuinely always available in the Competency, KPI &
+Level builder for every current build - new-from-scratch, previously saved, or
+based on a historically-used Framework. Investigation found the true root
+cause was not a hidden/blocked action but a rendering bug: a Competency saved
+with no explicit Grade on a genuinely new draft Framework
+(`framework.in_use_by_assessments === false`) never matched any Grade section
+in `rubricGradeSections` at all, so the entire Competency row - and its Delete
+action - never rendered. The fix treats "no Grade" as "applies to all eligible
+Grades" only for a Framework with no Assessment history yet; a no-Grade
+Competency on an already-used Framework remains legacy/pre-migration data and
+still stays out of new-Grade authoring, preserving the existing historical
+protection. Deleting a Competency (direct on a mutable draft, or via the
+existing version-safe clone-then-delete path on an immutable/active Framework)
+removes only the current KPI, Levels, and descriptors; completed historical
+Assessment evidence is never altered. Both paths now show one unified
+confirmation message so the Owner is never asked to reason about Framework
+versions to remove a Competency from future setup.
+
+Each Competency card in the builder is now an independent, initially-collapsed
+disclosure (native `<details>`/`<summary>`, keyboard-operable, no manual
+`aria-expanded` required) showing only a compact header - name plus a
+"N KPI · N Levels" count - until the Owner opens it; Grade sections remain
+their own independent disclosures as before.
+
+The opened Student Assessment editor now shows an obvious "← Back to
+Students" action that returns to the Student Assessments list for the exact
+same Academic Year, Program, and Evaluation/Cycle context the Assessment was
+opened from - never the Talent landing page. The Assessment editor itself is
+otherwise unchanged in this pass.
+
+Talent & Potential capitalization was corrected to consistent Title Case for
+Competency/Competencies, KPI, and Level/Levels counters and section/column
+headings (e.g. "3 Competencies", "5 Levels", "KPI Overview", "Assessment
+Status"), while normal explanatory sentences remain in ordinary sentence case
+by design.
+
+The Owner-supplied Ghars sidebar symbol-only asset
+(`talent-ghars-symbol.png`) named in this correction request was not actually
+present in this environment (confirmed by a full filesystem search); the
+sidebar branding swap to that asset is deferred until the file is supplied,
+and the current Ghars symbol-and-text sidebar branding from the prior
+corrective pass is unchanged. No backend Python files were touched in this
+pass, and no new schema migration is introduced.
+

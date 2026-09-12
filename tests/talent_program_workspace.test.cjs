@@ -714,6 +714,55 @@ test('Rubric action renders Grade -> Competency -> Rubric -> Level structure',as
 
 
 
+test('Delete Competency is always available for a normal mutable current build (Owner correction)',async()=>{
+  const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[{id:71,competency_id:61,grade_level:'1',label:'Reading Fluency',description:'Reads connected text'}]
+    };
+    if(!options&&path.endsWith('/configuration'))return {
+      rubric:null,levels:[],
+      rubrics:[{id:301,framework_competency_id:71,name:'Oral Reading',levels:[{id:401,rubric_id:301,framework_competency_id:71,code:'L1',label:'Beginning',order:1}]}],
+      descriptors:[],kpi:null,review_candidate_policy:null,
+      revision:7,semantic_fingerprint:'fingerprint'
+    };
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/data-action="remove-member"[^>]*data-key="61"/);
+  let confirmMessage=null;
+  const old=global.window;
+  global.window={confirm:msg=>{confirmMessage=msg;return true;},scrollY:0,scrollTo(){},addEventListener(){},removeEventListener(){},location:{hash:'',pathname:'/talent/programs',search:'?program_id=11'}};
+  try{
+    await root.onclick({target:{closest:selector=>selector==='[data-action]'?{dataset:{action:'remove-member',key:'61'}}:null}});
+  }finally{global.window=old;}
+  assert.equal(confirmMessage,'Delete this Competency?\n\nThis will also remove its KPI and Levels from the current assessment setup. Historical completed assessments will remain preserved.');
+});
+
+test('grade rubric section header uses capitalized "N Competencies" (Owner correction: capitalization consistency)',async()=>{
+  const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
+  const read=ctx.api;
+  ctx.api=async(path,options)=>{
+    if(!options&&path.endsWith('/frameworks/31'))return {
+      id:31,title:'Arts rubric',status:'draft',version_number:2,revision:7,
+      semantic_fingerprint:'fingerprint',in_use_by_assessments:false,
+      competencies:[
+        {id:71,competency_id:61,grade_level:'1',label:'Reading Fluency',description:''},
+        {id:72,competency_id:62,grade_level:'1',label:'Number Sense',description:''},
+        {id:73,competency_id:63,grade_level:'1',label:'Oral Expression',description:''}
+      ]
+    };
+    if(!options&&path.endsWith('/configuration'))return {rubric:null,levels:[],rubrics:[],descriptors:[],kpi:null,review_candidate_policy:null,revision:7,semantic_fingerprint:'fingerprint'};
+    return read(path,options);
+  };
+  await render(ctx);
+  assert.match(root.innerHTML,/3 Competencies/);
+  assert.doesNotMatch(root.innerHTML,/3 competencies/);
+});
+
 test('Rubric delete actions are hidden when manage permission exists without dedicated delete permissions',async()=>{
   const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
   const read=ctx.api;
@@ -763,8 +812,16 @@ test('immutable assessment setup offers safe versioned Delete Competency and vis
   };
   await render(ctx);
   assert.match(root.innerHTML,/data-action="remove-member-versioned"[^>]*data-key="61"/);
-  assert.match(root.innerHTML,/class="tp-kpi-disclosure"/);
-  await root.onclick({target:{closest:selector=>selector==='[data-action]'?{dataset:{action:'remove-member-versioned',key:'61'}}:null}});
+  // Each Competency is an independent, initially-collapsed disclosure
+  // (Owner correction: Competency cards must collapse/expand).
+  assert.match(root.innerHTML,/<details class="tp-card tp-rubric-competency"><summary class="tp-competency-summary">/);
+  assert.doesNotMatch(root.innerHTML,/<details class="tp-card tp-rubric-competency" open>/);
+  assert.match(root.innerHTML,/class="tp-competency-summary-count">1 KPI · 1 Level</);
+  const oldWindow=global.window;
+  global.window={confirm:()=>true,scrollY:0,scrollTo(){},addEventListener(){},removeEventListener(){},location:{hash:'',pathname:'/talent/programs',search:'?program_id=11'}};
+  try{
+    await root.onclick({target:{closest:selector=>selector==='[data-action]'?{dataset:{action:'remove-member-versioned',key:'61'}}:null}});
+  }finally{global.window=oldWindow;}
   const created=calls.find(call=>call.path==='/api/talent/programs/11/frameworks'&&call.options?.method==='POST');
   assert.ok(created);
   const payload=JSON.parse(created.options.body);
