@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-12T10:42:05.481920+03:00",
+  "generated_at": "2026-09-12T14:27:10.653943+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "ad481e7",
+  "commit_sha": "c76b57e",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "621ea63cdf0ea9f17b02811483a900afadbf9bb92d98309ccd3a6073a5a570c9",
-  "pdf_size_bytes": 1847615,
+  "pdf_sha256": "7646d92877411761e321acfd4792b46e7d8f7e0a7a7421d23fc512e36ca949de",
+  "pdf_size_bytes": 1847616,
   "included_source_files": [
     {
       "path": "docs/README.md",
