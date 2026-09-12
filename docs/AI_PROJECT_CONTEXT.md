@@ -2759,3 +2759,24 @@ Framework into a new draft first (the same pattern as versioned Delete
 Competency) before copying. The UI action ("Copy Criteria From Grade...")
 is a structural, always-visible Grade-level action, not an inline icon.
 Same SchoolGroup/Program/Framework scoping as every other Program mutation.
+
+## CRITICAL: Production DB connection-pool exhaustion fixed (2026-09-12)
+
+Root cause of a confirmed production `QueuePool limit of size 5 overflow
+10 reached, connection timed out` release blocker: `main.py`'s
+`inactivity_timeout_middleware` (global, runs on every authenticated
+request app-wide) opened its own `SessionLocal()` and held it checked out
+for the entire `await call_next(request)` downstream request/response
+cycle - on top of the separate connection the route itself acquires via
+`Depends(get_db)` - doubling real per-request pool consumption. Not a
+leak (it always closed eventually); a long-held/duplicated connection.
+Talent Student Assessments' several concurrent API calls per load
+surfaced it first; the pool then stayed globally exhausted for the whole
+app until a Render restart reset it. Fix: the middleware's session is now
+opened, used for the auth/idle-timeout/commercial-access/permission
+checks, and closed before `call_next` is ever awaited - behavior-
+preserving, no Grade or annual-configuration gate reintroduced. See
+`tests/test_db_connection_pool_lifecycle.py` for the regression proof
+(ordering assertions plus a real small-QueuePool concurrency
+reproduction of both the old doubled-checkout shape exhausting the pool
+and the fixed shape not exceeding it).

@@ -8529,62 +8529,78 @@ async def inactivity_timeout_middleware(request: Request, call_next):
     if not session_user_id:
         return await call_next(request)
 
+    # This session is only needed to resolve the session user and run the
+    # idle-timeout/commercial-access/route-permission checks below - never
+    # for the downstream route itself, which acquires its own independent,
+    # request-scoped session via Depends(get_db). It must be closed before
+    # `call_next` is awaited: previously it stayed open (via a try/finally
+    # wrapping the whole `call_next` call) for the entire downstream
+    # request/response cycle, so every authenticated request held two
+    # SQLAlchemy connections checked out simultaneously - this one, idle
+    # for the whole request, plus whatever the route itself acquired. That
+    # silently doubled real per-request pool consumption across the entire
+    # application and was the root cause of QueuePool exhaustion under
+    # concurrent traffic (e.g. Student Assessments firing several parallel
+    # API calls per page load).
+    user = None
+    current_user = None
+    early_response = None
     db = SessionLocal()
     try:
-        user = None
-        current_user = None
         if session_user_id:
             user = db.query(models.User).filter(
                 models.User.user_id == session_user_id
             ).first()
             if not user:
-                response = RedirectResponse(url="/", status_code=302)
-                return _clear_auth_session_cookies(response)
+                early_response = _clear_auth_session_cookies(RedirectResponse(url="/", status_code=302))
+            elif not auth.is_user_active(user):
+                early_response = _clear_auth_session_cookies(RedirectResponse(url="/?inactive=1", status_code=302))
+            else:
+                if path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_platform_user(user):
+                    now_ts = int(time.time())
+                    last_activity_raw = str(request.cookies.get(IDLE_TIMEOUT_COOKIE_KEY) or "").strip()
+                    if last_activity_raw:
+                        try:
+                            last_activity_ts = int(last_activity_raw)
+                        except ValueError:
+                            last_activity_ts = 0
 
-            if not auth.is_user_active(user):
-                response = RedirectResponse(url="/?inactive=1", status_code=302)
-                return _clear_auth_session_cookies(response)
+                        if last_activity_ts > 0 and (now_ts - last_activity_ts) > IDLE_TIMEOUT_SECONDS:
+                            early_response = _clear_auth_session_cookies(RedirectResponse(url="/?timeout=1", status_code=302))
+                if early_response is None:
+                    current_user = auth.get_current_user(request, db)
 
-            if path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_platform_user(user):
-                now_ts = int(time.time())
-                last_activity_raw = str(request.cookies.get(IDLE_TIMEOUT_COOKIE_KEY) or "").strip()
-                if last_activity_raw:
-                    try:
-                        last_activity_ts = int(last_activity_raw)
-                    except ValueError:
-                        last_activity_ts = 0
-
-                    if last_activity_ts > 0 and (now_ts - last_activity_ts) > IDLE_TIMEOUT_SECONDS:
-                        timeout_response = RedirectResponse(url="/?timeout=1", status_code=302)
-                        return _clear_auth_session_cookies(timeout_response)
-            current_user = auth.get_current_user(request, db)
-
-        commercial_access_response = authorization.enforce_workspace_commercial_access(
-            request,
-            db,
-            current_user=current_user,
-        )
-        if commercial_access_response is not None:
-            return commercial_access_response
-
-        permission_response = authorization.enforce_route_permission(
-            request,
-            db,
-            current_user=current_user,
-        )
-        if permission_response is not None:
-            return permission_response
-
-        response = await call_next(request)
-        if session_user_id and user and path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_platform_user(user):
-            response.set_cookie(
-                key=IDLE_TIMEOUT_COOKIE_KEY,
-                value=str(int(time.time())),
-                **auth.secure_cookie_kwargs(request),
+        if early_response is None:
+            commercial_access_response = authorization.enforce_workspace_commercial_access(
+                request,
+                db,
+                current_user=current_user,
             )
-        return response
+            if commercial_access_response is not None:
+                early_response = commercial_access_response
+
+        if early_response is None:
+            permission_response = authorization.enforce_route_permission(
+                request,
+                db,
+                current_user=current_user,
+            )
+            if permission_response is not None:
+                early_response = permission_response
     finally:
         db.close()
+
+    if early_response is not None:
+        return early_response
+
+    response = await call_next(request)
+    if session_user_id and user and path not in IDLE_TIMEOUT_EXEMPT_PATHS and not auth.is_platform_user(user):
+        response.set_cookie(
+            key=IDLE_TIMEOUT_COOKIE_KEY,
+            value=str(int(time.time())),
+            **auth.secure_cookie_kwargs(request),
+        )
+    return response
 
 
 @app.middleware("http")

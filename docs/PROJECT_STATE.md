@@ -2678,4 +2678,58 @@ SchoolGroup, Program, and Framework as every other Program-service mutation,
 reusing the existing authorization/scoping pattern unchanged. Copied items
 retain full ordinary Edit/Delete/collapse behavior identical to
 manually-created items. No new schema migration was introduced.
+## CRITICAL: Production DB Connection-Pool Exhaustion Fixed (2026-09-12)
 
+Root-caused and fixed a confirmed production release blocker:
+`sqlalchemy.exc.TimeoutError: QueuePool limit of size 5 overflow 10 reached,
+connection timed out, timeout 30.00`. The default (unconfigured) SQLAlchemy
+QueuePool numbers in the traceback match `database.py`'s `create_engine`
+call exactly - no explicit `pool_size`/`max_overflow`/`pool_timeout` was
+ever set.
+
+Root cause was `main.py`'s `inactivity_timeout_middleware` - a global
+`@app.middleware("http")` that runs on every authenticated request across
+the entire application, not only Talent. It opened its own
+`SessionLocal()` session and wrapped the entire `await call_next(request)`
+call inside the same `try/finally: db.close()` block, holding that
+connection checked out for the full duration of every request's
+downstream processing on top of the separate connection the route handler
+itself acquires via `Depends(get_db)`. Every authenticated request
+therefore consumed two simultaneous pool connections for its whole
+lifetime instead of one. This was not a classic leak - the connection was
+always eventually closed - but a long-held, effectively duplicated
+connection held far longer than the few quick scalar queries it actually
+needed (session-user lookup, idle-timeout check, `current_user`
+resolution, commercial-access/permission checks). Talent Student
+Assessments fires several concurrent API requests per page load, so a
+single load could require up to double the connections purely from this
+doubling, exhausting the default pool under light concurrent traffic -
+explaining why Student Assessments failed first, why other pages then
+hung (the pool was globally exhausted for the whole application), and why
+a Render restart temporarily "fixed" it (restart empties the pool; the
+underlying per-request doubling was unchanged and would recur).
+
+Ruled out during investigation: no additional independent
+`SessionLocal()`/`sessionmaker()`/`engine.connect()` sources exist
+anywhere in the Talent service/router layer (all rely exclusively on the
+injected `Depends(get_db)` session); `dependencies.py`'s `get_db()`
+canonical dependency correctly implements try/yield/finally with no
+rollback gap; the deployment runs a single `uvicorn main:app` process (no
+`--workers` flag), so the observed pool numbers are the single-process
+SQLAlchemy defaults, not a worker-multiplication effect. No Grade gate or
+annual Program-configuration enablement gate was reintroduced -
+`current_placements_for_assessment` and
+`_current_placement_for_assessment` are unchanged.
+
+Fix: `inactivity_timeout_middleware` now opens its session, completes the
+auth/idle-timeout/commercial-access/route-permission checks, and closes
+the session entirely before `call_next` is ever awaited - behavior-
+preserving (every existing early-return outcome is unchanged, only
+restructured through one closing point ahead of `call_next`). New
+regression coverage in `tests/test_db_connection_pool_lifecycle.py`
+proves the session closes before `call_next` starts (including on
+exceptions), proves an unauthenticated/exempt request never opens a
+session, and - against a real small QueuePool - proves the fixed shape
+never exceeds pool capacity under concurrency while a reconstruction of
+the old doubled-checkout shape reliably exhausts the same pool, positively
+proving the doubling was real and is now eliminated.
