@@ -1743,3 +1743,32 @@ isolation, Branch scope, privacy suppression/closure, breadth limits, and M10
 REPEATABLE READ remain mandatory and unchanged. The legacy semantic feature key
 may remain registered for compatibility/history but has no runtime authority
 over Results & Analytics.
+
+## Talent Assessment Grade-Alignment And Owner Presentation Authority - 2026-09-12
+
+Student Assessments roster inclusion is not controlled by Program
+`eligible_grade_levels` or annual enablement. Separately, current assessment
+criteria are strictly Grade-aligned: only criteria applicable to the Student's
+Grade plus intentionally unscoped criteria may be used. Criteria assigned to
+another Grade must never be substituted. A Student with no applicable criteria
+stays in the roster but cannot start until that Grade's criteria are configured.
+Zero-result In Progress reload may follow only a newer applicable Grade build;
+evidence-bearing and terminal history remains immutable.
+
+For Talent-capable users, Students appears only as the first Talent child;
+standalone Students is a fallback for users with Students permission but no
+Talent permission. Student Assessments exposes Grade/Section/Assessment Status
+filters and Talent Review exposes Identification Classification. Visible
+analytics magnitudes use a low-to-high blue intensity scale; privacy/no-data
+states remain categorical. Learning Style retains per-style categorical colors
+without exposing suppressed magnitude. The full transparent Ghars wordmark is
+Talent Overview-header-only; the sidebar uses the compact emblem.
+
+## Talent Owner Adjustment Package - Correction (2026-09-12, follow-up)
+
+The Talent Overview full Ghars wordmark is blocked pending the Owner's actual
+asset file; a non-Owner-supplied traced SVG was removed from that header and
+replaced with an empty container pointing at a documented, not-yet-present
+path (`static/img/ghars-full-wordmark-dark.png`). The duplicated "Selected
+Evaluation" panel in Student Assessments has been removed; only the in-place
+selected-card marking remains. No schema, permission, or scoring change.

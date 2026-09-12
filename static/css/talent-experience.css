@@ -7,35 +7,21 @@ body[data-page-key="talent"] .sidebar-tree-link.is-active {
   box-shadow: none;
 }
 
-/* Talent module header: emblem only visually, while the existing title text
-   remains available to assistive technology. */
-body[data-page-key="talent"] .page-title {
-  position: relative;
-  min-height: 50px;
-  display: inline-flex;
-  align-items: center;
-}
-body[data-page-key="talent"] .page-title .page-title-icon {
-  display: none;
-}
-body[data-page-key="talent"] .page-title > span {
-  position: absolute !important;
-  width: 1px !important;
-  height: 1px !important;
-  padding: 0 !important;
-  margin: -1px !important;
-  overflow: hidden !important;
-  clip: rect(0, 0, 0, 0) !important;
-  white-space: nowrap !important;
-  border: 0 !important;
-}
-body[data-page-key="talent"] .page-title::before {
-  content: "";
-  display: block;
-  width: 52px;
-  height: 52px;
-  background: url("../img/talent-ghars-symbol.png") center / contain no-repeat;
-}
+/* Ghars branding: compact Owner-supplied emblem in the navy sidebar
+   (static/img/talent-ghars-symbol.png). The Talent Overview header below is
+   BLOCKED PENDING ASSET: the Owner's full Ghars wordmark image has not been
+   supplied as a file in this environment. Do not fabricate/recreate the
+   logo from a description. This container is deliberately wired to a
+   documented, not-yet-present path
+   (static/img/ghars-full-wordmark-dark.png) so dropping in the real,
+   Owner-supplied asset at that path is the only remaining step. Until then
+   the container renders empty (no fake artwork) and the accessible title
+   text below remains available to assistive technology. */
+body[data-page-key="talent"] .sidebar-brand-symbol { filter: brightness(0) invert(1); }
+body.tp-overview-branding .page-title { position:relative; width:min(360px,52vw); min-height:82px; display:inline-flex; align-items:center; }
+body.tp-overview-branding .page-title .page-title-icon { display:none; }
+body.tp-overview-branding .page-title > span { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+body.tp-overview-branding .page-title::before { content:""; display:block; width:100%; height:82px; background:url("../img/ghars-full-wordmark-dark.png") left center / contain no-repeat; }
 
 .tp-selected-badge {
   margin-left: auto;
@@ -84,10 +70,8 @@ body[data-page-key="talent"] .page-title::before {
 }
 
 @media (max-width: 680px) {
-  body[data-page-key="talent"] .page-title::before {
-    width: 44px;
-    height: 44px;
-  }
+  body.tp-overview-branding .page-title { width:min(260px,74vw); min-height:64px; }
+  body.tp-overview-branding .page-title::before { height:64px; }
   .tp-rubric-filter-heading {
     align-items: stretch;
   }
@@ -95,3 +79,22 @@ body[data-page-key="talent"] .page-title::before {
     width: 100%;
   }
 }
+
+.tp-local-filterbar{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:14px 0;padding:14px;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface-muted)}
+.tp-local-filterbar label{display:grid;gap:5px;min-width:170px;color:var(--app-brand-deep);font-size:var(--tp-text-xs);font-weight:800}
+.tp-local-filterbar select{min-height:40px;padding:8px 34px 8px 10px;border:1px solid var(--app-line);border-radius:9px;background:var(--app-surface-strong);color:var(--app-ink);font:inherit}
+.tp-local-filter-count{margin-left:auto;padding:10px 0;color:var(--app-muted);font-size:var(--tp-text-sm);font-weight:700}
+.tp-assessment-editor{gap:20px}.tp-assessment-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr));gap:18px}
+.tp-assessment-competency{min-width:0;padding:0 18px 18px;border:1px solid var(--app-line);border-radius:16px;background:var(--app-surface-strong);box-shadow:var(--app-shadow-sm)}
+.tp-assessment-competency legend{display:flex;align-items:center;gap:10px;max-width:100%;padding:0 6px;color:var(--app-brand-deep);font-size:18px;font-weight:850}
+.tp-assessment-index{display:inline-grid;place-items:center;width:28px;height:28px;flex:0 0 28px;border-radius:50%;background:var(--app-brand);color:#fff;font-size:12px}
+.tp-assessment-kpi{display:grid;gap:3px;margin:12px 0 14px;padding:11px 13px;border-left:4px solid var(--app-brand);border-radius:8px;background:var(--app-brand-soft)}
+.tp-assessment-kpi-label{color:var(--app-muted);font-size:10px;font-weight:850;letter-spacing:.09em;text-transform:uppercase}.tp-assessment-kpi strong{overflow-wrap:anywhere;font-size:15px}
+.tp-assessment-levels{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.tp-op-form .tp-assessment-levels .tp-level-option{position:relative;min-height:74px;align-items:flex-start;padding:13px;background:var(--app-surface);transition:border-color 120ms ease,background 120ms ease,box-shadow 120ms ease}
+.tp-op-form .tp-assessment-levels .tp-level-option:has(input:checked){border-color:var(--app-brand);background:color-mix(in srgb,var(--app-brand-soft) 72%,#fff);box-shadow:0 0 0 2px color-mix(in srgb,var(--app-brand) 18%,transparent)}
+.tp-assessment-competency textarea{min-height:92px}.tp-grade-criteria-empty{border-left-color:var(--app-warning)}
+.tp-magnitude-1{--tp-indicator-color:#a9c9e8}.tp-magnitude-2{--tp-indicator-color:#82afd8}.tp-magnitude-3{--tp-indicator-color:#5d94c8}.tp-magnitude-4{--tp-indicator-color:#3675b2}.tp-magnitude-5{--tp-indicator-color:#174f87}
+.tp-radial[class*="tp-magnitude-"] .tp-radial-arc{stroke:var(--tp-indicator-color)}
+.tp-progress-track[class*="tp-magnitude-"]>span,.tp-grade-track[class*="tp-magnitude-"]>span,.tp-result-meter[class*="tp-magnitude-"]>i{background:var(--tp-indicator-color)!important}
+@media(max-width:680px){.tp-local-filterbar{display:grid}.tp-local-filter-count{margin-left:0}.tp-assessment-grid{grid-template-columns:1fr}}

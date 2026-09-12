@@ -1504,3 +1504,26 @@ After coding, update:
 - engineering docs when module maps, architecture, or flows change,
 - AI context when onboarding truth changes,
 - project state when priority/status changes.
+
+## Talent Owner Adjustment Flow - 2026-09-12
+
+1. Student Assessments keeps every current authorized Academic-Year placement in
+   the roster and offers Grade, Section, and Assessment Status filters.
+2. Start resolves the newest saved Framework applicable to the Student's Grade.
+   Intentionally unscoped criteria apply; another Grade's explicit criteria
+   never do. No applicable criteria yields a Grade-specific setup message.
+3. Reload Saved Rubric may refresh only a zero-result current In Progress
+   attempt to a newer applicable Grade build. Evidence-bearing and terminal
+   attempts are never rebound.
+4. Talent Review supports Identification Classification filtering over already
+   authorized projected rows without changing identification permissions.
+5. Results & Analytics assigns ordered low-to-high blue intensity only to
+   visible magnitudes; protected/no-data states stay categorical.
+6. Learning Style rows retain each style's established color even when
+   magnitudes are suppressed; suppressed rows expose no count, percentage, or
+   proportional bar length.
+7. Talent-capable users navigate Students through the Talent child tree;
+   standalone Students remains only for students-only access. Desktop Student
+   tables never create a nested vertical list.
+8. The full transparent Ghars wordmark renders only in Talent Overview; the
+   sidebar retains the compact emblem.

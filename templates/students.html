@@ -79,9 +79,9 @@
     {% if visible_level_count == 0 %}
     <div class="stu-protected stu-protected-panel" role="status">
       {{ icon('shield', 'shell-icon') }}
-      <div><strong>Distribution protected for privacy</strong><p>Too few Students match this selection to show Learning Style values safely.</p></div>
+      <div><strong>Distribution protected for privacy</strong><p>Too few Students match this selection to show magnitudes safely. Learning Style categories remain visible below without counts or proportional bar lengths.</p></div>
     </div>
-    {% else %}
+    {% endif %}
     <div class="stu-ls-chart" role="group" aria-label="Learning Style distribution">
       {% for level in learning_style_distribution.levels %}
       <div class="stu-ls-row" style="--stu-ls-accent: {{ ls_accent_map.get(level.label, 'var(--app-muted, #5d6b82)') }};">
@@ -91,12 +91,11 @@
         <strong>{{ level.percentage }}%</strong><small>{{ level.count }}</small>
         {% else %}
         <div class="stu-ls-track stu-ls-track-state" role="img" aria-label="{{ level.label }}: protected for privacy"></div>
-        {% if visible_level_count > 0 %}<span class="stu-protected">Protected for privacy</span>{% endif %}
+        <span class="stu-protected">Protected for privacy</span>
         {% endif %}
       </div>
       {% endfor %}
     </div>
-    {% endif %}
     {% else %}
     <p class="stu-count">No data yet for the current selection.</p>
     {% endif %}

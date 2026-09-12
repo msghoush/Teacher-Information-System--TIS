@@ -174,3 +174,29 @@ hierarchy) rather than relying on an unverifiable in-task claim of approval.
 Every other item in the Owner's brief (navigation, Ghars icon, UI density,
 selector placement) is UI/IA work that does not itself require new
 governance and is not restated here.
+
+## Owner amendment - 2026-09-12: Grade-aligned assessment criteria
+
+The Product Owner supersedes one narrow part of this ADR: the prior rule that
+allowed a Student Assessment to fall back to another Grade/the Program-wide
+saved build when the Student's Grade had no aligned criteria. That fallback is
+no longer permitted.
+
+Grade remains **not a roster eligibility gate**: a current effective Placement
+in the selected Academic Year remains visible in Student Assessments regardless
+of Program `eligible_grade_levels`. Separately, Grade is an
+**assessment-criteria alignment boundary**. Current assessment work may use only
+criteria aligned to the Student's Grade plus intentionally unscoped criteria;
+criteria explicitly assigned to another Grade must never be substituted.
+
+If no saved assessable Competency -> KPI -> Level structure applies to that
+Grade, Start Assessment returns an actionable Grade-specific setup message
+without hiding the Student from the roster. Reloading a zero-result current In
+Progress Assessment may move only to a newer Framework that has assessable
+criteria applicable to the same Grade. Evidence-bearing and terminal
+Assessments remain immutable. Historical completed evidence created under
+earlier behavior stays readable on its recorded Framework.
+
+This amendment supersedes only the earlier cross-Grade/full-build fallback
+statements. The separate corrections removing Program annual Grade
+configuration and `is_enabled` as roster eligibility gates remain in force.

@@ -2808,3 +2808,36 @@ complementary closure, configured cohort-5 policy, 1000/1000/1000 breadth
 ceilings, and M10 REPEATABLE READ behavior are unchanged. The legacy semantic
 feature key remains in the general catalog for compatibility/history but is no
 longer consulted by Organization Analytics runtime availability.
+
+## Talent Owner Adjustment Package - Grade Alignment And Operational Presentation (2026-09-12)
+
+Current Student Assessment criteria are Grade-aligned. The roster remains
+Grade-agnostic for eligibility, but `_newest_assessable_framework` no longer
+falls back to another Grade's criteria. Start Assessment requires an assessable
+Competency -> KPI -> Level structure applicable to the Student's Grade (or
+intentionally unscoped), otherwise it returns a Grade-specific setup message.
+The browser follows the same rule; historical evidence remains immutable.
+
+Student Assessments has Grade, Section, and Assessment Status collection
+filters. Talent Review has Identification Classification filtering. Students is
+the first Talent child for Talent-capable users; standalone Students remains
+only as a students-only fallback. Desktop Student tables have no nested vertical
+scroll. Learning Style keeps categorical style indicators and their established
+per-style colors while privacy-suppressed magnitudes stay hidden.
+
+Already-visible analytics magnitudes use an ordered low-to-high blue intensity.
+Protected/no-data states never receive magnitude coloring. Student Assessment
+Competency/KPI/Level entry uses a responsive professional hierarchy without
+changing write contracts. Ghars uses the compact sidebar emblem and the
+transparent full wordmark only in Talent Overview. No schema or migration.
+
+## Talent Owner Adjustment Package - Correction (2026-09-12, follow-up)
+
+The Talent Overview full Ghars wordmark remains **blocked pending asset**: a
+locally traced/reconstructed SVG was removed from the header wiring (it is not
+the Owner-supplied file) and replaced with a documented, not-yet-present path
+(`static/img/ghars-full-wordmark-dark.png`); the header renders empty until
+the Owner supplies the real asset. The separate duplicated "Selected
+Evaluation" panel below the Evaluation Period cards in Student Assessments has
+been removed; the selected card's in-place `is-selected`/`aria-current`
+marking is now the only selection indicator. No schema/migration change.

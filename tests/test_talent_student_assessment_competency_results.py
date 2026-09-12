@@ -851,13 +851,8 @@ def test_normal_evaluation_start_never_uses_legacy_shared_rubric(db):
     assert blocked.value.code == "assessment_tool_unavailable"
 
 
-def test_start_assessment_uses_program_build_when_student_grade_has_no_specific_competency(db):
-    """ADR 0039: Grade is preferred context, not an eligibility gate.
-
-    A Competency authored only for Grade 1 must not block Start Assessment
-    for an eligible Grade 3 (or Grade 4) Student in the same Program; the
-    Program's saved build is used instead of blocking.
-    """
+def test_start_assessment_never_borrows_criteria_from_another_grade(db):
+    """Owner amendment: roster Grade is context, but assessment criteria are Grade-aligned."""
     _, session = db
     program = create_program(session, school_group_id=1, name="Mental Math")
     transition_program(session, school_group_id=1, program_id=program.id, target_status="active")
@@ -867,80 +862,42 @@ def test_start_assessment_uses_program_build_when_student_grade_has_no_specific_
         session, school_group_id=1, program_id=program.id, framework_id=framework.id,
         competency_id=lineage.id, expected_revision=framework.revision, grade_level="1",
     )
-    rubric, framework = upsert_rubric(
+    _, framework = upsert_rubric(
         session, school_group_id=1, program_id=program.id, framework_id=framework.id,
-        expected_revision=framework.revision, name="Rubric", framework_competency_id=membership.id,
+        expected_revision=framework.revision, name="Grade 1 KPI", framework_competency_id=membership.id,
     )
-    level, framework = add_rubric_level(
+    _, framework = add_rubric_level(
         session, school_group_id=1, program_id=program.id, framework_id=framework.id,
         expected_revision=framework.revision, code="LEVEL_1", label="Level 1",
         framework_competency_id=membership.id,
-    )
-    _, framework = upsert_descriptor(
-        session, school_group_id=1, program_id=program.id, framework_id=framework.id,
-        framework_competency_id=membership.id, rubric_level_id=level.id,
-        expected_revision=framework.revision, descriptor="Grade 1 descriptor",
     )
     activate_framework(
         session, school_group_id=1, program_id=program.id, framework_id=framework.id,
         expected_revision=framework.revision, expected_fingerprint=framework.semantic_fingerprint,
         organization_authorized=True,
     )
-    session.add_all([
-        models.PlanningSection(id=1002, branch_id=10, academic_year_id=100, grade_level="3", section_name="A", class_status="Current"),
-        models.PlanningSection(id=1003, branch_id=10, academic_year_id=100, grade_level="4", section_name="A", class_status="Current"),
-    ])
+    session.add(models.PlanningSection(
+        id=1002, branch_id=10, academic_year_id=100, grade_level="3",
+        section_name="A", class_status="Current",
+    ))
     session.commit()
-    upsert_annual_configuration(
-        session, school_group_id=1, program_id=program.id, academic_year_id=100,
-        is_enabled=True, eligible_grade_levels=["1", "3", "4"],
-    )
-    session.commit()
-
-    grade1_student = create_student(session, school_group_id=1, first_name="Grade1", last_name="Student")
+    student = create_student(session, school_group_id=1, first_name="Grade3", last_name="Student")
     create_placement(
-        session, school_group_id=1, student_id=grade1_student.id, academic_year_id=100,
-        branch_id=10, planning_section_id=1000, effective_from=datetime(2026, 9, 1),
-    )
-    grade3_student = create_student(session, school_group_id=1, first_name="Grade3", last_name="Student")
-    create_placement(
-        session, school_group_id=1, student_id=grade3_student.id, academic_year_id=100,
+        session, school_group_id=1, student_id=student.id, academic_year_id=100,
         branch_id=10, planning_section_id=1002, effective_from=datetime(2026, 9, 1),
     )
-    grade4_student = create_student(session, school_group_id=1, first_name="Grade4", last_name="Student")
-    create_placement(
-        session, school_group_id=1, student_id=grade4_student.id, academic_year_id=100,
-        branch_id=10, planning_section_id=1003, effective_from=datetime(2026, 9, 1),
-    )
-
     cycle = create_cycle(
         session, school_group_id=1, program_id=program.id, academic_year_id=100,
         framework_version_id=framework.id, title="Term 1",
         population_effective_at=datetime(2026, 10, 1),
     )
-    open_cycle(session, school_group_id=1, cycle_id=cycle.id, expected_revision=cycle.revision, organization_authorized=True)
     session.commit()
-
-    grade1_assessment = start_assessment_for_evaluation(
-        session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=grade1_student.id,
-    )
-    assert grade1_assessment.status == "in_progress"
-
-    # Before ADR 0039 this raised assessment_tool_unavailable because the only
-    # authored Competency is Grade-1-scoped. It must now succeed using the
-    # Program's saved build.
-    grade3_assessment = start_assessment_for_evaluation(
-        session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=grade3_student.id,
-    )
-    assert grade3_assessment.status == "in_progress"
-    assert grade3_assessment.framework_version_id == framework.id
-
-    grade4_assessment = start_assessment_for_evaluation(
-        session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=grade4_student.id,
-    )
-    assert grade4_assessment.status == "in_progress"
-    assert grade4_assessment.framework_version_id == framework.id
-
+    with pytest.raises(TalentStudentAssessmentError) as blocked:
+        start_assessment_for_evaluation(
+            session, school_group_id=1, evaluation_cycle_id=cycle.id, student_id=student.id,
+        )
+    assert blocked.value.code == "assessment_tool_unavailable"
+    assert "Grade 3" in blocked.value.message
 
 def test_new_student_uses_newest_saved_rubric_but_stays_in_original_evaluation_context(db):
     _, session = db
