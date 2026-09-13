@@ -1,11 +1,44 @@
 ---
 title: TIS Master Context
-documentation_version: 3.9
-last_updated: 2026-09-09
+documentation_version: 4.0
+last_updated: 2026-09-13
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Role Permission Management — Direct Assignment vs Effective Authorization
+
+The Role Permissions editor (`/system-configuration/role-permissions`) manages the
+four tenant roles (Administrator, Editor, User, Limited) at either global-default
+scope or a selected SchoolGroup scope. `role_permission_service.py` is now the
+single resolver for both UI payloads and backend authorization (`auth.py`
+delegates to it), replacing previously duplicated default/global/tenant merge
+logic.
+
+A role's **effective** permission for a key is the ordered merge of built-in
+role defaults, global (SchoolGroup-null) `RolePermission` override rows, then the
+selected tenant's override rows; the more specific write is authoritative (tenant
+overrides global, global overrides default). The editor previously rendered only
+this effective set as one checkbox, conflating "directly assigned here" with
+"inherited by default/global". The payload now also carries per-permission
+`direct`, `inherited`, and `source` so the editor labels a default- or
+global-granted permission as inherited instead of implying one checkbox
+represents both.
+
+The administrator Save path persists only intentional scope-level
+overrides: a key whose submitted state equals its inherited baseline is left
+with no scope-level row, so a no-op Save never converts inherited/default/global
+grants into direct rows, and later default/global changes still propagate to any
+role without an explicit local override.
+
+Owner-only controls (`system_owner.manage_ownership`,
+`system_owner.transfer_ownership`) and developer-only controls are classified as
+`PLATFORM_ONLY` and are locked, non-assignable, and excluded from Administrator
+defaults; they remain owner/developer identity-bound and never enter a tenant
+role's editable model. No schema change: `RolePermission` still stores explicit
+allow/deny rows, and a permission with no override row falls back to its default.
+
 
 ## Talent Guided Setup And Scheduling Authority
 

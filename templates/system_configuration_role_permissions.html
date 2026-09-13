@@ -36,6 +36,8 @@
 .permission-group h3 { font-size: 15px; }
 .permission-group-count { color: #60728c; font-size: 12px; font-weight: 900; }
 .developer-only-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.inherited-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #eef4ff; color: #1d4ed8; font-size: 10px; font-weight: 900; }
+.permission-check.is-inherited { border-color: #c6dcff; background: #f7faff; }
 .permission-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
 .permission-check { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fff; color: #1f2737; font-size: 13px; font-weight: 800; line-height: 1.3; }
 .permission-check.is-developer-only { border-color: #f8d4aa; background: #fffaf5; }
@@ -129,7 +131,7 @@
                 <span class="permission-status">{{ role_permission_payload.allowed_count }} / {{ role_permission_payload.total_count }} enabled</span>
             </div>
 
-            <div class="notice-banner">{{ icon("shield", "icon") }} Platform-only permissions are protected and cannot be assigned to tenant roles.</div>
+            <div class="notice-banner">{{ icon("shield", "icon") }} Platform-only permissions (developer and owner controls) are shown as locked and can never be assigned to tenant roles. A permission marked "On by default" is granted by the built-in role package or a broader scope and will remain effective unless you uncheck and save it to record a local denial here.</div>
 
             <form method="post" action="/system-configuration/role-permissions">
                 <input type="hidden" name="role" value="{{ selected_permission_role }}">
@@ -153,13 +155,15 @@
                         </summary>
                         <div class="permission-list">
                             {% for permission in group.permissions %}
-                            <label class="permission-check {% if permission.developer_only %}is-developer-only{% endif %}">
+                            <label class="permission-check {% if permission.platform_only %}is-developer-only{% elif permission.inherited %}is-inherited{% endif %}">
                                 <input type="checkbox" name="permission_keys" value="{{ permission.key }}" {% if permission.allowed %}checked{% endif %} {% if not can_edit_selected_role_permissions or not permission.assignable %}disabled{% endif %}>
                                 <span>
                                     {{ permission.label }}
                                     <small>{{ permission.key }}</small>
-                                    {% if permission.developer_only %}
+                                    {% if permission.platform_only %}
                                     <b class="developer-only-badge">Platform only</b>
+                                    {% elif permission.inherited %}
+                                    <b class="inherited-badge">On by {{ "global default" if permission.source == "global" else "default" }}</b>
                                     {% endif %}
                                 </span>
                             </label>

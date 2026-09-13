@@ -907,24 +907,7 @@ def _get_allowed_permission_keys(
     role: str,
     school_group_id: int | None = None,
 ) -> set[str]:
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return set()
-    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
-    for permission_row in _get_role_permission_rows(db, normalized_role, None):
-        if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
-            if permission_row.is_allowed:
-                allowed_keys.add(permission_row.permission_key)
-            else:
-                allowed_keys.discard(permission_row.permission_key)
-    if school_group_id:
-        for permission_row in _get_role_permission_rows(db, normalized_role, school_group_id):
-            if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
-                if permission_row.is_allowed:
-                    allowed_keys.add(permission_row.permission_key)
-            else:
-                allowed_keys.discard(permission_row.permission_key)
-    return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
+    return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
 
 
 def _build_role_permission_payload(
@@ -932,8 +915,7 @@ def _build_role_permission_payload(
     role: str,
     school_group_id: int | None = None,
 ) -> dict:
-    allowed_keys = _get_allowed_permission_keys(db, role, school_group_id)
-    return permission_registry.build_role_permission_payload(role, allowed_keys)
+    return role_permission_service.build_role_permission_payload(db, role, school_group_id)
 
 
 def _build_role_permission_summary_map(
@@ -954,39 +936,13 @@ def _set_role_permission_rows(
     school_group_id: int | None,
     updated_by_user_id: str | None,
 ):
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return
-
-    valid_keys = set(permission_registry.ALL_PERMISSION_KEYS)
-    allowed_keys = permission_registry.constrain_role_permissions(
-        normalized_role,
-        allowed_keys & valid_keys,
+    role_permission_service.apply_role_permission_overrides(
+        db,
+        role=role,
+        allowed_keys=allowed_keys,
+        school_group_id=school_group_id,
+        updated_by_user_id=updated_by_user_id,
     )
-    existing_rows = {
-        row.permission_key: row
-        for row in _get_role_permission_rows(db, normalized_role, school_group_id)
-    }
-    now = datetime.utcnow()
-    for permission_key in valid_keys:
-        is_allowed = permission_key in allowed_keys
-        row = existing_rows.get(permission_key)
-        if row:
-            row.is_allowed = is_allowed
-            row.updated_by_user_id = updated_by_user_id
-            row.updated_at = now
-        else:
-            db.add(
-                models.RolePermission(
-                    school_group_id=school_group_id,
-                    role=normalized_role,
-                    permission_key=permission_key,
-                    is_allowed=is_allowed,
-                    updated_by_user_id=updated_by_user_id,
-                    created_at=now,
-                    updated_at=now,
-                )
-            )
 
 
 def _seed_global_role_permissions(db: Session):

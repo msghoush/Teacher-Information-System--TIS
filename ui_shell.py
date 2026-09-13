@@ -14,6 +14,7 @@ from branding_storage import (
 )
 from design_tokens import build_design_css, merge_design_settings
 import permission_registry
+import role_permission_service
 from visual_design import build_visual_design_config, build_visual_design_css, rows_to_visual_settings
 
 
@@ -535,26 +536,10 @@ def _get_allowed_permission_keys(
     role: str,
     school_group_id: int | None = None,
 ) -> set[str]:
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return set()
-    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
     try:
-        permission_rows = [
-            *_get_role_permission_rows(db, normalized_role, None),
-            *(_get_role_permission_rows(db, normalized_role, school_group_id) if school_group_id else []),
-        ]
+        return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
     except Exception:
-        return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
-
-    for permission_row in permission_rows:
-        if permission_row.permission_key not in permission_registry.PERMISSION_LABELS:
-            continue
-        if permission_row.is_allowed:
-            allowed_keys.add(permission_row.permission_key)
-        else:
-            allowed_keys.discard(permission_row.permission_key)
-    return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
+        return permission_registry.get_default_permissions_for_role(role)
 
 
 def _build_permission_checker(db: Session, current_user, school_group_id: int | None = None):

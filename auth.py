@@ -284,28 +284,12 @@ def get_allowed_permission_keys(
     if cache_key in cached_permissions:
         return set(cached_permissions[cache_key])
 
-    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
-    for permission_row in _get_role_permission_rows(db, normalized_role, None):
-        if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
-            if permission_row.is_allowed:
-                allowed_keys.add(permission_row.permission_key)
-            else:
-                allowed_keys.discard(permission_row.permission_key)
-    if resolved_school_group_id:
-        for permission_row in _get_role_permission_rows(
-            db,
-            normalized_role,
-            resolved_school_group_id,
-        ):
-            if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
-                if permission_row.is_allowed:
-                    allowed_keys.add(permission_row.permission_key)
-                else:
-                    allowed_keys.discard(permission_row.permission_key)
+    import role_permission_service
 
-    allowed_keys = permission_registry.constrain_role_permissions(
+    allowed_keys = role_permission_service.get_allowed_permission_keys(
+        db,
         normalized_role,
-        allowed_keys,
+        resolved_school_group_id,
     )
     cached_permissions[cache_key] = frozenset(allowed_keys)
     user._permission_cache = cached_permissions

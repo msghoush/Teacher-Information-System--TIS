@@ -1,11 +1,30 @@
 ---
 title: TIS Project State
-documentation_version: 4.8
-last_updated: 2026-09-12
+documentation_version: 4.9
+last_updated: 2026-09-13
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Role Permission Management Reassessment And Repair
+
+Role-permission management was reassessed end-to-end and repaired. The reported
+checkbox defect was not a persistence failure (grant/revoke/re-grant round-trips
+were confirmed correct at the route, service, and render layers) but a
+direct-vs-effective conflation: the editor bound a single checkbox to the merged
+effective permission (defaults + global + tenant) with no inheritance indication.
+`role_permission_service.py` is now the canonical resolver (both the Role
+Permissions UI and `auth.py` delegate to it); payloads expose
+`direct`/`inherited`/`source`; the editor labels inherited grants; and owner-only
+controls are locked out of the tenant editable model and Administrator defaults.
+The administrator Save path persists only intentional scope-level overrides
+(`apply_role_permission_overrides`), so a no-op Save no longer converts
+inherited/default/global grants into direct rows and default/global changes
+propagate to roles without an explicit override.
+Comprehensive regression tests were added (`tests/test_permission_management.py`).
+No schema migration and no `tis.db` change.
+
 
 ## Talent Student Assessments — Program Annual-Configuration Enablement Removed As A Gate
 
