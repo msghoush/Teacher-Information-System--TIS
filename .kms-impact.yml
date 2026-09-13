@@ -1,12 +1,7 @@
-knowledge_impact: yes
-summary: "Reassessed and repaired TIS role-permission management. Diagnosed the reported checkbox bug as a direct-vs-effective conflation: the Role Permissions editor bound a single checkbox to the merged effective permission (built-in defaults + global + tenant overrides) with no indication of source, so a default- or global-granted permission could appear to 'return' after a local revoke. Consolidated the duplicated resolver (auth.py now delegates to role_permission_service), added per-key direct/inherited/source payload fields so the editor labels inherited grants instead of pretending one checkbox represents both, and locked owner-only controls (system_owner.manage_ownership / system_owner.transfer_ownership) out of the tenant editable model and Administrator defaults via a unified PLATFORM_ONLY set. Added comprehensive regression tests (tests/test_permission_management.py). Made the Save path persist only intentional scope-level overrides (apply_role_permission_overrides) so a no-op Save never converts inherited/default/global grants into direct rows. No schema migration, no tis.db change."
+knowledge_impact: no
+summary: "Test-only qualification follow-up: adds tests/test_permission_qualification.py (real route-guard enable/disable/re-enable round-trips and permission coverage/consistency invariants). No production code, template, or documented behavior changed."
 affected_areas:
   - permissions
-  - access-security
-  - configuration
 kms_files_updated:
-  - docs/CHANGE_HISTORY.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/PROJECT_STATE.md
-no_impact_reason:
+no_impact_reason: "Added automated permission-coverage and route-guard toggle tests only. No production code or documented behavior changed, so no authoritative Markdown update is required."
 major_change_override: no
