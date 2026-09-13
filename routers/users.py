@@ -13,6 +13,7 @@ import auth
 import authorization
 import models
 import permission_registry
+import role_permission_service
 from dependencies import get_db
 from auth import get_current_user, get_password_hash
 from saas import commercial_authority_service
@@ -89,22 +90,7 @@ def _get_role_permission_rows(db: Session, role: str, school_group_id: int | Non
 
 
 def _get_allowed_permission_keys(db: Session, role: str, school_group_id: int | None = None) -> set[str]:
-    normalized_role = permission_registry.normalize_managed_role(role)
-    allowed_keys = permission_registry.get_default_permissions_for_role(normalized_role)
-    for permission_row in _get_role_permission_rows(db, normalized_role, None):
-        if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
-            if permission_row.is_allowed:
-                allowed_keys.add(permission_row.permission_key)
-            else:
-                allowed_keys.discard(permission_row.permission_key)
-    if school_group_id:
-        for permission_row in _get_role_permission_rows(db, normalized_role, school_group_id):
-            if permission_row.permission_key in permission_registry.PERMISSION_LABELS:
-                if permission_row.is_allowed:
-                    allowed_keys.add(permission_row.permission_key)
-            else:
-                allowed_keys.discard(permission_row.permission_key)
-    return permission_registry.constrain_role_permissions(normalized_role, allowed_keys)
+    return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
 
 
 def _build_role_permission_summary_map(db: Session, current_user):

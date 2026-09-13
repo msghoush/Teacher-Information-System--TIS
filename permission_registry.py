@@ -454,14 +454,24 @@ ADMINISTRATOR_ONLY_PERMISSION_KEYS = {
 }
 
 
-OWNER_ONLY_PERMISSION_KEYS = {
-    "system_owner.full_access",
-    "system_owner.manage_developer_accounts",
-    "system_owner.manage_ownership",
-    "system_owner.transfer_ownership",
-    "system_owner.manage_ownership",
-    "system_owner.transfer_ownership",
-}
+OWNER_ONLY_PERMISSION_KEYS = frozenset(
+    {
+        "system_owner.full_access",
+        "system_owner.manage_developer_accounts",
+        "system_owner.manage_ownership",
+        "system_owner.transfer_ownership",
+    }
+)
+
+
+# Permissions that must never be assignable to tenant managed roles. Owner-only
+# keys that also appear in DEVELOPER_ONLY_PERMISSION_KEYS were already protected;
+# this set additionally covers `system_owner.manage_ownership` and
+# `system_owner.transfer_ownership`, which are owner-identity controls and must
+# not leak into the tenant Role Permissions editor as editable checkmarks.
+PLATFORM_ONLY_PERMISSION_KEYS = frozenset(
+    DEVELOPER_ONLY_PERMISSION_KEYS | OWNER_ONLY_PERMISSION_KEYS
+)
 
 
 DEVELOPER_ASSIGNABLE_PERMISSION_KEYS = frozenset(
@@ -478,7 +488,7 @@ DEFAULT_ROLE_PERMISSIONS = {
     auth.ROLE_ADMINISTRATOR: {
         key
         for key in ALL_PERMISSION_KEYS
-        if key not in DEVELOPER_ONLY_PERMISSION_KEYS
+        if key not in PLATFORM_ONLY_PERMISSION_KEYS
     },
     auth.ROLE_EDITOR: set(_EDITOR_LIKE_PERMISSIONS),
     auth.ROLE_USER: set(_EDITOR_LIKE_PERMISSIONS),
@@ -503,7 +513,7 @@ def get_default_permissions_for_role(role: str) -> set[str]:
 
 def constrain_role_permissions(role: str, permission_keys) -> set[str]:
     normalized = normalize_managed_role(role)
-    allowed = set(permission_keys or ()) - DEVELOPER_ONLY_PERMISSION_KEYS
+    allowed = set(permission_keys or ()) - PLATFORM_ONLY_PERMISSION_KEYS
     if normalized == auth.ROLE_LIMITED:
         allowed &= LIMITED_READ_ONLY_PERMISSION_KEYS
     if normalized != auth.ROLE_ADMINISTRATOR:
@@ -511,24 +521,34 @@ def constrain_role_permissions(role: str, permission_keys) -> set[str]:
     return allowed
 
 
-def build_role_permission_payload(role: str, allowed_keys: set[str] | None = None) -> dict:
+def build_role_permission_payload(
+    role: str,
+    allowed_keys: set[str] | None = None,
+    permission_details: dict[str, dict] | None = None,
+) -> dict:
     normalized = normalize_managed_role(role)
     allowed = constrain_role_permissions(
         normalized,
         allowed_keys if allowed_keys is not None else get_default_permissions_for_role(normalized),
     )
+    details = permission_details or {}
     groups = []
     for group in PERMISSION_GROUPS:
         permissions = []
         for permission_key, permission_label in group["permissions"]:
             developer_only = permission_key in DEVELOPER_ONLY_PERMISSION_KEYS
+            owner_only = permission_key in OWNER_ONLY_PERMISSION_KEYS
+            platform_only = developer_only or owner_only
+            detail = details.get(permission_key, {})
             permissions.append(
                 {
                     "key": permission_key,
                     "label": permission_label,
                     "developer_only": developer_only,
+                    "owner_only": owner_only,
+                    "platform_only": platform_only,
                     "assignable": (
-                        not developer_only
+                        not platform_only
                         and (
                             (
                                 normalized != auth.ROLE_LIMITED
@@ -541,6 +561,9 @@ def build_role_permission_payload(role: str, allowed_keys: set[str] | None = Non
                         )
                     ),
                     "allowed": permission_key in allowed,
+                    "direct": bool(detail.get("direct")),
+                    "inherited": bool(detail.get("inherited")),
+                    "source": str(detail.get("source", "") or ""),
                 }
             )
         groups.append(

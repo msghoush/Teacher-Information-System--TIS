@@ -1,11 +1,21 @@
 ---
 title: TIS Change History
-documentation_version: 4.2
-last_updated: 2026-09-11
+documentation_version: 4.3
+last_updated: 2026-09-13
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-13 — Role permission management reassessment and repair
+
+- Reproduced and diagnosed the Role Permissions editor's reported "unchecked permission checkmark returns" defect. Persistence was confirmed correct (grant/revoke/re-grant round-trips are idempotent and re-render from database truth); the root cause is a direct-vs-effective conflation: the editor bound one checkbox to the merged effective permission (built-in role defaults + global + tenant `RolePermission` overrides) with no indication of source, so a default- or global-granted permission could appear checked again after a local revoke.
+- Made `role_permission_service.py` the single canonical resolver and updated `auth.py` to delegate to it, removing duplicated default/global/tenant merge logic and closing a subtle `None`-scope semantic split between the UI and authorization paths.
+- Extended the permission payload with per-key `direct`, `inherited`, and `source` fields and updated the editor to label inherited grants ("On by default" / "On by global default") so direct assignment is never conflated with effective authorization.
+- Made the administrator Save path persist only intentional scope-level overrides via `role_permission_service.apply_role_permission_overrides`: a key whose submitted state equals its inherited baseline (built-in default, or the global package when editing a school) is left with no scope-level row, so a no-op Save no longer converts inherited/default/global grants into direct rows and default/global changes propagate to roles without an explicit override.
+- Locked owner-only controls (`system_owner.manage_ownership`, `system_owner.transfer_ownership`) out of the tenant editable model and out of Administrator role defaults via a unified `PLATFORM_ONLY` permission set; they remain owner/developer identity-bound.
+- Added `tests/test_permission_management.py` covering direct grant/revoke/re-grant, idempotency, effective calculation, inherited/role-derived behavior, tenant isolation, cross-tenant denial, unauthorized administrators, owner-only protection, invalid inputs, and the exact checkbox regression. No schema migration and no `tis.db` change.
+
 
 ## 2026-09-11 — Ghars Talent module sidebar branding
 
