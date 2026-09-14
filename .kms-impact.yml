@@ -1,15 +1,8 @@
-knowledge_impact: yes
-summary: "Complete permission qualification and preserve the governed per-user override/security changes already on dev, plus the visual-only Talent & Potential sidebar logo normalization in the same cumulative dev diff."
+knowledge_impact: no
+summary: "Normalize the Talent & Potential sidebar logo asset so its visible mark fills the existing standard sidebar icon box without changing navigation behavior."
 affected_areas:
-  - permissions
-  - security
-  - tenant_isolation
-  - users_module
   - ui
   - visual_assets
-  - documentation_governance
 kms_files_updated:
-  - docs/CHANGE_HISTORY.md
-  - docs/PROJECT_STATE.md
-no_impact_reason:
+no_impact_reason: "Visual-only asset correction: no architecture, permissions, routes, workflows, schema, tenant isolation, or governed product behavior changed."
 major_change_override: no
