@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-14 — Permission qualification drift closure
+
+- Prevented cross-capability privilege escalation in Edit User by validating
+  every changed field against its exact `users.*` permission server-side.
+- Separated single-user and bulk-user delete control visibility to match their
+  distinct route permissions.
+- Added the existing Talent Competency and Rubric-Level delete permission keys
+  to the browser projection, restoring authorized actions without weakening API
+  enforcement.
+
 ## 2026-09-14 — Per-user permission override: platform-actor scope resolution, template render test, ADR 0040
 
 - Fixed `POST /users/permissions/{user_pk}` (`routers/users.py`
@@ -3816,4 +3826,3 @@ execution architecture.
 Deployment:
 Not performed by repository implementation. Owner retains PR/merge/deployment
 authority after QA and KMS enforcement are green.
-

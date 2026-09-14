@@ -77,6 +77,7 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
                    "talent_assessment_cycles.view", "talent_assessment_cycles.view_population",
                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                    "talent_programs.manage", "talent_programs.govern",
+                   "talent_programs.delete_competency", "talent_programs.delete_rubric_level",
                    "talent_evaluation_plans.manage", "talent_evaluation_plans.govern",
                    "talent_evaluation_plans.select_period",
                    "talent_assessments.manage", "talent_assessments.complete",

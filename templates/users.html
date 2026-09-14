@@ -782,7 +782,7 @@
                     <div class="toolbar-head">
                         <div class="title-with-actions">
                             <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Users Table</span></h2>
-                            {% if can_delete_user_accounts %}
+                            {% if can_bulk_delete_users %}
                             <span class="title-actions">
                                 <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected users" title="Select users from the table to delete">
                                     {{ icon("trash", "icon") }}
@@ -800,7 +800,7 @@
                     <table>
                         <thead>
                             <tr>
-                                {% if can_delete_user_accounts %}
+                                {% if can_bulk_delete_users %}
                                 <th class="select-col">
                                     <input id="bulkSelectAll" class="bulk-select" type="checkbox" aria-label="Select all manageable users">
                                 </th>
@@ -821,7 +821,7 @@
                         <tbody id="usersBody">
                             {% for row in users %}
                             <tr class="user-row">
-                                {% if can_delete_user_accounts %}
+                                {% if can_bulk_delete_users %}
                                 <td class="select-col">
                                     {% if row.id in manageable_user_ids %}
                                     <input class="bulk-select bulk-select-item" type="checkbox" name="selected_user_ids" value="{{ row.id }}" form="bulkDeleteForm" aria-label="Select {{ row.first_name }} {{ row.last_name }} for bulk delete">
@@ -877,7 +877,7 @@
                                         {{ icon("edit", "icon") }}
                                     </a>
                                     {% endif %}
-                                    {% if can_delete_user_accounts %}
+                                    {% if can_delete_single_users %}
                                     <a class="icon-action row-action row-action-delete" href="/users/delete/{{ row.id }}" aria-label="Delete user {{ row.first_name }} {{ row.last_name }}" title="Delete user" onclick="return confirm('Delete this user?');">
                                         {{ icon("trash", "icon") }}
                                     </a>

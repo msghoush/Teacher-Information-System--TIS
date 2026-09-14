@@ -7,10 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## Permission Qualification Drift Closure
+
+The cross-module audit additionally closed three UI/backend mismatches. Edit User
+now rechecks profile, position, role, branch/scope, active-status, and password
+changes against their exact granular permissions instead of treating any one as
+authority for all fields. Single-user and bulk-user delete controls now follow
+their respective backend keys. Talent now projects the dedicated Competency and
+Rubric-Level delete permissions to the browser, matching the existing API guards.
+
 ## Per-User Permission Override — Platform-Actor Scope Fix And Governance Closure
 
-On `feature/tenant-user-permission-overrides`, a follow-up pass closed the
-one remaining open edge case in the already-implemented per-user
+The per-user permission override follow-up, now integrated into `dev`, closed the
+remaining platform-actor scope edge case in the already-implemented per-user
 permission override layer (`UserPermissionOverride`,
 `user_permission_service.py`, the Edit User page panel, and
 `POST /users/permissions/{user_pk}`): a platform-level actor
@@ -42,8 +51,7 @@ regression (`tests/test_user_permission_overrides.py`,
 `tests/test_permission_management.py`,
 `tests/test_permission_qualification.py`, `tests/test_platform_access.py`,
 plus the two new files) passes. No schema migration, new permission key, or
-`tis.db` change. Not committed as part of this pass (explicitly deferred
-per delegated task instructions).
+`tis.db` change.
 
 ## Role Permission Management Reassessment And Repair
 

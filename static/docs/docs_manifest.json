@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-14T20:19:27.346453+03:00",
+  "generated_at": "2026-09-14T22:57:23.738986+03:00",
   "documentation_version": "3.1",
-  "branch": "feature/tenant-user-permission-overrides",
-  "commit_sha": "810207c",
+  "branch": "dev",
+  "commit_sha": "94e22df",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "ae8c853304d598efe9193f6736723d6befd0bfa47ba6b90058540603afde9ebc",
-  "pdf_size_bytes": 1873572,
+  "pdf_sha256": "ae302a47da48ad0032fceed294951eb5fb0f2031e55172f012c84ba33bb54ae0",
+  "pdf_size_bytes": 1873352,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,7 +25,7 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-09-12T10:30:39.385366+03:00",
+      "modified_at": "2026-09-14T22:51:35.942681+03:00",
       "size_bytes": 201676,
       "sha256": "8003d6acc7401cc183a6436d7d40a2ce8d43b7b1507edb34ce201fd56af1bfaa",
       "pdf_page": 17
@@ -39,28 +39,28 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-14T20:18:29.772467+03:00",
+      "modified_at": "2026-09-14T22:53:09.953875+03:00",
       "size_bytes": 143836,
       "sha256": "7f7a477e67399e62922cd083b7193796013837403909c8e7a149bfc335bb61a2",
       "pdf_page": 68
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-14T20:19:04.058350+03:00",
-      "size_bytes": 196576,
-      "sha256": "41c9043fea9befa9e2747b94fa2e33a8ae036877668a49334eb233345c59ed30",
+      "modified_at": "2026-09-14T22:57:06.050894+03:00",
+      "size_bytes": 197032,
+      "sha256": "7e676bfc81b0dd4c09c25bd09532c5396306af88ae9eb313f1d26fb5a77b1144",
       "pdf_page": 107
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-14T20:18:47.561752+03:00",
-      "size_bytes": 228849,
-      "sha256": "a323fc0196a38512db1b00e82abb08b66ce3ca75f9ffa6feb443d2c325ec8789",
+      "modified_at": "2026-09-14T22:54:11.464433+03:00",
+      "size_bytes": 229341,
+      "sha256": "c214bd1df41557f589cdada22cc7abfadc1000882f9463496c80f9eed39af123",
       "pdf_page": 157
     },
     {
       "path": "docs/adr/README.md",
-      "modified_at": "2026-09-14T20:17:59.541832+03:00",
+      "modified_at": "2026-09-14T22:53:09.953875+03:00",
       "size_bytes": 2939,
       "sha256": "fb786e0f4fb5e9abbea2af3b39692d1046ab56a523b9d6b8844c5bd5e9148e75",
       "pdf_page": 234
@@ -74,7 +74,7 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-09-12T10:04:44.796228+03:00",
+      "modified_at": "2026-09-14T22:51:35.951029+03:00",
       "size_bytes": 72609,
       "sha256": "a9de596167940f4f059366c9dd439acf8a219efa3712ed167ed82b40d403b6a3",
       "pdf_page": 238
@@ -88,14 +88,14 @@
     },
     {
       "path": "docs/engineering/USER_AND_SYSTEM_FLOWS.md",
-      "modified_at": "2026-09-12T10:04:44.797842+03:00",
+      "modified_at": "2026-09-14T22:51:35.951029+03:00",
       "size_bytes": 105367,
       "sha256": "c2b13de869ce6bf428410d11aaea7be162973285bad9f2cd994ebb4294bdd675",
       "pdf_page": 283
     },
     {
       "path": "docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md",
-      "modified_at": "2026-09-11T00:36:47.269380+03:00",
+      "modified_at": "2026-09-14T22:51:35.951029+03:00",
       "size_bytes": 48699,
       "sha256": "4dd9bce1aede9dd980712a347e3e6b6d4c4102e679167a4f1e45b2d3ecf3eafb",
       "pdf_page": 322
@@ -473,7 +473,7 @@
     },
     {
       "path": "docs/adr/0040-per-user-permission-override-precedence-and-scope.md",
-      "modified_at": "2026-09-14T20:17:49.429445+03:00",
+      "modified_at": "2026-09-14T22:53:09.953875+03:00",
       "size_bytes": 9650,
       "sha256": "3c02a01aef132bb0653dd1457280f13f109810e4ee91e9abc1425583a50b4239",
       "pdf_page": 478

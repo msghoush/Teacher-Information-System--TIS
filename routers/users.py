@@ -299,6 +299,8 @@ def _render_users_page(
     can_manage_users = auth.can_manage_users(current_user)
     can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
     can_delete_user_accounts = auth.can_delete_user_accounts(current_user)
+    can_delete_single_users = auth.has_permission(db, current_user, "users.delete")
+    can_bulk_delete_users = auth.has_permission(db, current_user, "users.bulk_delete")
     users_query = db.query(models.User).filter(
         models.User.user_type != auth.USER_TYPE_PLATFORM
     )
@@ -356,6 +358,8 @@ def _render_users_page(
             "can_manage_users": can_manage_users,
             "can_edit_user_accounts": can_edit_user_accounts,
             "can_delete_user_accounts": can_delete_user_accounts,
+            "can_delete_single_users": can_delete_single_users,
+            "can_bulk_delete_users": can_bulk_delete_users,
             "manageable_user_ids": manageable_user_ids,
             **build_shell_context(
                 request,
@@ -668,6 +672,34 @@ def update_user(
     parsed_is_active = _parse_is_active(is_active)
 
     errors = []
+    target_group_id = auth.get_user_school_group_id(db, user_row)
+    exact_permissions = {
+        "profile": auth.has_permission(db, current_user, "users.edit_profile", school_group_id=target_group_id),
+        "position": auth.has_permission(db, current_user, "users.assign_position", school_group_id=target_group_id),
+        "role": auth.has_permission(db, current_user, "users.assign_role", school_group_id=target_group_id),
+        "branch": auth.has_permission(db, current_user, "users.assign_branch", school_group_id=target_group_id),
+        "active": auth.has_permission(db, current_user, "users.activate_deactivate", school_group_id=target_group_id),
+        "password": auth.has_permission(db, current_user, "users.reset_password", school_group_id=target_group_id),
+    }
+    if not exact_permissions["profile"] and (
+        user_id != str(user_row.user_id or user_row.username or "")
+        or email_normalized != str(user_row.email_normalized or "")
+        or first_name != str(user_row.first_name or "")
+        or last_name != str(user_row.last_name or "")
+    ):
+        errors.append("You do not have permission to edit user profile details.")
+    if not exact_permissions["position"] and position != str(user_row.position or ""):
+        errors.append("You do not have permission to assign positions.")
+    if not exact_permissions["role"] and role != auth.normalize_role(user_row.role):
+        errors.append("You do not have permission to assign roles.")
+    if not exact_permissions["branch"] and (
+        access_scope != auth.get_access_scope(user_row) or branch_id != user_row.branch_id
+    ):
+        errors.append("You do not have permission to assign access scope or branches.")
+    if not exact_permissions["active"] and parsed_is_active is not None and parsed_is_active != bool(user_row.is_active):
+        errors.append("You do not have permission to activate or deactivate users.")
+    if password and not exact_permissions["password"]:
+        errors.append("You do not have permission to reset passwords.")
     if not USER_ID_PATTERN.match(user_id):
         errors.append("User ID (Iqama/National ID) must be numeric and up to 10 digits.")
 
