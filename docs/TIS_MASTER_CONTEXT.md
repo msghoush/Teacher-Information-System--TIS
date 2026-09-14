@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
-documentation_version: 4.0
-last_updated: 2026-09-13
+documentation_version: 4.2
+last_updated: 2026-09-14
 source_of_truth: true
 ---
 
@@ -39,6 +39,86 @@ defaults; they remain owner/developer identity-bound and never enter a tenant
 role's editable model. No schema change: `RolePermission` still stores explicit
 allow/deny rows, and a permission with no override row falls back to its default.
 
+## Per-User Permission Overrides (UI + Route Wired — Allow-Over-Deny Not Approved)
+
+A per-user override layer (`UserPermissionOverride`, `user_permission_service.py`)
+sits above the existing role-resolved set. See ADR 0040 for the full recorded
+decision (precedence chain, Deny-over-Allow rationale, uniqueness-rule
+justification, and platform-actor scope resolution); this section summarizes
+it. The approved precedence is built-in role default -> global
+(SchoolGroup-null) `RolePermission` override -> tenant `RolePermission`
+override -> per-user override -> effective permission, with exactly three
+per-user states: Inherit (no row), Allow, Deny. Uniqueness is
+`user_id + permission_key` (not `school_group_id + user_id + permission_key`)
+because a TIS user belongs to exactly one `school_group_id` at a time (`User`
+has a single `school_group_id` column, not a membership table), so the
+SchoolGroup is not an independent dimension of the override identity;
+`apply_user_override` still records and validates `school_group_id` for
+tenant-isolation enforcement and audit context.
+
+**Allow-over-Deny is intentionally NOT implemented.** No prior ADR or this
+document approved letting an explicit per-user Allow override grant access
+that the resolved role currently denies (whether by default, global, or
+tenant-scope `RolePermission` override). `user_permission_service
+.apply_overrides_to_keys` therefore applies Deny-over-Allow precedence: a
+per-user Deny always removes a key, but a per-user Allow only has effect when
+the key is already present in the role-resolved set — it can never add a key
+the role denies. A stored Allow override on a role-denied key is preserved
+(so re-granting the key at the role level immediately reactivates it) but is
+inert until then. Enabling true Allow-over-Deny is an open product/security
+decision requiring explicit Owner sign-off before implementation.
+
+Every consumer of "the current user's effective permissions" must resolve
+through `auth.get_allowed_permission_keys` (the sole integration point that
+folds role resolution and user overrides together via `role_permission_service`
+and `user_permission_service`). Role-only helper functions named
+`_get_allowed_permission_keys` in `main.py`, `routers/users.py`, and
+`ui_shell.py` intentionally compute only the abstract role-level set (used to
+render the four managed roles' reference summaries, e.g. "Dashboard: 4/5")
+and are never a substitute for a specific user's effective permissions; a UI
+that displays a specific user's access must use
+`user_permission_service.build_user_permission_payload` instead, otherwise an
+administrator can be misled by a role-level summary that does not reflect
+that user's per-user override.
+
+`build_user_permission_payload` is now consumed by the Edit User page
+(`templates/edit_user.html`, rendered from `routers/users.py`
+`_render_edit_user_page`), which shows a per-user override panel (Inherit /
+Allow / Deny per permission, with the role baseline, effective state, and a
+plain-language reason) mirrored from the existing role-permission editor's
+direct/inherited UI pattern. Saves post to `/users/permissions/{user_pk}`
+(`routers/users.py` `update_user_permissions`), which is gated by the existing
+`configuration.manage_permissions` key (the same key that gates
+`/system-configuration/role-permissions`; no new permission key was added),
+resolves the override's `school_group_id` from the acting admin's own active
+SchoolGroup (never client input), and re-verifies tenant boundary via the
+existing `_get_user_for_management` / `_can_manage_target_user` guard before
+calling `user_permission_service.apply_user_override` per changed key. The
+panel disables Allow/Deny (Inherit-only) for `platform_only` or non-
+`assignable` keys, consistent with the service-layer rejection. A rendered-
+template regression (`tests/test_edit_user_template_render.py`) proves this
+panel's live output: all three Inherit/Allow/Deny controls for a normal
+permission, both the "Inherited from role (granted)" and "User override:
+Deny (overrides role grant)" reason-text branches, and the exact inert
+markup (`aria-disabled="true"`, "Allow (unavailable)"/"Deny (unavailable)")
+for a platform-only key.
+
+The route resolves the override's `school_group_id` from the acting admin's
+own active SchoolGroup for an ordinary tenant administrator. For a
+platform-level actor (owner/developer) -- who has no tenant SchoolGroup of
+their own (`auth.get_user_school_group_id` always returns `None` for a
+platform user) and whose own session-selected branch/SchoolGroup scope may
+legitimately differ from an arbitrary target's tenant -- the route instead
+derives scope unconditionally from the already server-loaded target user's
+own verified `school_group_id`, mirroring `_build_user_permission_context`'s
+identical read-side resolution. This is never derived from client-supplied
+request input; it relies only on the codebase's existing, pre-established
+cross-tenant "platform manages any tenant user" authority
+(`_can_manage_target_user`/`can_manage_target_user_account`), and
+`apply_user_override` independently re-validates the target's own
+`school_group_id` regardless, so no other SchoolGroup can ever be written.
+See ADR 0040 for the full rationale and the rejected client-supplied-scope
+alternative.
 
 ## Talent Guided Setup And Scheduling Authority
 

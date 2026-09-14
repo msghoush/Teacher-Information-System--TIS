@@ -116,6 +116,28 @@ class RolePermission(Base):
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow)
 
 
+class UserPermissionOverride(Base):
+    __tablename__ = "user_permission_overrides"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id",
+            "permission_key",
+            name="uq_user_permission_overrides_user_key",
+        ),
+        Index("ix_user_permission_overrides_school_group", "school_group_id"),
+        Index("ix_user_permission_overrides_user", "user_id"),
+    )
+
+    id = Column(Integer, primary_key=True)
+    school_group_id = Column(Integer, ForeignKey("school_groups.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    permission_key = Column(String(120), nullable=False, index=True)
+    is_allowed = Column(Boolean, nullable=False)  # True = allow override; False = deny override
+    updated_by_user_id = Column(String(10))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class SystemDesignSetting(Base):
     __tablename__ = "system_design_settings"
 

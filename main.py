@@ -424,6 +424,10 @@ def _ensure_role_permission_schema():
     models.RolePermission.__table__.create(bind=engine, checkfirst=True)
 
 
+def _ensure_user_permission_override_schema():
+    models.UserPermissionOverride.__table__.create(bind=engine, checkfirst=True)
+
+
 def _backfill_subject_colors(db: Session):
     subjects = db.query(models.Subject).all()
     changes_made = False
@@ -16332,6 +16336,7 @@ def _legacy_initialize_application_data():
     _ensure_subject_scope_schema()
     _ensure_subject_color_schema()
     _ensure_role_permission_schema()
+    _ensure_user_permission_override_schema()
     _ensure_teacher_subject_allocation_columns()
     _ensure_timetable_non_teaching_block_columns()
     _ensure_system_notifications_table_columns()
