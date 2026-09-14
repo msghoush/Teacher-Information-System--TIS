@@ -8,6 +8,9 @@ affected_areas:
   - ui
   - documentation_governance
 kms_files_updated:
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/0040-per-user-permission-override-precedence-and-scope.md
+  - docs/adr/README.md
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
 no_impact_reason:
