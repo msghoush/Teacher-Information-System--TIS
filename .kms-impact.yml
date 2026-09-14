@@ -1,14 +1,8 @@
-knowledge_impact: yes
-summary: "Complete permission qualification: integrate governed per-user overrides, enforce each granular Users edit permission at its exact field boundary, align single/bulk delete controls with backend keys, and project Talent Competency/Level delete permissions consistently to the browser."
+knowledge_impact: no
+summary: "Replace the Talent & Potential sidebar brand asset with a tightly cropped transparent version so it fills the existing standard sidebar icon box without changing navigation behavior."
 affected_areas:
-  - permissions
-  - security
-  - tenant_isolation
-  - users_module
   - ui
-  - documentation_governance
-kms_files_updated:
-  - docs/CHANGE_HISTORY.md
-  - docs/PROJECT_STATE.md
-no_impact_reason:
+  - visual_assets
+kms_files_updated: []
+no_impact_reason: "Visual-only asset correction: the existing route, permissions, navigation order, template behavior, and standard sidebar icon sizing remain unchanged."
 major_change_override: no
