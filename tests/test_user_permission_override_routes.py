@@ -454,3 +454,36 @@ def test_platform_actor_cannot_use_service_layer_to_write_into_a_mismatched_scho
     finally:
         db.close()
         engine.dispose()
+
+
+def test_edit_profile_permission_cannot_change_role_branch_status_or_password():
+    engine, Session = _make_db()
+    data = _seed(Session)
+    db = Session()
+    try:
+        actor = db.get(models.User, data["editor_actor_id"])
+        target = db.get(models.User, data["user_a_id"])
+        for key in ("users.view", "users.edit_profile"):
+            db.add(models.RolePermission(
+                school_group_id=data["school_id"], role=EDITOR,
+                permission_key=key, is_allowed=True, updated_by_user_id="system",
+            ))
+        db.commit()
+        response = users_router.update_user(
+            request=_request(f"/users/edit/{target.id}", actor, method="POST"),
+            user_pk=target.id, user_id=target.user_id, email=target.email or "",
+            first_name=target.first_name, last_name=target.last_name,
+            position=target.position, role=EDITOR, access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+            branch_id=target.branch_id, is_active="inactive", password="changed-password",
+            db=db,
+        )
+        assert response.status_code == 200
+        db.expire_all()
+        unchanged = db.get(models.User, data["user_a_id"])
+        assert unchanged.role == ADMIN
+        assert unchanged.access_scope == auth.ACCESS_SCOPE_BRANCH
+        assert unchanged.is_active is True
+        assert not auth.verify_password("changed-password", unchanged.password)
+    finally:
+        db.close()
+        engine.dispose()

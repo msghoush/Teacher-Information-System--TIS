@@ -110,7 +110,8 @@ def test_branch_scope_never_advertises_organization_only_talent_actions(db, clie
 def test_evaluation_plan_action_permissions_reach_browser_payload(db, client):
     permissions(db, 'talent_evaluation_plans.view',
                 'talent_evaluation_plans.manage',
-                'talent_evaluation_plans.govern')
+                'talent_evaluation_plans.govern',
+                'talent_evaluation_plans.select_period')
     response = client.get('/talent/evaluation-plans')
     assert response.status_code == 200
     # actor() is durably organization-scoped while retaining Branch 10 as the
