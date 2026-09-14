@@ -1,11 +1,57 @@
 ---
 title: TIS Change History
-documentation_version: 4.3
-last_updated: 2026-09-13
+documentation_version: 4.4
+last_updated: 2026-09-14
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-14 — Per-user permission override: platform-actor scope resolution, template render test, ADR 0040
+
+- Fixed `POST /users/permissions/{user_pk}` (`routers/users.py`
+  `update_user_permissions`) for the platform-level-actor edge case: a
+  platform owner/developer has no resolvable tenant `school_group_id` of
+  their own (`auth.get_user_school_group_id` always returns `None` for a
+  platform user), and their own session-selected branch/SchoolGroup scope
+  can legitimately differ from an arbitrary target user's tenant. The route
+  previously either hard-errored ("No school context was found") or, when
+  the platform actor's own session happened to have some selected
+  branch/SchoolGroup scope, spuriously rejected an otherwise-authorized
+  cross-tenant write with "target user is not in the active SchoolGroup."
+  It now derives the override's `school_group_id` unconditionally from the
+  already server-loaded target user's own verified `school_group_id`
+  whenever the acting admin `auth.is_platform_user`, mirroring
+  `_build_user_permission_context`'s existing identical read-side
+  resolution. No client-supplied scope value, new permission key, or new
+  "select an acting SchoolGroup" control was added; the codebase's existing
+  cross-tenant "platform manages any tenant user" authority
+  (`_can_manage_target_user`/`can_manage_target_user_account`) already
+  gated this route, and `user_permission_service.apply_user_override`
+  independently re-validates the target's own `school_group_id` regardless.
+- Added `docs/adr/0040-per-user-permission-override-precedence-and-scope.md`
+  recording the full per-user override precedence chain, the Deny-over-Allow
+  rule and its rationale, the `user_id + permission_key` uniqueness
+  justification, and this platform-actor scope resolution (plus the
+  rejected client-supplied-scope alternative).
+- Added three route-level regression tests to
+  `tests/test_user_permission_override_routes.py` proving: a platform actor
+  with no tenant scope of their own can write an override that is correctly
+  scoped to the target's own SchoolGroup; the same actor writing overrides
+  for two different targets in two different SchoolGroups produces two
+  correctly, independently scoped rows (never a shared/actor-controlled
+  value); and the service layer itself rejects a school_group_id that does
+  not match the target's own real SchoolGroup even when called directly.
+- Added `tests/test_edit_user_template_render.py`, a rendered-HTML
+  integration test for the Edit User page's per-user override panel
+  (`templates/edit_user.html`) proving the actual route response contains
+  all three Inherit/Allow/Deny controls for a normal permission, both the
+  "Inherited from role (granted)" and "User override: Deny (overrides role
+  grant)" reason-text branches, and the exact inert markup
+  (`aria-disabled="true"`, "Allow (unavailable)"/"Deny (unavailable)") for a
+  platform-only permission key.
+- No schema migration, new permission key, or `tis.db` change.
+
 
 ## 2026-09-13 — Role permission management reassessment and repair
 

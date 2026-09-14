@@ -14,6 +14,7 @@ import authorization
 import models
 import permission_registry
 import role_permission_service
+import user_permission_service
 from dependencies import get_db
 from auth import get_current_user, get_password_hash
 from saas import commercial_authority_service
@@ -208,12 +209,32 @@ def _build_user_avatar_summary(request: Request, user_row) -> dict:
     }
 
 
+def _can_manage_user_permissions(current_user) -> bool:
+    return auth._has_cached_permission(current_user, "configuration.manage_permissions")
+
+
+def _build_user_permission_context(db: Session, current_user, user_row) -> dict:
+    normalized_role = auth.normalize_role(getattr(user_row, "role", ""))
+    target_school_group_id = auth.get_user_school_group_id(db, user_row)
+    payload = user_permission_service.build_user_permission_payload(
+        db,
+        target_user=user_row,
+        normalized_role=normalized_role,
+        school_group_id=target_school_group_id,
+    )
+    return {
+        "can_manage_user_permissions": _can_manage_user_permissions(current_user),
+        "user_permission_payload": payload,
+    }
+
+
 def _render_edit_user_page(
     request: Request,
     db: Session,
     current_user,
     user_row,
     error: str = "",
+    success: str = "",
     detail_errors=None,
     form_data=None,
 ):
@@ -245,9 +266,11 @@ def _render_edit_user_page(
             "can_set_inactive": True,
             "available_branches": _get_available_branches(db, current_user),
             "error": error,
+            "success": success,
             "detail_errors": detail_errors or [],
             "form_data": form_data,
             "user_avatar": _build_user_avatar_summary(request, user_row),
+            **_build_user_permission_context(db, current_user, user_row),
             **build_shell_context(
                 request,
                 db,
@@ -814,6 +837,106 @@ def update_user(
         db=db,
         current_user=current_user,
         success=f"User updated successfully: {first_name} {last_name}",
+    )
+
+
+@router.post("/permissions/{user_pk}")
+def update_user_permissions(
+    request: Request,
+    user_pk: int,
+    permission_keys: list[str] = Form([]),
+    permission_decisions: list[str] = Form([]),
+    db: Session = Depends(get_db),
+):
+    """Persist per-user Allow/Deny/Inherit overrides for one target user.
+
+    ``permission_keys`` and ``permission_decisions`` are parallel lists (the
+    edit-user template renders one hidden key + one decision control per
+    permission, in matching order). The acting admin's own active
+    SchoolGroup is used as the override scope -- never a client-supplied
+    school_group_id -- and ``_get_user_for_management`` re-verifies the
+    target user is inside the acting admin's tenant boundary before any
+    write is attempted.
+    """
+    current_user = get_current_user(request, db)
+    if not current_user:
+        return RedirectResponse(url="/")
+
+    if not auth.can_manage_users(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    if not _can_manage_user_permissions(current_user):
+        return RedirectResponse(url="/dashboard", status_code=302)
+
+    user_row = _get_user_for_management(db, current_user, user_pk)
+    if not user_row:
+        return _render_users_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            error="User not found or access denied.",
+        )
+
+    if auth.is_platform_user(current_user):
+        # A platform-level actor (owner/developer) has no tenant SchoolGroup
+        # of their own -- and, unlike a tenant admin, is already independently
+        # authorized above (can_manage_users + configuration.manage_permissions)
+        # and by _can_manage_target_user/can_manage_target_user_account to
+        # manage ANY tenant user's account cross-tenant, regardless of
+        # whatever branch/SchoolGroup the platform actor's own session
+        # happens to have selected via the ordinary branch-selector cookie.
+        # The override scope must always be the already server-loaded
+        # target user's own verified school_group_id in this case -- never
+        # the acting platform user's own (possibly mismatched) selected
+        # scope, and never any client-supplied request input -- mirroring
+        # _build_user_permission_context's identical read-side resolution
+        # for this same page.
+        acting_school_group_id = auth.get_user_school_group_id(db, user_row)
+    else:
+        acting_school_group_id = _get_user_school_group_id(db, current_user)
+    if not acting_school_group_id:
+        return _render_edit_user_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            user_row=user_row,
+            error="No school context was found for permission overrides.",
+        )
+
+    changes = list(zip(permission_keys, permission_decisions))
+    errors = []
+    for permission_key, decision in changes:
+        try:
+            user_permission_service.apply_user_override(
+                db,
+                target_user=user_row,
+                permission_key=permission_key,
+                decision=decision,
+                school_group_id=acting_school_group_id,
+                updated_by_user_id=getattr(current_user, "user_id", None),
+            )
+        except ValueError as exc:
+            errors.append(str(exc))
+
+    if errors:
+        db.rollback()
+        return _render_edit_user_page(
+            request=request,
+            db=db,
+            current_user=current_user,
+            user_row=user_row,
+            error="Unable to update permission overrides. Please fix the highlighted issues.",
+            detail_errors=errors,
+        )
+
+    db.commit()
+    display_name = f"{user_row.first_name} {user_row.last_name}".strip()
+    return _render_edit_user_page(
+        request=request,
+        db=db,
+        current_user=current_user,
+        user_row=user_row,
+        success=f"Permission overrides updated for {display_name or user_row.user_id}.",
     )
 
 

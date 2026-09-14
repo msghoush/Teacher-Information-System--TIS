@@ -1,7 +1,17 @@
-knowledge_impact: no
-summary: "Test-only qualification follow-up: adds tests/test_permission_qualification.py (real route-guard enable/disable/re-enable round-trips and permission coverage/consistency invariants). No production code, template, or documented behavior changed."
+knowledge_impact: yes
+summary: "Follow-up pass on the already-implemented per-user permission override layer, addressing four bounded items. (1) Fixed routers/users.py's POST /users/permissions/{user_pk} (update_user_permissions) for the platform-level-actor edge case: a platform owner/developer has no resolvable tenant school_group_id of their own (auth.get_user_school_group_id always returns None for a platform user), and their own session-selected branch/SchoolGroup scope can legitimately differ from an arbitrary target user's tenant. The route now derives the override's school_group_id unconditionally from the already server-loaded target user's own verified school_group_id whenever auth.is_platform_user(current_user), mirroring _build_user_permission_context's existing identical read-side resolution; never from client-supplied request input, no new permission key or UI control added, and user_permission_service.apply_user_override still independently re-validates the target's own school_group_id. (2) Added tests/test_edit_user_template_render.py, a real-route rendered-HTML integration test for templates/edit_user.html's override panel, proving all three Inherit/Allow/Deny controls, both the 'Inherited from role (granted)' and 'User override: Deny (overrides role grant)' reason-text branches, and the exact inert markup (aria-disabled=\"true\", 'Allow (unavailable)'/'Deny (unavailable)') for a platform-only key. (3) Added docs/adr/0040-per-user-permission-override-precedence-and-scope.md recording the precedence chain, Deny-over-Allow rationale, user_id+permission_key uniqueness justification, and the platform-actor scope resolution (plus the rejected client-supplied-scope alternative); updated docs/adr/README.md index; updated docs/TIS_MASTER_CONTEXT.md's existing 'Per-User Permission Overrides' section to reference the ADR and describe the fix and new template test; added dated entries to docs/CHANGE_HISTORY.md and docs/PROJECT_STATE.md per this repo's existing convention for permission-architecture-level changes. (4) Added three new route-level regression tests to tests/test_user_permission_override_routes.py (platform actor with no own tenant scope succeeds and scopes to the target; the same actor writing overrides for two different targets in two different SchoolGroups produces two independently, correctly scoped rows rather than any shared/actor-controlled value; the service layer itself rejects a school_group_id that does not match the target's own real SchoolGroup even when called directly). No schema migration, new permission key, or tis.db change. Not committed (explicitly out of scope for this pass)."
 affected_areas:
   - permissions
+  - security
+  - tenant_isolation
+  - users_module
+  - ui
+  - documentation_governance
 kms_files_updated:
-no_impact_reason: "Added automated permission-coverage and route-guard toggle tests only. No production code or documented behavior changed, so no authoritative Markdown update is required."
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/0040-per-user-permission-override-precedence-and-scope.md
+  - docs/adr/README.md
+  - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+no_impact_reason:
 major_change_override: no
