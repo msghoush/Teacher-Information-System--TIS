@@ -1,8 +1,8 @@
 knowledge_impact: no
-summary: "Normalize the Talent & Potential sidebar logo asset so its visible mark fills the existing standard sidebar icon box without changing navigation behavior."
+summary: "Rebuild the Talent & Potential sidebar icon from the supplied Ghars Logo source, removing empty canvas and producing a pure-white transparent asset that fills the existing standard icon box."
 affected_areas:
   - ui
   - visual_assets
 kms_files_updated:
-no_impact_reason: "Visual-only asset correction: no architecture, permissions, routes, workflows, schema, tenant isolation, or governed product behavior changed."
+no_impact_reason: "Visual-only asset correction from the supplied brand artwork: no architecture, permissions, routes, workflows, navigation, schema, tenant isolation, or governed product behavior changed."
 major_change_override: no
