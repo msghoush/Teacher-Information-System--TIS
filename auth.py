@@ -277,6 +277,7 @@ def get_allowed_permission_keys(
 
     cache_key = (
         "permission_cache",
+        int(getattr(user, "id", 0) or 0),
         normalized_role,
         int(resolved_school_group_id or 0),
     )
@@ -285,11 +286,21 @@ def get_allowed_permission_keys(
         return set(cached_permissions[cache_key])
 
     import role_permission_service
+    import user_permission_service
 
     allowed_keys = role_permission_service.get_allowed_permission_keys(
         db,
         normalized_role,
         resolved_school_group_id,
+    )
+    overrides = user_permission_service.get_user_overrides(
+        db,
+        int(getattr(user, "id", 0) or 0),
+        resolved_school_group_id,
+    )
+    allowed_keys = permission_registry.constrain_role_permissions(
+        normalized_role,
+        user_permission_service.apply_overrides_to_keys(allowed_keys, overrides),
     )
     cached_permissions[cache_key] = frozenset(allowed_keys)
     user._permission_cache = cached_permissions

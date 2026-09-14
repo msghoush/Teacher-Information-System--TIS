@@ -1,11 +1,49 @@
 ---
 title: TIS Project State
-documentation_version: 4.9
-last_updated: 2026-09-13
+documentation_version: 5.0
+last_updated: 2026-09-14
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Per-User Permission Override — Platform-Actor Scope Fix And Governance Closure
+
+On `feature/tenant-user-permission-overrides`, a follow-up pass closed the
+one remaining open edge case in the already-implemented per-user
+permission override layer (`UserPermissionOverride`,
+`user_permission_service.py`, the Edit User page panel, and
+`POST /users/permissions/{user_pk}`): a platform-level actor
+(owner/developer) has no resolvable tenant `school_group_id` of their own,
+and `routers/users.py`'s `update_user_permissions` previously either
+hard-errored or, when the platform actor's own session happened to have
+some unrelated selected branch/SchoolGroup scope, spuriously rejected an
+otherwise fully authorized cross-tenant write. The route now derives the
+override's `school_group_id` from the already server-loaded target user's
+own verified `school_group_id` whenever the acting admin is a platform
+user, mirroring `_build_user_permission_context`'s existing identical
+read-side resolution; no client-supplied scope, new permission key, or new
+UI control was added. See ADR 0040 for the full decision record (this also
+formally documents the previously-recorded-but-not-yet-ADR'd precedence
+chain, Deny-over-Allow rule, and uniqueness justification).
+
+Added regression coverage: three new route-level tests in
+`tests/test_user_permission_override_routes.py` (platform actor with no
+own tenant scope; scope correctly tracks each of two different targets in
+two different SchoolGroups rather than any shared/actor-controlled value;
+the service layer itself rejects a mismatched `school_group_id` even when
+called directly) and a new rendered-HTML integration test,
+`tests/test_edit_user_template_render.py`, proving the Edit User page's
+override panel actually renders all three Inherit/Allow/Deny controls, the
+inherited-grant and Deny-override reason-text branches, and the exact
+inert markup for a platform-only permission key. Full permission/security
+regression (`tests/test_user_permission_overrides.py`,
+`tests/test_user_permission_override_routes.py`,
+`tests/test_permission_management.py`,
+`tests/test_permission_qualification.py`, `tests/test_platform_access.py`,
+plus the two new files) passes. No schema migration, new permission key, or
+`tis.db` change. Not committed as part of this pass (explicitly deferred
+per delegated task instructions).
 
 ## Role Permission Management Reassessment And Repair
 

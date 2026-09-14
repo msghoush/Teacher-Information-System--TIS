@@ -6940,6 +6940,49 @@ def _student_learning_style_v1(engine, connection):
             _execute(connection, "ALTER TABLE students VALIDATE CONSTRAINT ck_students_learning_style")
 
 
+def _user_permission_override_foundation(engine, connection):
+    datetime_type = _datetime_type(engine)
+    id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
+
+    _execute(
+        connection,
+        f"""
+        CREATE TABLE IF NOT EXISTS user_permission_overrides (
+            id {id_sql},
+            school_group_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            permission_key VARCHAR(120) NOT NULL,
+            is_allowed BOOLEAN NOT NULL,
+            updated_by_user_id VARCHAR(10),
+            created_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at {datetime_type} NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+        """,
+    )
+    _create_unique_index_if_missing(
+        connection,
+        connection,
+        "user_permission_overrides",
+        "uq_user_permission_overrides_user_key",
+        "user_id, permission_key",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "user_permission_overrides",
+        "ix_user_permission_overrides_school_group",
+        "school_group_id",
+    )
+    _create_index_if_missing(
+        connection,
+        connection,
+        "user_permission_overrides",
+        "ix_user_permission_overrides_user",
+        "user_id",
+    )
+
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -7285,6 +7328,11 @@ MIGRATIONS = (
         migration_id="20260911_004_talent_competency_specific_rubrics",
         description="Allow competency-specific Talent rubrics within each Framework",
         apply=_talent_competency_specific_rubrics,
+    ),
+    Migration(
+        migration_id="20260913_001_user_permission_overrides",
+        description="Add per-user role permission override layer (allow/deny/inherit)",
+        apply=_user_permission_override_foundation,
     ),
 )
 

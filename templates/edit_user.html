@@ -276,6 +276,47 @@
                 grid-template-columns: 1fr;
             }
         }
+
+        .user-override-panel {
+            margin-top: 18px;
+            max-width: 760px;
+            display: grid;
+            gap: 10px;
+            padding: 14px;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+        }
+
+        .user-override-panel h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #17365d;
+        }
+
+        .user-override-panel p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 12px;
+        }
+
+        .override-group { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+        .override-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: #f8fbff; font-weight: 800; color: #17365d; font-size: 13px; }
+        .override-group summary::-webkit-details-marker { display: none; }
+        .override-list { display: grid; gap: 8px; padding: 10px 12px; }
+        .override-row { display: grid; gap: 6px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fbfdff; }
+        .override-row.is-platform-only { border-color: #f8d4aa; background: #fffaf5; }
+        .override-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+        .override-row-head strong { font-size: 13px; color: #1f2737; }
+        .override-row-head small { color: var(--muted); font-size: 11px; }
+        .override-choices { display: flex; gap: 10px; flex-wrap: wrap; }
+        .override-choice { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #415068; }
+        .override-choice input { margin: 0; }
+        .override-reason { font-size: 11px; font-weight: 700; }
+        .override-reason.is-allow { color: #027a48; }
+        .override-reason.is-deny { color: #9f2d1f; }
+        .override-reason.is-inherit { color: #48607f; }
+        .override-badge { display: inline-flex; padding: 2px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
 </style>
 {% endblock %}
 
@@ -286,6 +327,10 @@
 
         {% if error %}
         <div class="error">{{ error }}</div>
+        {% endif %}
+
+        {% if success %}
+        <div class="notice-banner" style="border:1px solid #b8ead2; background:#ecfdf3; color:#027a48; padding:10px; border-radius:6px; margin-bottom:10px; font-size:13px;">{{ success }}</div>
         {% endif %}
 
         {% if detail_errors %}
@@ -390,6 +435,78 @@
                 <a class="btn btn-home" href="/dashboard">{{ icon("dashboard", "icon") }} Dashboard</a>
             </div>
         </form>
+
+        {% if can_manage_user_permissions %}
+        <section class="user-override-panel">
+            <h2>{{ icon("shield", "icon") }} Per-User Permission Overrides</h2>
+            <p>These overrides apply only to {{ user_row.first_name }} {{ user_row.last_name }} and sit on top of the "{{ user_permission_payload.role }}" role package. Inherit follows the role package (grant or deny). Deny always wins over the role and over Allow. Allow can only restate a permission the role package already grants -- it cannot exceed a role-level deny.</p>
+
+            <form method="post" action="/users/permissions/{{ user_row.id }}">
+                <div class="override-groups" style="display:grid; gap:8px;">
+                    {% for group in user_permission_payload.groups %}
+                    <details class="override-group" {% if group.override_count %}open{% endif %}>
+                        <summary>
+                            <span>{{ group.label }}</span>
+                            <span>{{ group.override_count }} override{{ "s" if group.override_count != 1 else "" }}</span>
+                        </summary>
+                        <div class="override-list">
+                            {% for permission in group.permissions %}
+                            {% set locked = permission.platform_only or not permission.assignable %}
+                            <div class="override-row {% if permission.platform_only %}is-platform-only{% endif %}">
+                                <input type="hidden" name="permission_keys" value="{{ permission.key }}">
+                                <div class="override-row-head">
+                                    <strong>{{ permission.label }}</strong>
+                                    <small>{{ permission.key }}</small>
+                                    {% if permission.platform_only %}<span class="override-badge">Platform only</span>{% endif %}
+                                </div>
+                                {% if locked %}
+                                {# Disabled <input> elements are not submitted by browsers. To keep
+                                   permission_keys/permission_decisions strictly paired 1:1 on the
+                                   server, locked rows submit a fixed hidden "inherit" decision and
+                                   render the three choices as inert (non-interactive) labels only. #}
+                                <input type="hidden" name="permission_decisions" value="inherit">
+                                <div class="override-choices" aria-disabled="true">
+                                    <span class="override-choice">Inherit</span>
+                                    <span class="override-choice">Allow (unavailable)</span>
+                                    <span class="override-choice">Deny (unavailable)</span>
+                                </div>
+                                {% else %}
+                                <div class="override-choices">
+                                    <label class="override-choice">
+                                        <input type="radio" name="permission_decisions" value="inherit" {% if permission.state == "inherit" %}checked{% endif %}>
+                                        Inherit
+                                    </label>
+                                    <label class="override-choice">
+                                        <input type="radio" name="permission_decisions" value="allow" {% if permission.state == "allow" %}checked{% endif %}>
+                                        Allow
+                                    </label>
+                                    <label class="override-choice">
+                                        <input type="radio" name="permission_decisions" value="deny" {% if permission.state == "deny" %}checked{% endif %}>
+                                        Deny
+                                    </label>
+                                </div>
+                                {% endif %}
+                                {% if permission.state == "deny" %}
+                                <span class="override-reason is-deny">User override: Deny{% if permission.role_allowed %} (overrides role grant){% endif %}</span>
+                                {% elif permission.state == "allow" %}
+                                <span class="override-reason is-allow">User override: Allow{% if not permission.role_allowed %} (inert -- role does not grant this key){% endif %}</span>
+                                {% elif permission.role_allowed %}
+                                <span class="override-reason is-inherit">Inherited from role (granted)</span>
+                                {% else %}
+                                <span class="override-reason is-inherit">Inherited from role (denied)</span>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endfor %}
+                </div>
+                <div class="actions">
+                    <button class="btn btn-save" type="submit">{{ icon("save", "icon") }} Save Permission Overrides</button>
+                </div>
+            </form>
+        </section>
+        {% endif %}
 </main>
 {% endblock %}
 
