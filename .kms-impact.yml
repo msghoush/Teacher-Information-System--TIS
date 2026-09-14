@@ -1,8 +1,15 @@
-knowledge_impact: no
-summary: "Replace the Talent & Potential sidebar brand asset with a tightly cropped transparent version so it fills the existing standard sidebar icon box without changing navigation behavior."
+knowledge_impact: yes
+summary: "Complete permission qualification and preserve the governed per-user override/security changes already on dev, plus the visual-only Talent & Potential sidebar logo normalization in the same cumulative dev diff."
 affected_areas:
+  - permissions
+  - security
+  - tenant_isolation
+  - users_module
   - ui
   - visual_assets
-kms_files_updated: []
-no_impact_reason: "Visual-only asset correction: the existing route, permissions, navigation order, template behavior, and standard sidebar icon sizing remain unchanged."
+  - documentation_governance
+kms_files_updated:
+  - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+no_impact_reason:
 major_change_override: no
