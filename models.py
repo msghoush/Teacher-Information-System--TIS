@@ -102,6 +102,18 @@ class SchoolGroupLogo(Base):
 class RolePermission(Base):
     __tablename__ = "role_permissions"
     __table_args__ = (
+        Index(
+            "uq_role_permissions_global_role_key", "role", "permission_key",
+            unique=True,
+            sqlite_where=text("school_group_id IS NULL"),
+            postgresql_where=text("school_group_id IS NULL"),
+        ),
+        Index(
+            "uq_role_permissions_tenant_role_key", "school_group_id", "role", "permission_key",
+            unique=True,
+            sqlite_where=text("school_group_id IS NOT NULL"),
+            postgresql_where=text("school_group_id IS NOT NULL"),
+        ),
         Index("ix_role_permissions_scope_role", "school_group_id", "role"),
         Index("ix_role_permissions_key", "permission_key"),
     )

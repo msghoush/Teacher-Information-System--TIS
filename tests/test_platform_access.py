@@ -1445,7 +1445,7 @@ class PlatformAccessTests(unittest.TestCase):
         )
         self.assertTrue(auth.has_permission(self.db, current_user, "subjects.view"))
         self.assertFalse(auth.has_permission(self.db, current_user, "subjects.create"))
-        self.assertFalse(auth.can_modify_data(current_user))
+        self.assertFalse(auth.can_modify_data(self.db, current_user))
 
     def test_protected_position_submissions_are_forced_to_limited_organization_access(self):
         for user_id, position in (
@@ -2016,7 +2016,7 @@ class PlatformAccessTests(unittest.TestCase):
         self.assertFalse(auth.is_platform_user(self.branch_user))
         self.branch_user.role = auth.ROLE_ADMINISTRATOR
         self.branch_user.permission_keys = frozenset({"users.view", "users.edit_profile"})
-        self.assertFalse(auth.can_manage_target_user_account(self.branch_user, self.platform_owner))
+        self.assertFalse(auth.can_manage_target_user_account(self.db, self.branch_user, self.platform_owner))
         self.assertIn(auth.POSITION_MANAGEMENT, users.POSITIONS)
         self.assertNotIn("Admin", users.POSITIONS)
 

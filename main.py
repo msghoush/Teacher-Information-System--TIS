@@ -1168,6 +1168,14 @@ def _normalize_qualification_kind(value: str) -> str:
     return QUALIFICATION_KIND_SPECIALIZATION
 
 
+def _qualification_permission_key(kind: str) -> str:
+    return (
+        "configuration.manage_degrees"
+        if kind == QUALIFICATION_KIND_DEGREE
+        else "configuration.manage_specializations"
+    )
+
+
 def _build_qualification_configuration_rows(
     db: Session,
 ) -> list[dict[str, object]]:
@@ -10881,6 +10889,19 @@ def update_notification_group(
     normalized_action = str(action or "").strip().lower()
     if normalized_action not in {"read", "done", "archive"}:
         return RedirectResponse(url="/notifications?notice=Unknown%20notification%20action.", status_code=302)
+    required_permission = {
+        "read": "notifications.mark_read",
+        "done": "notifications.resolve",
+        "archive": "notifications.archive",
+    }[normalized_action]
+    if not auth.has_permission(db, current_user, required_permission):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=current_user,
+            permission_keys=(required_permission,),
+            page_key="notifications",
+        )
     normalized_box = str(box or "inbox").strip().lower()
     if normalized_box not in {"inbox", "sent", "archive"}:
         normalized_box = "inbox"
@@ -11116,12 +11137,19 @@ def notification_detail(
             "resolved_by_user": resolved_by_user,
             "sender_user": sender_user,
             "is_recipient": is_recipient,
-            "can_mark_done": bool(is_recipient and notification.status != NOTIFICATION_STATUS_RESOLVED),
+            "can_mark_done": bool(
+                is_recipient
+                and notification.status != NOTIFICATION_STATUS_RESOLVED
+                and auth.has_permission(db, current_user, "notifications.resolve")
+            ),
             "can_archive_notification": bool(
-                (is_recipient and not notification.recipient_archived_at)
-                or (
-                    notification.requesting_user_id == current_user.user_id
-                    and not notification.requester_archived_at
+                auth.has_permission(db, current_user, "notifications.archive")
+                and (
+                    (is_recipient and not notification.recipient_archived_at)
+                    or (
+                        notification.requesting_user_id == current_user.user_id
+                        and not notification.requester_archived_at
+                    )
                 )
             ),
             "user_timezone": user_timezone,
@@ -13135,6 +13163,16 @@ async def save_system_configuration_logo(
     normalized_scope_type = str(scope_type or "branch").strip().lower()
     if normalized_scope_type not in {"school_group", "branch"}:
         return _redirect_with_error(return_to, "Select a valid logo scope.")
+    required_permission = (
+        "branding.manage_school_logos"
+        if normalized_scope_type == "school_group"
+        else "branding.manage_branch_logos"
+    )
+    if not auth.has_permission(db, current_user, required_permission):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=(required_permission,), page_key="system-configuration",
+        )
 
     slot = next(
         (item for item in DEFAULT_SCHOOL_LOGO_SLOTS if item["slot_key"] == slot_key),
@@ -13278,6 +13316,16 @@ def reset_system_configuration_logo(
     normalized_scope_type = str(scope_type or "branch").strip().lower()
     if normalized_scope_type not in {"school_group", "branch"}:
         return _redirect_with_error(return_to, "Select a valid logo scope.")
+    required_permission = (
+        "branding.manage_school_logos"
+        if normalized_scope_type == "school_group"
+        else "branding.manage_branch_logos"
+    )
+    if not auth.has_permission(db, current_user, required_permission):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=(required_permission,), page_key="system-configuration",
+        )
     user_school_group_id = _get_user_school_group_id(db, current_user)
     existing_logo = None
     target_school_group_id = None
@@ -14690,7 +14738,7 @@ def bulk_update_branches(
 def update_branch(
     branch_id: int,
     request: Request,
-    name: str = Form(...),
+    name: str = Form(""),
     region: str = Form(""),
     country_code: str = Form(""),
     region_id: str = Form(""),
@@ -14699,7 +14747,7 @@ def update_branch(
     city_manual: str = Form(""),
     district_name: str = Form(""),
     neighborhood_name: str = Form(""),
-    status: str = Form("active"),
+    status: str = Form(""),
     return_to: str = Form("/system-configuration/branches"),
     db: Session = Depends(get_db),
 ):
@@ -14735,9 +14783,29 @@ def update_branch(
 
     safe_return_to, _, _ = _safe_redirect_path(return_to).partition("#")
 
-    cleaned_name = " ".join(str(name or "").split())
+    can_edit = auth.has_permission(db, current_user, "branches.edit")
+    can_change_status = auth.has_permission(db, current_user, "branches.activate_deactivate")
+    cleaned_name = " ".join(str(name or branch_row.name).split())
     normalized_status = str(status or "").strip().lower()
-    next_status = normalized_status != "inactive"
+    next_status = branch_row.status if not normalized_status else normalized_status != "inactive"
+
+    if not can_edit and any((
+        cleaned_name != branch_row.name,
+        bool(region and region != (branch_row.location or "")),
+        bool(country_code and country_code != (branch_row.country_code or "")),
+        bool(region_id or region_manual or city_id or city_manual),
+        bool(district_name and district_name != (branch_row.district_name or "")),
+        bool(neighborhood_name and neighborhood_name != (branch_row.neighborhood_name or "")),
+    )):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("branches.edit",), page_key="system-configuration",
+        )
+    if next_status != branch_row.status and not can_change_status:
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("branches.activate_deactivate",), page_key="system-configuration",
+        )
 
     if not cleaned_name:
         return _redirect_with_error(
@@ -14745,28 +14813,34 @@ def update_branch(
             "Branch name is required.",
         )
 
-    try:
-        resolved_location = _resolve_submitted_location(
-            country_code=country_code,
-            region_id=region_id,
-            region_manual=region_manual,
-            city_id=city_id,
-            city_manual=city_manual,
-            legacy_region=region,
-            required=False,
-        )
-        cleaned_district = _normalize_location_detail(district_name, "District")
-        cleaned_neighborhood = _normalize_location_detail(
-            neighborhood_name,
-            "Neighborhood",
-        )
-    except location_service.LocationValidationError as exc:
-        return _redirect_with_error(safe_return_to, str(exc))
+    resolved_location = None
+    cleaned_district = branch_row.district_name
+    cleaned_neighborhood = branch_row.neighborhood_name
+    if can_edit:
+        try:
+            resolved_location = _resolve_submitted_location(
+                country_code=country_code,
+                region_id=region_id,
+                region_manual=region_manual,
+                city_id=city_id,
+                city_manual=city_manual,
+                legacy_region=region,
+                required=False,
+            )
+            cleaned_district = _normalize_location_detail(district_name, "District")
+            cleaned_neighborhood = _normalize_location_detail(
+                neighborhood_name,
+                "Neighborhood",
+            )
+        except location_service.LocationValidationError as exc:
+            return _redirect_with_error(safe_return_to, str(exc))
 
-    duplicate_branch = db.query(models.Branch).filter(
-        func.lower(models.Branch.name) == cleaned_name.lower(),
-        models.Branch.id != branch_id,
-    ).first()
+    duplicate_branch = None
+    if can_edit and cleaned_name != branch_row.name:
+        duplicate_branch = db.query(models.Branch).filter(
+            func.lower(models.Branch.name) == cleaned_name.lower(),
+            models.Branch.id != branch_id,
+        ).first()
     if duplicate_branch:
         return _redirect_with_error(
             safe_return_to,
@@ -14820,16 +14894,18 @@ def update_branch(
             db.rollback()
             return _redirect_with_error(safe_return_to, str(exc))
 
-    branch_row.name = cleaned_name
-    if resolved_location:
-        branch_row.location = resolved_location.region_name
-        branch_row.country_code = resolved_location.country_code
-        branch_row.country_name = resolved_location.country_name
-        branch_row.region_name = resolved_location.region_name
-        branch_row.city_name = resolved_location.city_name
-    branch_row.district_name = cleaned_district
-    branch_row.neighborhood_name = cleaned_neighborhood
-    branch_row.status = next_status
+    if can_edit:
+        branch_row.name = cleaned_name
+        if resolved_location:
+            branch_row.location = resolved_location.region_name
+            branch_row.country_code = resolved_location.country_code
+            branch_row.country_name = resolved_location.country_name
+            branch_row.region_name = resolved_location.region_name
+            branch_row.city_name = resolved_location.city_name
+        branch_row.district_name = cleaned_district
+        branch_row.neighborhood_name = cleaned_neighborhood
+    if can_change_status:
+        branch_row.status = next_status
     db.commit()
 
     return _redirect_with_notice(
@@ -14852,17 +14928,18 @@ def create_qualification_option(
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
-    if not auth.has_permission(db, current_user, "branches.delete"):
+    normalized_kind = _normalize_qualification_kind(kind)
+    required_permission = _qualification_permission_key(normalized_kind)
+    if not auth.has_permission(db, current_user, required_permission):
         return authorization.build_access_denied_response(
             request,
             db,
             current_user=current_user,
-            permission_keys=("branches.delete",),
+            permission_keys=(required_permission,),
             page_key="system-configuration",
         )
 
     safe_return_to = _safe_redirect_path(return_to)
-    normalized_kind = _normalize_qualification_kind(kind)
     cleaned_label = _normalize_qualification_label(label)
 
     if not cleaned_label:
@@ -14933,14 +15010,6 @@ def update_qualification_option(
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
-    if not auth.has_permission(db, current_user, "academic_years.activate"):
-        return authorization.build_access_denied_response(
-            request,
-            db,
-            current_user=current_user,
-            permission_keys=("academic_years.activate",),
-            page_key="system-configuration",
-        )
 
     safe_return_to = _safe_redirect_path(return_to)
     ensure_qualification_options_seeded(db)
@@ -14951,6 +15020,12 @@ def update_qualification_option(
         return _redirect_with_error(
             safe_return_to,
             "Qualification record not found.",
+        )
+    required_permission = _qualification_permission_key(option_row.kind)
+    if not auth.has_permission(db, current_user, required_permission):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=(required_permission,), page_key="system-configuration",
         )
 
     cleaned_label = _normalize_qualification_label(label)
@@ -15009,14 +15084,6 @@ def delete_qualification_option(
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
-    if not auth.has_permission(db, current_user, "academic_years.create"):
-        return authorization.build_access_denied_response(
-            request,
-            db,
-            current_user=current_user,
-            permission_keys=("academic_years.create",),
-            page_key="system-configuration",
-        )
 
     safe_return_to = _safe_redirect_path(return_to)
     ensure_qualification_options_seeded(db)
@@ -15027,6 +15094,12 @@ def delete_qualification_option(
         return _redirect_with_error(
             safe_return_to,
             "Qualification record not found.",
+        )
+    required_permission = _qualification_permission_key(option_row.kind)
+    if not auth.has_permission(db, current_user, required_permission):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=(required_permission,), page_key="system-configuration",
         )
 
     usage_count = db.query(models.TeacherQualificationSelection).filter(
@@ -15060,7 +15133,7 @@ def delete_branch(
     db: Session = Depends(get_db),
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user or not auth.has_permission(db, current_user, "branches.delete"):
         return RedirectResponse(url="/", status_code=302)
 
     safe_return_to = _safe_redirect_path(return_to)
@@ -15072,6 +15145,11 @@ def delete_branch(
             safe_return_to,
             "Branch record not found.",
         )
+    if not _branch_record_is_in_user_scope(db, current_user, branch_row):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("branches.delete",), page_key="system-configuration",
+        )
 
     usage_counts = _branch_usage_counts(db, branch_id)
     linked_records_count = sum(int(value or 0) for value in usage_counts.values())
@@ -15082,7 +15160,8 @@ def delete_branch(
         )
 
     active_branch_count = db.query(models.Branch).filter(
-        models.Branch.status == True
+        models.Branch.school_group_id == branch_row.school_group_id,
+        models.Branch.status == True,
     ).count()
     if branch_row.status and active_branch_count <= 1:
         return _redirect_with_error(
@@ -15176,7 +15255,7 @@ def set_current_year(
 ):
     current_user = auth.get_current_user(request, db)
 
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user or not auth.has_permission(db, current_user, "academic_years.activate"):
         return RedirectResponse(url="/", status_code=302)
 
     target_year = db.query(models.AcademicYear).filter(
@@ -15190,6 +15269,14 @@ def set_current_year(
         )
 
     target_group_id = getattr(target_year, "school_group_id", None)
+    if not target_group_id or (
+        not (auth.is_platform_user(current_user) and _can_manage_all_school_scopes(db, current_user))
+        and target_group_id != _get_user_school_group_id(db, current_user)
+    ):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("academic_years.activate",), page_key="system-configuration",
+        )
     try:
         commercial_authority_service.require_capacity_change(
             db,
@@ -15230,7 +15317,9 @@ def open_new_academic_year(
     db: Session = Depends(get_db)
 ):
     current_user = auth.get_current_user(request, db)
-    if not current_user or not auth.can_manage_system_settings(current_user):
+    if not current_user or not auth.has_all_permissions(
+        db, current_user, "academic_years.create", "academic_years.activate"
+    ):
         return RedirectResponse(url="/", status_code=302)
 
     cleaned_year_name = year_name.strip()
@@ -15240,12 +15329,25 @@ def open_new_academic_year(
             "Academic year names must use the YYYY-YYYY format.",
         )
 
-    selected_group_id = school_group_id or _get_user_school_group_id(db, current_user)
+    actor_group_id = _get_user_school_group_id(db, current_user)
+    can_manage_all = auth.is_platform_user(current_user) and _can_manage_all_school_scopes(db, current_user)
+    selected_group_id = school_group_id or actor_group_id
+    if not selected_group_id or (not can_manage_all and selected_group_id != actor_group_id):
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=("academic_years.create", "academic_years.activate"),
+            page_key="system-configuration",
+        )
+    target_group = db.query(models.SchoolGroup).filter(
+        models.SchoolGroup.id == selected_group_id,
+        models.SchoolGroup.status == True,
+    ).first()
+    if not target_group:
+        return _redirect_with_error(return_to, "Active SchoolGroup not found.")
     existing_query = db.query(models.AcademicYear).filter(
-        models.AcademicYear.year_name == cleaned_year_name
+        models.AcademicYear.year_name == cleaned_year_name,
+        models.AcademicYear.school_group_id == selected_group_id,
     )
-    if selected_group_id:
-        existing_query = existing_query.filter(models.AcademicYear.school_group_id == selected_group_id)
     existing_year = existing_query.first()
     if existing_year:
         target_year = existing_year
@@ -15262,16 +15364,16 @@ def open_new_academic_year(
         except commercial_authority_service.CapacityAuthorityError as exc:
             db.rollback()
             return _redirect_with_error(return_to, str(exc))
-        deactivate_query = db.query(models.AcademicYear)
-        if selected_group_id:
-            deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == selected_group_id)
+        deactivate_query = db.query(models.AcademicYear).filter(
+            models.AcademicYear.school_group_id == selected_group_id
+        )
         deactivate_query.update({models.AcademicYear.is_active: False}, synchronize_session=False)
         target_year.is_active = True
         db.commit()
     else:
-        deactivate_query = db.query(models.AcademicYear)
-        if selected_group_id:
-            deactivate_query = deactivate_query.filter(models.AcademicYear.school_group_id == selected_group_id)
+        deactivate_query = db.query(models.AcademicYear).filter(
+            models.AcademicYear.school_group_id == selected_group_id
+        )
         deactivate_query.update({models.AcademicYear.is_active: False}, synchronize_session=False)
         target_year = models.AcademicYear(
             school_group_id=selected_group_id,
@@ -15488,7 +15590,7 @@ def dashboard(
     available_scope_branches = db.query(models.Branch).filter(
         models.Branch.status == True
     ).order_by(models.Branch.name.asc()).all()
-    can_manage_system_settings = auth.can_manage_system_settings(user)
+    can_manage_system_settings = auth.can_manage_system_settings(db, user)
     info_message = ""
     if request.query_params.get("info") == "already-logged-in":
         info_message = "You are already logged in."

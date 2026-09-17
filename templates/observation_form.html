@@ -163,8 +163,12 @@ body.rubric-modal-open { overflow: hidden; }
             <div class="field">
                 <label for="observation_type">Type</label>
                 <select id="observation_type" name="observation_type" required>
+                    {% if can_create_formal or (observation and observation.observation_type == "Formal") %}
                     <option value="Formal" {% if observation and observation.observation_type == "Formal" %}selected{% endif %}>Formal</option>
+                    {% endif %}
+                    {% if can_create_non_formal or (observation and observation.observation_type == "Non-formal") %}
                     <option value="Non-formal" {% if observation and observation.observation_type == "Non-formal" %}selected{% endif %}>Non-formal</option>
+                    {% endif %}
                 </select>
             </div>
             <div class="field">

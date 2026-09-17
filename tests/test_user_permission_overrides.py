@@ -286,6 +286,65 @@ def test_platform_only_override_denied_service_layer():
         engine.dispose()
 
 
+def test_nonassignable_override_decisions_rejected_but_inherit_cleans_old_row():
+    engine, Session = _make_db()
+    ids = _seed_two_admins(Session)
+    db = Session()
+    try:
+        target = db.get(models.User, ids["user_b_id"])
+        key = "students.view_all_branches"  # Administrator-only, not Editor-assignable.
+        ups.apply_user_override(
+            db, target_user=target, permission_key=key,
+            decision=ups.DECISION_DENY, school_group_id=ids["school_id"],
+        )
+        db.commit()
+        target.role = auth.ROLE_EDITOR
+        db.commit()
+
+        for decision in (ups.DECISION_ALLOW, ups.DECISION_DENY):
+            with pytest.raises(ValueError, match="cannot be overridden"):
+                ups.apply_user_override(
+                    db, target_user=target, permission_key=key,
+                    decision=decision, school_group_id=ids["school_id"],
+                )
+        assert db.query(models.UserPermissionOverride).filter_by(
+            user_id=target.id, permission_key=key,
+        ).count() == 1
+
+        ups.apply_user_override(
+            db, target_user=target, permission_key=key,
+            decision=ups.DECISION_INHERIT, school_group_id=ids["school_id"],
+        )
+        db.commit()
+        assert db.query(models.UserPermissionOverride).filter_by(
+            user_id=target.id, permission_key=key,
+        ).count() == 0
+    finally:
+        db.close()
+        engine.dispose()
+
+
+def test_read_only_position_uses_effective_limited_role_for_override_write():
+    engine, Session = _make_db()
+    ids = _seed_two_admins(Session)
+    db = Session()
+    try:
+        target = db.get(models.User, ids["user_b_id"])
+        target.position = auth.POSITION_MANAGEMENT
+        db.commit()
+        with pytest.raises(ValueError, match="cannot be overridden"):
+            ups.apply_user_override(
+                db, target_user=target, permission_key="subjects.edit",
+                decision=ups.DECISION_DENY, school_group_id=ids["school_id"],
+            )
+        assert db.query(models.UserPermissionOverride).filter_by(
+            user_id=target.id, permission_key="subjects.edit",
+        ).count() == 0
+    finally:
+        db.close()
+        engine.dispose()
+
+
 # ---------------------------------------------------------------------------
 # Allow-over-Deny architecture: Allow must NOT exceed the role-resolved set
 # ---------------------------------------------------------------------------

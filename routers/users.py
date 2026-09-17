@@ -61,10 +61,10 @@ def _normalize_user_id(value: str) -> str:
     return value.strip()
 
 
-def _get_user_roles_for_creator(current_user):
+def _get_user_roles_for_creator(db: Session, current_user):
     if auth.is_platform_user(current_user):
         return ROLE_CHOICES
-    if auth._has_cached_permission(current_user, "users.assign_role"):
+    if auth.has_permission(db, current_user, "users.assign_role"):
         return [
             auth.ROLE_ADMINISTRATOR,
             auth.ROLE_EDITOR,
@@ -99,11 +99,7 @@ def _build_role_permission_summary_map(db: Session, current_user):
     return {
         role: permission_registry.build_role_permission_payload(
             role,
-            auth.get_allowed_permission_keys(
-                db,
-                type("RoleSubject", (), {"role": role, "is_active": True, "school_group_id": school_group_id})(),
-                school_group_id,
-            ),
+            role_permission_service.get_allowed_permission_keys(db, role, school_group_id),
         )
         for role in permission_registry.MANAGED_ROLES
     }
@@ -131,7 +127,7 @@ def _get_available_branches(db: Session, current_user):
 
 
 def _can_manage_target_user(db: Session, current_user, target_user) -> bool:
-    if not auth.can_manage_target_user_account(current_user, target_user):
+    if not auth.can_manage_target_user_account(db, current_user, target_user):
         return False
     if auth.is_platform_user(current_user):
         return True
@@ -209,12 +205,12 @@ def _build_user_avatar_summary(request: Request, user_row) -> dict:
     }
 
 
-def _can_manage_user_permissions(current_user) -> bool:
-    return auth._has_cached_permission(current_user, "configuration.manage_permissions")
+def _can_manage_user_permissions(db: Session, current_user) -> bool:
+    return auth.has_permission(db, current_user, "configuration.manage_permissions")
 
 
 def _build_user_permission_context(db: Session, current_user, user_row) -> dict:
-    normalized_role = auth.normalize_role(getattr(user_row, "role", ""))
+    normalized_role = auth.get_effective_tenant_role(user_row)
     target_school_group_id = auth.get_user_school_group_id(db, user_row)
     payload = user_permission_service.build_user_permission_payload(
         db,
@@ -223,7 +219,7 @@ def _build_user_permission_context(db: Session, current_user, user_row) -> dict:
         school_group_id=target_school_group_id,
     )
     return {
-        "can_manage_user_permissions": _can_manage_user_permissions(current_user),
+        "can_manage_user_permissions": _can_manage_user_permissions(db, current_user),
         "user_permission_payload": payload,
     }
 
@@ -247,7 +243,7 @@ def _render_edit_user_page(
     if "access_scope" not in form_data:
         form_data["access_scope"] = auth.get_access_scope(user_row)
 
-    role_choices = list(_get_user_roles_for_creator(current_user))
+    role_choices = list(_get_user_roles_for_creator(db, current_user))
     normalized_row_role = auth.normalize_role(getattr(user_row, "role", ""))
     selected_role = auth.normalize_role(form_data.get("role", normalized_row_role))
     if normalized_row_role and normalized_row_role not in role_choices:
@@ -296,9 +292,9 @@ def _render_users_page(
 ):
     form_data = dict(form_data or {})
     available_branches = _get_available_branches(db, current_user)
-    can_manage_users = auth.can_manage_users(current_user)
-    can_edit_user_accounts = auth.can_edit_user_accounts(current_user)
-    can_delete_user_accounts = auth.can_delete_user_accounts(current_user)
+    can_manage_users = auth.can_manage_users(db, current_user)
+    can_edit_user_accounts = auth.can_edit_user_accounts(db, current_user)
+    can_delete_user_accounts = auth.can_delete_user_accounts(db, current_user)
     can_delete_single_users = auth.has_permission(db, current_user, "users.delete")
     can_bulk_delete_users = auth.has_permission(db, current_user, "users.bulk_delete")
     users_query = db.query(models.User).filter(
@@ -346,7 +342,7 @@ def _render_users_page(
             "user_avatar_map": user_avatar_map,
             "branch_map": branch_map,
             "positions": POSITIONS,
-            "role_choices": _get_user_roles_for_creator(current_user),
+            "role_choices": _get_user_roles_for_creator(db, current_user),
             "access_scope_choices": auth.TENANT_ACCESS_SCOPE_CHOICES,
             "role_permission_summary_map": _build_role_permission_summary_map(db, current_user),
             "available_branches": available_branches,
@@ -407,7 +403,7 @@ def get_user_profile_photo(
     if not current_user:
         return Response(status_code=401)
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return Response(status_code=403)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
@@ -451,7 +447,7 @@ def create_user(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
     user_id = _normalize_user_id(user_id)
@@ -482,7 +478,7 @@ def create_user(
     if position not in POSITIONS:
         errors.append("Invalid position selected.")
 
-    allowed_roles = _get_user_roles_for_creator(current_user)
+    allowed_roles = _get_user_roles_for_creator(db, current_user)
     if role not in allowed_roles:
         errors.append("You are not allowed to assign this role.")
 
@@ -599,10 +595,10 @@ def edit_user_page(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    if not auth.can_edit_user_accounts(current_user):
+    if not auth.can_edit_user_accounts(db, current_user):
         return RedirectResponse(url="/users", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
@@ -642,10 +638,10 @@ def update_user(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    if not auth.can_edit_user_accounts(current_user):
+    if not auth.can_edit_user_accounts(db, current_user):
         return RedirectResponse(url="/users", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
@@ -715,7 +711,7 @@ def update_user(
     if position not in POSITIONS:
         errors.append("Invalid position selected.")
 
-    allowed_roles = _get_user_roles_for_creator(current_user)
+    allowed_roles = _get_user_roles_for_creator(db, current_user)
     if role not in allowed_roles:
         errors.append("You are not allowed to assign this role.")
 
@@ -894,10 +890,10 @@ def update_user_permissions(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    if not _can_manage_user_permissions(current_user):
+    if not _can_manage_user_permissions(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
@@ -983,10 +979,10 @@ def update_user_status(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    if not auth.can_edit_user_accounts(current_user):
+    if not auth.can_edit_user_accounts(db, current_user):
         return RedirectResponse(url="/users", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
@@ -1046,10 +1042,10 @@ def delete_user(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    if not auth.can_delete_user_accounts(current_user):
+    if not auth.can_delete_user_accounts(db, current_user):
         return RedirectResponse(url="/users", status_code=302)
 
     user_row = _get_user_for_management(db, current_user, user_pk)
@@ -1091,10 +1087,10 @@ def delete_users_bulk(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.can_manage_users(current_user):
+    if not auth.can_manage_users(db, current_user):
         return RedirectResponse(url="/dashboard", status_code=302)
 
-    if not auth.can_delete_user_accounts(current_user):
+    if not auth.can_delete_user_accounts(db, current_user):
         return RedirectResponse(url="/users", status_code=302)
 
     unique_user_ids = sorted({int(user_id) for user_id in selected_user_ids if user_id})

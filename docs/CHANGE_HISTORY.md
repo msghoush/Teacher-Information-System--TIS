@@ -1,11 +1,119 @@
 ---
 title: TIS Change History
-documentation_version: 4.4
-last_updated: 2026-09-14
+documentation_version: 4.5
+last_updated: 2026-09-17
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-17 — Permission consistency closure (whole-registry pass)
+
+A reported "grant/revoke/re-grant" defect on `subjects.view` was investigated
+as a whole-system permission-consistency defect rather than a Subjects-only
+issue, following the governing precedence chain (built-in role default ->
+global `RolePermission` override -> tenant `RolePermission` override ->
+per-user `UserPermissionOverride` -> effective permission; Deny-over-Allow;
+ADR 0040).
+
+Root cause: several current-user authorization/UI-capability paths still
+resolved permissions through request-scoped in-memory caching helpers
+(`auth._has_cached_permission`, `_has_any_cached_permission`,
+`_has_cached_permission_prefix`, `get_user_permission_keys`, all removed) or
+an ORM-instance-attached cache (`user._permission_cache` on
+`auth.get_allowed_permission_keys`, also removed) instead of a fresh,
+DB-backed resolution on every request. A role-permission toggle inside the
+same or a subsequent request could therefore be read from a stale snapshot,
+so re-enabling a permission did not reliably restore the dependent
+module/action for the affected user. `auth.get_allowed_permission_keys` is
+now the sole current-user effective-permission integration point with no
+caching of any kind; `auth.can_manage_system_settings`, `can_manage_users`,
+`can_modify_data`, `can_edit_data`, `can_delete_data`,
+`can_edit_user_accounts`, `can_delete_user_accounts`, and
+`can_manage_target_user_account` all now require an explicit `db: Session`
+and resolve through `has_permission`/`has_any_permission`/
+`get_allowed_permission_keys` on every call. `can_manage_target_user_account`
+also now fails closed (previously defaulted to `True` whenever either
+actor's or target's `school_group_id` was falsy instead of only when they
+were confirmed equal).
+
+Corrected stale/incorrect permission paths (classified A/B, current-user
+authorization or UI capability, per the audit): `routers/users.py`
+(`_get_user_roles_for_creator`, `_can_manage_user_permissions`, all
+`can_manage_users`/`can_edit_user_accounts`/`can_delete_user_accounts`
+call sites); `routers/observations.py` (`_can_create_observation`,
+`_can_override_locked_observation`, `_can_edit_observation`,
+`_can_delete_observation`); a genuine, previously-undetected sibling defect
+in the same module where any of `observations.create_formal` /
+`observations.create_non_formal` allowed creating *either* observation
+type (an "any-of" check used where an exact per-type check was required) is
+also fixed with a new `_can_create_observation_type` helper wired into both
+the create/edit routes and `templates/observation_form.html`'s Type options.
+`main.py`'s System Configuration "Qualifications" mutation routes
+(`create_qualification_option`, `update_qualification_option`,
+`delete_qualification_option`) were gated by the wrong keys entirely
+(`branches.delete`, `academic_years.activate`, `academic_years.create`) and
+now use `configuration.manage_degrees`/`configuration.manage_specializations`
+per the edited row's own kind, matching the template's existing
+`can_manage_module` guard. `update_branch` and `delete_branch` previously
+allowed a caller holding only `branches.edit` to also flip `status`, and a
+caller holding only `branches.activate_deactivate` to also rename/relocate a
+Branch (backend accepted more than the two dedicated keys implied); both
+routes now check `branches.edit` and `branches.activate_deactivate`
+independently per changed field, and `delete_branch`, `set_current_year`,
+and `open_new_academic_year` add missing SchoolGroup-scope boundary checks
+(a non-platform actor could previously target a foreign SchoolGroup's
+Branch/Academic Year record and only the query filter, not an authorization
+check, happened to prevent effect in some paths). `open_new_academic_year`
+now requires both `academic_years.create` AND `academic_years.activate`
+(previously gated by the coarse `can_manage_system_settings` role-prefix
+check). Notification mark-read/resolve/archive actions and Branch/SchoolGroup
+logo upload/reset now enforce their dedicated `notifications.*`/
+`branding.manage_school_logos`/`branding.manage_branch_logos` keys
+server-side, matching (and in the notifications case, adding) the
+corresponding UI gates in `templates/notifications.html`.
+
+Persisted-data-integrity: `role_permissions` had no database-level
+uniqueness on its logical `(school_group_id, role, permission_key)`/
+`(role, permission_key)` identity, so a duplicate row for the same
+scope/role/key was structurally possible and could make a re-grant
+non-deterministic depending on row-fetch order. Migration
+`20260915_001_role_permission_logical_key_uniqueness` adds two partial
+unique indexes (`uq_role_permissions_global_role_key` for
+`school_group_id IS NULL`, `uq_role_permissions_tenant_role_key` for
+`school_group_id IS NOT NULL`) mirrored in `models.RolePermission`. The
+migration performs a non-destructive duplicate preflight and raises
+`RuntimeError` without installing the indexes or recording the migration if
+any duplicate is found (no row is deleted or rewritten). A related
+`user_permission_service.apply_user_override` gap is also closed: a per-user
+override could previously be written for a permission key not assignable to
+the target's own normalized role (including a platform-only key), leaving
+an orphaned/inert override; `apply_user_override` now re-validates
+assignability against the target's `get_effective_tenant_role` before
+writing an Allow/Deny (Inherit/removal is unaffected so a stale
+non-assignable row left by a role change can still be cleared).
+`user_permission_service.build_user_permission_payload`'s `effective`
+projection now also calls the same canonical `auth.get_allowed_permission_keys`
+resolver instead of re-implementing the merge locally, so the per-user
+permission UI cannot drift from the authoritative resolver.
+
+New/updated regression coverage: `tests/test_branch_year_permission_boundaries.py`,
+`tests/test_configuration_scope_permissions.py`,
+`tests/test_notification_group_permissions.py`, and
+`tests/test_role_permission_logical_key_migration.py` (all new), plus
+extensions to `tests/test_permission_qualification.py`,
+`tests/test_user_permission_overrides.py`,
+`tests/test_user_permission_override_routes.py`, and
+`tests/test_platform_access.py`. `tests/test_permission_qualification.py`
+proves ON -> OFF -> ON for `dashboard.view`, `subjects.view`,
+`teachers.view`, `students.view`, `planning.view`, `timetable.view`,
+`calendar.view`, `observations.view`, `users.view`, and `configuration.view`
+across the resolver, direct route/API enforcement, and navigation on a
+fresh per-request read each time, plus per-user Deny/Allow-does-not-resurrect-
+role-Deny/re-grant-reactivates-a-stale-Allow, sibling-user isolation, and
+cross-SchoolGroup isolation. No Allow-over-Deny behavior was introduced;
+that remains an explicitly deferred, separately-governed decision per
+ADR 0040. No new permission key, schema-breaking change, or `tis.db` change.
 
 ## 2026-09-14 — Permission qualification drift closure
 
