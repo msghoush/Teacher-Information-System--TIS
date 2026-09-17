@@ -1861,6 +1861,7 @@
                 </div>
                 <div class="field field-wide">
                     <label>Qualifications</label>
+                    <fieldset style="border:0;margin:0;padding:0;min-width:0" {% if not can_manage_qualifications %}disabled aria-label="Qualifications (read only)"{% endif %}>
                     <div class="qualification-shell">
                         <div class="qualification-summary-bar">
                             <span id="qualificationSelectionCount" class="qualification-summary-badge">{{ selected_qualification_keys|length }} selected</span>
@@ -1903,11 +1904,13 @@
                         </div>
                         <div class="field-note">Choose applicable degrees and specializations. These selections validate subject compatibility.</div>
                     </div>
+                    </fieldset>
                 </div>
                 <div class="field">
                     <label for="max_hours">Max Hours</label>
-                    <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required>
+                    <input id="max_hours" type="number" name="max_hours" min="1" value="{{ teacher.max_hours or 24 }}" required {% if not can_manage_capacity %}disabled{% endif %}>
                 </div>
+                <fieldset style="display:contents;border:0;margin:0;padding:0;min-width:0" {% if not can_assign_subjects %}disabled aria-label="Subject and section assignments (read only)"{% endif %}>
                 <div class="field field-wide">
                     <label>Eligible Subjects</label>
                     <div class="assignment-step">
@@ -2071,32 +2074,33 @@
                         </div>
                     </div>
                 </div>
+                </fieldset>
                 <div class="field field-wide">
                     <label class="toggle-row" for="extra_hours_allowed">
-                        <input id="extra_hours_allowed" type="checkbox" name="extra_hours_allowed" value="on" {% if teacher.extra_hours_allowed %}checked{% endif %}>
+                        <input id="extra_hours_allowed" type="checkbox" name="extra_hours_allowed" value="on" {% if teacher.extra_hours_allowed %}checked{% endif %} {% if not can_manage_capacity %}disabled{% endif %}>
                         Extra Hours Allowed
                     </label>
                 </div>
                 <div class="field field-wide{% if not teacher.extra_hours_allowed %} is-hidden{% endif %}" id="extraHoursCountField">
                     <label for="extra_hours_count">Extra Hours To Allow</label>
-                    <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" step="1" inputmode="numeric" placeholder="Enter exact extra hours" value="{{ teacher.extra_hours_count if teacher.extra_hours_allowed and teacher.extra_hours_count else '' }}">
+                    <input id="extra_hours_count" type="number" name="extra_hours_count" min="1" step="1" inputmode="numeric" placeholder="Enter exact extra hours" value="{{ teacher.extra_hours_count if teacher.extra_hours_allowed and teacher.extra_hours_count else '' }}" {% if not can_manage_capacity %}disabled{% endif %}>
                     <div class="field-note">Enter the exact number of extra hours this teacher may take beyond the standard maximum.</div>
                 </div>
                 <div class="field field-wide">
                     <label class="toggle-row" for="teaches_national_section">
-                        <input id="teaches_national_section" type="checkbox" name="teaches_national_section" value="on" {% if teacher.teaches_national_section %}checked{% endif %}>
+                        <input id="teaches_national_section" type="checkbox" name="teaches_national_section" value="on" {% if teacher.teaches_national_section %}checked{% endif %} {% if not can_manage_capacity %}disabled{% endif %}>
                         Teaches in Another Path
                     </label>
                 </div>
                 <div class="field field-wide">
                     <label class="toggle-row" for="is_new_teacher">
-                        <input id="is_new_teacher" type="checkbox" name="is_new_teacher" value="on" {% if teacher.is_new_teacher %}checked{% endif %}>
+                        <input id="is_new_teacher" type="checkbox" name="is_new_teacher" value="on" {% if teacher.is_new_teacher %}checked{% endif %} {% if not can_manage_capacity %}disabled{% endif %}>
                         New Teacher
                     </label>
                 </div>
                 <div class="field field-wide{% if not teacher.teaches_national_section %} is-hidden{% endif %}" id="nationalSectionHoursField">
                     <label for="national_section_hours">Other Path Hours</label>
-                    <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ teacher.national_section_hours if teacher.national_section_hours else 1 }}">
+                    <input id="national_section_hours" type="number" name="national_section_hours" min="1" value="{{ teacher.national_section_hours if teacher.national_section_hours else 1 }}" {% if not can_manage_capacity %}disabled{% endif %}>
                 </div>
             </div>
 
@@ -2112,6 +2116,8 @@
 {% block page_scripts %}
 <script>
 const teacherIdInput = document.getElementById("teacher_id");
+        const canManageCapacity = {{ can_manage_capacity | tojson }};
+        const canModifyWorkload = {{ (can_assign_subjects or can_manage_qualifications or can_manage_capacity) | tojson }};
         const qualificationInputs = Array.from(document.querySelectorAll("input[name='qualification_keys']"));
         const qualificationDropdowns = Array.from(document.querySelectorAll("[data-qualification-dropdown]"));
         const qualificationSelectionCount = document.getElementById("qualificationSelectionCount");
@@ -4657,7 +4663,7 @@ const teacherIdInput = document.getElementById("teacher_id");
             const enabled = extraAllowed.checked;
             extraCountField.classList.toggle("is-hidden", !enabled);
             extraCountField.style.display = enabled ? "" : "none";
-            extraCountInput.disabled = !enabled;
+            extraCountInput.disabled = !canManageCapacity || !enabled;
             if (enabled && String(extraCountInput.value || "").trim() === "0") {
                 extraCountInput.value = "";
             }
@@ -4670,7 +4676,7 @@ const teacherIdInput = document.getElementById("teacher_id");
             const enabled = nationalSectionToggle.checked;
             nationalSectionHoursField.classList.toggle("is-hidden", !enabled);
             nationalSectionHoursField.style.display = enabled ? "" : "none";
-            nationalSectionHoursInput.disabled = !enabled;
+            nationalSectionHoursInput.disabled = !canManageCapacity || !enabled;
             if (!enabled) {
                 nationalSectionHoursInput.value = "1";
             }
@@ -4815,6 +4821,9 @@ const teacherIdInput = document.getElementById("teacher_id");
 
             if (teacherForm) {
                 teacherForm.addEventListener("submit", (event) => {
+                    if (!canModifyWorkload) {
+                        return; // Profile-only edits do not requalify historical workload.
+                    }
                     syncSelectedQualifications();
                     const parsedValue = Number(maxHoursInput.value);
                     if (Number.isFinite(parsedValue) && parsedValue > standardMaxHours && (!extraAllowed || !extraAllowed.checked)) {

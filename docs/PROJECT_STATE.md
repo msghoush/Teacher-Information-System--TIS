@@ -1,11 +1,32 @@
 ---
 title: TIS Project State
 documentation_version: 5.1
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Independent Permission Closure Review — Not Yet Whole-System Approval
+
+Independent review of the permission-closure branch found additional bypasses:
+notification detail auto-marked messages read despite a dedicated Deny;
+inactive platform identities retained helper capabilities; platform Developer
+role choices bypassed `users.assign_role`; teacher bulk deletion used the
+single-delete key; and teacher/planning edit forms could mutate protected
+fields under broader edit grants. Corrective guards now use canonical effective
+permissions, reject unauthorized field changes, preserve omitted read-only
+values, and project the dedicated capabilities to their forms.
+The canonical tenant resolver also fails closed for absent/contradictory
+ownership or foreign selected/explicit permission evaluation scope.
+
+The ten-family ON/OFF/ON evidence covers fresh persisted resolver reads,
+route-guard calls, and navigation projections, not complete authenticated HTTP
+round trips. The role-policy migration was independently exercised on disposable
+PostgreSQL as well as SQLite. Whole-system approval remains blocked pending
+classification/enforcement of unconsumed registry keys and the coverage gaps
+recorded in [the independent review](engineering/PERMISSION_CLOSURE_REVIEW.md).
+No permission data cleanup, merge, or deployment is authorized by this review.
 
 ## Permission Consistency Closure (Whole-Registry Pass)
 
@@ -19,8 +40,10 @@ current-user effective-permission resolver) and several helper functions
 request-independent caching (`user._permission_cache` and the now-removed
 `_has_cached_permission`/`_has_any_cached_permission`/
 `_has_cached_permission_prefix`/`get_user_permission_keys` helpers), so a
-role-permission toggle was not guaranteed to be reflected on the very next
-read. All caching is removed; every one of those helpers now takes an
+role-permission toggle could remain stale on a retained user instance.
+Independent review does not establish historical production HTTP instance
+reuse. The attached result cache is removed (the shell still uses a canonical
+per-render snapshot); every one of those helpers now takes an
 explicit `db: Session` and resolves fresh through
 `has_permission`/`has_any_permission`/`get_allowed_permission_keys` on every
 call, matching ADR 0040's precedence chain (built-in role default -> global
@@ -64,7 +87,8 @@ scope/role/key row is found (no row is ever deleted or rewritten by this
 migration). `user_permission_service.apply_user_override` now re-validates
 that a permission key is actually assignable to the target user's own
 effective role before writing an Allow/Deny (closing a path that could
-create an override for a platform-only or otherwise non-managed key), and
+create an override for an otherwise nonassignable key; platform-only keys
+were already rejected), and
 `build_user_permission_payload`'s effective-permission projection now
 calls the same canonical `auth.get_allowed_permission_keys` resolver instead
 of a locally re-implemented merge.

@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: "Whole permission-system consistency closure: removed all request-independent/cached permission resolution so a role-permission grant/revoke/re-grant reliably reflects on the next read for every registered permission (not only subjects.view); fixed several independent stale/incorrect permission-gate defects found by the full-registry audit (Users role-assignment/permission-management helpers, Observations create/edit/delete/unlock plus a distinct create-by-observation-type gap, System Configuration Qualifications routes gated by entirely wrong keys, Branch update/delete and Academic Year set/open missing per-field and SchoolGroup-scope checks, Notifications and Branding logo mutation routes missing dedicated server-side permission checks); added a non-destructive migration installing partial-unique constraints on `role_permissions` and an assignability re-validation in `user_permission_service.apply_user_override`."
+summary: "Permission consistency integration plus independent review corrections: canonical fresh DB-backed resolution, scoped action checks, role-policy partial uniqueness and user assignability are preserved; close ambiguous/foreign tenant resolution, inactive platform capability, notification auto-read, developer role-assignment, teacher bulk-delete and protected teacher/planning edit-field bypasses. Record remaining unconsumed-registry-policy and coverage gaps without claiming complete security closure."
 affected_areas:
   - architecture
   - permissions
@@ -14,5 +14,9 @@ affected_areas:
 kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
+  - docs/engineering/PERMISSION_CLOSURE_REVIEW.md
+  - docs/engineering/README.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
 no_impact_reason: ""
 major_change_override: no

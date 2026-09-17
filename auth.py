@@ -239,6 +239,15 @@ def get_allowed_permission_keys(
     )
     if not normalized_role:
         return set()
+    stored_group_id = getattr(user, "school_group_id", None)
+    branch_group_id = get_branch_school_group_id(db, getattr(user, "branch_id", None))
+    if stored_group_id and branch_group_id and stored_group_id != branch_group_id:
+        return set()
+    owner_group_id = stored_group_id or branch_group_id
+    if not owner_group_id:
+        return set()
+    if db.query(models.SchoolGroup.id).filter(models.SchoolGroup.id == owner_group_id).first() is None:
+        return set()
     resolved_school_group_id = school_group_id
     if resolved_school_group_id is None:
         resolved_school_group_id = (
@@ -246,6 +255,8 @@ def get_allowed_permission_keys(
             or getattr(user, "school_group_id", None)
             or get_user_school_group_id(db, user)
         )
+    if resolved_school_group_id != owner_group_id:
+        return set()
 
     import role_permission_service
     import user_permission_service
@@ -335,6 +346,8 @@ def is_user_active(user) -> bool:
 
 
 def can_access_all_years(user, db: Session) -> bool:
+    if not user or not is_user_active(user):
+        return False
     if is_platform_user(user):
         return True
     return has_any_permission(
@@ -357,8 +370,6 @@ def can_manage_users(db: Session, user) -> bool:
 
 
 def can_modify_data(db: Session, user) -> bool:
-    if is_platform_owner(user):
-        return True
     permission_registry = _permission_registry_module()
     return any(
         permission_key not in permission_registry.LIMITED_READ_ONLY_PERMISSION_KEYS
@@ -399,6 +410,12 @@ def can_manage_target_user_account(db: Session, current_user, target_user) -> bo
         return False
     if is_platform_user(target_user):
         return False
+    target_group_id = getattr(target_user, "school_group_id", None)
+    target_branch_group_id = get_branch_school_group_id(db, getattr(target_user, "branch_id", None))
+    if not target_group_id or (target_branch_group_id and target_branch_group_id != target_group_id):
+        return False
+    if db.query(models.SchoolGroup.id).filter(models.SchoolGroup.id == target_group_id).first() is None:
+        return False
     if is_platform_user(current_user):
         return True
     current_group_id = getattr(current_user, "scope_school_group_id", None) or getattr(
@@ -406,7 +423,6 @@ def can_manage_target_user_account(db: Session, current_user, target_user) -> bo
         "school_group_id",
         None,
     )
-    target_group_id = getattr(target_user, "school_group_id", None)
     return bool(current_group_id and target_group_id and current_group_id == target_group_id)
 
 

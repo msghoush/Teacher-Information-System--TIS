@@ -11098,8 +11098,12 @@ def notification_detail(
             return redirect_response
 
         is_recipient = notification.recipient_user_id == current_user.user_id
-        # Auto-mark as seen only for the assigned recipient.
-        if is_recipient and notification.status == NOTIFICATION_STATUS_NEW:
+        # Opening a message must not bypass a dedicated mark-read Deny.
+        if (
+            is_recipient
+            and notification.status == NOTIFICATION_STATUS_NEW
+            and auth.has_permission(db, current_user, "notifications.mark_read")
+        ):
             notification.status = NOTIFICATION_STATUS_SEEN
             notification.seen_at = datetime.now(timezone.utc).replace(tzinfo=None)
             db.commit()
@@ -15145,7 +15149,7 @@ def delete_branch(
             safe_return_to,
             "Branch record not found.",
         )
-    if not _branch_record_is_in_user_scope(db, current_user, branch_row):
+    if not branch_row.school_group_id or not _branch_record_is_in_user_scope(db, current_user, branch_row):
         return authorization.build_access_denied_response(
             request, db, current_user=current_user,
             permission_keys=("branches.delete",), page_key="system-configuration",

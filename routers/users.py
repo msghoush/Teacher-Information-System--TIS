@@ -62,8 +62,6 @@ def _normalize_user_id(value: str) -> str:
 
 
 def _get_user_roles_for_creator(db: Session, current_user):
-    if auth.is_platform_user(current_user):
-        return ROLE_CHOICES
     if auth.has_permission(db, current_user, "users.assign_role"):
         return [
             auth.ROLE_ADMINISTRATOR,
@@ -71,6 +69,8 @@ def _get_user_roles_for_creator(db: Session, current_user):
             auth.ROLE_USER,
             auth.ROLE_LIMITED,
         ]
+    if auth.is_platform_user(current_user):
+        return [auth.ROLE_LIMITED]
     return [auth.normalize_role(getattr(current_user, "role", "")) or auth.ROLE_LIMITED]
 
 

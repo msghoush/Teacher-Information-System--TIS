@@ -1,11 +1,38 @@
 ---
 title: TIS Change History
 documentation_version: 4.5
-last_updated: 2026-09-17
+last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-18 — Independent permission closure review corrections
+
+- Guard notification-detail automatic read mutation with `notifications.mark_read`.
+- Fail closed for inactive platform identities in year and data capabilities.
+- Fail closed when tenant permission ownership is absent, stored/branch
+  ownership conflicts, or selected/explicit evaluation scope is foreign.
+  Target management, override writes, and Branch deletion also reject ambiguous
+  target ownership, including platform actors; valid cross-tenant authority is preserved.
+- Resolve Developer role choices through `users.assign_role`, retaining only
+  Limited as the safe creation fallback when role assignment is not granted.
+- Use `teachers.bulk_delete` independently from single-record delete in the
+  server guard and bulk controls; protect teacher qualifications, subject
+  assignments, and capacity fields under their dedicated permissions.
+- Protect Planning homeroom and teacher-assignment changes under their dedicated
+  keys, preserving read-only fields and assignment rows on ordinary edits.
+- Correct the timetable-block navigation regression expectation and include
+  role-policy metadata in the deliberately minimal legacy migration fixture,
+  matching production's core-table bootstrap prerequisite.
+- Make the shared Talent/Students test policy helper update its logical key
+  rather than insert duplicate rows when a test re-grants permission, respecting
+  the new database uniqueness constraints.
+- Add independently persisted-policy regressions and record verification limits
+  in `engineering/PERMISSION_CLOSURE_REVIEW.md`. ADR 0040's precedence,
+  Deny-over-Allow, platform scope, and user-override uniqueness remain unchanged.
+  Unconsumed-registry policy needs clarification; this is not whole-system
+  security approval. No real permission rows were cleaned up or rewritten.
 
 ## 2026-09-17 — Permission consistency closure (whole-registry pass)
 
@@ -21,13 +48,14 @@ resolved permissions through request-scoped in-memory caching helpers
 (`auth._has_cached_permission`, `_has_any_cached_permission`,
 `_has_cached_permission_prefix`, `get_user_permission_keys`, all removed) or
 an ORM-instance-attached cache (`user._permission_cache` on
-`auth.get_allowed_permission_keys`, also removed) instead of a fresh,
-DB-backed resolution on every request. A role-permission toggle inside the
-same or a subsequent request could therefore be read from a stale snapshot,
-so re-enabling a permission did not reliably restore the dependent
-module/action for the affected user. `auth.get_allowed_permission_keys` is
-now the sole current-user effective-permission integration point with no
-caching of any kind; `auth.can_manage_system_settings`, `can_manage_users`,
+`auth.get_allowed_permission_keys`, also removed). A role-permission toggle
+with the same retained user instance could therefore be read from a stale
+snapshot. Independent review confirms this stale-instance risk, not the
+historical production HTTP root cause or cross-request instance reuse.
+`auth.get_allowed_permission_keys` is now the sole current-user
+effective-permission integration point without an attached result cache;
+the shell retains a canonical per-render capability snapshot.
+`auth.can_manage_system_settings`, `can_manage_users`,
 `can_modify_data`, `can_edit_data`, `can_delete_data`,
 `can_edit_user_accounts`, `can_delete_user_accounts`, and
 `can_manage_target_user_account` all now require an explicit `db: Session`
@@ -87,8 +115,9 @@ migration performs a non-destructive duplicate preflight and raises
 any duplicate is found (no row is deleted or rewritten). A related
 `user_permission_service.apply_user_override` gap is also closed: a per-user
 override could previously be written for a permission key not assignable to
-the target's own normalized role (including a platform-only key), leaving
-an orphaned/inert override; `apply_user_override` now re-validates
+the target's own normalized role, leaving an inert override;
+platform-only keys were already rejected before this commit.
+`apply_user_override` now re-validates
 assignability against the target's `get_effective_tenant_role` before
 writing an Allow/Deny (Inherit/removal is unaffected so a stale
 non-assignable row left by a role change can still be cleared).

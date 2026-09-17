@@ -262,7 +262,7 @@ def _fresh_view_state(Session, user_id, school_id, key, path, nav_href):
             if key == "configuration.view":
                 # Configuration nav has an any-of gate over several independent keys.
                 assert (nav_href in nav_hrefs) == bool(
-                    allowed & (CONFIGURATION_LANDING_KEYS - {"timetable.manage_blocks"})
+                    allowed & CONFIGURATION_LANDING_KEYS
                 )
             else:
                 assert (nav_href in nav_hrefs) == (key in allowed)

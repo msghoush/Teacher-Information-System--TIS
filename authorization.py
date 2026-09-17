@@ -83,7 +83,7 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/teachers/copy-from-year", ("POST",), ("teachers.copy_year_data",), "teachers"),
     PermissionRule(r"/teachers/edit/\d+", ("GET", "POST"), ("teachers.edit",), "teachers"),
     PermissionRule(r"/teachers/delete/\d+", ("GET",), ("teachers.delete",), "teachers"),
-    PermissionRule(r"/teachers/delete-bulk", ("POST",), ("teachers.delete",), "teachers"),
+    PermissionRule(r"/teachers/delete-bulk", ("POST",), ("teachers.bulk_delete",), "teachers"),
     PermissionRule(r"/planning/?", ("GET",), ("planning.view",), "planning"),
     PermissionRule(r"/planning/?", ("POST",), ("planning.create_section",), "planning"),
     PermissionRule(r"/planning/copy-from-year", ("POST",), ("planning.copy_year_data",), "planning"),

@@ -147,7 +147,14 @@ def actor(*, scope="ORGANIZATION", branch=10, role="Editor", group=1):
 
 
 def permissions(db, *keys, allow=True):
-    db.add_all(models.RolePermission(school_group_id=1, role="Editor", permission_key=key, is_allowed=allow) for key in keys)
+    for key in dict.fromkeys(keys):
+        row = db.query(models.RolePermission).filter_by(
+            school_group_id=1, role="Editor", permission_key=key,
+        ).one_or_none()
+        if row is None:
+            db.add(models.RolePermission(school_group_id=1, role="Editor", permission_key=key, is_allowed=allow))
+        else:
+            row.is_allowed = allow
     db.commit()
 
 

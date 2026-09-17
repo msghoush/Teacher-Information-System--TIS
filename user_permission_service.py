@@ -50,6 +50,11 @@ def apply_user_override(
     target_group = getattr(target_user, "school_group_id", None)
     if not target_group or target_group != school_group_id:
         raise ValueError("target user is not in the active SchoolGroup")
+    if db.query(models.SchoolGroup.id).filter(models.SchoolGroup.id == target_group).first() is None:
+        raise ValueError("target user's SchoolGroup does not exist")
+    branch_group = auth.get_branch_school_group_id(db, getattr(target_user, "branch_id", None))
+    if branch_group and branch_group != target_group:
+        raise ValueError("target user has contradictory SchoolGroup ownership")
 
     existing = (
         db.query(models.UserPermissionOverride)

@@ -1,7 +1,7 @@
 ---
 title: TIS Database Architecture Overview
 documentation_version: 3.5
-last_updated: 2026-09-05
+last_updated: 2026-09-18
 source_of_truth: true
 ---
 
@@ -754,6 +754,19 @@ Related files:
 - `routers/users.py`
 
 ## Roles And Permissions
+
+`RolePermission` logical keys have separate partial unique indexes: global
+`(role, permission_key)` where SchoolGroup is NULL, and tenant
+`(school_group_id, role, permission_key)` where SchoolGroup is not NULL.
+Migration `20260915_001_role_permission_logical_key_uniqueness` preflights
+duplicates without deleting rows and installs these indexes transactionally.
+Production duplicates require approved remediation before migration proceeds.
+
+`UserPermissionOverride` is unique by `(user_id, permission_key)` per ADR 0040;
+SchoolGroup records ownership/audit context, not another identity dimension.
+The earlier migration-created table lacks the fresh ORM model's User/SchoolGroup
+foreign keys. Do not assume database-level orphan prevention on that path until
+an explicitly approved integrity inspection/remediation resolves the drift.
 
 Represents:
 Role packages, permission keys, platform developer permissions, and route/action authorization.
