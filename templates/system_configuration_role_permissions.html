@@ -9,9 +9,10 @@
 .error-banner, .notice-banner { display: inline-flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-weight: 800; }
 .error-banner { border: 1px solid #efc5bf; background: #fff5f3; color: #9f2d1f; }
 .notice-banner { border: 1px solid #b8ead2; background: #ecfdf3; color: #027a48; }
-.config-nav, .role-tabs, .permission-toolbar, .permission-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.config-nav-link, .role-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 900; text-decoration: none; }
-.config-nav-link.is-active, .role-tab.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
+.config-nav, .role-tabs, .permission-toolbar, .permission-actions, .role-mode-tabs { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.config-nav-link, .role-tab, .role-mode-tab { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; padding: 7px 12px; border: 1px solid #d6e3f3; border-radius: 999px; background: #fff; color: #23466f; font-size: 12px; font-weight: 900; text-decoration: none; }
+.config-nav-link.is-active, .role-tab.is-active, .role-mode-tab.is-active { border-color: #b8d0ec; background: #edf4ff; color: #17365d; }
+.role-mode-tabs { border-bottom: 1px solid #e1e9f4; padding-bottom: 10px; margin-bottom: 4px; }
 .permissions-shell { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); gap: 14px; align-items: start; }
 .permission-card { border: 1px solid #d8e2f0; border-radius: 14px; background: #fff; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
 .permission-side, .permission-main { display: grid; gap: 12px; padding: 14px; }
@@ -29,6 +30,7 @@
 .progress-bar i { display: block; height: 100%; border-radius: inherit; background: #0a4ea3; }
 .permission-main-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .permission-status { display: inline-flex; align-items: center; min-height: 30px; padding: 5px 10px; border-radius: 999px; background: #edf4ff; color: #0a4ea3; font-size: 12px; font-weight: 900; }
+.management-target-banner { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; font-weight: 800; border: 1px solid #ffd9a0; background: #fff8ec; color: #7c4a03; }
 .permission-groups { display: grid; gap: 10px; }
 .permission-group { border: 1px solid #d8e2f0; border-radius: 12px; overflow: hidden; }
 .permission-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px; background: #f8fbff; }
@@ -37,16 +39,28 @@
 .permission-group-count { color: #60728c; font-size: 12px; font-weight: 900; }
 .developer-only-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
 .inherited-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #eef4ff; color: #1d4ed8; font-size: 10px; font-weight: 900; }
+.standard-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #eef4ff; color: #1d4ed8; font-size: 10px; font-weight: 900; }
+.override-badge { display: inline-flex; width: fit-content; margin-top: 4px; padding: 3px 7px; border-radius: 999px; background: #fdeceb; color: #9f2d1f; font-size: 10px; font-weight: 900; }
 .permission-check.is-inherited { border-color: #c6dcff; background: #f7faff; }
+.permission-check.has-override { border-color: #f4c2bb; background: #fff8f7; }
 .permission-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 12px; }
 .permission-check { display: flex; align-items: flex-start; gap: 8px; min-height: 44px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fff; color: #1f2737; font-size: 13px; font-weight: 800; line-height: 1.3; }
 .permission-check.is-developer-only { border-color: #f8d4aa; background: #fffaf5; }
 .permission-check input { margin-top: 2px; width: 16px; height: 16px; accent-color: #0a4ea3; }
 .permission-check small { display: block; color: #60728c; font-size: 11px; font-weight: 700; }
+.permission-comparison { display: block; color: #48607f; font-size: 11px; font-weight: 800; margin-top: 2px; }
+.reset-override-btn { display: inline-flex; align-items: center; margin-top: 4px; padding: 2px 8px; border: 1px solid #c6d4e8; border-radius: 999px; background: #fff; color: #23466f; font-size: 10px; font-weight: 900; cursor: pointer; }
 .action-btn { min-height: 36px; border: 1px solid transparent; border-radius: 8px; padding: 8px 12px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 900; cursor: pointer; text-decoration: none; }
 .action-btn-primary { background: #0a4ea3; color: #fff; }
 .action-btn-secondary { border-color: #c6d4e8; background: #fff; color: #1f2737; }
 .action-btn:disabled { opacity: .55; cursor: not-allowed; }
+.error-banner > span, .notice-banner > span, .management-target-banner > span { min-width: 0; }
+.permission-check label { cursor: pointer; display: block; }
+.override-summary { margin: 0; color: #48607f; font-size: 13px; font-weight: 800; }
+.override-hint { margin: 0; color: #60728c; font-size: 12px; }
+.config-nav-link:focus-visible, .role-tab:focus-visible, .role-mode-tab:focus-visible, .action-btn:focus-visible,
+.reset-override-btn:focus-visible, .permission-group summary:focus-visible, .permission-check input:focus-visible,
+.field select:focus-visible { outline: 3px solid #0a4ea3; outline-offset: 2px; }
 @media (max-width: 1050px) { .permissions-shell, .permission-list { grid-template-columns: 1fr; } }
 </style>
 {% endblock %}
@@ -54,10 +68,10 @@
 {% block content %}
 <section class="permissions-page">
     {% if error_message %}
-    <div class="error-banner">{{ icon("warning", "icon") }} {{ error_message }}</div>
+    <div class="error-banner" role="alert">{{ icon("warning", "icon") }} <span>{{ error_message }}</span></div>
     {% endif %}
     {% if notice_message %}
-    <div class="notice-banner">{{ icon("check-circle", "icon") }} {{ notice_message }}</div>
+    <div class="notice-banner" role="status">{{ icon("check-circle", "icon") }} <span>{{ notice_message }}</span></div>
     {% endif %}
 
     <nav class="config-nav" aria-label="Configuration modules">
@@ -68,48 +82,35 @@
         {% endfor %}
     </nav>
 
+    <nav class="role-mode-tabs" aria-label="Role Permissions mode">
+        <a class="role-mode-tab {% if role_permissions_mode == 'packages' %}is-active{% endif %}"
+           {% if role_permissions_mode == 'packages' %}aria-current="page"{% endif %}
+           href="/system-configuration/role-permissions?mode=packages&role={{ selected_permission_role | urlencode }}">
+            {{ icon("shield", "icon") }} Role Packages
+        </a>
+        <a class="role-mode-tab {% if role_permissions_mode == 'overrides' %}is-active{% endif %}"
+           {% if role_permissions_mode == 'overrides' %}aria-current="page"{% endif %}
+           href="/system-configuration/role-permissions?mode=overrides&role={{ selected_permission_role | urlencode }}{% if selected_permission_school_group_id %}&school_group_id={{ selected_permission_school_group_id }}{% endif %}">
+            {{ icon("school", "icon") }} School Overrides
+        </a>
+    </nav>
+
+    {% if role_permissions_mode == 'packages' %}
+    {# ---------- Role Packages: standard/global editor. No SchoolGroup, no tenant name. ---------- #}
     <section class="permissions-shell">
         <aside class="permission-card permission-side">
             <div>
                 <h2>Role Packages</h2>
-                <p>Choose a role, review access, and save its permission package.</p>
+                <p>Choose a standard role and review or edit its global permission package. This package applies to every school unless a School Override is configured.</p>
             </div>
 
             <nav class="role-tabs" aria-label="Roles">
                 {% for role_item in managed_roles %}
-                    {% if role_item in editable_roles or role_item == selected_permission_role %}
-                    <a class="role-tab {% if role_item == selected_permission_role %}is-active{% endif %}" href="/system-configuration/role-permissions?role={{ role_item | urlencode }}{% if selected_permission_scope == 'global' %}&scope=global{% elif selected_permission_school_group_id %}&school_group_id={{ selected_permission_school_group_id }}{% endif %}">
-                        {{ icon("shield", "icon") }} {{ role_item }}
-                    </a>
-                    {% endif %}
+                <a class="role-tab {% if role_item == selected_permission_role %}is-active{% endif %}" {% if role_item == selected_permission_role %}aria-current="page"{% endif %} href="/system-configuration/role-permissions?mode=packages&role={{ role_item | urlencode }}">
+                    {{ icon("shield", "icon") }} {{ role_item }}
+                </a>
                 {% endfor %}
             </nav>
-
-            <form class="scope-form" method="get" action="/system-configuration/role-permissions">
-                <input type="hidden" name="role" value="{{ selected_permission_role }}">
-                {% if can_manage_all_role_permissions %}
-                <div class="field">
-                    <label for="scope">Permission Scope</label>
-                    <select id="scope" name="scope" onchange="this.form.submit()">
-                        <option value="global" {% if selected_permission_scope == 'global' %}selected{% endif %}>Global defaults</option>
-                        <option value="school" {% if selected_permission_scope == 'school' %}selected{% endif %}>Selected school</option>
-                    </select>
-                </div>
-                <div class="field">
-                    <label for="school_group_id">School</label>
-                    <select id="school_group_id" name="school_group_id" onchange="this.form.submit()" {% if selected_permission_scope == 'global' %}disabled{% endif %}>
-                        {% for school in role_permission_school_groups %}
-                        <option value="{{ school.id }}" {% if selected_permission_school_group_id == school.id %}selected{% endif %}>{{ school.name }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                {% elif selected_permission_school_group %}
-                <div class="summary-row">
-                    <strong>{{ selected_permission_school_group.name }}</strong>
-                    <span>School permission scope</span>
-                </div>
-                {% endif %}
-            </form>
 
             <div class="summary-grid">
                 {% for role_item, summary in role_permission_summary_map.items() %}
@@ -125,25 +126,25 @@
         <main class="permission-card permission-main">
             <div class="permission-main-head">
                 <div>
-                    <h2>{{ selected_permission_role }} Permissions</h2>
-                    <p>{% if selected_permission_scope == 'global' %}Global default package used when no school override exists.{% else %}School-specific package{% if selected_permission_school_group %} for {{ selected_permission_school_group.name }}{% endif %}.{% endif %}</p>
+                    <h2>{{ selected_permission_role }} — Standard Role Package</h2>
+                    <p>Global default package used by every school unless a School Override exists.</p>
                 </div>
                 <span class="permission-status">{{ role_permission_payload.allowed_count }} / {{ role_permission_payload.total_count }} enabled</span>
             </div>
 
-            <div class="notice-banner">{{ icon("shield", "icon") }} Platform-only permissions (developer and owner controls) are shown as locked and can never be assigned to tenant roles. A permission marked "On by default" is granted by the built-in role package or a broader scope and will remain effective unless you uncheck and save it to record a local denial here.</div>
+            {% if not can_manage_all_role_permissions %}
+            <div class="notice-banner">{{ icon("shield", "icon") }} <span>Standard Role Packages are managed by the Platform Owner only. This view is read-only for your account.</span></div>
+            {% endif %}
+            <div class="notice-banner">{{ icon("shield", "icon") }} <span>Platform-only permissions (developer and owner controls) are shown as locked and can never be assigned to standard roles.</span></div>
 
             <form method="post" action="/system-configuration/role-permissions">
                 <input type="hidden" name="role" value="{{ selected_permission_role }}">
-                <input type="hidden" name="scope_type" value="{{ selected_permission_scope }}">
-                {% if selected_permission_school_group_id %}
-                <input type="hidden" name="school_group_id" value="{{ selected_permission_school_group_id }}">
-                {% endif %}
+                <input type="hidden" name="mode" value="packages">
 
                 <div class="permission-actions">
                     <button class="action-btn action-btn-secondary" type="button" data-permission-select-all {% if not can_edit_selected_role_permissions %}disabled{% endif %}>Select All</button>
                     <button class="action-btn action-btn-secondary" type="button" data-permission-clear-all {% if not can_edit_selected_role_permissions %}disabled{% endif %}>Clear All</button>
-                    <button class="action-btn action-btn-primary" type="submit" {% if not can_edit_selected_role_permissions %}disabled{% endif %}>{{ icon("save", "icon") }} Save Permissions</button>
+                    <button class="action-btn action-btn-primary" type="submit" {% if not can_edit_selected_role_permissions %}disabled{% endif %}>{{ icon("save", "icon") }} Save Role Package</button>
                 </div>
 
                 <section class="permission-groups">
@@ -155,15 +156,13 @@
                         </summary>
                         <div class="permission-list">
                             {% for permission in group.permissions %}
-                            <label class="permission-check {% if permission.platform_only %}is-developer-only{% elif permission.inherited %}is-inherited{% endif %}">
-                                <input type="checkbox" name="permission_keys" value="{{ permission.key }}" {% if permission.allowed %}checked{% endif %} {% if not can_edit_selected_role_permissions or not permission.assignable %}disabled{% endif %}>
+                            <label class="permission-check {% if permission.platform_only %}is-developer-only{% endif %}" for="pkg-{{ permission.key }}">
+                                <input type="checkbox" id="pkg-{{ permission.key }}" name="permission_keys" value="{{ permission.key }}" {% if permission.allowed %}checked{% endif %} {% if not can_edit_selected_role_permissions or not permission.assignable %}disabled{% endif %}>
                                 <span>
                                     {{ permission.label }}
                                     <small>{{ permission.key }}</small>
                                     {% if permission.platform_only %}
                                     <b class="developer-only-badge">Platform only</b>
-                                    {% elif permission.inherited %}
-                                    <b class="inherited-badge">On by {{ "global default" if permission.source == "global" else "default" }}</b>
                                     {% endif %}
                                 </span>
                             </label>
@@ -175,6 +174,142 @@
             </form>
         </main>
     </section>
+
+    {% else %}
+    {# ---------- School Overrides: manage one SchoolGroup's tenant-level override layer. ---------- #}
+    {% set ovr = namespace(count=0) %}
+    {% for group in role_permission_payload.groups %}{% for permission in group.permissions %}{% if permission.has_override %}{% set ovr.count = ovr.count + 1 %}{% endif %}{% endfor %}{% endfor %}
+    <section class="permissions-shell">
+        <aside class="permission-card permission-side">
+            <div>
+                <h2>School Overrides</h2>
+                <p>Manage a SchoolGroup's own permission overrides on top of the Standard Role Package. Selecting a school here only sets the management target below - it never changes your own account, session, or organization.</p>
+            </div>
+
+            <nav class="role-tabs" aria-label="Roles">
+                {% for role_item in managed_roles %}
+                <a class="role-tab {% if role_item == selected_permission_role %}is-active{% endif %}" {% if role_item == selected_permission_role %}aria-current="page"{% endif %} href="/system-configuration/role-permissions?mode=overrides&role={{ role_item | urlencode }}{% if selected_permission_school_group_id %}&school_group_id={{ selected_permission_school_group_id }}{% endif %}">
+                    {{ icon("shield", "icon") }} {{ role_item }}
+                </a>
+                {% endfor %}
+            </nav>
+
+            <form class="scope-form" method="get" action="/system-configuration/role-permissions">
+                <input type="hidden" name="mode" value="overrides">
+                <input type="hidden" name="role" value="{{ selected_permission_role }}">
+                {% if can_manage_all_role_permissions %}
+                <div class="field">
+                    <label for="school_group_id">Managing School (management target only)</label>
+                    <select id="school_group_id" name="school_group_id">
+                        <option value="" {% if not selected_permission_school_group_id %}selected{% endif %}>Select a school...</option>
+                        {% for school in role_permission_school_groups %}
+                        <option value="{{ school.id }}" {% if selected_permission_school_group_id == school.id %}selected{% endif %}>{{ school.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button class="action-btn action-btn-secondary" type="submit">Review this school's overrides</button>
+                {% elif selected_permission_school_group %}
+                <div class="summary-row">
+                    <strong>{{ selected_permission_school_group.name }}</strong>
+                    <span>Your authorized School Override scope</span>
+                </div>
+                {% endif %}
+            </form>
+        </aside>
+
+        <main class="permission-card permission-main">
+            {% if not selected_permission_school_group %}
+            <div class="permission-main-head">
+                <div>
+                    <h2>{{ selected_permission_role }} — School Overrides</h2>
+                    <p>Comparing the Standard Role Package against a school's own overrides.</p>
+                </div>
+            </div>
+            <div class="notice-banner">{{ icon("shield", "icon") }} <span>Choose a school under "Managing School", then select "Review this school's overrides". No school is pre-selected, and nothing changes until you save.</span></div>
+            {% else %}
+            <div class="permission-main-head">
+                <div>
+                    <h2>{{ selected_permission_role }} — School Overrides</h2>
+                    <p>Comparing the Standard Role Package against this school's own overrides.</p>
+                </div>
+                <span class="permission-status">{{ role_permission_payload.allowed_count }} / {{ role_permission_payload.total_count }} effective</span>
+            </div>
+
+            <div class="management-target-banner">
+                {{ icon("school", "icon") }}
+                <span>Managing School: <strong>{{ selected_permission_school_group.name }}</strong> · Role: <strong>{{ selected_permission_role }}</strong>
+                — this is the management target only, not your own account context.</span>
+            </div>
+
+            <p class="override-summary">
+                {% if ovr.count == 0 %}
+                No School-specific override. Using Standard Role Package.
+                {% else %}
+                {{ ovr.count }} School override{{ "s" if ovr.count != 1 else "" }} for this role. Every other permission follows the Standard Role Package.
+                {% endif %}
+            </p>
+
+            {% if not can_edit_selected_role_permissions %}
+            <div class="notice-banner">{{ icon("shield", "icon") }} <span>You do not have authority to edit overrides for this school. This view is read-only.</span></div>
+            {% endif %}
+
+            <form method="post" action="/system-configuration/role-permissions">
+                <input type="hidden" name="role" value="{{ selected_permission_role }}">
+                <input type="hidden" name="mode" value="overrides">
+                <input type="hidden" name="school_group_id" value="{{ selected_permission_school_group_id }}">
+
+                {# No Select All / Clear All here: School Overrides must stay sparse, intentional differences from the Standard Role Package. #}
+                <div class="permission-actions">
+                    <button class="action-btn action-btn-primary" type="submit" {% if not can_edit_selected_role_permissions %}disabled{% endif %}>{{ icon("save", "icon") }} Save School Overrides</button>
+                </div>
+                {% if can_edit_selected_role_permissions and ovr.count %}
+                <p class="override-hint">"Reset to standard" sets that permission back to the Standard Role Package value. Choose "Save School Overrides" to apply it.</p>
+                {% endif %}
+
+                <section class="permission-groups">
+                    {% for group in role_permission_payload.groups %}
+                    {% set grp = namespace(has_override=false) %}
+                    {% for permission in group.permissions %}{% if permission.has_override %}{% set grp.has_override = true %}{% endif %}{% endfor %}
+                    <details class="permission-group"{% if grp.has_override %} open{% endif %}>
+                        <summary>
+                            <h3>{{ group.label }}</h3>
+                            <span class="permission-group-count">{{ group.allowed_count }} / {{ group.total_count }}</span>
+                        </summary>
+                        <div class="permission-list">
+                            {% for permission in group.permissions %}
+                            <div class="permission-check {% if permission.platform_only %}is-developer-only{% elif permission.has_override %}has-override{% else %}is-inherited{% endif %}">
+                                <input type="checkbox"
+                                       id="ovr-{{ permission.key }}"
+                                       name="permission_keys"
+                                       value="{{ permission.key }}"
+                                       data-standard-allowed="{{ 'true' if permission.standard_allowed else 'false' }}"
+                                       {% if permission.allowed %}checked{% endif %}
+                                       {% if not can_edit_selected_role_permissions or not permission.assignable %}disabled{% endif %}>
+                                <span>
+                                    <label for="ovr-{{ permission.key }}">{{ permission.label }}<small>{{ permission.key }}</small></label>
+                                    {% if permission.platform_only %}
+                                    <b class="developer-only-badge">Platform only</b>
+                                    {% elif permission.has_override %}
+                                    <b class="override-badge">School Override: {{ "Allow" if permission.override_allowed else "Deny" }}</b>
+                                    <span class="permission-comparison">Standard Role Package: {{ "Allow" if permission.standard_allowed else "Deny" }} / Effective: {{ "Allow" if permission.effective_allowed else "Deny" }}</span>
+                                    {% if can_edit_selected_role_permissions and permission.assignable %}
+                                    <button type="button" class="reset-override-btn" data-reset-override data-target="ovr-{{ permission.key }}" aria-label="Reset {{ permission.label }} to Standard Role Package">Reset to standard</button>
+                                    {% endif %}
+                                    {% else %}
+                                    <b class="standard-badge">Using Standard Role Package ({{ "Allow" if permission.standard_allowed else "Deny" }})</b>
+                                    {% endif %}
+                                </span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% endfor %}
+                </section>
+            </form>
+            {% endif %}
+        </main>
+    </section>
+    {% endif %}
 </section>
 {% endblock %}
 
@@ -203,6 +338,17 @@
             });
         });
     }
+
+    Array.from(document.querySelectorAll("[data-reset-override]")).forEach((button) => {
+        button.addEventListener("click", () => {
+            const targetId = button.getAttribute("data-target");
+            const target = targetId ? document.getElementById(targetId) : null;
+            if (!target || target.disabled) {
+                return;
+            }
+            target.checked = target.getAttribute("data-standard-allowed") === "true";
+        });
+    });
 })();
 </script>
 {% endblock %}

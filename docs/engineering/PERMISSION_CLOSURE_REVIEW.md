@@ -1,11 +1,43 @@
 ---
 title: Independent Permission Closure Review
-documentation_version: 1.2
-last_updated: 2026-09-18
+documentation_version: 1.3
+last_updated: 2026-09-19
 module: architecture
 ---
 
 # Independent Permission Closure Review
+
+## Role Permissions UI — Role Packages / School Overrides Split (Phase 1)
+
+The live Owner reproduction below (Dashboard Tab/Panel Permission-Gate
+Closure) surfaced the underlying Role Permissions UI defect this Phase 1
+pass corrects: the combined editor's single "Permission Scope: Global
+defaults / Selected school" dropdown made a real tenant Deny override
+(built-in Allow, global override none, tenant override Deny, effective Deny)
+visually indistinguishable from the Global default Allow, and the Platform
+Owner UI displayed the selected tenant's name even while "Global defaults"
+was selected. `/system-configuration/role-permissions` now serves two
+explicit modes (`mode=packages`, `mode=overrides`) reusing the unchanged
+`role_permission_service.py` resolver; School Overrides always labels its
+SchoolGroup selector as a management target, never as Platform Owner actor
+context, and read-only viewing never creates a tenant `RolePermission` row.
+An Owner-review pass over the running application (real browser rendering plus
+a live save/reset round trip on a throwaway database, never `tis.db`) further
+required: a Platform Owner must explicitly choose the School Overrides
+management target (no school is pre-selected); groups holding a School
+override open by default with an override count; and corrected accessibility
+semantics (`aria-current` navigation, no static `aria-expanded`, the Reset
+button kept out of the checkbox `<label>`, single-element banner text,
+explicit focus outlines). The live round trip confirmed the incident's
+resolution path: a tenant Administrator's fresh `GET /subjects` was denied
+while the tenant Deny override existed, allowed after "Reset to standard" +
+Save removed it, and denied again on re-deny, with no global row touched and a
+tenant actor unable to save Role Packages or another school's override.
+See `docs/PROJECT_STATE.md` for full detail and
+`tests/test_role_permissions_ui_split.py` for the regression matrix,
+including a constructed Al-Andalus-style fixture. This is a UI/route
+structural correction only; ADR 0040's precedence chain is unchanged and no
+permission data was read or mutated on any production row.
 
 ## Dashboard Tab/Panel Permission-Gate Closure (Live Owner Reproduction)
 

@@ -68,7 +68,7 @@ def _user(db, school, branch, *, user_id="1001", role=ADMIN):
     return user
 
 
-def _request(path, user, method="GET"):
+def _request(path, user, method="GET", query=""):
     headers = [(b"host", b"testserver")]
     token = auth.create_session_token(user)
     cookie = "; ".join(
@@ -84,7 +84,7 @@ def _request(path, user, method="GET"):
         "method": method,
         "path": path,
         "raw_path": path.encode("utf-8"),
-        "query_string": b"",
+        "query_string": query.encode("utf-8"),
         "headers": headers,
         "scheme": "http",
         "server": ("testserver", 80),
@@ -120,11 +120,11 @@ def _grant(db, *, role=ADMIN, keys, school_group_id, allow=True):
     db.commit()
 
 
-def _update(db, request, *, role, keys, school_group_id=None, scope_type="school"):
+def _update(db, request, *, role, keys, school_group_id=None, mode="overrides"):
     return main.update_role_permissions(
         request,
         role=role,
-        scope_type=scope_type,
+        mode=mode,
         school_group_id=school_group_id,
         permission_keys=sorted(keys),
         db=db,
@@ -224,18 +224,23 @@ def test_revoke_default_grant_reappears_as_unchecked_on_rerender():
         school = _school(db)
         user = _user(db, school, _branch(db, school))
         req = _request("/system-configuration/role-permissions", user)
+        overrides_req = _request(
+            "/system-configuration/role-permissions",
+            user,
+            query=f"mode=overrides&school_group_id={school.id}",
+        )
         before = _allowed(db, ADMIN, school.id)
 
         _update(db, req, role=ADMIN, keys=before - {P}, school_group_id=school.id)
 
-        payload = main._build_role_permissions_context(req, db, user)["role_permission_payload"]
+        payload = main._build_role_permissions_context(overrides_req, db, user)["role_permission_payload"]
         item = _item(payload, P)
         assert item["allowed"] is False
         assert item["direct"] is False
         assert item["inherited"] is False
 
         _update(db, req, role=ADMIN, keys=before, school_group_id=school.id)
-        payload = main._build_role_permissions_context(req, db, user)["role_permission_payload"]
+        payload = main._build_role_permissions_context(overrides_req, db, user)["role_permission_payload"]
         item = _item(payload, P)
         assert item["allowed"] is True
         assert item["direct"] is False
@@ -351,7 +356,7 @@ def test_invalid_role_returns_error_redirect():
         school = _school(db)
         req = _request("/system-configuration/role-permissions", _user(db, school, _branch(db, school)))
         resp = main.update_role_permissions(
-            req, role="Bogus Role", scope_type="school", school_group_id=school.id,
+            req, role="Bogus Role", mode="overrides", school_group_id=school.id,
             permission_keys=[], db=db,
         )
         assert getattr(resp, "status_code", None) == 302

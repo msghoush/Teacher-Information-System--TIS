@@ -1,11 +1,97 @@
 ---
 title: TIS Project State
-documentation_version: 5.3
-last_updated: 2026-09-18
+documentation_version: 5.4
+last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Role Permissions UI — Role Packages / School Overrides Split (Phase 1)
+
+A live Owner reproduction proved a real incident on the prior combined Role
+Permissions editor: for a real tenant, Administrator -> subjects.view
+appeared Allow while "Global defaults" was selected in the single
+"Permission Scope: Global defaults / Selected school" dropdown, while that
+same tenant's actual Administrator effective permission was Deny (built-in
+default = Allow, global `RolePermission` override = none, tenant
+`RolePermission` override = Deny, per-user override = Inherit, final
+effective = Deny per ADR 0040's precedence). The Platform Owner UI
+simultaneously showed the tenant's name even while "Global defaults" was
+selected, creating the visual impression the Platform Owner belonged to that
+tenant. Root cause was purely presentation/IA: one screen mixed the global
+default layer, the tenant override layer, and Platform Owner context behind
+one ambiguous dropdown, even though `role_permission_service.py`'s resolver
+(built-in -> global `RolePermission` -> tenant `RolePermission`, unchanged by
+this pass) was already correct.
+
+`/system-configuration/role-permissions` (GET/POST, unchanged path) now
+serves two explicit modes selected by `?mode=packages` (default) and
+`?mode=overrides`, both still backed by the same
+`role_permission_service.py` resolver/writer - no second resolver was
+created. **Role Packages** (`mode=packages`) edits only the standard/global
+role layer: no SchoolGroup selector, no tenant name, and no Platform Owner
+tenant context appear anywhere on it; editing is restricted to actors holding
+`system_owner.manage_global_role_permissions` (Platform Owner today), and a
+tenant actor sees the same standard package read-only. **School Overrides**
+(`mode=overrides`) is the only place a SchoolGroup appears, always labeled as
+an explicit management target ("Managing School: <name> ... management
+target only, not your own account context"), never as if the Platform Owner
+belongs to that school; a Platform Owner must explicitly choose which
+SchoolGroup to manage (no school is ever pre-selected on their behalf: with
+none chosen the page shows a prompt and no editable form, and the choice is
+submitted with an explicit "Review this school's overrides" button rather
+than auto-submitting on change), while a tenant actor is silently locked to their own authorized SchoolGroup
+even if a foreign `school_group_id` is supplied in the query string or POST
+body (POST additionally hard-rejects a foreign `school_group_id` with a
+redirect, matching the pre-existing cross-tenant boundary). Per permission,
+School Overrides shows Standard Role Package value, this school's own
+override (or "Using Standard Role Package" when none exists), and the
+Effective value, via a new read-only `role_permission_service.
+build_school_override_payload`. A "Reset to standard" control is UI-only: it
+sets the checkbox back to the Standard Role Package value before Save, which
+the pre-existing `apply_role_permission_overrides` diff-against-baseline
+write path already turns into a clean row delete (no new backend removal
+semantics were invented). Viewing School Overrides never writes a tenant
+`RolePermission` row (no side effect on GET). So a real override is legible at
+a glance, School Overrides states how many School overrides the selected role
+has ("No School-specific override. Using Standard Role Package." when none),
+opens by default only the permission groups that contain an override, and
+tells the editor that "Reset to standard" still requires "Save School
+Overrides". School Overrides deliberately has no "Select All" / "Clear All"
+(Role Packages keeps them): a School override must stay a sparse, intentional
+difference from the Standard Role Package, because bulk select/clear would
+write a large explicit tenant policy and make later Standard Role Package
+changes ineffective for that school; per-permission "Reset to standard" is
+the only reset in Phase 1 (no bulk "Reset All"). Accessibility
+(template-source and real-browser verified, no
+automation framework exists in this repo): the Role Packages / School
+Overrides links are page-navigation links marked `aria-current="page"` (not
+`role="tab"`, which would promise unimplemented arrow-key tab behavior);
+permission groups rely on native `<details>`/`<summary>` semantics with no
+manual `aria-expanded` (which would drift from the real open/closed state);
+each School Override row keeps its checkbox label separate from the "Reset to
+standard" button (a button nested in a `<label>` is invalid and pollutes the
+checkbox's accessible name); banner text is a single element so it wraps as
+one sentence; and links, buttons, summaries, the school selector and
+checkboxes have an explicit `:focus-visible` outline.
+
+Platform Owner context is unchanged and re-verified: `School`, `Branch`, and
+`Academic Year` remain unassigned/`None` for a Platform Owner
+(`auth.get_user_school_group_id` already returns `None` unconditionally for
+any platform user), and selecting a SchoolGroup as a School Overrides
+management target does not write to the Platform Owner's own user row,
+session, or `scope_school_group_id`. This is Phase 1 structural correction
+only - User Exceptions (per-user overrides) redesign, the full cross-module
+permission-consumer audit, and the accessibility qualification matrix are
+explicitly deferred to later phases. No schema, migration, permission key,
+or precedence-rule change; `tis.db` is unmodified (hash verified unchanged).
+See `tests/test_role_permissions_ui_split.py` and the updated
+`tests/test_permission_management.py` (its `_update` helper's `scope_type`
+parameter is renamed `mode`, matching the route's new form field) for the
+complete regression matrix, including a constructed Al-Andalus-style fixture
+proving the exact incident scenario, tenant-isolation, and the Platform
+Owner identity-preservation proof.
 
 ## Dashboard Tab/Panel Permission-Gate Closure (Live Owner Reproduction)
 

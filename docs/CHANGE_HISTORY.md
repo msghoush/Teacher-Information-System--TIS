@@ -1,11 +1,50 @@
 ---
 title: TIS Change History
-documentation_version: 4.6
-last_updated: 2026-09-18
+documentation_version: 4.7
+last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-19 — Role Permissions UI split: Role Packages / School Overrides (Phase 1)
+
+Split the combined Role Permissions editor into two explicit modes on the
+same `/system-configuration/role-permissions` GET/POST route:
+`?mode=packages` (standard/global role editor - no SchoolGroup, no tenant
+name, no Platform Owner tenant context) and `?mode=overrides` (School
+Overrides - the only place a SchoolGroup appears, always as an explicit
+management target, never as actor/session context). Both modes reuse the
+existing `role_permission_service.py` resolver/writer unchanged; a new
+read-only `build_school_override_payload` adds the Standard/Override/
+Effective comparison for School Overrides. This closes a real incident where
+the old single "Permission Scope: Global defaults / Selected school"
+dropdown made a tenant's Deny override visually indistinguishable from the
+Global default, and the Platform Owner UI appeared to belong to whichever
+school was selected. Full detail in `docs/PROJECT_STATE.md`'s "Role
+Permissions UI — Role Packages / School Overrides Split (Phase 1)" entry.
+Owner-review refinements in the same change: a Platform Owner must explicitly
+pick the School Overrides management target (no school pre-selected, explicit
+"Review" button instead of auto-submit), groups containing a School override
+open by default with an override count, and corrected ARIA/focus/markup
+(`aria-current` navigation, no static `aria-expanded`, Reset button outside
+the checkbox label, single-element banner text). School Overrides also drops
+"Select All" / "Clear All" (kept in Role Packages) so overrides stay sparse
+differences from the Standard Role Package; per-permission "Reset to
+standard" remains the only reset in Phase 1.
+
+Files changed: `main.py` (`_build_role_packages_context`,
+`_build_school_overrides_context` replace the single
+`_build_role_permissions_context` scope-dropdown logic; `POST` now takes a
+`mode` form field instead of `scope_type`), `role_permission_service.py`
+(new `build_school_override_payload`), `templates/
+system_configuration_role_permissions.html` (mode tabs, two distinct panels,
+Standard/Override/Effective comparison rows, "Reset to standard" control),
+`tests/test_permission_management.py` (`_update` helper's `scope_type`
+renamed `mode`; two GET-context assertions now request `mode=overrides`
+explicitly), and new `tests/test_role_permissions_ui_split.py`. No schema,
+migration, new permission key, or precedence-rule change; `tis.db`
+unmodified (hash verified unchanged before/after).
 
 ## 2026-09-18 — PR #360 review-response corrective pass
 

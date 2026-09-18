@@ -253,6 +253,80 @@ def apply_role_permission_overrides(
         )
 
 
+def build_school_override_payload(
+    db: Session,
+    role: str,
+    school_group_id: int,
+) -> dict:
+    """Build the School Overrides comparison payload for one role/tenant.
+
+    For every permission key, reports the Standard Role Package value
+    (built-in default + global ``RolePermission`` override, i.e. the exact
+    same value Role Packages mode edits), whether this SchoolGroup has its
+    own direct override row for that key and what it says, and the final
+    Effective value (Standard Role Package -> tenant override -> per-user
+    override precedence stops at the tenant layer here; per-user overrides
+    are out of Phase 1 scope). This performs read-only queries only - it
+    never creates a tenant ``RolePermission`` row merely by being called.
+    """
+    normalized_role = permission_registry.normalize_managed_role(role)
+    if not normalized_role or not school_group_id:
+        return permission_registry.build_role_permission_payload(role, set(), {})
+
+    standard_keys = get_allowed_permission_keys(db, normalized_role, None)
+    effective_keys = get_allowed_permission_keys(db, normalized_role, school_group_id)
+
+    tenant_override_by_key: dict[str, bool] = {}
+    for row in get_role_permission_rows(db, normalized_role, school_group_id):
+        if row.permission_key not in permission_registry.PERMISSION_LABELS:
+            continue
+        tenant_override_by_key[row.permission_key] = bool(row.is_allowed)
+
+    details: dict[str, dict] = {}
+    for key in permission_registry.ALL_PERMISSION_KEYS:
+        standard = key in standard_keys
+        has_override = key in tenant_override_by_key
+        override_allowed = tenant_override_by_key.get(key)
+        effective = key in effective_keys
+        # "direct" mirrors resolve_permission_details' existing convention:
+        # true only for an explicit ALLOW override recorded at this scope.
+        # An explicit DENY override is "denied", not "direct", and never
+        # "inherited" either, matching the pre-existing UI/test contract.
+        direct = bool(has_override and override_allowed)
+        if has_override:
+            source = "school" if override_allowed else "denied"
+        else:
+            source = "default"
+        details[key] = {
+            "allowed": effective,
+            "direct": direct,
+            "inherited": bool(effective and not direct),
+            "source": source,
+            "standard_allowed": standard,
+            "has_override": has_override,
+            "override_allowed": override_allowed,
+            "effective_allowed": effective,
+            "is_using_standard": not has_override,
+            "differs_from_standard": has_override and override_allowed != standard,
+        }
+
+    payload = permission_registry.build_role_permission_payload(
+        normalized_role,
+        effective_keys,
+        details,
+    )
+    for group in payload["groups"]:
+        for permission in group["permissions"]:
+            detail = details.get(permission["key"], {})
+            permission["standard_allowed"] = detail.get("standard_allowed", False)
+            permission["has_override"] = detail.get("has_override", False)
+            permission["override_allowed"] = detail.get("override_allowed")
+            permission["effective_allowed"] = detail.get("effective_allowed", False)
+            permission["is_using_standard"] = detail.get("is_using_standard", True)
+            permission["differs_from_standard"] = detail.get("differs_from_standard", False)
+    return payload
+
+
 def seed_global_role_permissions(db: Session, *, updated_by_user_id: str = "system"):
     for role in permission_registry.MANAGED_ROLES:
         if get_role_permission_rows(db, role, None):

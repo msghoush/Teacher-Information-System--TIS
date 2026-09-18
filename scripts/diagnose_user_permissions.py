@@ -2,7 +2,10 @@
 
 Reuses the canonical permission services (``role_permission_service``,
 ``user_permission_service``, ``auth.get_allowed_permission_keys``) end to
-end for one account and one permission key. It never writes any database
+end for one account and one permission key. Identity is resolved through
+the same canonical resolver used by login (``auth.resolve_login_user``),
+so the account this script inspects always matches the account that would
+actually authenticate for that identifier -- it never writes any database
 row, never duplicates permission-resolution logic, and never prints
 password hashes, tokens, secrets, or the ``DATABASE_URL``/connection
 string -- including on database-connectivity failure paths.
@@ -13,7 +16,7 @@ whichever database your environment's ``DATABASE_URL`` points to (local
 SQLite fallback, or a real Postgres instance) -- it never overrides that
 value itself.
 
-Usage:
+Usage (works as a direct invocation; no PYTHONPATH=. required):
     python scripts/diagnose_user_permissions.py --email someone@example.com --permission-key subjects.view
 """
 
@@ -21,6 +24,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
 import auth
 import models
@@ -130,7 +139,11 @@ def _trace_permission_key(db, user, normalized_role, school_group_id, permission
 def diagnose(db, *, email: str, permission_key: str) -> dict:
     email = str(email or "").strip()
     permission_key = str(permission_key or "").strip()
-    user = db.query(models.User).filter(models.User.email == email).first()
+    # Resolve identity through the same canonical resolver used by login
+    # (auth.resolve_login_user) rather than a direct models.User.email
+    # equality lookup, so diagnostics match runtime authentication exactly
+    # (e.g. normalized-email matching, not raw case-sensitive email column).
+    user = auth.resolve_login_user(db, email)
     if user is None:
         return {
             "status": "not_found",
