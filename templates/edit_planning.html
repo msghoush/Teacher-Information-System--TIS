@@ -444,7 +444,7 @@
                 </div>
                 <div class="field">
                     <label for="homeroom_teacher_id">Homeroom Teacher (Optional)</label>
-                    <select id="homeroom_teacher_id" name="homeroom_teacher_id">
+                    <select id="homeroom_teacher_id" name="homeroom_teacher_id" {% if not can("planning.manage_homeroom") %}disabled{% endif %}>
                         <option value="">Not Assigned</option>
                         {% for teacher in teacher_choices %}
                         <option value="{{ teacher.id }}" {% if form_data.homeroom_teacher_id|string == teacher.id|string %}selected{% endif %}>{{ teacher.label }}</option>
@@ -485,7 +485,7 @@
                         <div id="assignmentRows" class="assignment-grid">
                             {% for item in section_assignment_rows %}
                             <div class="assignment-row">
-                                <input type="hidden" name="assignment_subject_codes" value="{{ item.subject_code }}">
+                                <input type="hidden" name="assignment_subject_codes" value="{{ item.subject_code }}" {% if not can("planning.assign_teacher") %}disabled{% endif %}>
                                 <div class="assignment-subject">
                                     <strong>{{ item.subject_code }} - {{ item.subject_name }}</strong>
                                     <small>{{ item.weekly_hours }} hours/week for this section</small>
@@ -496,6 +496,7 @@
                                         id="assignment_{{ item.subject_code }}"
                                         name="assignment_teacher_ids"
                                         data-subject-code="{{ item.subject_code }}"
+                                        {% if not can("planning.assign_teacher") %}disabled{% endif %}
                                     >
                                         <option value="">Not Assigned</option>
                                         {% for teacher in item.teacher_options %}
@@ -691,6 +692,7 @@ const gradeSelect = document.getElementById("grade_level");
                 const hiddenInput = document.createElement("input");
                 hiddenInput.type = "hidden";
                 hiddenInput.name = "assignment_subject_codes";
+                hiddenInput.disabled = {{ (not can("planning.assign_teacher")) | tojson }};
                 hiddenInput.value = subjectCode;
                 row.appendChild(hiddenInput);
 
@@ -718,6 +720,7 @@ const gradeSelect = document.getElementById("grade_level");
                 const select = document.createElement("select");
                 select.id = `assignment_${subjectCode}`;
                 select.name = "assignment_teacher_ids";
+                select.disabled = {{ (not can("planning.assign_teacher")) | tojson }};
                 select.dataset.subjectCode = subjectCode;
 
                 const emptyOption = document.createElement("option");

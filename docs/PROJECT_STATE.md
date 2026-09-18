@@ -1,11 +1,160 @@
 ---
 title: TIS Project State
-documentation_version: 5.0
-last_updated: 2026-09-14
+documentation_version: 5.2
+last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## PR #360 Review-Response Corrective Pass
+
+Two review findings on PR #360 were verified against the actual GitHub review
+comments/diff and corrected. `hiring_plan.export` previously gated only the
+literal `section=hiring` export request; `section=full` returns a report
+containing the same hiring-plan data (both professional-report builders emit
+the hiring-plan sheet/section for `full`) and was not gated, letting a caller
+retain the protected data despite a denied `hiring_plan.export`. The gate in
+`main._authorize_report_export` now covers every section whose payload
+includes hiring data. Separately, this branch's `.kms-impact.yml` had come to
+understate its own database impact: it claimed no migrations/schema changes
+even though the branch still carries the non-destructive migration
+`20260915_001_role_permission_logical_key_uniqueness` (see below); the
+declaration is corrected to describe the branch's full cumulative scope. A
+third item from the delegated task summary (SchoolGroup edit/delete/action
+authorization) was investigated and found to have no corresponding PR #360
+review comment and no SchoolGroup file in this PR's diff against
+`origin/dev`; no code change was made for it. Full detail in
+[the closure review](engineering/PERMISSION_CLOSURE_REVIEW.md#pr-360-review-response-corrective-pass).
+
+## 22-Key Permission Registry Closure
+
+All 22 permission keys left unclassified by the independent review below have
+been individually traced against the implemented product and resolved: nine
+now have dedicated server-side enforcement aligned with their UI
+(`dashboard.view_branch_summary`, `dashboard.view_reports`,
+`dashboard.export_reports`, `hiring_plan.export`, `observations.view_reports`,
+`observations.sign_evaluator`, `configuration.view_audit_log`), three are
+explicit, documented aliases of an already-enforced capability rather than a
+second independently-built gate (`observations.submit`,
+`system_owner.manage_developer_accounts`,
+`system_owner.view_cross_school_audit` /
+`system_owner.export_cross_school_data`), nine are classified dormant/reserved
+because no implementation exists and no UI implies otherwise (`reports.view`,
+`teachers.import`, `teachers.export`, `subjects.manage_colors`,
+`observations.manage_templates`, `configuration.manage_global_defaults`,
+`system_owner.manage_subscriptions`, `system_owner.create_subscription_school`,
+`system_owner.run_startup_repairs`), and one genuine registry/implementation
+conflict was resolved fail-closed (`configuration.view_audit_log` moved to
+platform-only rather than exposing the global, non-tenant-filtered audit log
+to tenant administrators). Full per-key reasoning is in
+[the closure review](engineering/PERMISSION_CLOSURE_REVIEW.md). This 22-key
+closure pass itself introduced no new permission keys, migrations, or schema
+changes; ADR 0040 is unchanged. (The branch/PR as a whole still carries the
+earlier `20260915_001_role_permission_logical_key_uniqueness` migration
+described below and in the PR #360 corrective-pass note above.)
+
+## Independent Permission Closure Review — Not Yet Whole-System Approval
+
+Independent review of the permission-closure branch found additional bypasses:
+notification detail auto-marked messages read despite a dedicated Deny;
+inactive platform identities retained helper capabilities; platform Developer
+role choices bypassed `users.assign_role`; teacher bulk deletion used the
+single-delete key; and teacher/planning edit forms could mutate protected
+fields under broader edit grants. Corrective guards now use canonical effective
+permissions, reject unauthorized field changes, preserve omitted read-only
+values, and project the dedicated capabilities to their forms.
+The canonical tenant resolver also fails closed for absent/contradictory
+ownership or foreign selected/explicit permission evaluation scope.
+
+The ten-family ON/OFF/ON evidence covers fresh persisted resolver reads,
+route-guard calls, and navigation projections, not complete authenticated HTTP
+round trips. The role-policy migration was independently exercised on disposable
+PostgreSQL as well as SQLite. Whole-system approval remains blocked pending
+classification/enforcement of unconsumed registry keys and the coverage gaps
+recorded in [the independent review](engineering/PERMISSION_CLOSURE_REVIEW.md).
+No permission data cleanup, merge, or deployment is authorized by this review.
+
+## Permission Consistency Closure (Whole-Registry Pass)
+
+A reported `subjects.view` grant/revoke/re-grant regression was investigated
+and fixed as a whole permission-system defect rather than a Subjects-only
+issue. Root cause: `auth.get_allowed_permission_keys` (the canonical
+current-user effective-permission resolver) and several helper functions
+(`can_manage_system_settings`, `can_manage_users`, `can_modify_data`,
+`can_edit_data`, `can_delete_data`, `can_edit_user_accounts`,
+`can_delete_user_accounts`, `can_manage_target_user_account`) used
+request-independent caching (`user._permission_cache` and the now-removed
+`_has_cached_permission`/`_has_any_cached_permission`/
+`_has_cached_permission_prefix`/`get_user_permission_keys` helpers), so a
+role-permission toggle could remain stale on a retained user instance.
+Independent review does not establish historical production HTTP instance
+reuse. The attached result cache is removed (the shell still uses a canonical
+per-render snapshot); every one of those helpers now takes an
+explicit `db: Session` and resolves fresh through
+`has_permission`/`has_any_permission`/`get_allowed_permission_keys` on every
+call, matching ADR 0040's precedence chain (built-in role default -> global
+`RolePermission` override -> tenant `RolePermission` override -> per-user
+`UserPermissionOverride` -> effective permission, Deny-over-Allow).
+`can_manage_target_user_account` additionally now fails closed on an
+ambiguous (falsy) SchoolGroup comparison instead of defaulting to allow.
+
+Beyond the caching root cause, the full-registry audit found and fixed
+several independent stale/incorrect permission paths: `routers/users.py`'s
+role-creation and permission-management helpers; `routers/observations.py`'s
+create/edit/delete/unlock checks, plus a distinct sibling defect where
+holding only `observations.create_formal` or only
+`observations.create_non_formal` allowed creating *either* observation type
+(fixed with a new per-type `_can_create_observation_type` check reflected in
+`templates/observation_form.html`'s Type options); `main.py`'s System
+Configuration Qualifications create/update/delete routes, which were gated
+by entirely wrong permission keys (`branches.delete`,
+`academic_years.activate`, `academic_years.create`) instead of
+`configuration.manage_degrees`/`configuration.manage_specializations`;
+`update_branch`/`delete_branch` accepting a field change not covered by the
+caller's specific `branches.edit`/`branches.activate_deactivate` grant, plus
+missing SchoolGroup-scope boundary checks on `delete_branch`,
+`set_current_year`, and `open_new_academic_year` (the last of which now
+correctly requires both `academic_years.create` AND
+`academic_years.activate` rather than the coarse role-prefix
+`can_manage_system_settings` check); and notification mark-read/resolve/archive
+plus Branch/SchoolGroup logo upload/reset routes, which previously enforced
+no dedicated permission at all server-side beyond generic access, now
+gated by `notifications.mark_read`/`notifications.resolve`/
+`notifications.archive` and `branding.manage_school_logos`/
+`branding.manage_branch_logos` respectively, matching (and, for
+notifications, adding) the UI-side gates.
+
+Persisted-data integrity: `role_permissions` gained two partial unique
+indexes (`uq_role_permissions_global_role_key` for a NULL SchoolGroup scope,
+`uq_role_permissions_tenant_role_key` for a tenant scope) via
+non-destructive migration `20260915_001_role_permission_logical_key_uniqueness`,
+which fails closed with no schema change if a pre-existing duplicate
+scope/role/key row is found (no row is ever deleted or rewritten by this
+migration). `user_permission_service.apply_user_override` now re-validates
+that a permission key is actually assignable to the target user's own
+effective role before writing an Allow/Deny (closing a path that could
+create an override for an otherwise nonassignable key; platform-only keys
+were already rejected), and
+`build_user_permission_payload`'s effective-permission projection now
+calls the same canonical `auth.get_allowed_permission_keys` resolver instead
+of a locally re-implemented merge.
+
+Regression coverage proves ON -> OFF -> ON for `dashboard.view`,
+`subjects.view`, `teachers.view`, `students.view`, `planning.view`,
+`timetable.view`, `calendar.view`, `observations.view`, `users.view`, and
+`configuration.view` against the resolver, direct route/API enforcement,
+and navigation visibility, each re-read fresh (no cross-request state), in
+`tests/test_permission_qualification.py`; plus new
+`tests/test_branch_year_permission_boundaries.py` (mixed-action Branch/
+Academic-Year scope), `tests/test_configuration_scope_permissions.py`
+(logo/qualification scope-specific gating), `tests/test_notification_group_permissions.py`,
+and `tests/test_role_permission_logical_key_migration.py` (migration
+duplicate-preflight and idempotency). No Allow-over-Deny behavior exists;
+that remains an explicitly deferred, separately-governed decision
+(ADR 0040). No new permission key, schema-breaking change, or `tis.db`
+change. See `docs/CHANGE_HISTORY.md`'s 2026-09-17 entry for the complete
+file-level detail.
 
 ## Permission Qualification Drift Closure
 

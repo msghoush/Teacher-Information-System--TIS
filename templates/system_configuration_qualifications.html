@@ -348,6 +348,7 @@
     </nav>
 
     <section class="module-shell">
+        {% set can_manage_module = can("configuration.manage_degrees") if module_kind == "degree" else can("configuration.manage_specializations") %}
         <div class="module-head">
             <div class="module-copy">
                 <h2>{{ module_title }}</h2>
@@ -356,6 +357,7 @@
             <span class="usage-pill">{{ module_rows|length }} items</span>
         </div>
 
+        {% if can_manage_module %}
         <form class="create-row" method="post" action="/system-configuration/qualifications">
             <input type="hidden" name="kind" value="{{ module_kind }}">
             <input type="hidden" name="return_to" value="{{ request.url.path }}">
@@ -365,6 +367,7 @@
             </div>
             <button class="action-btn action-btn-primary" type="submit">{{ icon("add", "icon") }} Add</button>
         </form>
+        {% endif %}
 
         {% if module_rows %}
         <div class="table-wrap">
@@ -393,6 +396,7 @@
                                     data-initial="{{ row.label }}"
                                     form="qualification_update_form_{{ row.key }}"
                                     required
+                                    {% if not can_manage_module %}disabled{% endif %}
                                 >
                             </div>
                         </td>
@@ -404,10 +408,12 @@
                                 <input type="hidden" name="return_to" value="{{ request.url.path }}">
                             </form>
                             <div class="table-actions actions-default">
+                                {% if can_manage_module %}
                                 <button class="action-btn action-btn-secondary btn-icon js-qualification-edit" type="button" data-qualification-row-id="{{ row.key }}" aria-label="Edit {{ row.label }}">{{ icon("edit", "icon") }}</button>
                                 <button
                                     class="action-btn action-btn-danger btn-icon"
                                     type="submit"
+                                    form="qualification_update_form_{{ row.key }}"
                                     formaction="/system-configuration/qualifications/{{ row.key }}/delete"
                                     onclick="return confirm('Delete {{ row.label }}?');"
                                     title="{% if not row.can_delete %}Delete locked: item is already used by teachers.{% else %}Delete {{ row.label }}{% endif %}"
@@ -416,11 +422,14 @@
                                 >
                                     {{ icon("trash", "icon") }}
                                 </button>
+                                {% endif %}
                             </div>
+                            {% if can_manage_module %}
                             <div class="table-actions actions-editing">
                                 <button class="action-btn action-btn-primary" type="submit" form="qualification_update_form_{{ row.key }}">{{ icon("save", "icon") }} Save</button>
                                 <button class="action-btn action-btn-secondary js-qualification-cancel" type="button" data-qualification-row-id="{{ row.key }}">{{ icon("close", "icon") }} Cancel</button>
                             </div>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

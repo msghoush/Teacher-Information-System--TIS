@@ -504,6 +504,9 @@ class TenantIsolationTests(unittest.TestCase):
                     )
                 )
 
+            # Production pre-migration bootstrap creates core metadata tables;
+            # this deliberately tiny legacy fixture must include role policy too.
+            models.RolePermission.__table__.create(bind=legacy_engine)
             applied = db_migrations.run_pending_migrations(legacy_engine)
             inspector = inspect(legacy_engine)
             user_columns = {column["name"] for column in inspector.get_columns("users")}

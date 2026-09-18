@@ -435,6 +435,8 @@ def _build_nav_items(
                 "configuration.manage_degrees",
                 "configuration.manage_specializations",
                 "timetable.manage_settings",
+                "timetable.manage_teacher_rules",
+                "timetable.manage_blocks",
                 "calendar.manage_event_types",
             ),
             "permission_mode": "any",
@@ -660,8 +662,8 @@ def build_shell_context(
             academic_year_id=scoped_academic_year_id,
         )
 
-    can_manage_system_settings = auth.can_manage_system_settings(current_user)
-    can_manage_users = auth.can_manage_users(current_user)
+    can_manage_system_settings = auth.can_manage_system_settings(db, current_user)
+    can_manage_users = auth.can_manage_users(db, current_user)
     can_manage_school_branding = can_any(
         "branding.view",
         "branding.manage_school_logos",

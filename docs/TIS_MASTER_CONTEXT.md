@@ -1,11 +1,38 @@
 ---
 title: TIS Master Context
 documentation_version: 4.2
-last_updated: 2026-09-14
+last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Current Permission Resolution Ownership Boundary
+
+Current-user permission evaluation remains canonical through
+`auth.get_allowed_permission_keys`, with ADR 0040's unchanged default/global/
+tenant/user precedence and Deny-over-Allow rule. Non-platform actors must have
+durable SchoolGroup ownership (stored or branch-derived); contradictory stored
+and branch ownership, absent ownership, or foreign selected/explicit evaluation
+scope fails closed. Abstract role-reference resolution remains separate and may
+legitimately evaluate global policy without a current-user identity.
+Target-user management and user-override writes also reject contradictory target
+ownership, including when the actor is platform-level; ordinary cross-tenant
+platform management remains available for targets with valid ownership.
+
+Teacher and Planning edit actions do not inherit authority for separately
+permissioned fields: teacher qualifications, subject/section assignments and
+capacity, and Planning homeroom/teacher assignments retain their dedicated keys.
+Read-only omitted controls preserve persisted values and relationship identities.
+Notification automatic mark-read is a mutation requiring its dedicated key;
+inactive platform identities receive no helper capability. Teacher bulk deletion
+uses `teachers.bulk_delete`, independently of single-record deletion.
+
+Role policy logical keys are protected by global/tenant partial unique indexes
+and a duplicate-preflight migration; this does not authorize automatic cleanup.
+The independent review's remaining registry-policy and verification blockers are
+recorded in `docs/engineering/PERMISSION_CLOSURE_REVIEW.md`; do not equate a
+green focused test suite with whole-system permission approval.
 
 ## Role Permission Management — Direct Assignment vs Effective Authorization
 

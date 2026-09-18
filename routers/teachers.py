@@ -1470,6 +1470,7 @@ def _render_teachers_page(
     can_modify = auth.has_permission(db, current_user, "teachers.create")
     can_edit = auth.has_permission(db, current_user, "teachers.edit")
     can_delete = auth.has_permission(db, current_user, "teachers.delete")
+    can_bulk_delete = auth.has_permission(db, current_user, "teachers.bulk_delete")
     can_copy_year_data = auth.has_permission(db, current_user, "teachers.copy_year_data")
     copy_year_choices = (
         get_copy_year_choices(db, academic_year_id)
@@ -1536,6 +1537,7 @@ def _render_teachers_page(
             "can_modify": can_modify,
             "can_edit": can_edit,
             "can_delete": can_delete,
+            "can_bulk_delete": can_bulk_delete,
             "can_copy_year_data": can_copy_year_data,
             "error": error,
             "success": success,
@@ -1616,6 +1618,9 @@ def _render_edit_teacher_page(
         {
             "request": request,
             "teacher": teacher,
+            "can_assign_subjects": auth.has_permission(db, current_user, "teachers.assign_subjects"),
+            "can_manage_qualifications": auth.has_permission(db, current_user, "teachers.manage_qualifications"),
+            "can_manage_capacity": auth.has_permission(db, current_user, "teachers.manage_capacity"),
             "teacher_qualification_map": teacher_qualification_map,
             "subject_choices": _get_subject_choices(db, branch_id, academic_year_id),
             "qualification_option_groups": qualification_option_groups,
@@ -2576,6 +2581,47 @@ def edit_teacher_page(
     )
 
 
+def _protect_teacher_update_fields(db, current_user, teacher, submitted):
+    """Reject changed protected fields and restore omitted read-only controls."""
+    allocations = db.query(models.TeacherSubjectAllocation).filter_by(teacher_id=teacher.id).all()
+    existing = {
+        "qualification_keys": _get_teacher_qualification_map(db, [teacher]).get(teacher.id, {}).get("keys", []),
+        "subject_codes": [row.subject_code for row in allocations if row.subject_code] or ([teacher.subject_code] if teacher.subject_code else []),
+        "qualification_override_subject_codes": [row.subject_code for row in allocations if row.compatibility_override],
+        "section_assignment_values": _get_teacher_section_assignment_values(db, teacher.id),
+        "max_hours": teacher.max_hours,
+        "extra_hours_allowed": "on" if teacher.extra_hours_allowed else "",
+        "extra_hours_count": teacher.extra_hours_count or 0,
+        "teaches_national_section": "on" if teacher.teaches_national_section else "",
+        "national_section_hours": teacher.national_section_hours or 0,
+        "is_new_teacher": "on" if teacher.is_new_teacher else "",
+    }
+    groups = {
+        "teachers.assign_subjects": ("subject_codes", "qualification_override_subject_codes", "section_assignment_values"),
+        "teachers.manage_qualifications": ("qualification_keys",),
+        "teachers.manage_capacity": ("max_hours", "extra_hours_allowed", "extra_hours_count", "teaches_national_section", "national_section_hours", "is_new_teacher"),
+    }
+    booleans = {"extra_hours_allowed", "teaches_national_section", "is_new_teacher"}
+    integers = {"max_hours", "extra_hours_count", "national_section_hours"}
+    def normalized(name, value):
+        if name in booleans:
+            return _is_extra_hours_allowed(value)
+        if name in integers:
+            return _parse_int(value)
+        if name in {"subject_codes", "qualification_override_subject_codes"}:
+            return set(_normalize_subject_codes(value))
+        return {str(item).strip() for item in value}
+    for permission, fields in groups.items():
+        if auth.has_permission(db, current_user, permission):
+            continue
+        for name in fields:
+            value = submitted[name]
+            if value is not None and normalized(name, value) != normalized(name, existing[name]):
+                return permission
+            submitted[name] = existing[name]
+    return None
+
+
 @router.post("/edit/{teacher_pk}")
 def update_teacher(
     request: Request,
@@ -2584,16 +2630,16 @@ def update_teacher(
     first_name: str = Form(...),
     middle_name: str = Form(""),
     last_name: str = Form(...),
-    qualification_keys: list[str] = Form([]),
-    qualification_override_subject_codes: list[str] = Form([]),
-    subject_codes: list[str] = Form([]),
-    section_assignment_values: list[str] = Form([]),
-    max_hours: str = Form("24"),
-    extra_hours_allowed: str = Form(""),
-    extra_hours_count: str = Form("0"),
-    teaches_national_section: str = Form(""),
-    national_section_hours: str = Form("0"),
-    is_new_teacher: str = Form(""),
+    qualification_keys: list[str] | None = Form(None),
+    qualification_override_subject_codes: list[str] | None = Form(None),
+    subject_codes: list[str] | None = Form(None),
+    section_assignment_values: list[str] | None = Form(None),
+    max_hours: str | None = Form(None),
+    extra_hours_allowed: str | None = Form(None),
+    extra_hours_count: str | None = Form(None),
+    teaches_national_section: str | None = Form(None),
+    national_section_hours: str | None = Form(None),
+    is_new_teacher: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user(request, db)
@@ -2612,10 +2658,73 @@ def update_teacher(
     if not teacher:
         return RedirectResponse(url="/teachers", status_code=302)
 
+    submitted = {
+        "qualification_keys": qualification_keys,
+        "qualification_override_subject_codes": qualification_override_subject_codes,
+        "subject_codes": subject_codes,
+        "section_assignment_values": section_assignment_values,
+        "max_hours": max_hours,
+        "extra_hours_allowed": extra_hours_allowed,
+        "extra_hours_count": extra_hours_count,
+        "teaches_national_section": teaches_national_section,
+        "national_section_hours": national_section_hours,
+        "is_new_teacher": is_new_teacher,
+    }
+    denied_permission = _protect_teacher_update_fields(db, current_user, teacher, submitted)
+    if denied_permission:
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=(denied_permission,), page_key="teachers",
+        )
+    qualification_keys = submitted["qualification_keys"] or []
+    qualification_override_subject_codes = submitted["qualification_override_subject_codes"] or []
+    subject_codes = submitted["subject_codes"] or []
+    section_assignment_values = submitted["section_assignment_values"] or []
+    max_hours = submitted["max_hours"]
+    extra_hours_allowed = submitted["extra_hours_allowed"]
+    extra_hours_count = submitted["extra_hours_count"]
+    teaches_national_section = submitted["teaches_national_section"]
+    national_section_hours = submitted["national_section_hours"]
+    is_new_teacher = submitted["is_new_teacher"]
+
     teacher_id = _normalize_teacher_id(teacher_id)
     first_name = _normalize_name(first_name)
     middle_name = _normalize_name(middle_name)
     last_name = _normalize_name(last_name)
+    if not auth.has_any_permission(
+        db, current_user, "teachers.assign_subjects",
+        "teachers.manage_qualifications", "teachers.manage_capacity",
+    ):
+        # A profile-only editor must not rewrite or requalify historical workload data.
+        valid_profile = (
+            bool(TEACHER_ID_PATTERN.fullmatch(teacher_id))
+            and bool(NAME_PATTERN.fullmatch(first_name))
+            and bool(NAME_PATTERN.fullmatch(last_name))
+            and (not middle_name or bool(NAME_PATTERN.fullmatch(middle_name)))
+        )
+        duplicate = db.query(models.Teacher).filter(
+            models.Teacher.id != teacher.id, models.Teacher.teacher_id == teacher_id,
+            models.Teacher.branch_id == branch_id, models.Teacher.academic_year_id == academic_year_id,
+        ).first()
+        if not valid_profile or duplicate:
+            return _render_edit_teacher_page(
+                request, db, current_user, teacher,
+                error="Invalid or duplicate teacher profile.", status_code=400,
+            )
+        teacher.teacher_id, teacher.first_name = teacher_id, first_name
+        teacher.middle_name, teacher.last_name = middle_name or None, last_name
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            return _render_edit_teacher_page(
+                request, db, current_user, teacher,
+                error="Unable to update teacher profile due to duplicate or invalid data.", status_code=400,
+            )
+        return _render_teachers_page(
+            request=request, db=db, current_user=current_user,
+            success="Teacher profile updated successfully.",
+        )
     raw_extra_hours_count = str(extra_hours_count or "").strip()
     raw_qualification_keys = [
         str(value or "").strip()
@@ -2850,22 +2959,23 @@ def update_teacher(
     teacher.first_name = first_name
     teacher.middle_name = middle_name if middle_name else None
     teacher.last_name = last_name
-    teacher.degree_major = build_legacy_qualification_snapshot(
-        normalized_qualification_keys,
-        qualification_lookup=qualification_lookup,
-    )
-    teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
-    teacher.level = None
-    teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
-    teacher.extra_hours_allowed = allowed_extra
-    teacher.extra_hours_count = parsed_extra_hours_count if parsed_extra_hours_count is not None else 0
-    teacher.teaches_national_section = is_national_section_enabled
-    teacher.national_section_hours = (
-        parsed_national_section_hours
-        if parsed_national_section_hours is not None
-        else 0
-    )
-    teacher.is_new_teacher = is_new_teacher_enabled
+    can_assign_subjects = auth.has_permission(db, current_user, "teachers.assign_subjects")
+    can_manage_qualifications = auth.has_permission(db, current_user, "teachers.manage_qualifications")
+    can_manage_capacity = auth.has_permission(db, current_user, "teachers.manage_capacity")
+    if can_manage_qualifications:
+        teacher.degree_major = build_legacy_qualification_snapshot(
+            normalized_qualification_keys, qualification_lookup=qualification_lookup,
+        )
+    if can_assign_subjects:
+        teacher.subject_code = normalized_subject_codes[0] if normalized_subject_codes else None
+        teacher.level = None
+    if can_manage_capacity:
+        teacher.max_hours = parsed_max_hours if parsed_max_hours is not None else STANDARD_MAX_HOURS
+        teacher.extra_hours_allowed = allowed_extra
+        teacher.extra_hours_count = parsed_extra_hours_count if parsed_extra_hours_count is not None else 0
+        teacher.teaches_national_section = is_national_section_enabled
+        teacher.national_section_hours = parsed_national_section_hours if parsed_national_section_hours is not None else 0
+        teacher.is_new_teacher = is_new_teacher_enabled
 
     previous_assignment_rows = db.query(models.TeacherSectionAssignment).filter(
         models.TeacherSectionAssignment.teacher_id == teacher.id
@@ -2893,23 +3003,25 @@ def update_teacher(
         }
 
     try:
-        db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.teacher_id == teacher.id
-        ).delete(synchronize_session=False)
-        db.query(models.TeacherQualificationSelection).filter(
-            models.TeacherQualificationSelection.teacher_id == teacher.id
-        ).delete(synchronize_session=False)
-        db.query(models.TeacherSubjectAllocation).filter(
-            models.TeacherSubjectAllocation.teacher_id == teacher.id
-        ).delete(synchronize_session=False)
-        for qualification_key in normalized_qualification_keys:
+        if can_assign_subjects:
+            db.query(models.TeacherSectionAssignment).filter(
+                models.TeacherSectionAssignment.teacher_id == teacher.id
+            ).delete(synchronize_session=False)
+            db.query(models.TeacherSubjectAllocation).filter(
+                models.TeacherSubjectAllocation.teacher_id == teacher.id
+            ).delete(synchronize_session=False)
+        if can_manage_qualifications:
+            db.query(models.TeacherQualificationSelection).filter(
+                models.TeacherQualificationSelection.teacher_id == teacher.id
+            ).delete(synchronize_session=False)
+        for qualification_key in normalized_qualification_keys if can_manage_qualifications else []:
             db.add(
                 models.TeacherQualificationSelection(
                     teacher_id=teacher.id,
                     qualification_key=qualification_key,
                 )
             )
-        for subject_code in normalized_subject_codes:
+        for subject_code in normalized_subject_codes if can_assign_subjects else []:
             db.add(
                 models.TeacherSubjectAllocation(
                     teacher_id=teacher.id,
@@ -2917,7 +3029,7 @@ def update_teacher(
                     compatibility_override=subject_code in effective_override_subject_codes,
                 )
             )
-        for subject_code, planning_section_ids in section_assignment_map.items():
+        for subject_code, planning_section_ids in section_assignment_map.items() if can_assign_subjects else []:
             for planning_section_id in sorted(planning_section_ids):
                 db.add(
                     models.TeacherSectionAssignment(
@@ -3041,7 +3153,7 @@ def delete_teachers_bulk(
     if not current_user:
         return RedirectResponse(url="/")
 
-    if not auth.has_permission(db, current_user, "teachers.delete"):
+    if not auth.has_permission(db, current_user, "teachers.bulk_delete"):
         return RedirectResponse(url="/teachers", status_code=302)
 
     unique_teacher_ids = sorted({

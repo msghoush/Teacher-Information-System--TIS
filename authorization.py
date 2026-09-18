@@ -66,8 +66,15 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/dashboard/api/hiring-plan", ("GET",), ("hiring_plan.view",), "dashboard"),
     PermissionRule(r"/dashboard/api/hiring-plan/effective", ("GET",), ("hiring_plan.view",), "dashboard"),
     PermissionRule(r"/dashboard/api/hiring-plan/save", ("POST",), ("hiring_plan.edit",), "dashboard"),
-    PermissionRule(r"/reports/allocation-plan\.pdf", ("GET",), ("reports.export",), "dashboard"),
-    PermissionRule(r"/reports/allocation-plan\.xlsx", ("GET",), ("reports.export",), "dashboard"),
+    # `dashboard.export_reports` is a dedicated additional gate for this
+    # single implemented "Export Report" surface (the /dashboard page's
+    # export menu and its download routes), required together with the
+    # underlying `reports.export`/`feature.advanced_reporting` entitlement
+    # (see ENTITLEMENT_ROUTE_RULES below, which independently re-checks
+    # `reports.export`). Both are real, independently meaningful gates:
+    # removing either now blocks the route, so neither is a silent no-op.
+    PermissionRule(r"/reports/allocation-plan\.pdf", ("GET",), ("reports.export", "dashboard.export_reports"), "dashboard"),
+    PermissionRule(r"/reports/allocation-plan\.xlsx", ("GET",), ("reports.export", "dashboard.export_reports"), "dashboard"),
     PermissionRule(r"/subjects/?", ("GET",), ("subjects.view",), "subjects"),
     PermissionRule(r"/subjects/?", ("POST",), ("subjects.create",), "subjects"),
     PermissionRule(r"/subjects/export", ("GET",), ("subjects.export",), "subjects"),
@@ -83,7 +90,7 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/teachers/copy-from-year", ("POST",), ("teachers.copy_year_data",), "teachers"),
     PermissionRule(r"/teachers/edit/\d+", ("GET", "POST"), ("teachers.edit",), "teachers"),
     PermissionRule(r"/teachers/delete/\d+", ("GET",), ("teachers.delete",), "teachers"),
-    PermissionRule(r"/teachers/delete-bulk", ("POST",), ("teachers.delete",), "teachers"),
+    PermissionRule(r"/teachers/delete-bulk", ("POST",), ("teachers.bulk_delete",), "teachers"),
     PermissionRule(r"/planning/?", ("GET",), ("planning.view",), "planning"),
     PermissionRule(r"/planning/?", ("POST",), ("planning.create_section",), "planning"),
     PermissionRule(r"/planning/copy-from-year", ("POST",), ("planning.copy_year_data",), "planning"),
@@ -185,16 +192,20 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/users/status/\d+", ("POST",), ("users.activate_deactivate",), "users"),
     PermissionRule(r"/profile/photo", ("POST",), ("users.manage_profile_photo",), "dashboard"),
     PermissionRule(r"/profile/photo/current", ("GET",), ("users.manage_profile_photo",), "dashboard"),
-    PermissionRule(r"/admin/audit-log", ("GET",), ("configuration.export_audit_log",), "system-configuration"),
+    # `system_owner.export_cross_school_data` is an explicit alias of
+    # `configuration.export_audit_log`: the only implemented audit surface is
+    # a single, non-tenant-filtered log spanning every SchoolGroup (both keys
+    # are platform-only), not two independently-built features.
+    PermissionRule(r"/admin/audit-log", ("GET",), ("configuration.export_audit_log", "system_owner.export_cross_school_data"), "system-configuration", match="any"),
     PermissionRule(r"/admin/current-year", ("POST",), ("academic_years.activate",), "system-configuration"),
-    PermissionRule(r"/developer/open-academic-year", ("POST",), ("academic_years.create",), "system-configuration"),
+    PermissionRule(r"/developer/open-academic-year", ("POST",), ("academic_years.create", "academic_years.activate"), "system-configuration"),
     PermissionRule(r"/demo-requests", ("GET",), ("demo_requests.view",), "demo-requests"),
     PermissionRule(r"/demo-requests/export", ("GET",), ("demo_requests.export",), "demo-requests"),
     PermissionRule(r"/demo-requests/\d+", ("GET",), ("demo_requests.view",), "demo-requests"),
     PermissionRule(r"/demo-requests/\d+/status", ("POST",), ("demo_requests.update_status",), "demo-requests"),
     PermissionRule(r"/demo-requests/\d+/delete", ("POST",), ("demo_requests.update_status",), "demo-requests"),
     PermissionRule(r"/school-branding", ("GET",), ("branding.view",), "school-branding"),
-    PermissionRule(r"/system-configuration", ("GET",), ("configuration.view", "schools.view", "branches.view", "academic_years.view", "branding.view", "configuration.manage_permissions", "configuration.manage_degrees", "configuration.manage_specializations", "timetable.manage_settings", "timetable.manage_blocks", "calendar.manage_event_types"), "system-configuration", match="any"),
+    PermissionRule(r"/system-configuration", ("GET",), ("configuration.view", "schools.view", "branches.view", "academic_years.view", "branding.view", "configuration.manage_permissions", "configuration.manage_degrees", "configuration.manage_specializations", "timetable.manage_settings", "timetable.manage_teacher_rules", "timetable.manage_blocks", "calendar.manage_event_types"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/role-permissions", ("GET", "POST"), ("configuration.manage_permissions",), "system-configuration"),
     PermissionRule(r"/api/design-studio/config", ("GET",), ("design_control.manage",), "system-configuration"),
     PermissionRule(r"/api/design-studio/component-settings", ("POST",), ("design_control.manage",), "system-configuration"),
@@ -219,7 +230,7 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/system-configuration/qualifications", ("POST",), ("configuration.manage_degrees", "configuration.manage_specializations"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/qualifications/[^/]+", ("POST",), ("configuration.manage_degrees", "configuration.manage_specializations"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/qualifications/[^/]+/delete", ("POST",), ("configuration.manage_degrees", "configuration.manage_specializations"), "system-configuration", match="any"),
-    PermissionRule(r"/system-configuration/timetable-settings", ("GET",), ("timetable.manage_settings", "timetable.manage_blocks"), "system-configuration", match="any"),
+    PermissionRule(r"/system-configuration/timetable-settings", ("GET",), ("timetable.manage_settings", "timetable.manage_teacher_rules", "timetable.manage_blocks"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/timetable-settings", ("POST",), ("timetable.manage_settings",), "system-configuration"),
     PermissionRule(r"/system-configuration/timetable-settings/blocks", ("POST",), ("timetable.manage_blocks",), "system-configuration"),
     PermissionRule(r"/system-configuration/timetable-settings/blocks/\d+", ("POST",), ("timetable.manage_blocks",), "system-configuration"),

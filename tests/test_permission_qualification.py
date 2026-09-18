@@ -2,6 +2,7 @@ import os
 
 os.environ["TIS_SESSION_SECRET"] = "permission-qualification-test-secret-long-enough"
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.requests import Request
@@ -12,6 +13,8 @@ import main
 import models
 import permission_registry
 import role_permission_service
+import ui_shell
+from routers import students_ui
 
 ADMIN = auth.ROLE_ADMINISTRATOR
 
@@ -204,6 +207,104 @@ def test_permission_change_reflects_on_next_fresh_request():
         )
         db.commit()
         assert "teachers.view" in _allowed_after(Session, user_id, school_id)
+    finally:
+        db.close()
+        engine.dispose()
+
+
+VIEW_CASES = (
+    ("dashboard.view", "/dashboard", "/dashboard"),
+    ("subjects.view", "/subjects/", "/subjects/"),
+    ("students.view", "/students/", "/students/"),
+    ("teachers.view", "/teachers/", "/teachers/"),
+    ("planning.view", "/planning/", "/planning/"),
+    ("timetable.view", "/timetable/", "/timetable/"),
+    ("calendar.view", "/academic-calendar/", "/academic-calendar/"),
+    ("observations.view", "/observations/", "/observations/"),
+    ("users.view", "/users", None),
+    ("configuration.view", "/system-configuration", "/system-configuration"),
+)
+
+CONFIGURATION_LANDING_KEYS = {
+    "configuration.view", "schools.view", "branches.view",
+    "academic_years.view", "branding.view", "configuration.manage_permissions",
+    "configuration.manage_degrees", "configuration.manage_specializations",
+    "timetable.manage_settings", "timetable.manage_teacher_rules", "timetable.manage_blocks",
+    "calendar.manage_event_types",
+}
+
+
+def _fresh_view_state(Session, user_id, school_id, key, path, nav_href):
+    """Resolve each layer on a new ORM user, as on a new request."""
+    read = Session()
+    try:
+        user = read.get(models.User, user_id)
+        allowed = auth.get_allowed_permission_keys(read, user, school_id)
+        assert auth.has_permission(read, user, key, school_group_id=school_id) == (key in allowed)
+
+        request = _request(path)
+        if key == "students.view":
+            # Students HTML is protected by its router-local canonical guard.
+            _, _, denied = students_ui._authorize(request, read, user, key)
+        else:
+            denied = authorization.enforce_route_permission(request, read, current_user=user)
+
+        can = lambda candidate: candidate in allowed
+        nav_items = ui_shell._build_nav_items(
+            current_path=path, can=can,
+            can_any=lambda *candidates: any(can(candidate) for candidate in candidates),
+        )
+        nav_hrefs = {item["href"] for item in nav_items}
+        nav_hrefs.update(
+            child["href"] for item in nav_items for child in item.get("children", ())
+        )
+        if nav_href is not None:
+            if key == "configuration.view":
+                # Configuration nav has an any-of gate over several independent keys.
+                assert (nav_href in nav_hrefs) == bool(
+                    allowed & CONFIGURATION_LANDING_KEYS
+                )
+            else:
+                assert (nav_href in nav_hrefs) == (key in allowed)
+        else:
+            # Users is a System Configuration card, not a top-level sidebar item.
+            assert ("/users" in {item["href"] for item in main._get_configuration_modules("users", read, user)}) == (key in allowed)
+        return key in allowed, denied
+    finally:
+        read.close()
+
+
+@pytest.mark.parametrize("key,path,nav_href", VIEW_CASES, ids=[case[0] for case in VIEW_CASES])
+def test_role_view_permission_on_off_on_matches_resolver_route_and_navigation(key, path, nav_href):
+    engine, Session = _make_db()
+    school_id, user_id = _seed(Session)
+    db = Session()
+    try:
+        baseline = role_permission_service.get_allowed_permission_keys(db, ADMIN, school_id)
+        assert key in baseline
+        enabled, denied = _fresh_view_state(Session, user_id, school_id, key, path, nav_href)
+        assert enabled and denied is None
+
+        off_keys = CONFIGURATION_LANDING_KEYS if key == "configuration.view" else {key}
+        role_permission_service.apply_role_permission_overrides(
+            db, role=ADMIN, allowed_keys=baseline - off_keys,
+            school_group_id=school_id, updated_by_user_id="1001",
+        )
+        db.commit()
+        deny_row = db.query(models.RolePermission).filter_by(
+            school_group_id=school_id, role=ADMIN, permission_key=key,
+        ).one()
+        assert deny_row.is_allowed is False
+        enabled, denied = _fresh_view_state(Session, user_id, school_id, key, path, nav_href)
+        assert not enabled and denied is not None and denied.status_code == 403
+
+        role_permission_service.apply_role_permission_overrides(
+            db, role=ADMIN, allowed_keys=baseline,
+            school_group_id=school_id, updated_by_user_id="1001",
+        )
+        db.commit()
+        enabled, denied = _fresh_view_state(Session, user_id, school_id, key, path, nav_href)
+        assert enabled and denied is None
     finally:
         db.close()
         engine.dispose()

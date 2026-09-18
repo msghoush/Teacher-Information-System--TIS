@@ -809,18 +809,37 @@ def _get_current_teacher(db: Session, current_user):
     ).first()
 
 
-def _can_create_observation(current_user) -> bool:
-    return auth._has_any_cached_permission(
-        current_user,
-        (
-            "observations.create_formal",
-            "observations.create_non_formal",
-        ),
+def _can_create_observation(db: Session, current_user) -> bool:
+    return auth.has_any_permission(
+        db, current_user, "observations.create_formal", "observations.create_non_formal"
     ) and not _is_teacher_user(current_user)
 
 
-def _can_override_locked_observation(current_user) -> bool:
-    return auth._has_cached_permission(current_user, "observations.unlock")
+def _can_create_observation_type(db: Session, current_user, observation_type: str) -> bool:
+    key = (
+        "observations.create_non_formal"
+        if observation_type == "Non-formal"
+        else "observations.create_formal"
+    )
+    return not _is_teacher_user(current_user) and auth.has_permission(db, current_user, key)
+
+
+def _can_override_locked_observation(db: Session, current_user) -> bool:
+    return auth.has_permission(db, current_user, "observations.unlock")
+
+
+def _can_sign_evaluator(db: Session, current_user) -> bool:
+    # `observations.submit` is an explicit alias of `observations.sign_evaluator`:
+    # in the current implementation there is no separate "submit without
+    # signature" workflow -- applying the evaluator signature IS the act that
+    # submits the observation for the teacher's review (see
+    # `_notify_teacher_observation_ready`, triggered only once
+    # `evaluator_signature_data` is set). A dedicated `observations.submit`
+    # gate would duplicate this exact check rather than govern independent
+    # behavior.
+    return not _is_teacher_user(current_user) and auth.has_permission(
+        db, current_user, "observations.sign_evaluator"
+    )
 
 
 def _observation_is_locked(observation) -> bool:
@@ -836,20 +855,20 @@ def _observation_status_label(observation) -> str:
     return status
 
 
-def _can_edit_observation(current_user, observation) -> bool:
-    if not auth._has_cached_permission(current_user, "observations.edit_draft") or _is_teacher_user(current_user):
+def _can_edit_observation(db: Session, current_user, observation) -> bool:
+    if not auth.has_permission(db, current_user, "observations.edit_draft") or _is_teacher_user(current_user):
         return False
     if not _observation_in_current_scope(current_user, observation):
         return False
-    return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
+    return not _observation_is_locked(observation) or _can_override_locked_observation(db, current_user)
 
 
-def _can_delete_observation(current_user, observation) -> bool:
-    if not auth._has_cached_permission(current_user, "observations.delete") or _is_teacher_user(current_user):
+def _can_delete_observation(db: Session, current_user, observation) -> bool:
+    if not auth.has_permission(db, current_user, "observations.delete") or _is_teacher_user(current_user):
         return False
     if not _observation_in_current_scope(current_user, observation):
         return False
-    return not _observation_is_locked(observation) or _can_override_locked_observation(current_user)
+    return not _observation_is_locked(observation) or _can_override_locked_observation(db, current_user)
 
 
 def _get_self_evaluation_bundle(db: Session, observation):
@@ -2030,8 +2049,8 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
                     "progress_pct": min(round((formal_count / FORMAL_OBSERVATION_TARGET) * 100), 100),
                     "average_score": round(sum(scored) / len(scored), 2) if scored else None,
                     "latest": latest[0] if latest else None,
-                    "can_edit_latest": _can_edit_observation(current_user, latest[0]) if latest else False,
-                    "can_delete_latest": _can_delete_observation(current_user, latest[0]) if latest else False,
+                    "can_edit_latest": _can_edit_observation(db, current_user, latest[0]) if latest else False,
+                    "can_delete_latest": _can_delete_observation(db, current_user, latest[0]) if latest else False,
                     "can_export_cycle": bool(cycle_export_state.get("can_export")),
                     "cycle_export_count": cycle_export_state.get("finalized_count", 0),
                 }
@@ -2103,7 +2122,7 @@ def observations_page(request: Request, db: Session = Depends(get_db)):
             total_formal = sum(row["formal_count"] for row in rows)
             total_non_formal = sum(row["non_formal_count"] for row in rows)
             total_required = len(rows) * FORMAL_OBSERVATION_TARGET
-        can_create = _can_create_observation(current_user)
+        can_create = _can_create_observation(db, current_user)
         shell_context = build_shell_context(
             request,
             db,
@@ -2163,7 +2182,7 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
     current_user = get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/")
-    if not _can_create_observation(current_user):
+    if not _can_create_observation(db, current_user):
         return RedirectResponse(url="/observations")
 
     prepare_observation_module(db)
@@ -2206,6 +2225,8 @@ def new_observation_page(request: Request, teacher_id: int | None = None, db: Se
             "selected_teacher_id": teacher_id,
             "evaluator_display_name": _user_display_name(current_user),
             "modal_mode": str(request.query_params.get("modal", "") or "") == "1",
+            "can_create_formal": _can_create_observation_type(db, current_user, "Formal"),
+            "can_create_non_formal": _can_create_observation_type(db, current_user, "Non-formal"),
         },
     )
 
@@ -2215,11 +2236,15 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     current_user = get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/")
-    if not _can_create_observation(current_user):
+    if not _can_create_observation(db, current_user):
         return RedirectResponse(url="/observations")
 
-    prepare_observation_module(db)
     form = await request.form()
+    observation_type = _normalize_observation_type(form.get("observation_type"))
+    if not _can_create_observation_type(db, current_user, observation_type):
+        return RedirectResponse(url="/observations", status_code=302)
+
+    prepare_observation_module(db)
     branch_id, academic_year_id = _get_scope_ids(current_user)
     teacher_pk = _parse_int(form.get("teacher_id"))
     teacher = db.query(models.Teacher).filter(
@@ -2230,7 +2255,6 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
     if not teacher:
         return RedirectResponse(url="/observations/new?notice=Select+a+valid+teacher.", status_code=302)
 
-    observation_type = _normalize_observation_type(form.get("observation_type"))
     if observation_type == "Formal":
         formal_count = db.query(models.Observation).filter(
             models.Observation.teacher_id == teacher.id,
@@ -2248,6 +2272,8 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
                 status_code=302,
             )
     evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
+    if evaluator_signature_data and not _can_sign_evaluator(db, current_user):
+        evaluator_signature_data = ""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     observation = models.Observation(
@@ -2318,7 +2344,7 @@ def edit_observation_page(observation_id: int, request: Request, db: Session = D
         return RedirectResponse(url="/")
 
     observation = _get_observation_for_current_scope(db, current_user, observation_id)
-    if not observation or not _can_edit_observation(current_user, observation):
+    if not observation or not _can_edit_observation(db, current_user, observation):
         return RedirectResponse(url="/observations")
 
     prepare_observation_module(db)
@@ -2357,6 +2383,8 @@ def edit_observation_page(observation_id: int, request: Request, db: Session = D
             "modal_mode": str(request.query_params.get("modal", "") or "") == "1",
             "observation": observation,
             "form_action": f"/observations/{observation.id}/edit",
+            "can_create_formal": _can_create_observation_type(db, current_user, "Formal"),
+            "can_create_non_formal": _can_create_observation_type(db, current_user, "Non-formal"),
         },
     )
 
@@ -2368,11 +2396,16 @@ async def update_observation(observation_id: int, request: Request, db: Session 
         return RedirectResponse(url="/")
 
     observation = _get_observation_for_current_scope(db, current_user, observation_id)
-    if not observation or not _can_edit_observation(current_user, observation):
+    if not observation or not _can_edit_observation(db, current_user, observation):
         return RedirectResponse(url="/observations")
 
     prepare_observation_module(db)
     form = await request.form()
+    new_type = _normalize_observation_type(form.get("observation_type"))
+    if new_type != _normalize_observation_type(observation.observation_type) and not _can_create_observation_type(
+        db, current_user, new_type
+    ):
+        return RedirectResponse(url="/observations", status_code=302)
     branch_id, academic_year_id = _get_scope_ids(current_user)
     teacher_pk = _parse_int(form.get("teacher_id"))
     teacher = db.query(models.Teacher).filter(
@@ -2384,7 +2417,7 @@ async def update_observation(observation_id: int, request: Request, db: Session 
         return RedirectResponse(url=f"/observations/{observation.id}/edit?notice=Select+a+valid+teacher.", status_code=302)
 
     observation.teacher_id = teacher.id
-    observation.observation_type = _normalize_observation_type(form.get("observation_type"))
+    observation.observation_type = new_type
     observation.observation_date = str(form.get("observation_date") or date.today().isoformat())[:10]
     observation.term = str(form.get("term") or "").strip()
     observation.grade = str(form.get("grade") or "").strip()
@@ -2394,7 +2427,7 @@ async def update_observation(observation_id: int, request: Request, db: Session 
     observation.evaluator_notes = str(form.get("evaluator_notes") or "").strip()
     had_evaluator_signature = bool(observation.evaluator_signature_data)
     evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
-    if evaluator_signature_data:
+    if evaluator_signature_data and _can_sign_evaluator(db, current_user):
         observation.evaluator_signature_data = evaluator_signature_data
 
     criteria = db.query(models.ObservationCriterion).filter(
@@ -2435,7 +2468,7 @@ async def delete_observation(observation_id: int, request: Request, db: Session 
     if not current_user:
         return RedirectResponse(url="/")
     observation = _get_observation_for_current_scope(db, current_user, observation_id)
-    if not observation or not _can_delete_observation(current_user, observation):
+    if not observation or not _can_delete_observation(db, current_user, observation):
         return RedirectResponse(url="/observations")
     db.query(models.ObservationScore).filter(models.ObservationScore.observation_id == observation.id).delete()
     self_eval_ids = [
@@ -2530,6 +2563,15 @@ def teacher_observation_history_page(teacher_id: int, request: Request, db: Sess
     if not current_user:
         return RedirectResponse(url="/")
 
+    # A teacher viewing their own observation cycle is self-service, not an
+    # administrative "reports" capability, so it is not gated by
+    # `observations.view_reports`; that key governs an evaluator/admin
+    # viewing another teacher's aggregated observation cycle.
+    if not _is_teacher_user(current_user) and not auth.has_permission(
+        db, current_user, "observations.view_reports"
+    ):
+        return RedirectResponse(url="/observations")
+
     prepare_observation_module(db)
     branch_id, academic_year_id = _get_scope_ids(current_user)
     teacher = db.query(models.Teacher).filter(
@@ -2586,8 +2628,8 @@ def teacher_observation_history_page(teacher_id: int, request: Request, db: Sess
                 "is_locked": _observation_is_locked(observation),
                 "status_label": _observation_status_label(observation),
                 "can_export": export_state["can_export"],
-                "can_edit": _can_edit_observation(current_user, observation),
-                "can_delete": _can_delete_observation(current_user, observation),
+                "can_edit": _can_edit_observation(db, current_user, observation),
+                "can_delete": _can_delete_observation(db, current_user, observation),
             }
         )
 
@@ -2610,7 +2652,7 @@ def teacher_observation_history_page(teacher_id: int, request: Request, db: Sess
             "teacher_name": _teacher_name(teacher),
             "rows": rows,
             "target": FORMAL_OBSERVATION_TARGET,
-            "can_create": _can_create_observation(current_user),
+            "can_create": _can_create_observation(db, current_user),
             "can_export_cycle": cycle_state["can_export"],
             "summary": {
                 "total": len(rows),
@@ -2768,8 +2810,8 @@ def observation_detail_page(observation_id: int, request: Request, db: Session =
             "self_evaluation_complete": self_evaluation_complete,
             "is_locked": _observation_is_locked(observation),
             "status_label": _observation_status_label(observation),
-            "can_edit_observation": _can_edit_observation(current_user, observation),
-            "can_delete_observation": _can_delete_observation(current_user, observation),
+            "can_edit_observation": _can_edit_observation(db, current_user, observation),
+            "can_delete_observation": _can_delete_observation(db, current_user, observation),
             "can_export_observation": export_state["can_export"],
             "can_teacher_sign": can_teacher_sign,
             "can_self_evaluate": can_self_evaluate,

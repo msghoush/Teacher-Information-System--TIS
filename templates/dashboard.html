@@ -4642,14 +4642,16 @@
 {% endblock %}
 
 {% block page_header_actions %}
-{% if can_use_feature("feature.advanced_reporting", "reports.export") %}
+{% if can_use_feature("feature.advanced_reporting", "reports.export") and can("dashboard.export_reports") %}
 <details class="export-menu" data-design-component="dashboard.export_button" data-design-type="button">
     <summary class="shell-action is-primary">{{ icon("download", "shell-icon") }} Export Report</summary>
     <div class="export-menu-panel">
         <a href="/reports/allocation-plan.xlsx?section=full">{{ icon("spreadsheet", "icon") }} Export as Excel</a>
         <a href="/reports/allocation-plan.pdf?section=full">{{ icon("report", "icon") }} Export as PDF</a>
         <span class="export-menu-section-label">Specific section</span>
+        {% if can("hiring_plan.export") %}
         <a href="/reports/allocation-plan.xlsx?section=hiring">{{ icon("report", "icon") }} Hiring Plan Excel</a>
+        {% endif %}
         <a href="/reports/allocation-plan.xlsx?section=subjects">{{ icon("subjects", "icon") }} Subjects Excel</a>
         <a href="/reports/allocation-plan.xlsx?section=teachers">{{ icon("teachers", "icon") }} Teachers Excel</a>
         <a href="/reports/allocation-plan.pdf?section=summary">{{ icon("insights", "icon") }} Summary PDF</a>
@@ -4659,6 +4661,7 @@
 {% endblock %}
 
 {% block content %}
+{% if can("dashboard.view_branch_summary") %}
 <section class="stats tis-kpi-grid" data-design-component="dashboard.kpi_grid" data-design-type="section">
             <div class="stat tis-kpi-card" data-design-component="dashboard.subjects_card" data-design-type="card">
                 <span>{{ icon("subjects", "icon") }} Subjects</span>
@@ -4671,6 +4674,7 @@
                 <small>Teachers available for planning and coverage review.</small>
             </div>
         </section>
+{% endif %}
 
         <section class="workspace" data-design-component="dashboard.workspace" data-design-type="section">
             <div class="tabs" data-design-component="dashboard.tabs" data-design-type="section">
@@ -4686,10 +4690,12 @@
                     {{ icon("planning", "tab-icon") }}
                     <span>Planning</span>
                 </button>
+                {% if can("dashboard.view_reports") %}
                 <button class="tab" type="button" data-panel="reports">
                     {{ icon("report", "tab-icon") }}
                     <span>Reports</span>
                 </button>
+                {% endif %}
             </div>
 
             <div class="panel active" id="panel-subjects" data-design-component="dashboard.subjects_panel" data-design-type="section">
@@ -5432,6 +5438,7 @@
                 </div>
             </div>
 
+            {% if can("dashboard.view_reports") %}
             <div class="panel" id="panel-reports">
                 <div class="panel-head">
                     <div>
@@ -5440,15 +5447,17 @@
                     </div>
                     <div class="panel-head-actions">
                         <a class="open-link" href="/planning">{{ icon("planning", "icon") }} Open Planning</a>
-                        {% if can_use_feature("feature.advanced_reporting", "reports.export") %}
+                        {% if can_use_feature("feature.advanced_reporting", "reports.export") and can("dashboard.export_reports") %}
                         <details class="export-menu">
                             <summary class="open-link">{{ icon("download", "icon") }} Export Report</summary>
                             <div class="export-menu-panel">
                                 <a href="/reports/allocation-plan.xlsx?section=full">{{ icon("spreadsheet", "icon") }} Export as Excel</a>
                                 <a href="/reports/allocation-plan.pdf?section=full">{{ icon("report", "icon") }} Export as PDF</a>
                                 <span class="export-menu-section-label">Specific section</span>
+                                {% if can("hiring_plan.export") %}
                                 <a href="/reports/allocation-plan.xlsx?section=hiring">{{ icon("report", "icon") }} Hiring Plan Excel</a>
                                 <a href="/reports/allocation-plan.pdf?section=hiring">{{ icon("report", "icon") }} Hiring Plan PDF</a>
+                                {% endif %}
                                 <a href="/reports/allocation-plan.xlsx?section=subjects">{{ icon("subjects", "icon") }} Subjects Excel</a>
                                 <a href="/reports/allocation-plan.xlsx?section=teachers">{{ icon("teachers", "icon") }} Teachers Excel</a>
                             </div>
@@ -5739,6 +5748,7 @@
                 </div>
                 {% endif %}
             </div>
+            {% endif %}
         </section>
 {% endblock %}
 
