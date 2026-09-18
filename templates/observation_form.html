@@ -265,6 +265,7 @@ body.rubric-modal-open { overflow: hidden; }
         </div>
     </section>
 
+    {% if can("observations.sign_evaluator") %}
     <section class="form-panel">
         <div class="signature-grid signature-grid-single">
             <div class="signature-card">
@@ -275,13 +276,14 @@ body.rubric-modal-open { overflow: hidden; }
                 <canvas class="signature-pad" data-signature-pad="evaluator"></canvas>
                 <input type="hidden" name="evaluator_signature_data" data-signature-input="evaluator">
                 <div class="signature-actions">
-                    <span>Evaluator signature finalizes the record.</span>
+                    <span>Evaluator signature finalizes the record. Submitting this signature also submits the observation for the teacher's review.</span>
                     <button class="clear-signature" type="button" data-clear-signature="evaluator">Clear</button>
                 </div>
             </div>
         </div>
         <p class="lock-note">The teacher signs from the view page. The record locks after both signatures.</p>
     </section>
+    {% endif %}
 
     <div class="form-actions">
         <button class="submit-btn" type="submit">{{ icon("save", "shell-icon") }} {{ "Update Observation" if observation else "Submit Observation" }}</button>

@@ -66,8 +66,15 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/dashboard/api/hiring-plan", ("GET",), ("hiring_plan.view",), "dashboard"),
     PermissionRule(r"/dashboard/api/hiring-plan/effective", ("GET",), ("hiring_plan.view",), "dashboard"),
     PermissionRule(r"/dashboard/api/hiring-plan/save", ("POST",), ("hiring_plan.edit",), "dashboard"),
-    PermissionRule(r"/reports/allocation-plan\.pdf", ("GET",), ("reports.export",), "dashboard"),
-    PermissionRule(r"/reports/allocation-plan\.xlsx", ("GET",), ("reports.export",), "dashboard"),
+    # `dashboard.export_reports` is a dedicated additional gate for this
+    # single implemented "Export Report" surface (the /dashboard page's
+    # export menu and its download routes), required together with the
+    # underlying `reports.export`/`feature.advanced_reporting` entitlement
+    # (see ENTITLEMENT_ROUTE_RULES below, which independently re-checks
+    # `reports.export`). Both are real, independently meaningful gates:
+    # removing either now blocks the route, so neither is a silent no-op.
+    PermissionRule(r"/reports/allocation-plan\.pdf", ("GET",), ("reports.export", "dashboard.export_reports"), "dashboard"),
+    PermissionRule(r"/reports/allocation-plan\.xlsx", ("GET",), ("reports.export", "dashboard.export_reports"), "dashboard"),
     PermissionRule(r"/subjects/?", ("GET",), ("subjects.view",), "subjects"),
     PermissionRule(r"/subjects/?", ("POST",), ("subjects.create",), "subjects"),
     PermissionRule(r"/subjects/export", ("GET",), ("subjects.export",), "subjects"),
@@ -185,7 +192,11 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/users/status/\d+", ("POST",), ("users.activate_deactivate",), "users"),
     PermissionRule(r"/profile/photo", ("POST",), ("users.manage_profile_photo",), "dashboard"),
     PermissionRule(r"/profile/photo/current", ("GET",), ("users.manage_profile_photo",), "dashboard"),
-    PermissionRule(r"/admin/audit-log", ("GET",), ("configuration.export_audit_log",), "system-configuration"),
+    # `system_owner.export_cross_school_data` is an explicit alias of
+    # `configuration.export_audit_log`: the only implemented audit surface is
+    # a single, non-tenant-filtered log spanning every SchoolGroup (both keys
+    # are platform-only), not two independently-built features.
+    PermissionRule(r"/admin/audit-log", ("GET",), ("configuration.export_audit_log", "system_owner.export_cross_school_data"), "system-configuration", match="any"),
     PermissionRule(r"/admin/current-year", ("POST",), ("academic_years.activate",), "system-configuration"),
     PermissionRule(r"/developer/open-academic-year", ("POST",), ("academic_years.create", "academic_years.activate"), "system-configuration"),
     PermissionRule(r"/demo-requests", ("GET",), ("demo_requests.view",), "demo-requests"),

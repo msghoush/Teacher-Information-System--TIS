@@ -359,6 +359,7 @@ DEVELOPER_ONLY_PERMISSION_KEYS = {
     "schools.create",
     "schools.delete",
     "schools.manage_all_schools",
+    "configuration.view_audit_log",
     "configuration.export_audit_log",
     "configuration.manage_global_defaults",
     "design_control.manage",

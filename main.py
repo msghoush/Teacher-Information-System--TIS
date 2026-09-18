@@ -9855,7 +9855,13 @@ def platform_console(
     )
 
 
-def _get_platform_owner_access(request: Request, db: Session, *, primary: bool = False):
+def _get_platform_owner_access(
+    request: Request,
+    db: Session,
+    *,
+    primary: bool = False,
+    denial_permission_key: str | None = None,
+):
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return None, RedirectResponse(url="/", status_code=302)
@@ -9866,17 +9872,24 @@ def _get_platform_owner_access(request: Request, db: Session, *, primary: bool =
     )
     if allowed:
         return current_user, None
+    # Owner-only keys (`system_owner.manage_ownership`, `.transfer_ownership`,
+    # `.manage_developer_accounts`) are identity-governed: platform ownership
+    # itself is the enforcement mechanism, and these keys are never
+    # independently assignable (see OWNER_ONLY_PERMISSION_KEYS). The key
+    # cited here is an explicit alias of that identity check for messaging
+    # and audit consistency, not a second, independently-evaluated gate.
+    default_key = (
+        "system_owner.transfer_ownership"
+        if primary
+        else "system_owner.manage_ownership"
+    )
     return (
         None,
         authorization.build_access_denied_response(
             request,
             db,
             current_user=current_user,
-            permission_keys=(
-                "system_owner.transfer_ownership"
-                if primary
-                else "system_owner.manage_ownership"
-            ,),
+            permission_keys=(denial_permission_key or default_key,),
             page_key="platform",
             message="Only the Platform Owner can perform this action.",
         ),
@@ -10253,7 +10266,11 @@ def create_platform_developer(
     permission_keys: list[str] = Form([]),
     db: Session = Depends(get_db),
 ):
-    current_user, denied = _get_platform_owner_access(request, db)
+    current_user, denied = _get_platform_owner_access(
+        request,
+        db,
+        denial_permission_key="system_owner.manage_developer_accounts",
+    )
     if denied:
         return denied
     user_id = str(user_id or "").strip()
@@ -10318,7 +10335,11 @@ def update_platform_developer_permissions(
     permission_keys: list[str] = Form([]),
     db: Session = Depends(get_db),
 ):
-    current_user, denied = _get_platform_owner_access(request, db)
+    current_user, denied = _get_platform_owner_access(
+        request,
+        db,
+        denial_permission_key="system_owner.manage_developer_accounts",
+    )
     if denied:
         return denied
     developer = db.query(models.User).filter(
@@ -11420,12 +11441,29 @@ def download_audit_log(
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
 
-    if not auth.has_permission(db, current_user, "configuration.export_audit_log"):
+    # The route-permission middleware already enforces the export capability
+    # (`configuration.export_audit_log` or its `system_owner.export_cross_school_data`
+    # alias) for this route. `configuration.view_audit_log` (and its
+    # `system_owner.view_cross_school_audit` alias) is enforced here as an
+    # additional prerequisite: the only implemented audit surface is a
+    # single, non-tenant-filtered log spanning every SchoolGroup, and
+    # download is the sole access path, so "view" is a real, independently
+    # meaningful gate layered under "export" rather than a second,
+    # independently-built feature.
+    if not auth.has_any_permission(
+        db,
+        current_user,
+        "configuration.view_audit_log",
+        "system_owner.view_cross_school_audit",
+    ):
         return authorization.build_access_denied_response(
             request,
             db,
             current_user=current_user,
-            permission_keys=("configuration.export_audit_log",),
+            permission_keys=(
+                "configuration.view_audit_log",
+                "system_owner.view_cross_school_audit",
+            ),
             page_key="system-configuration",
         )
 
@@ -15893,6 +15931,26 @@ async def save_dashboard_hiring_plan(
 # ---------------------------------------
 # REPORT EXPORT
 # ---------------------------------------
+def _authorize_report_export(request: Request, db: Session, user, normalized_section: str):
+    """Additional per-section gate for the `/reports/allocation-plan.*` routes.
+
+    The base export capability (`reports.export` / its `dashboard.export_reports`
+    alias) is already enforced by the global route-permission middleware
+    (`authorization.PROTECTED_ROUTE_RULES`), which cannot inspect the
+    `section` query parameter. `hiring_plan.export` is a dedicated additional
+    gate required only when a caller requests the hiring-plan section.
+    """
+    if normalized_section == "hiring" and not auth.has_permission(db, user, "hiring_plan.export"):
+        return authorization.build_access_denied_response(
+            request,
+            db,
+            current_user=user,
+            permission_keys=("hiring_plan.export",),
+            page_key="dashboard",
+        )
+    return None
+
+
 @app.get("/reports/allocation-plan.xlsx")
 def download_report_allocation_plan(
     request: Request,
@@ -15904,6 +15962,9 @@ def download_report_allocation_plan(
         return RedirectResponse(url="/")
 
     normalized_section = _normalize_report_export_section(section)
+    denied = _authorize_report_export(request, db, user, normalized_section)
+    if denied:
+        return denied
     report_package = _build_current_report_package(db, user)
     payload = _build_professional_report_xlsx_bytes(
         report_package,
@@ -15934,6 +15995,9 @@ def download_report_allocation_plan_pdf(
         return RedirectResponse(url="/")
 
     normalized_section = _normalize_report_export_section(section)
+    denied = _authorize_report_export(request, db, user, normalized_section)
+    if denied:
+        return denied
     report_package = _build_current_report_package(db, user)
     payload = _build_professional_report_pdf_bytes(
         report_package,

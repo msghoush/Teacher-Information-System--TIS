@@ -1,6 +1,6 @@
 ---
 title: Independent Permission Closure Review
-documentation_version: 1.0
+documentation_version: 1.1
 last_updated: 2026-09-18
 module: architecture
 ---
@@ -72,20 +72,114 @@ silently turning a normal delete route into an orphan-data cleanup operation.
 
 The registry contains 175 keys across 26 groups. Literal consumer coverage is
 not proof of enforcement, and route-reference validity is not proof that all
-registered capabilities protect their associated workflows. In particular,
-classification/enforcement needs an Owner decision for unconsumed keys:
+registered capabilities protect their associated workflows.
 
-- `dashboard.view_branch_summary`, `dashboard.view_reports`, `dashboard.export_reports`;
-- `hiring_plan.export`, `reports.view`, `planning.import`, `planning.export`;
-- `teachers.import`, `teachers.export`, `subjects.manage_colors`;
-- `observations.manage_templates`, `observations.sign_evaluator`,
-  `observations.submit`, `observations.view_reports`;
-- `configuration.manage_global_defaults`, `configuration.view_audit_log`;
-- `system_owner.create_subscription_school`, `system_owner.export_cross_school_data`,
-  `system_owner.manage_developer_accounts`, `system_owner.manage_subscriptions`,
-  `system_owner.run_startup_repairs`, `system_owner.view_cross_school_audit`.
+### 22-key closure pass (this pass)
 
-These cannot silently be declared dormant merely because broader guards exist.
+Every previously-unconsumed key listed in the prior revision of this section
+was individually traced against the implemented product (routes, services,
+templates, nav, and the route-permission middleware in
+`authorization.PROTECTED_ROUTE_RULES`) and classified. `planning.import` and
+`planning.export` were already resolved in an earlier corrective pass (real
+consumers exist in `routers/planning.py`) and are omitted below; the other 22
+keys close as follows.
+
+**Enforced as an existing capability with a dedicated key** (server-side gate
+added/aligned; UI aligned to match):
+
+- `dashboard.view_branch_summary` — gates the dashboard KPI/branch-overview
+  section (`templates/dashboard.html`) distinct from the Reports tab.
+- `dashboard.view_reports` — gates the dashboard's "Reports" tab and its
+  panel (`panel-reports`), a real, distinguishable structure separate from
+  the Subjects/Teachers/Planning tabs. The base `/dashboard` route access is
+  already enforced by `PROTECTED_ROUTE_RULES`.
+- `dashboard.export_reports` — required together with `reports.export` (both
+  are now real, independently-enforced keys; removing either blocks
+  `/reports/allocation-plan.xlsx|.pdf` at the route-guard layer) and gates
+  the "Export Report" menu in the template.
+- `hiring_plan.export` — required in addition to the base export gate
+  specifically for `section=hiring` on the two report-export routes
+  (`main._authorize_report_export`), and gates the "Hiring Plan Excel/PDF"
+  links.
+- `observations.view_reports` — gates `GET /observations/teacher/{id}/history`
+  (the aggregated observation-cycle report) for a non-teacher (evaluator/
+  admin) actor and its nav link on the observations list; a teacher viewing
+  their own cycle remains self-service and is unaffected.
+- `observations.sign_evaluator` — is the dedicated gate for actually
+  persisting `evaluator_signature_data` on observation create/edit
+  (`routers/observations.py::_can_sign_evaluator`); the signature-capture UI
+  panel is now hidden without it.
+- `configuration.view_audit_log` — reclassified as platform-only (moved into
+  `DEVELOPER_ONLY_PERMISSION_KEYS`, matching its sibling
+  `configuration.export_audit_log`) and enforced as an additional
+  prerequisite under `/admin/audit-log`, alongside the export gate. See the
+  real-conflict note below for why it could not remain tenant-assignable.
+
+**Existing capability governed by an explicit alias/composite** (documented,
+not a second independently-built gate):
+
+- `observations.submit` — alias of `observations.sign_evaluator`. The
+  implementation has no separate "submit without signature" step: applying
+  the evaluator signature is the exact action that submits the observation
+  for the teacher's review (`_notify_teacher_observation_ready` fires only
+  once `evaluator_signature_data` is set).
+- `system_owner.manage_developer_accounts` — alias of the existing
+  owner-identity gate (`auth.is_platform_owner`) already used for
+  `POST /platform/developers` and `POST /platform/developers/{id}/permissions`.
+  Owner-only keys are identity-governed by construction
+  (`OWNER_ONLY_PERMISSION_KEYS` are never independently assignable), so the
+  identity check *is* the enforcement mechanism; the key is now cited
+  explicitly in the denial response for both routes for audit/messaging
+  consistency, matching the pre-existing pattern already used for
+  `system_owner.manage_ownership` / `.transfer_ownership`.
+- `system_owner.view_cross_school_audit` / `system_owner.export_cross_school_data`
+  — explicit aliases of `configuration.view_audit_log` /
+  `configuration.export_audit_log`. The only implemented audit surface is a
+  single, non-tenant-filtered log spanning every SchoolGroup; there is no
+  separate cross-school-specific audit feature. Both pairs are platform-only,
+  and either key in a pair is independently sufficient (`match="any"` on the
+  export route rule; `auth.has_any_permission` for the view prerequisite).
+
+**Capability not implemented — classified dormant/reserved** (no route,
+service, or user-facing control exists; no UI implies otherwise):
+
+- `hiring_plan.export`'s sibling capability confusion aside, the following
+  have zero implementation anywhere in the codebase: `reports.view` (no
+  standalone Reports page exists separate from the dashboard's Reports tab,
+  which is governed by `dashboard.view_reports`), `teachers.import`,
+  `teachers.export` (no import/export route or UI control for teacher data
+  exists at all), `subjects.manage_colors` (subject color is always
+  auto-derived by `subject_colors.resolve_subject_color`; there is no manual
+  color-editing UI or field), `observations.manage_templates` (the
+  observation rubric/criteria set is a hardcoded, auto-seeded fixture with no
+  create/edit/delete route), `configuration.manage_global_defaults` (no
+  "global configuration defaults" workflow exists; already platform-only),
+  `system_owner.manage_subscriptions` and `system_owner.create_subscription_school`
+  (subscription/billing management is delegated entirely to an external SaaS
+  admin surface reachable via `/saas/subscription?...`, outside this Web
+  Service's implemented scope), and `system_owner.run_startup_repairs`
+  (schema-compatibility repairs — `_ensure_users_table_columns` and siblings —
+  run automatically at application startup; there is no user-triggerable
+  route this key could gate). None of these keys have any UI control that
+  implies a live, independently-gated feature, so no template changes were
+  needed to remove misleading affordances.
+
+**Real KMS/implementation conflict (documented, not resolved by invented
+policy):**
+
+- `configuration.view_audit_log` was registered as tenant-assignable (not in
+  `DEVELOPER_ONLY_PERMISSION_KEYS`) while its only implemented consumer (the
+  global `/admin/audit-log` download) is inherently a single,
+  non-tenant-filtered log spanning every SchoolGroup. Granting a tenant
+  Administrator this key as previously registered would have been a silent
+  no-op today, but wiring it naively to the existing endpoint would leak
+  cross-tenant audit data — a tenant-isolation violation. Resolved
+  fail-closed: the key was reclassified platform-only (matching its export
+  sibling) rather than building a new tenant-filtered audit viewer (out of
+  scope for this pass) or granting tenant-scoped access to global data. A
+  future tenant-scoped audit viewer, if built, is a distinct, separately
+  governed feature decision.
+
 Owner-only commercial identity authority is a distinct governed boundary and is
 not automatically removed by an operational role-policy Deny.
 

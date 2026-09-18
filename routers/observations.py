@@ -828,6 +828,20 @@ def _can_override_locked_observation(db: Session, current_user) -> bool:
     return auth.has_permission(db, current_user, "observations.unlock")
 
 
+def _can_sign_evaluator(db: Session, current_user) -> bool:
+    # `observations.submit` is an explicit alias of `observations.sign_evaluator`:
+    # in the current implementation there is no separate "submit without
+    # signature" workflow -- applying the evaluator signature IS the act that
+    # submits the observation for the teacher's review (see
+    # `_notify_teacher_observation_ready`, triggered only once
+    # `evaluator_signature_data` is set). A dedicated `observations.submit`
+    # gate would duplicate this exact check rather than govern independent
+    # behavior.
+    return not _is_teacher_user(current_user) and auth.has_permission(
+        db, current_user, "observations.sign_evaluator"
+    )
+
+
 def _observation_is_locked(observation) -> bool:
     return bool(getattr(observation, "locked_at", None) or getattr(observation, "status", "") == "Locked")
 
@@ -2258,6 +2272,8 @@ async def create_observation(request: Request, db: Session = Depends(get_db)):
                 status_code=302,
             )
     evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
+    if evaluator_signature_data and not _can_sign_evaluator(db, current_user):
+        evaluator_signature_data = ""
     now = datetime.now(timezone.utc).replace(tzinfo=None)
 
     observation = models.Observation(
@@ -2411,7 +2427,7 @@ async def update_observation(observation_id: int, request: Request, db: Session 
     observation.evaluator_notes = str(form.get("evaluator_notes") or "").strip()
     had_evaluator_signature = bool(observation.evaluator_signature_data)
     evaluator_signature_data = str(form.get("evaluator_signature_data") or "").strip()
-    if evaluator_signature_data:
+    if evaluator_signature_data and _can_sign_evaluator(db, current_user):
         observation.evaluator_signature_data = evaluator_signature_data
 
     criteria = db.query(models.ObservationCriterion).filter(
@@ -2546,6 +2562,15 @@ def teacher_observation_history_page(teacher_id: int, request: Request, db: Sess
     current_user = get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/")
+
+    # A teacher viewing their own observation cycle is self-service, not an
+    # administrative "reports" capability, so it is not gated by
+    # `observations.view_reports`; that key governs an evaluator/admin
+    # viewing another teacher's aggregated observation cycle.
+    if not _is_teacher_user(current_user) and not auth.has_permission(
+        db, current_user, "observations.view_reports"
+    ):
+        return RedirectResponse(url="/observations")
 
     prepare_observation_module(db)
     branch_id, academic_year_id = _get_scope_ids(current_user)

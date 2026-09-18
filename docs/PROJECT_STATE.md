@@ -1,11 +1,36 @@
 ---
 title: TIS Project State
-documentation_version: 5.1
+documentation_version: 5.2
 last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## 22-Key Permission Registry Closure
+
+All 22 permission keys left unclassified by the independent review below have
+been individually traced against the implemented product and resolved: nine
+now have dedicated server-side enforcement aligned with their UI
+(`dashboard.view_branch_summary`, `dashboard.view_reports`,
+`dashboard.export_reports`, `hiring_plan.export`, `observations.view_reports`,
+`observations.sign_evaluator`, `configuration.view_audit_log`), three are
+explicit, documented aliases of an already-enforced capability rather than a
+second independently-built gate (`observations.submit`,
+`system_owner.manage_developer_accounts`,
+`system_owner.view_cross_school_audit` /
+`system_owner.export_cross_school_data`), nine are classified dormant/reserved
+because no implementation exists and no UI implies otherwise (`reports.view`,
+`teachers.import`, `teachers.export`, `subjects.manage_colors`,
+`observations.manage_templates`, `configuration.manage_global_defaults`,
+`system_owner.manage_subscriptions`, `system_owner.create_subscription_school`,
+`system_owner.run_startup_repairs`), and one genuine registry/implementation
+conflict was resolved fail-closed (`configuration.view_audit_log` moved to
+platform-only rather than exposing the global, non-tenant-filtered audit log
+to tenant administrators). Full per-key reasoning is in
+[the closure review](engineering/PERMISSION_CLOSURE_REVIEW.md). No new
+permission keys, migrations, or schema changes were introduced; ADR 0040 is
+unchanged.
 
 ## Independent Permission Closure Review — Not Yet Whole-System Approval
 

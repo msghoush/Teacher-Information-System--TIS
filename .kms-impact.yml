@@ -1,5 +1,5 @@
 knowledge_impact: yes
-summary: "Permission consistency integration plus independent review corrections: canonical fresh DB-backed resolution, scoped action checks, role-policy partial uniqueness and user assignability are preserved; close ambiguous/foreign tenant resolution, inactive platform capability, notification auto-read, developer role-assignment, teacher bulk-delete and protected teacher/planning edit-field bypasses. Record remaining unconsumed-registry-policy and coverage gaps without claiming complete security closure."
+summary: "Closed all 22 permission-registry keys left unclassified by the independent closure review. Enforced dedicated server-side/UI gates for 7 keys with a real distinguishable existing capability (dashboard branch-summary/reports/export sections, hiring-plan export, observation cycle reports/evaluator-signature, audit-log view prerequisite); made 3 explicit non-duplicative aliases of already-enforced capabilities (observation submit/sign, developer-account identity gate, cross-school audit aliases); classified 9 dormant/reserved with no implementation and no misleading UI; resolved one real registry/implementation conflict fail-closed by reclassifying configuration.view_audit_log as platform-only. No new permission keys, migrations, or schema changes. ADR 0040 unchanged."
 affected_areas:
   - architecture
   - permissions
@@ -7,16 +7,11 @@ affected_areas:
   - tenant_isolation
   - security
   - apis
-  - database_schema
-  - migrations
   - business_rules
   - user_system_workflows
 kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/engineering/PERMISSION_CLOSURE_REVIEW.md
-  - docs/engineering/README.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
 no_impact_reason: ""
 major_change_override: no

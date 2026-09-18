@@ -1,11 +1,50 @@
 ---
 title: TIS Change History
-documentation_version: 4.5
+documentation_version: 4.6
 last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-18 — Close the 22 unresolved permission-registry keys
+
+Resolved every key left unclassified by the independent closure review
+(`engineering/PERMISSION_CLOSURE_REVIEW.md`), tracing each against the
+implemented product rather than inventing new features or role-name checks:
+
+- Enforced dedicated existing capabilities: `dashboard.view_branch_summary` /
+  `dashboard.view_reports` (distinguishable dashboard KPI section and Reports
+  tab), `dashboard.export_reports` and `hiring_plan.export` (report-export
+  routes, the latter specifically for the hiring-plan section),
+  `observations.view_reports` (teacher observation-cycle history page, for
+  non-teacher actors only), `observations.sign_evaluator` (the actual
+  evaluator-signature persistence path), and `configuration.view_audit_log`
+  (an additional prerequisite under `/admin/audit-log`, alongside export).
+- Made explicit, non-duplicative aliases: `observations.submit` (there is no
+  submit step independent of the evaluator signature),
+  `system_owner.manage_developer_accounts` (owner-identity is the existing
+  enforcement mechanism for owner-only keys; the key is now cited in the
+  denial response), and `system_owner.view_cross_school_audit` /
+  `system_owner.export_cross_school_data` (both alias the single global,
+  non-tenant-filtered audit log surface).
+- Classified as dormant/reserved with no implementation and no misleading
+  UI: `reports.view`, `teachers.import`, `teachers.export`,
+  `subjects.manage_colors` (color is always auto-derived, never manually
+  set), `observations.manage_templates` (rubric criteria are a hardcoded,
+  auto-seeded fixture), `configuration.manage_global_defaults`,
+  `system_owner.manage_subscriptions`, `system_owner.create_subscription_school`
+  (both delegated to an external SaaS admin surface), and
+  `system_owner.run_startup_repairs` (automatic startup behavior, not a
+  user-triggerable action).
+- Resolved one real registry/implementation conflict fail-closed:
+  `configuration.view_audit_log` was tenant-assignable in the registry, but
+  its only consumer is a global, non-tenant-filtered log; reclassified it
+  platform-only (matching `configuration.export_audit_log`) rather than
+  exposing cross-tenant audit data or building a new tenant-scoped viewer.
+- No new permission keys, migrations, or schema changes. ADR 0040 is
+  unchanged. See `engineering/PERMISSION_CLOSURE_REVIEW.md` for the full,
+  per-key disposition and reasoning.
 
 ## 2026-09-18 — Independent permission closure review corrections
 
