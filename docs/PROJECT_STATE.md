@@ -1,11 +1,64 @@
 ---
 title: TIS Project State
-documentation_version: 5.2
+documentation_version: 5.3
 last_updated: 2026-09-18
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Dashboard Tab/Panel Permission-Gate Closure (Live Owner Reproduction)
+
+A live Owner reproduction found a real tenant Al-Andalus Administrator whose
+Subjects sidebar item was correctly hidden and whose direct `/subjects` route
+was correctly denied, while the same current user's Dashboard still showed
+the Subjects tab and Subjects Workspace panel. Both the sidebar
+(`ui_shell.build_shell_context`/`_build_nav_items`) and the route guard
+(`authorization.enforce_route_permission`) already resolved through the
+canonical `auth.get_allowed_permission_keys` chain (built-in role default ->
+global `RolePermission` -> tenant `RolePermission` -> per-user
+`UserPermissionOverride`) and were already correct and consistent with each
+other. The defect was isolated to `templates/dashboard.html`: its Subjects,
+Teachers, and Planning tab buttons and panels rendered unconditionally, never
+calling the `can(...)` helper that `main.dashboard`'s own
+`build_shell_context()` call already makes available in the same template
+(only the pre-existing Reports tab called `can("dashboard.view_reports")`).
+
+The fix wraps each of the three tab buttons and their matching panel `<div>`s
+in `can("subjects.view")`/`can("teachers.view")`/`can("planning.view")`, and
+replaces the previously hardcoded "Subjects is always the active default tab"
+markup with a computed `dash_first_tab` that becomes the first
+permission-visible tab (Subjects, then Teachers, then Planning, then
+Reports), so a user who only holds `teachers.view` (used here as the second,
+non-Subjects sentinel proving this is a generic gating fix, not a
+Subjects-only special case) still gets a valid default-active panel instead
+of a blank workspace. No precedence rule, permission key, schema, or
+migration changed; `auth.py`, `authorization.py`, `role_permission_service.py`,
+`user_permission_service.py`, and `ui_shell.py` were inspected and confirmed
+already canonical and were not modified.
+
+Phase-1 read-only diagnosis of the tracked local `tis.db` found it predates
+this feature area entirely: it has no `user_permission_overrides` table and
+its `schema_migrations` ledger ends at `20260822_...`, well before
+`20260913_001_user_permission_overrides` and
+`20260915_001_role_permission_logical_key_uniqueness`; it also has no tenant
+Administrator user matching the reproduced Al-Andalus scenario (only a single
+platform `developer` identity is present). Diagnosis and regression coverage
+are therefore code/template-level, not live-row inspection of that file; this
+is recorded rather than worked around. `tis.db` was not modified (hash
+verified unchanged before and after this task) and was not migrated.
+
+New regression coverage in
+`tests/test_dashboard_sidebar_permission_consistency.py` proves, for the same
+current user across the same request, that sidebar visibility, Dashboard
+tab/panel presence, and the direct route guard all agree with the canonical
+resolver's effective permission for six cases (global Allow only; global
+Allow + tenant Deny; tenant Allow + per-user Deny; role Deny then re-grant
+with per-user Inherit restoring access; role Deny then re-grant with a
+persisted per-user Deny remaining in effect per ADR 0040's Deny-over-Allow
+rule; and tenant-isolation, where denying one SchoolGroup's Administrator
+does not affect another SchoolGroup's Administrator holding the same role),
+each parametrized over both `subjects.view` and `teachers.view`.
 
 ## PR #360 Review-Response Corrective Pass
 

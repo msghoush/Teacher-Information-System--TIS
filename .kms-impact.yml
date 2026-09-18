@@ -1,22 +1,11 @@
 knowledge_impact: yes
-summary: "Whole-branch permission consistency closure across three prior commits plus this PR #360 review-response corrective pass. Prior commits: removed request-independent/cached permission resolution so grant/revoke/re-grant reliably reflects on the next read for every registered key; fixed stale/incorrect gates (Users role-assignment/permission-management helpers, Observations create/edit/delete/unlock, System Configuration Qualifications routes, Branch update/delete and Academic Year set/open scope checks, Notifications/Branding mutation routes); added the non-destructive migration 20260915_001_role_permission_logical_key_uniqueness installing partial-unique constraints on role_permissions plus an assignability re-validation in user_permission_service.apply_user_override; closed all 22 permission-registry keys left unclassified by the independent closure review with dedicated server-side/UI gates, explicit non-duplicative aliases, dormant/reserved classification, and one fail-closed registry/implementation conflict resolution (configuration.view_audit_log reclassified platform-only). This corrective commit fixes two PR #360 review findings: (1) the hiring_plan.export per-section export gate in main.py checked only the literal 'hiring' section, letting a caller retain the same protected hiring-plan data via section=full because both _build_professional_report_xlsx_bytes and _build_professional_report_pdf_bytes include the hiring-plan sheet/section for 'full' -- the gate now covers every section whose payload includes hiring data; (2) this .kms-impact.yml previously and incorrectly claimed the 22-key closure commit introduced no migrations/schema changes and dropped database_schema/migrations from affected_areas, contradicting the still-present 20260915_001_role_permission_logical_key_uniqueness migration carried by this same branch/PR. No new permission keys or schema changes were introduced by this corrective commit itself. ADR 0040 unchanged."
+summary: "Fixed a live Owner-reproduced permission inconsistency: a tenant Al-Andalus Administrator correctly had Subjects hidden from the sidebar (auth.get_allowed_permission_keys via ui_shell/build_shell_context) and correctly denied at the direct /subjects route guard (authorization.enforce_route_permission), yet the Dashboard's Subjects tab and Subjects Workspace panel remained fully visible for that same current user. Root cause: templates/dashboard.html rendered its Subjects/Teachers/Planning tab buttons and panels unconditionally -- it never called the already-available canonical can(\"subjects.view\")/can(\"teachers.view\")/can(\"planning.view\") helper that main.dashboard's build_shell_context already supplies from the same auth.get_allowed_permission_keys resolver the sidebar and route guard use. Only the pre-existing Reports tab (can(\"dashboard.view_reports\")) was gated. Fix is template-only and generic (not Subjects-specific): each of the three tab buttons and their matching panel divs are now wrapped in the matching can(...) check, and the previously hardcoded 'active' default tab is now computed as the first permission-visible tab so a user with only teachers.view/planning.view still gets a valid default-active panel. No precedence-rule change, no new permission key, no schema/migration change, no auth.py/authorization.py/role_permission_service.py/user_permission_service.py/ui_shell.py change -- those were inspected and confirmed already canonical and correct. Phase-1 read-only diagnosis of the tracked local tis.db found it does not contain the reproduced tenant Administrator account and predates the user_permission_overrides/role_permission_logical_key_uniqueness migrations entirely (schema_migrations ledger ends at 20260822_...), so this fix and its regression coverage are based on direct code/template tracing, not live tis.db row inspection; this is reported rather than fabricated. tis.db was not modified (hash unchanged) and was not migrated as part of this task."
 affected_areas:
   - architecture
   - permissions
-  - roles
-  - tenant_isolation
-  - security
-  - apis
-  - database_schema
-  - migrations
-  - business_rules
   - user_system_workflows
 kms_files_updated:
-  - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
   - docs/engineering/PERMISSION_CLOSURE_REVIEW.md
-  - docs/engineering/README.md
 no_impact_reason: ""
 major_change_override: no
