@@ -1,11 +1,66 @@
 ---
 title: Independent Permission Closure Review
-documentation_version: 1.1
+documentation_version: 1.2
 last_updated: 2026-09-18
 module: architecture
 ---
 
 # Independent Permission Closure Review
+
+## Dashboard Tab/Panel Permission-Gate Closure (Live Owner Reproduction)
+
+A live Owner UI reproduction (Role Permissions -> Administrator -> Global
+defaults showing Subjects 8/8, then logging in as a real Al-Andalus tenant
+Administrator) found Subjects correctly hidden from the sidebar and
+correctly denied at the direct `/subjects` route, but still fully visible on
+that same user's Dashboard (tab + Subjects Workspace panel). This was traced
+end to end per the required chain: built-in Administrator default -> global
+`RolePermission` -> Al-Andalus tenant `RolePermission` -> per-user
+`UserPermissionOverride` -> `auth.get_allowed_permission_keys` -> shell/
+sidebar context -> Dashboard context -> direct `/subjects` route
+authorization. Every layer up to and including `main.dashboard`'s own
+`build_shell_context()` call resolves and exposes the same canonical,
+per-user effective permission set via the `can(...)` template helper; the
+sidebar (`ui_shell._build_nav_items`) and the route guard
+(`authorization.enforce_route_permission`) both already consume that same
+canonical resolver correctly. The defect was that `templates/dashboard.html`
+itself never called `can("subjects.view")` / `can("teachers.view")` /
+`can("planning.view")` to gate its Subjects/Teachers/Planning tab buttons and
+panels -- they rendered unconditionally regardless of the resolved effective
+permission, while the pre-existing Reports tab already correctly called
+`can("dashboard.view_reports")`. This is the same defect class as this
+review's broader "current-user authorization (A) and UI capabilities (B) use
+canonical resolution" principle: (A)/(B) were both actually available in this
+template already, and simply were not invoked for these three tabs/panels.
+
+Fix: wrap each of the three tab buttons and their matching panel `<div>`
+blocks in the matching `can(...)` check, and replace the previously
+hardcoded always-active Subjects tab/panel with a computed `dash_first_tab`
+(first permission-visible tab among Subjects, Teachers, Planning, Reports),
+so a user holding only `teachers.view` or `planning.view` still gets a valid
+default-active panel rather than a blank workspace. No change to `auth.py`,
+`authorization.py`, `role_permission_service.py`,
+`user_permission_service.py`, `ui_shell.py`, ADR 0040's precedence chain, or
+any permission key/schema/migration -- all were inspected and confirmed
+already canonical.
+
+Phase-1 read-only diagnosis of the tracked local `tis.db` (hash recorded
+before and after; unchanged) found it predates this feature area: no
+`user_permission_overrides` table exists, and its `schema_migrations` ledger
+ends at `20260822_...`, before both `20260913_001_user_permission_overrides`
+and `20260915_001_role_permission_logical_key_uniqueness`; it also contains
+no tenant Administrator user matching the reproduced Al-Andalus scenario
+(only one platform `developer` identity). Diagnosis and the new regression
+suite (`tests/test_dashboard_sidebar_permission_consistency.py`) are
+therefore code/template-level trace and fresh in-memory-database test
+fixtures, not live-row inspection of that specific file; this limitation is
+recorded rather than worked around or fabricated. The new suite proves six
+cases (global Allow only; global Allow + tenant Deny; tenant Allow + per-user
+Deny; role Deny then re-grant with per-user Inherit; role Deny then re-grant
+with a persisted per-user Deny remaining in effect; and cross-tenant
+isolation) against sidebar, Dashboard markup, and the direct route guard
+together, parametrized over both `subjects.view` and a second, non-Subjects
+sentinel (`teachers.view`) to prove the fix is generic.
 
 ## Review boundary and disposition
 
