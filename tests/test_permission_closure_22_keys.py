@@ -180,7 +180,13 @@ def test_report_export_route_hiring_section_requires_hiring_plan_export():
 
         # Base export permission present, but hiring_plan.export removed:
         # the shared route is reachable (middleware allows it) but the
-        # per-section handler gate must reject a hiring-section request.
+        # per-section handler gate must reject a hiring-section request. It
+        # must also reject "full", because both `_build_professional_report_
+        # xlsx_bytes` and `_build_professional_report_pdf_bytes` include the
+        # hiring-plan sheet/section for "full" -- a caller must not be able
+        # to obtain the same protected hiring data by requesting the
+        # combined section instead of the literal "hiring" section
+        # (PR #360 review finding).
         _set_role_keys(db, ADMIN, school_id, defaults - {"hiring_plan.export"})
         read = Session()
         try:
@@ -189,13 +195,30 @@ def test_report_export_route_hiring_section_requires_hiring_plan_export():
                 _request("/reports/allocation-plan.xlsx"), read, fresh, "hiring",
             )
             assert denied is not None and denied.status_code == 403
-            allowed = main._authorize_report_export(
+            denied_full = main._authorize_report_export(
                 _request("/reports/allocation-plan.xlsx"), read, fresh, "full",
             )
-            assert allowed is None
+            assert denied_full is not None and denied_full.status_code == 403
+
+            # Sections that do not include hiring-plan data must remain
+            # unaffected by the missing hiring_plan.export permission.
+            allowed_summary = main._authorize_report_export(
+                _request("/reports/allocation-plan.xlsx"), read, fresh, "summary",
+            )
+            assert allowed_summary is None
+            allowed_subjects = main._authorize_report_export(
+                _request("/reports/allocation-plan.xlsx"), read, fresh, "subjects",
+            )
+            assert allowed_subjects is None
+            allowed_teachers = main._authorize_report_export(
+                _request("/reports/allocation-plan.xlsx"), read, fresh, "teachers",
+            )
+            assert allowed_teachers is None
         finally:
             read.close()
 
+        # Restore hiring_plan.export: both "hiring" and "full" are allowed
+        # again (ON -> OFF -> ON).
         _set_role_keys(db, ADMIN, school_id, defaults)
         read = Session()
         try:
@@ -204,6 +227,10 @@ def test_report_export_route_hiring_section_requires_hiring_plan_export():
                 _request("/reports/allocation-plan.xlsx"), read, fresh, "hiring",
             )
             assert allowed is None
+            allowed_full = main._authorize_report_export(
+                _request("/reports/allocation-plan.xlsx"), read, fresh, "full",
+            )
+            assert allowed_full is None
         finally:
             read.close()
     finally:

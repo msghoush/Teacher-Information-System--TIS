@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Project State
 
+## PR #360 Review-Response Corrective Pass
+
+Two review findings on PR #360 were verified against the actual GitHub review
+comments/diff and corrected. `hiring_plan.export` previously gated only the
+literal `section=hiring` export request; `section=full` returns a report
+containing the same hiring-plan data (both professional-report builders emit
+the hiring-plan sheet/section for `full`) and was not gated, letting a caller
+retain the protected data despite a denied `hiring_plan.export`. The gate in
+`main._authorize_report_export` now covers every section whose payload
+includes hiring data. Separately, this branch's `.kms-impact.yml` had come to
+understate its own database impact: it claimed no migrations/schema changes
+even though the branch still carries the non-destructive migration
+`20260915_001_role_permission_logical_key_uniqueness` (see below); the
+declaration is corrected to describe the branch's full cumulative scope. A
+third item from the delegated task summary (SchoolGroup edit/delete/action
+authorization) was investigated and found to have no corresponding PR #360
+review comment and no SchoolGroup file in this PR's diff against
+`origin/dev`; no code change was made for it. Full detail in
+[the closure review](engineering/PERMISSION_CLOSURE_REVIEW.md#pr-360-review-response-corrective-pass).
+
 ## 22-Key Permission Registry Closure
 
 All 22 permission keys left unclassified by the independent review below have
@@ -28,9 +48,11 @@ because no implementation exists and no UI implies otherwise (`reports.view`,
 conflict was resolved fail-closed (`configuration.view_audit_log` moved to
 platform-only rather than exposing the global, non-tenant-filtered audit log
 to tenant administrators). Full per-key reasoning is in
-[the closure review](engineering/PERMISSION_CLOSURE_REVIEW.md). No new
-permission keys, migrations, or schema changes were introduced; ADR 0040 is
-unchanged.
+[the closure review](engineering/PERMISSION_CLOSURE_REVIEW.md). This 22-key
+closure pass itself introduced no new permission keys, migrations, or schema
+changes; ADR 0040 is unchanged. (The branch/PR as a whole still carries the
+earlier `20260915_001_role_permission_logical_key_uniqueness` migration
+described below and in the PR #360 corrective-pass note above.)
 
 ## Independent Permission Closure Review — Not Yet Whole-System Approval
 

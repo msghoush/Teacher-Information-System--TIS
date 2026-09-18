@@ -97,10 +97,20 @@ added/aligned; UI aligned to match):
   are now real, independently-enforced keys; removing either blocks
   `/reports/allocation-plan.xlsx|.pdf` at the route-guard layer) and gates
   the "Export Report" menu in the template.
-- `hiring_plan.export` — required in addition to the base export gate
-  specifically for `section=hiring` on the two report-export routes
-  (`main._authorize_report_export`), and gates the "Hiring Plan Excel/PDF"
-  links.
+- `hiring_plan.export` — required in addition to the base export gate for
+  every report-export section whose generated payload includes the
+  hiring-plan sheet/section on the two report-export routes
+  (`main._authorize_report_export`, gated on
+  `REPORT_EXPORT_SECTIONS_WITH_HIRING_DATA = {"full", "hiring"}`), and gates
+  the "Hiring Plan Excel/PDF" links. A PR #360 review finding showed the
+  initial implementation checked only the literal `section=hiring` value,
+  so a caller who retained the base export permissions but was denied
+  `hiring_plan.export` could still obtain the same hiring-plan data via
+  `section=full` (both `_build_professional_report_xlsx_bytes` and
+  `_build_professional_report_pdf_bytes` include the hiring-plan
+  sheet/section for `full`). The gate now checks section membership in
+  `REPORT_EXPORT_SECTIONS_WITH_HIRING_DATA`, which must stay aligned with
+  every section branch in those two builders that emits hiring-plan data.
 - `observations.view_reports` — gates `GET /observations/teacher/{id}/history`
   (the aggregated observation-cycle report) for a non-teacher (evaluator/
   admin) actor and its nav link on the observations list; a teacher viewing
@@ -190,6 +200,61 @@ permission and scope decisions; original notification-group tests mock queries
 and commit operations. They establish action dispatch, not complete independent
 tenant-isolation evidence for those paths. Additional persisted-policy tests
 address specific missed paths but do not erase these coverage limits.
+
+### PR #360 review-response corrective pass
+
+Two GitHub review findings on PR #360 (Codex automated review, commit
+`86fc9a299246ef33a7dba1f546bb6f87e928f3a6`) were inspected against the actual
+review comments/diff and corrected:
+
+1. **P1 — hiring-plan export bypass via `section=full`.** Confirmed valid.
+   `main._authorize_report_export` compared `normalized_section` against the
+   literal string `"hiring"` only, while both professional-report builders
+   include the hiring-plan sheet/section whenever `section == "full"` as
+   well. A caller retaining `reports.export` / `dashboard.export_reports`
+   but denied `hiring_plan.export` could bypass the dedicated gate simply by
+   requesting `section=full` instead of `section=hiring`, obtaining the same
+   protected hiring data. Fixed by checking membership in a single shared
+   constant, `REPORT_EXPORT_SECTIONS_WITH_HIRING_DATA = {"full", "hiring"}`,
+   used by the gate and documented as required to stay aligned with the
+   builders' own per-section branches. `summary` and `subjects`/`teachers`
+   sections (which do not include hiring data) remain unaffected by a
+   missing `hiring_plan.export` grant. Regression coverage strengthened in
+   `tests/test_permission_closure_22_keys.py::test_report_export_route_hiring_section_requires_hiring_plan_export`
+   to assert denial for `hiring` and `full`, continued access for `summary`/
+   `subjects`/`teachers`, and full ON→OFF→ON round-trip for both `hiring`
+   and `full`.
+2. **P2 — `.kms-impact.yml` KIA summary factually inconsistent with the
+   branch's database changes.** Confirmed valid. The commit `86fc9a2` KIA
+   summary stated "No new permission keys, migrations, or schema changes"
+   and dropped `database_schema`/`migrations` from `affected_areas`, even
+   though the same `fix/permission-consistency-closure` branch (commit
+   `28f98f2`) still carries the non-destructive migration
+   `20260915_001_role_permission_logical_key_uniqueness` (two partial-unique
+   indexes on `role_permissions`) that is part of this PR's full diff against
+   `origin/dev`. The 22-key closure commit itself added no new migration, but
+   the KIA declaration governs the PR's cumulative branch knowledge impact,
+   not only the most recent commit in isolation. `.kms-impact.yml` was
+   rewritten to describe the full three-commit-plus-corrective-pass scope,
+   restore `database_schema`/`migrations` to `affected_areas`, and list every
+   authoritative KMS Markdown file that differs from `origin/dev`
+   (`docs/CHANGE_HISTORY.md`, `docs/PROJECT_STATE.md`,
+   `docs/TIS_MASTER_CONTEXT.md`,
+   `docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md`,
+   `docs/engineering/PERMISSION_CLOSURE_REVIEW.md`,
+   `docs/engineering/README.md`), matching the range GitHub CI validates for
+   this PR (`origin/dev` → the branch's final head commit).
+
+A third item raised in the delegated task description — SchoolGroup
+edit/delete/action authorization consistency — was investigated but could
+not be substantiated as an actual PR #360 review finding: the PR's full diff
+against `origin/dev` (`git diff --stat origin/dev...HEAD`) touches no
+SchoolGroup route/model/template file, and neither of the two real review
+comments on PR #360 (fetched via the GitHub REST API) reference SchoolGroup
+mutation authorization. No SchoolGroup-related code was changed in this
+corrective pass; this discrepancy between the delegated task summary and the
+actual GitHub review content is recorded here rather than acted on
+speculatively.
 
 ## Migration and operational safety
 

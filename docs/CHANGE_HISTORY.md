@@ -7,6 +7,35 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-18 — PR #360 review-response corrective pass
+
+Corrected two GitHub review findings on PR #360, verified against the actual
+review comments/diff (not the delegated task summary alone):
+
+- Fixed a hiring-plan export permission bypass: `main._authorize_report_export`
+  only rejected the literal `section=hiring` request, while `section=full`
+  produces a report containing the same hiring-plan sheet/section but skipped
+  the `hiring_plan.export` check. The gate now covers every report-export
+  section whose payload includes hiring data
+  (`REPORT_EXPORT_SECTIONS_WITH_HIRING_DATA = {"full", "hiring"}`), kept in
+  sync with the section branches in `_build_professional_report_xlsx_bytes`
+  and `_build_professional_report_pdf_bytes`. `summary`/`subjects`/`teachers`
+  sections remain unaffected.
+- Corrected `.kms-impact.yml`: the prior commit's KIA summary incorrectly
+  claimed no migrations/schema changes and dropped `database_schema` /
+  `migrations` from `affected_areas`, even though this branch still carries
+  the non-destructive `20260915_001_role_permission_logical_key_uniqueness`
+  migration. The declaration now describes the full branch/PR scope and
+  restores the accurate `affected_areas` and `kms_files_updated` list.
+- Investigated a third item from the delegated task summary (SchoolGroup
+  edit/delete/action authorization) against the actual PR #360 review
+  comments and full diff; found no supporting review comment or changed
+  SchoolGroup file in this PR, so no code change was made for it. See
+  `engineering/PERMISSION_CLOSURE_REVIEW.md` for detail.
+
+No new permission keys or schema changes were introduced by this corrective
+commit. ADR 0040 unchanged.
+
 ## 2026-09-18 — Close the 22 unresolved permission-registry keys
 
 Resolved every key left unclassified by the independent closure review

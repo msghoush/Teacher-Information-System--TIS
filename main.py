@@ -15931,6 +15931,9 @@ async def save_dashboard_hiring_plan(
 # ---------------------------------------
 # REPORT EXPORT
 # ---------------------------------------
+REPORT_EXPORT_SECTIONS_WITH_HIRING_DATA = {"full", "hiring"}
+
+
 def _authorize_report_export(request: Request, db: Session, user, normalized_section: str):
     """Additional per-section gate for the `/reports/allocation-plan.*` routes.
 
@@ -15938,9 +15941,17 @@ def _authorize_report_export(request: Request, db: Session, user, normalized_sec
     alias) is already enforced by the global route-permission middleware
     (`authorization.PROTECTED_ROUTE_RULES`), which cannot inspect the
     `section` query parameter. `hiring_plan.export` is a dedicated additional
-    gate required only when a caller requests the hiring-plan section.
+    gate required whenever a caller requests a section whose payload includes
+    hiring-plan data. This must stay aligned with every section branch in
+    `_build_professional_report_xlsx_bytes` / `_build_professional_report_pdf_bytes`
+    that emits the hiring plan sheet/section (currently `full` and `hiring`),
+    not just the literal `"hiring"` section, otherwise `section=full` (or any
+    future section that folds hiring data in) bypasses the gate.
     """
-    if normalized_section == "hiring" and not auth.has_permission(db, user, "hiring_plan.export"):
+    if (
+        normalized_section in REPORT_EXPORT_SECTIONS_WITH_HIRING_DATA
+        and not auth.has_permission(db, user, "hiring_plan.export")
+    ):
         return authorization.build_access_denied_response(
             request,
             db,
