@@ -315,7 +315,7 @@ def test_route_rejects_unauthorized_acting_user():
     db = Session()
     try:
         editor_actor = db.query(models.User).get(ids["editor_actor_id"])
-        assert not auth._has_cached_permission(editor_actor, "configuration.manage_permissions")
+        assert not auth.has_permission(db, editor_actor, "configuration.manage_permissions")
 
         resp = _save_overrides(db, editor_actor, ids["user_a_id"], {"dashboard.view": "deny"})
         assert getattr(resp, "status_code", None) == 302

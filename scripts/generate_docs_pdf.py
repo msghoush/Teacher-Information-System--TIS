@@ -61,6 +61,7 @@ ENGINEERING_DOCS = [
     ROOT / "docs" / "engineering" / "REPOSITORY_ARCHITECTURE.md",
     ROOT / "docs" / "engineering" / "USER_AND_SYSTEM_FLOWS.md",
     ROOT / "docs" / "engineering" / "DATABASE_ARCHITECTURE_OVERVIEW.md",
+    ROOT / "docs" / "engineering" / "PERMISSION_CLOSURE_REVIEW.md",
     ROOT / "docs" / "engineering" / "DEVELOPMENT_STANDARDS.md",
     ROOT / "docs" / "engineering" / "UI_UX_DESIGN_PHILOSOPHY.md",
     ROOT / "docs" / "engineering" / "PRODUCT_ROADMAP.md",

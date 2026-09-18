@@ -187,34 +187,6 @@ def _permission_registry_module():
     return permission_registry
 
 
-def get_user_permission_keys(user) -> set[str]:
-    cached = getattr(user, "permission_keys", None)
-    if not cached:
-        return set()
-    return set(cached)
-
-
-def _has_cached_permission(user, permission_key: str) -> bool:
-    if is_platform_owner(user):
-        return True
-    return str(permission_key or "").strip() in get_user_permission_keys(user)
-
-
-def _has_any_cached_permission(user, permission_keys) -> bool:
-    return any(_has_cached_permission(user, permission_key) for permission_key in permission_keys)
-
-
-def _has_cached_permission_prefix(user, prefixes) -> bool:
-    if is_platform_owner(user):
-        return True
-    cached_keys = get_user_permission_keys(user)
-    return any(
-        str(permission_key).startswith(prefix)
-        for permission_key in cached_keys
-        for prefix in prefixes
-    )
-
-
 def _get_role_permission_rows(
     db: Session,
     role: str,
@@ -267,6 +239,15 @@ def get_allowed_permission_keys(
     )
     if not normalized_role:
         return set()
+    stored_group_id = getattr(user, "school_group_id", None)
+    branch_group_id = get_branch_school_group_id(db, getattr(user, "branch_id", None))
+    if stored_group_id and branch_group_id and stored_group_id != branch_group_id:
+        return set()
+    owner_group_id = stored_group_id or branch_group_id
+    if not owner_group_id:
+        return set()
+    if db.query(models.SchoolGroup.id).filter(models.SchoolGroup.id == owner_group_id).first() is None:
+        return set()
     resolved_school_group_id = school_group_id
     if resolved_school_group_id is None:
         resolved_school_group_id = (
@@ -274,16 +255,8 @@ def get_allowed_permission_keys(
             or getattr(user, "school_group_id", None)
             or get_user_school_group_id(db, user)
         )
-
-    cache_key = (
-        "permission_cache",
-        int(getattr(user, "id", 0) or 0),
-        normalized_role,
-        int(resolved_school_group_id or 0),
-    )
-    cached_permissions = getattr(user, "_permission_cache", {})
-    if cache_key in cached_permissions:
-        return set(cached_permissions[cache_key])
+    if resolved_school_group_id != owner_group_id:
+        return set()
 
     import role_permission_service
     import user_permission_service
@@ -302,8 +275,6 @@ def get_allowed_permission_keys(
         normalized_role,
         user_permission_service.apply_overrides_to_keys(allowed_keys, overrides),
     )
-    cached_permissions[cache_key] = frozenset(allowed_keys)
-    user._permission_cache = cached_permissions
     return set(allowed_keys)
 
 
@@ -374,53 +345,52 @@ def is_user_active(user) -> bool:
     return bool(getattr(user, "is_active", False))
 
 
-def can_access_all_years(user, db: Session | None = None) -> bool:
+def can_access_all_years(user, db: Session) -> bool:
+    if not user or not is_user_active(user):
+        return False
     if is_platform_user(user):
         return True
-    if db is not None:
-        return has_any_permission(
-            db,
-            user,
-            "academic_years.view",
-            "academic_years.activate",
-        )
-    return _has_any_cached_permission(
+    return has_any_permission(
+        db,
         user,
-        ("academic_years.view", "academic_years.activate"),
+        "academic_years.view",
+        "academic_years.activate",
     )
 
 
-def can_manage_system_settings(user) -> bool:
-    return _has_cached_permission_prefix(user, SYSTEM_CONFIGURATION_PERMISSION_PREFIXES)
+def can_manage_system_settings(db: Session, user) -> bool:
+    return any(
+        key.startswith(SYSTEM_CONFIGURATION_PERMISSION_PREFIXES)
+        for key in get_allowed_permission_keys(db, user)
+    )
 
 
-def can_manage_users(user) -> bool:
-    return _has_cached_permission(user, "users.view")
+def can_manage_users(db: Session, user) -> bool:
+    return has_permission(db, user, "users.view")
 
 
-def can_modify_data(user) -> bool:
-    if is_platform_owner(user):
-        return True
+def can_modify_data(db: Session, user) -> bool:
     permission_registry = _permission_registry_module()
     return any(
         permission_key not in permission_registry.LIMITED_READ_ONLY_PERMISSION_KEYS
         and any(permission_key.startswith(prefix) for prefix in DATA_MODIFICATION_PERMISSION_PREFIXES)
-        for permission_key in get_user_permission_keys(user)
+        for permission_key in get_allowed_permission_keys(db, user)
     )
 
 
-def can_edit_data(user) -> bool:
-    return can_modify_data(user)
+def can_edit_data(db: Session, user) -> bool:
+    return can_modify_data(db, user)
 
 
-def can_delete_data(user) -> bool:
-    return _has_any_cached_permission(user, DATA_DELETE_PERMISSIONS)
+def can_delete_data(db: Session, user) -> bool:
+    return has_any_permission(db, user, *DATA_DELETE_PERMISSIONS)
 
 
-def can_edit_user_accounts(user) -> bool:
-    return _has_any_cached_permission(
+def can_edit_user_accounts(db: Session, user) -> bool:
+    return has_any_permission(
+        db,
         user,
-        (
+        *(
             "users.edit_profile",
             "users.assign_position",
             "users.assign_role",
@@ -431,14 +401,20 @@ def can_edit_user_accounts(user) -> bool:
     )
 
 
-def can_delete_user_accounts(user) -> bool:
-    return _has_any_cached_permission(user, ("users.delete", "users.bulk_delete"))
+def can_delete_user_accounts(db: Session, user) -> bool:
+    return has_any_permission(db, user, "users.delete", "users.bulk_delete")
 
 
-def can_manage_target_user_account(current_user, target_user) -> bool:
-    if not can_manage_users(current_user):
+def can_manage_target_user_account(db: Session, current_user, target_user) -> bool:
+    if not can_manage_users(db, current_user):
         return False
     if is_platform_user(target_user):
+        return False
+    target_group_id = getattr(target_user, "school_group_id", None)
+    target_branch_group_id = get_branch_school_group_id(db, getattr(target_user, "branch_id", None))
+    if not target_group_id or (target_branch_group_id and target_branch_group_id != target_group_id):
+        return False
+    if db.query(models.SchoolGroup.id).filter(models.SchoolGroup.id == target_group_id).first() is None:
         return False
     if is_platform_user(current_user):
         return True
@@ -447,10 +423,7 @@ def can_manage_target_user_account(current_user, target_user) -> bool:
         "school_group_id",
         None,
     )
-    target_group_id = getattr(target_user, "school_group_id", None)
-    if current_group_id and target_group_id and current_group_id != target_group_id:
-        return False
-    return True
+    return bool(current_group_id and target_group_id and current_group_id == target_group_id)
 
 
 def _get_positive_int_env(name: str, default: int) -> int:

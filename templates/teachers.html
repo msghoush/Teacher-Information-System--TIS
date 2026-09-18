@@ -3687,7 +3687,7 @@
                     <div class="toolbar-head">
                         <div class="title-with-actions">
                             <h2><span class="section-heading"><span class="section-heading-icon">{{ icon("table", "icon") }}</span>Teachers Table</span></h2>
-                            {% if can_delete %}
+                            {% if can_bulk_delete %}
                             <span class="title-actions">
                                 <button id="bulkDeleteTrigger" class="icon-action icon-action-danger" type="submit" form="bulkDeleteForm" aria-label="Delete selected teachers" title="Select teachers from the table to delete">
                                     {{ icon("trash", "icon") }}
@@ -3731,7 +3731,7 @@
                     <table>
                         <thead>
                             <tr>
-                                {% if can_delete %}
+                                {% if can_bulk_delete %}
                                 <th class="select-col">
                                     <input id="bulkSelectAll" class="bulk-select" type="checkbox" aria-label="Select all teachers">
                                 </th>
@@ -3756,7 +3756,7 @@
                                 {% set total_capacity = allocation.get("total_capacity_hours", 0) if allocation else ((teacher.max_hours or 24) + (teacher.extra_hours_count if teacher.extra_hours_allowed else 0)) %}
                                 {% set extra_hours = teacher.extra_hours_count if teacher.extra_hours_allowed else 0 %}
                                 {% set within_capacity = allocated_hours <= international_capacity %}
-                                {% if can_delete %}
+                                {% if can_bulk_delete %}
                                 <td class="select-col">
                                     <input class="bulk-select bulk-select-item" type="checkbox" name="selected_teacher_ids" value="{{ teacher.id }}" aria-label="Select teacher {{ teacher.first_name }} {{ teacher.last_name }} for bulk delete">
                                 </td>

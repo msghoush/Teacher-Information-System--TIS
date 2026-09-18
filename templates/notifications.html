@@ -4,7 +4,7 @@
 {% block title %}Notification Center | TIS{% endblock %}
 
 {% block page_header_actions %}
-{% if selected_box == "inbox" and notification_counts.get("New", 0) %}
+{% if selected_box == "inbox" and notification_counts.get("New", 0) and can("notifications.mark_read") %}
 <form method="post" action="/notifications/mark-all-read">
     <button class="shell-action" type="submit">{{ icon("check-circle", "shell-icon") }} Mark all as read</button>
 </form>
@@ -547,7 +547,7 @@ body.notification-popup-open {
                     <span class="msg-status {{ group.status_class }}">{{ group.status_label }}</span>
                     <div class="msg-action-row">
                         <a class="msg-action msg-action-primary" href="/notifications/{{ msg.id }}" data-open-notification-popup>{{ icon("open", "shell-icon") }} Open</a>
-                        {% if selected_box == "inbox" and group.new_count %}
+                        {% if selected_box == "inbox" and group.new_count and can("notifications.mark_read") %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="read">
@@ -555,7 +555,7 @@ body.notification-popup-open {
                             <button class="msg-action" type="submit">{{ icon("eye", "shell-icon") }} Mark read</button>
                         </form>
                         {% endif %}
-                        {% if selected_box == "inbox" and group.done_count < group.count %}
+                        {% if selected_box == "inbox" and group.done_count < group.count and can("notifications.resolve") %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="done">
@@ -563,7 +563,7 @@ body.notification-popup-open {
                             <button class="msg-action msg-action-done" type="submit">{{ icon("check-circle", "shell-icon") }} Done</button>
                         </form>
                         {% endif %}
-                        {% if selected_box != "archive" %}
+                        {% if selected_box != "archive" and can("notifications.archive") %}
                         <form method="post" action="/notifications/group-action">
                             <input type="hidden" name="group_key" value="{{ group.key }}">
                             <input type="hidden" name="action" value="archive">

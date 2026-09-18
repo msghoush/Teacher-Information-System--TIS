@@ -447,7 +447,7 @@
 
             <section class="section-card">
                 <h3>Academic Years</h3>
-                {% if can("academic_years.create") %}
+                {% if can("academic_years.create") and can("academic_years.activate") %}
                 <form class="form-grid two" method="post" action="/developer/open-academic-year">
                     <input type="hidden" name="return_to" value="/system-configuration/schools?school_group_id={{ selected_school_group.id }}">
                     <input type="hidden" name="school_group_id" value="{{ selected_school_group.id }}">

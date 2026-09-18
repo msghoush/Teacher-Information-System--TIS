@@ -1,7 +1,7 @@
 ---
 title: TIS Engineering Handbook
 documentation_version: 3.1
-last_updated: 2026-07-21
+last_updated: 2026-09-18
 source_of_truth: true
 ---
 
@@ -28,6 +28,7 @@ Recommended onboarding order:
 
 ## Engineering Documents
 
+- [Independent Permission Closure Review](PERMISSION_CLOSURE_REVIEW.md): review findings, verification boundaries, and remaining approval blockers.
 - [TIS Module Map](TIS_MODULE_MAP.md): product and system modules, maturity, ownership, risks, and guardrails.
 - [Repository Architecture](REPOSITORY_ARCHITECTURE.md): repository structure and responsibilities.
 - [User and System Flows](USER_AND_SYSTEM_FLOWS.md): end-to-end public, SaaS, payment, provisioning, operational, owner, and KMS flows.

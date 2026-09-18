@@ -107,7 +107,9 @@
                             {% if can_create %}
                             <button class="icon-action" type="button" data-open-observation-modal data-teacher-id="{{ row.teacher.id }}" title="New observation">{{ icon("add", "shell-icon") }}</button>
                             {% endif %}
+                            {% if can("observations.view_reports") %}
                             <a class="icon-action" href="/observations/teacher/{{ row.teacher.id }}/history" title="View complete observation history">{{ icon("table", "shell-icon") }}</a>
+                            {% endif %}
                             {% if row.latest %}
                             <a class="icon-action" href="/observations/{{ row.latest.id }}" title="Open latest">{{ icon("open", "shell-icon") }}</a>
                             {% if can("observations.export_reports") and row.can_export_cycle %}

@@ -1515,7 +1515,7 @@ def update_planning_section(
     grade_level: str = Form(...),
     section_name: str = Form(...),
     class_status: str = Form(...),
-    homeroom_teacher_id: str = Form(""),
+    homeroom_teacher_id: str | None = Form(None),
     assignment_subject_codes: list[str] = Form([]),
     assignment_teacher_ids: list[str] = Form([]),
     qualification_override: str = Form(""),
@@ -1552,6 +1552,37 @@ def update_planning_section(
             else ""
         )
         parsed_assignment_teacher_ids_by_subject[subject_code] = _parse_int(raw_teacher_id)
+
+    can_manage_homeroom = auth.has_permission(db, current_user, "planning.manage_homeroom")
+    can_assign_teacher = auth.has_permission(db, current_user, "planning.assign_teacher")
+    existing_assignments = {
+        row.subject_code: row.teacher_id
+        for row in db.query(models.TeacherSectionAssignment).filter(
+            models.TeacherSectionAssignment.planning_section_id == planning_section.id
+        ).all()
+    }
+    denied_key = None
+    if not can_manage_homeroom:
+        if homeroom_teacher_id is not None and parsed_homeroom_teacher_id != planning_section.homeroom_teacher_id:
+            denied_key = "planning.manage_homeroom"
+        parsed_homeroom_teacher_id = planning_section.homeroom_teacher_id
+    if not can_assign_teacher:
+        submitted_assignments = {
+            code: teacher_id for code, teacher_id in parsed_assignment_teacher_ids_by_subject.items()
+            if teacher_id is not None
+        }
+        if (
+            assignment_subject_codes and submitted_assignments != existing_assignments
+        ) or (
+            existing_assignments and normalized_grade_level != _normalize_grade_level(planning_section.grade_level)
+        ):
+            denied_key = "planning.assign_teacher"
+        parsed_assignment_teacher_ids_by_subject = dict(existing_assignments)
+    if denied_key:
+        return authorization.build_access_denied_response(
+            request, db, current_user=current_user,
+            permission_keys=(denied_key,), page_key="planning",
+        )
 
     errors = []
     if normalized_grade_level not in GRADE_OPTIONS:
@@ -1759,26 +1790,28 @@ def update_planning_section(
     planning_section.grade_level = normalized_grade_level
     planning_section.section_name = normalized_section_name
     planning_section.class_status = normalized_class_status
-    planning_section.homeroom_teacher_id = (
-        homeroom_teacher.id if homeroom_teacher else None
-    )
+    if can_manage_homeroom:
+        planning_section.homeroom_teacher_id = (
+            homeroom_teacher.id if homeroom_teacher else None
+        )
 
     try:
-        db.query(models.TeacherSectionAssignment).filter(
-            models.TeacherSectionAssignment.planning_section_id == planning_section.id
-        ).delete(synchronize_session=False)
-        for subject in aligned_subjects:
-            subject_code = subject.get("subject_code")
-            teacher_id = parsed_assignment_teacher_ids_by_subject.get(subject_code)
-            if not subject_code or teacher_id is None:
-                continue
-            db.add(
-                models.TeacherSectionAssignment(
-                    teacher_id=teacher_id,
-                    planning_section_id=planning_section.id,
-                    subject_code=subject_code,
+        if can_assign_teacher:
+            db.query(models.TeacherSectionAssignment).filter(
+                models.TeacherSectionAssignment.planning_section_id == planning_section.id
+            ).delete(synchronize_session=False)
+            for subject in aligned_subjects:
+                subject_code = subject.get("subject_code")
+                teacher_id = parsed_assignment_teacher_ids_by_subject.get(subject_code)
+                if not subject_code or teacher_id is None:
+                    continue
+                db.add(
+                    models.TeacherSectionAssignment(
+                        teacher_id=teacher_id,
+                        planning_section_id=planning_section.id,
+                        subject_code=subject_code,
+                    )
                 )
-            )
         db.commit()
     except IntegrityError:
         db.rollback()

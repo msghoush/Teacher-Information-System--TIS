@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 import models
+import auth
 import permission_registry
 import role_permission_service
 
@@ -34,8 +35,9 @@ def apply_user_override(
 ) -> dict:
     """Persist one per-user Allow/Deny decision, or remove it for Inherit.
 
-    Raises ValueError for unknown/platform-only keys, invalid decisions, or a
-    target user outside the caller's SchoolGroup (tenant isolation)."""
+    Raises ValueError for unknown/platform-only or nonassignable keys, invalid
+    decisions, or a target outside the caller's SchoolGroup. Inherit can remove
+    a previously stored nonassignable override after a role change."""
     permission_key = str(permission_key or "").strip()
     decision = str(decision or "").strip().lower()
     if decision not in VALID_DECISIONS:
@@ -48,6 +50,11 @@ def apply_user_override(
     target_group = getattr(target_user, "school_group_id", None)
     if not target_group or target_group != school_group_id:
         raise ValueError("target user is not in the active SchoolGroup")
+    if db.query(models.SchoolGroup.id).filter(models.SchoolGroup.id == target_group).first() is None:
+        raise ValueError("target user's SchoolGroup does not exist")
+    branch_group = auth.get_branch_school_group_id(db, getattr(target_user, "branch_id", None))
+    if branch_group and branch_group != target_group:
+        raise ValueError("target user has contradictory SchoolGroup ownership")
 
     existing = (
         db.query(models.UserPermissionOverride)
@@ -62,6 +69,12 @@ def apply_user_override(
         if existing is not None:
             db.delete(existing)
         return {"permission_key": permission_key, "decision": DECISION_INHERIT}
+
+    normalized_role = permission_registry.normalize_managed_role(
+        auth.get_effective_tenant_role(target_user)
+    )
+    if not normalized_role or not _is_assignable(normalized_role, permission_key):
+        raise ValueError("permission cannot be overridden for this user's role")
 
     is_allowed = decision == DECISION_ALLOW
     now = datetime.now(UTC).replace(tzinfo=None)
@@ -118,12 +131,12 @@ def build_user_permission_payload(
     normalized_role: str,
     school_group_id: int | None,
 ) -> dict:
+    normalized_role = permission_registry.normalize_managed_role(
+        auth.get_effective_tenant_role(target_user)
+    )
     role_allowed = role_permission_service.get_allowed_permission_keys(db, normalized_role, school_group_id)
     overrides = get_user_overrides(db, target_user.id, school_group_id)
-    effective = permission_registry.constrain_role_permissions(
-        normalized_role,
-        apply_overrides_to_keys(role_allowed, overrides),
-    )
+    effective = auth.get_allowed_permission_keys(db, target_user, school_group_id)
 
     groups = []
     for group in permission_registry.PERMISSION_GROUPS:

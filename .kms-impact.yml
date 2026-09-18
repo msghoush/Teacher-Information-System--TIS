@@ -1,8 +1,22 @@
-knowledge_impact: no
-summary: "Rebuild the Talent & Potential sidebar icon from the supplied Ghars Logo source, removing empty canvas and producing a pure-white transparent asset that fills the existing standard icon box."
+knowledge_impact: yes
+summary: "Whole-branch permission consistency closure across three prior commits plus this PR #360 review-response corrective pass. Prior commits: removed request-independent/cached permission resolution so grant/revoke/re-grant reliably reflects on the next read for every registered key; fixed stale/incorrect gates (Users role-assignment/permission-management helpers, Observations create/edit/delete/unlock, System Configuration Qualifications routes, Branch update/delete and Academic Year set/open scope checks, Notifications/Branding mutation routes); added the non-destructive migration 20260915_001_role_permission_logical_key_uniqueness installing partial-unique constraints on role_permissions plus an assignability re-validation in user_permission_service.apply_user_override; closed all 22 permission-registry keys left unclassified by the independent closure review with dedicated server-side/UI gates, explicit non-duplicative aliases, dormant/reserved classification, and one fail-closed registry/implementation conflict resolution (configuration.view_audit_log reclassified platform-only). This corrective commit fixes two PR #360 review findings: (1) the hiring_plan.export per-section export gate in main.py checked only the literal 'hiring' section, letting a caller retain the same protected hiring-plan data via section=full because both _build_professional_report_xlsx_bytes and _build_professional_report_pdf_bytes include the hiring-plan sheet/section for 'full' -- the gate now covers every section whose payload includes hiring data; (2) this .kms-impact.yml previously and incorrectly claimed the 22-key closure commit introduced no migrations/schema changes and dropped database_schema/migrations from affected_areas, contradicting the still-present 20260915_001_role_permission_logical_key_uniqueness migration carried by this same branch/PR. No new permission keys or schema changes were introduced by this corrective commit itself. ADR 0040 unchanged."
 affected_areas:
-  - ui
-  - visual_assets
+  - architecture
+  - permissions
+  - roles
+  - tenant_isolation
+  - security
+  - apis
+  - database_schema
+  - migrations
+  - business_rules
+  - user_system_workflows
 kms_files_updated:
-no_impact_reason: "Visual-only asset correction from the supplied brand artwork: no architecture, permissions, routes, workflows, navigation, schema, tenant isolation, or governed product behavior changed."
+  - docs/CHANGE_HISTORY.md
+  - docs/PROJECT_STATE.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/engineering/DATABASE_ARCHITECTURE_OVERVIEW.md
+  - docs/engineering/PERMISSION_CLOSURE_REVIEW.md
+  - docs/engineering/README.md
+no_impact_reason: ""
 major_change_override: no

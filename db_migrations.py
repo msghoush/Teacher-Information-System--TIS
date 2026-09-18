@@ -6983,6 +6983,37 @@ def _user_permission_override_foundation(engine, connection):
 
 
 
+def _role_permission_logical_key_uniqueness(engine, connection):
+    """Protect tenant and global policy keys without rewriting existing rows."""
+    if not _table_exists(connection, "role_permissions"):
+        raise RuntimeError("role_permissions table is missing")
+
+    duplicate = connection.execute(text("""
+        SELECT 1 FROM role_permissions
+        GROUP BY school_group_id, role, permission_key
+        HAVING COUNT(*) > 1
+        LIMIT 1
+    """)).first()
+    if duplicate is not None:
+        raise RuntimeError(
+            "role_permissions contains duplicate scope/role/key rows; "
+            "manual review is required before uniqueness can be installed"
+        )
+
+    if not _index_exists(connection, "role_permissions", "uq_role_permissions_global_role_key"):
+        _execute(connection, """
+            CREATE UNIQUE INDEX uq_role_permissions_global_role_key
+            ON role_permissions (role, permission_key)
+            WHERE school_group_id IS NULL
+        """)
+    if not _index_exists(connection, "role_permissions", "uq_role_permissions_tenant_role_key"):
+        _execute(connection, """
+            CREATE UNIQUE INDEX uq_role_permissions_tenant_role_key
+            ON role_permissions (school_group_id, role, permission_key)
+            WHERE school_group_id IS NOT NULL
+        """)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -7333,6 +7364,11 @@ MIGRATIONS = (
         migration_id="20260913_001_user_permission_overrides",
         description="Add per-user role permission override layer (allow/deny/inherit)",
         apply=_user_permission_override_foundation,
+    ),
+    Migration(
+        migration_id="20260915_001_role_permission_logical_key_uniqueness",
+        description="Protect global and tenant role permission keys after duplicate preflight",
+        apply=_role_permission_logical_key_uniqueness,
     ),
 )
 
