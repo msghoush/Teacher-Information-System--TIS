@@ -7,6 +7,69 @@ source_of_truth: true
 
 # TIS Project State
 
+## Role Permissions UI — User Exceptions (Phase 2)
+
+Phase 2 replaces the old edit-user "Per-User Permission Overrides" panel
+(three-way Inherit / Allow / Deny radios plus one bulk save) with a
+"User Permission Exceptions" section on the same edit-user page. Presentation
+only: storage, the three-state `user_permission_service` semantics, and the
+ADR 0040 precedence (built-in role package -> global `RolePermission` ->
+SchoolGroup `RolePermission` -> per-user override -> effective; user Deny
+wins; a user Allow can never resurrect a role-level Deny) are unchanged. No
+schema, migration, new permission key, or second resolver.
+
+- **Binary UI, hidden inherit.** The normal UI offers only Allow and Deny.
+  "Inherit" no longer appears anywhere. An absent override row still means
+  "follow role settings", and `apply_user_override(..., "inherit")` remains
+  the deletion primitive, now surfaced as the **Reset to Role Settings**
+  button, shown only when a direct exception exists. Normal UX is Allow / Deny
+  plus Reset to Role Settings; "inherit" remains only the internal,
+  backward-compatible API representation of clearing a per-user override (the
+  legacy paired `permission_keys` / `permission_decisions` route contract is
+  unchanged and is never exposed in the UI).
+- **User summary.** The section opens with name, login, effective role,
+  School, Branch, and status, built server-side in
+  `routers/users.py::_build_user_permission_context`. An inactive account
+  shows a notice; effective results come from
+  `auth.get_allowed_permission_keys`, which fails closed for inactive users
+  and mismatched scope.
+- **Per-permission row.** Effective Allow/Deny, Source (User Exception /
+  School Override / Standard Role Package), and User Exception (Allow / Deny /
+  None - descriptive only). Rows sit in native `<details>` groups (no manual
+  `aria-expanded`); groups with an exception open by default with an
+  "N exceptions" count. The button matching a stored exception carries
+  server-rendered `aria-pressed="true"` and a check-mark cue. Platform-only
+  keys render locked with no buttons. A key that is not assignable to the
+  user's current role renders locked with no Allow or Deny button; if a stored
+  exception already exists on it (for example after a role change made the key
+  non-assignable) the row shows only **Reset to Role Settings**, because Reset
+  deletes an existing exception and cannot grant authority. Stale exceptions
+  are never deleted silently, and creating or changing an exception on a
+  locked key remains refused server-side.
+- **Inert Allow.** A stored user Allow while the role layer denies shows
+  Effective Deny, "Allow (stored, currently ineffective)", and an explanation
+  that it cannot override the role denial and applies again if the role
+  re-grants. It is never displayed as final Allow and never silently
+  deleted; Reset is available.
+- **Source projection.** `user_permission_service.build_user_permission_payload`
+  (read-only, composes `role_permission_service` and `auth` helpers) gained
+  additive fields `standard_allowed`, `school_override`, `exception`,
+  `exception_inert`, `has_exception`, `source`, `blocked_by_account`;
+  `effective` equals `auth.get_allowed_permission_keys` (tested for
+  `subjects.view` and `teachers.view`).
+- **Route.** `POST /users/permissions/{user_pk}` stays the single route with
+  one guard block (tenant/platform scope resolution unchanged). New optional
+  form field `change="<permission_key>|<allow|deny|reset>"` applies exactly one
+  change (reset -> `inherit`); malformed values are rejected with no write.
+  Without `change` the legacy paired `permission_keys` / `permission_decisions`
+  contract is unchanged. Each action button targets `#perm-<key>` so the page
+  returns to the edited row.
+- **Tests.** `tests/test_user_exceptions_ui.py` (cases for every source /
+  inert / reset / role-change / tenant / platform-only / inactive / freshness
+  scenario plus template accessibility assertions). One obsolete assertion set
+  in `tests/test_edit_user_template_render.py` that encoded the removed
+  Inherit radios was rewritten for the new markup.
+
 ## Role Permissions UI — Role Packages / School Overrides Split (Phase 1)
 
 A live Owner reproduction proved a real incident on the prior combined Role

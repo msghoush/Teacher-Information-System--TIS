@@ -218,9 +218,36 @@ def _build_user_permission_context(db: Session, current_user, user_row) -> dict:
         normalized_role=normalized_role,
         school_group_id=target_school_group_id,
     )
+    school = (
+        db.query(models.SchoolGroup).filter(models.SchoolGroup.id == target_school_group_id).first()
+        if target_school_group_id
+        else None
+    )
+    branch_id = getattr(user_row, "branch_id", None)
+    branch = (
+        db.query(models.Branch).filter(models.Branch.id == branch_id).first()
+        if branch_id
+        else None
+    )
+    first = getattr(user_row, "first_name", "") or ""
+    last = getattr(user_row, "last_name", "") or ""
+    summary = {
+        "name": f"{first} {last}".strip() or getattr(user_row, "user_id", "") or "",
+        "login": (
+            getattr(user_row, "email", None)
+            or getattr(user_row, "username", None)
+            or getattr(user_row, "user_id", "")
+            or ""
+        ),
+        "role": payload.get("role") or "",
+        "school": getattr(school, "name", None) or "Not assigned",
+        "branch": getattr(branch, "name", None) or "Not assigned",
+        "is_active": bool(auth.is_user_active(user_row)),
+    }
     return {
         "can_manage_user_permissions": _can_manage_user_permissions(db, current_user),
         "user_permission_payload": payload,
+        "user_permission_summary": summary,
     }
 
 
@@ -874,9 +901,15 @@ def update_user_permissions(
     user_pk: int,
     permission_keys: list[str] = Form([]),
     permission_decisions: list[str] = Form([]),
+    change: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
-    """Persist per-user Allow/Deny/Inherit overrides for one target user.
+    """Persist per-user permission exceptions for one target user.
+
+    The User Exceptions panel submits a single ``change`` value of
+    ``"<permission_key>|<allow|deny|reset>"`` (reset maps to the service's
+    internal ``inherit`` deletion primitive). When ``change`` is absent the
+    legacy paired lists below are applied unchanged.
 
     ``permission_keys`` and ``permission_decisions`` are parallel lists (the
     edit-user template renders one hidden key + one decision control per
@@ -931,7 +964,26 @@ def update_user_permissions(
             error="No school context was found for permission overrides.",
         )
 
-    changes = list(zip(permission_keys, permission_decisions))
+    if not isinstance(change, str):
+        change = None  # direct calls receive the Form() default object
+    change_action = None
+    change_key = None
+    if change is not None:
+        change_key, separator, change_action = change.rpartition("|")
+        change_key = change_key.strip()
+        change_action = change_action.strip().lower()
+        if not separator or not change_key or change_action not in {"allow", "deny", "reset"}:
+            return _render_edit_user_page(
+                request=request,
+                db=db,
+                current_user=current_user,
+                user_row=user_row,
+                error="Unable to update permission overrides. Please fix the highlighted issues.",
+                detail_errors=["invalid permission change"],
+            )
+        changes = [(change_key, "inherit" if change_action == "reset" else change_action)]
+    else:
+        changes = list(zip(permission_keys, permission_decisions))
     errors = []
     for permission_key, decision in changes:
         try:
@@ -958,13 +1010,19 @@ def update_user_permissions(
         )
 
     db.commit()
-    display_name = f"{user_row.first_name} {user_row.last_name}".strip()
+    display_name = f"{user_row.first_name} {user_row.last_name}".strip() or user_row.user_id
+    if change_action == "reset":
+        success_message = f"{change_key} reset to role settings for {display_name}."
+    elif change_action:
+        success_message = f"{change_key} set to {change_action.capitalize()} for {display_name}."
+    else:
+        success_message = f"Permission overrides updated for {display_name}."
     return _render_edit_user_page(
         request=request,
         db=db,
         current_user=current_user,
         user_row=user_row,
-        success=f"Permission overrides updated for {display_name or user_row.user_id}.",
+        success=success_message,
     )
 
 

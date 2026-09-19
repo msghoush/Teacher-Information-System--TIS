@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-19 — Role Permissions UI: User Exceptions (Phase 2)
+
+Replaced the edit-user three-way Inherit/Allow/Deny override panel with a
+"User Permission Exceptions" section: binary Allow/Deny buttons, a
+Reset to Role Settings button (internal inherit == row deletion, shown only
+when an exception exists), server-rendered `aria-pressed`, a user summary,
+Effective/Source/User Exception metadata, and explicit handling of a stored
+inert Allow (kept, never shown as effective). `POST /users/permissions/{user_pk}`
+gained an optional `change="<key>|<allow|deny|reset>"` field on the same
+guarded route; the legacy paired-list contract is unchanged.
+`build_user_permission_payload` gained additive read-only source fields.
+ADR 0040 precedence, storage, and the service's three-state semantics are
+unchanged; no migration. A stored exception on a key that became
+non-assignable after a role change is kept and shown on a locked row with only
+"Reset to Role Settings" (no Allow/Deny; creating or changing it stays refused).
+"inherit" remains only the internal, backward-compatible API form of clearing
+an override. Detail in `docs/PROJECT_STATE.md`.
+
 ## 2026-09-19 — Role Permissions UI split: Role Packages / School Overrides (Phase 1)
 
 Split the combined Role Permissions editor into two explicit modes on the

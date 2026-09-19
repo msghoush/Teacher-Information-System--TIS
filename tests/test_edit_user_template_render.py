@@ -27,16 +27,15 @@ def _render_edit_user_page_html(db, acting_user, target_user_id):
     return resp.body.decode("utf-8")
 
 
-def test_edit_user_page_renders_all_three_controls_reason_text_and_inert_platform_only_row():
+def test_edit_user_page_renders_allow_deny_reset_reason_text_and_locked_platform_only_row():
     engine, Session = _make_db()
     ids = _seed(Session)
     db = Session()
     try:
         acting_admin = db.query(models.User).get(ids["acting_admin_id"])
 
-        # Produce a Deny-override case: dashboard.view is role-granted by
-        # default for Administrator, so denying it exercises the
-        # "User override: Deny (overrides role grant)" reason branch.
+        # dashboard.view is role-granted by default for Administrator, so
+        # denying it exercises the direct-Deny exception rendering.
         ups.apply_user_override(
             db,
             target_user=db.query(models.User).get(ids["user_a_id"]),
@@ -49,32 +48,21 @@ def test_edit_user_page_renders_all_three_controls_reason_text_and_inert_platfor
 
         html = _render_edit_user_page_html(db, acting_admin, ids["user_a_id"])
 
-        # --- All three Inherit/Allow/Deny controls present for a normal
-        # (non-locked) permission, e.g. dashboard.view. ---
-        assert 'name="permission_decisions" value="inherit"' in html
-        assert 'name="permission_decisions" value="allow"' in html
-        assert 'name="permission_decisions" value="deny"' in html
-        assert '<input type="radio" name="permission_decisions" value="inherit"' in html
-        assert '<input type="radio" name="permission_decisions" value="allow"' in html
-        assert '<input type="radio" name="permission_decisions" value="deny"' in html
+        # Binary Allow/Deny actions plus Reset; no Inherit radios (Phase 2).
+        assert 'name="change" value="dashboard.view|allow"' in html
+        assert 'name="change" value="dashboard.view|deny"' in html
+        assert 'name="change" value="dashboard.view|reset"' in html
+        assert 'type="radio"' not in html
+        assert "User Permission Exceptions" in html
 
-        # --- Deny-override reason text (dashboard.view, denied above). ---
-        assert 'User override: Deny' in html
-        assert 'overrides role grant' in html
+        # Direct Deny is described as a User Exception.
+        assert "User Exception:" in html and "Deny" in html
 
-        # --- Allow-inherited (role-granted, no override) reason text: at
-        # least one other permission the Administrator role grants by
-        # default must show the plain inherited-grant reason. ---
-        assert 'Inherited from role (granted)' in html
-
-        # --- Platform-only / non-assignable keys render as inert: no live
-        # radio control, only the exact disabled markup the template uses. ---
+        # Platform-only keys render as locked rows with no live controls.
         platform_key = next(iter(permission_registry.PLATFORM_ONLY_PERMISSION_KEYS))
-        assert f'value="{platform_key}"' in html
-        assert 'Platform only</span>' in html
-        assert 'aria-disabled="true"' in html
-        assert '<span class="override-choice">Allow (unavailable)</span>' in html
-        assert '<span class="override-choice">Deny (unavailable)</span>' in html
+        assert f'id="perm-{platform_key}"' in html
+        assert f'value="{platform_key}|' not in html
+        assert "Platform only - cannot be set per user" in html
     finally:
         db.close()
         engine.dispose()

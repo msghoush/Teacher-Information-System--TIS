@@ -343,6 +343,26 @@ corrective pass; this discrepancy between the delegated task summary and the
 actual GitHub review content is recorded here rather than acted on
 speculatively.
 
+## User Exceptions UX (Phase 2)
+
+The edit-user per-user panel is now "User Permission Exceptions": binary
+Allow/Deny plus Reset to Role Settings (internal inherit == delete the
+override row; "Inherit" is never shown). ADR 0040 precedence is unchanged.
+`user_permission_service.build_user_permission_payload` projects Effective
+(equal to `auth.get_allowed_permission_keys`), Source, exception, and an
+`exception_inert` flag. A stored Allow under a role-level Deny is kept,
+displayed as Effective Deny and "stored, currently ineffective", and
+re-applies if the role re-grants. Tenant/platform scope resolution, the
+platform-only and non-assignable rejections, and inactive-user fail-closed
+behaviour are unchanged. Locked rows expose no Allow/Deny buttons; a stored
+exception on a key that became non-assignable for the user's role (for example
+after a role change) is kept, never silently deleted, and the locked row shows
+only "Reset to Role Settings" so an operator can remove it (Reset deletes the
+row and grants no authority; the service already accepted `inherit` for such
+keys, and creating or changing an exception on a locked key is still refused).
+The legacy paired-list / `inherit` route contract is unchanged and never shown
+in the UI. Coverage: `tests/test_user_exceptions_ui.py`.
+
 ## Migration and operational safety
 
 The new RolePermission migration is last in the registered ledger sequence,
