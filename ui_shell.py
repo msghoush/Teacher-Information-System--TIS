@@ -514,36 +514,6 @@ def _build_nav_items(
     return items
 
 
-def _get_role_permission_rows(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-) -> list[models.RolePermission]:
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return []
-
-    query = db.query(models.RolePermission).filter(
-        models.RolePermission.role == normalized_role
-    )
-    if school_group_id is None:
-        query = query.filter(models.RolePermission.school_group_id.is_(None))
-    else:
-        query = query.filter(models.RolePermission.school_group_id == school_group_id)
-    return query.all()
-
-
-def _get_allowed_permission_keys(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-) -> set[str]:
-    try:
-        return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
-    except Exception:
-        return permission_registry.get_default_permissions_for_role(role)
-
-
 def _build_permission_checker(db: Session, current_user, school_group_id: int | None = None):
     allowed_keys = auth.get_allowed_permission_keys(
         db,

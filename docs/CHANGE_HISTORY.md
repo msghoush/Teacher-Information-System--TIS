@@ -1,11 +1,84 @@
 ---
 title: TIS Change History
-documentation_version: 4.6
-last_updated: 2026-09-18
+documentation_version: 4.8
+last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-19 — Whole-Application Permission Qualification (Phase 3)
+
+Audited all 175 registered permission keys, 468 routes and every nav module
+against the single canonical effective permission result. Added a governed registry
+evidence matrix (143 active / 14 platform-only enforced / 5 alias / 13 dormant / 0
+unresolved), a route authorization enumeration, a classified dangerous-pattern scan,
+sidebar/Dashboard/route consistency tests for every nav module, freshness,
+role-change, tenant-isolation and platform-only tests, and template-source
+accessibility checks. Fixed `POST /scope/organization` so platform users must also
+hold the canonical all-school switch capability (`_can_manage_all_school_scopes`),
+deleted seven unused duplicate role-policy reader helpers, and corrected stale KMS
+dispositions (`planning.import`/`planning.export`, `observations.submit`,
+`dashboard.view_all_schools` are dormant). ADR 0040 precedence, storage, schema and
+the permission registry are unchanged; no migration. Web Service only; no Timetable
+Workflow change.
+
+## 2026-09-19 — Role Permissions UI: User Exceptions (Phase 2)
+
+Replaced the edit-user three-way Inherit/Allow/Deny override panel with a
+"User Permission Exceptions" section: binary Allow/Deny buttons, a
+Reset to Role Settings button (internal inherit == row deletion, shown only
+when an exception exists), server-rendered `aria-pressed`, a user summary,
+Effective/Source/User Exception metadata, and explicit handling of a stored
+inert Allow (kept, never shown as effective). `POST /users/permissions/{user_pk}`
+gained an optional `change="<key>|<allow|deny|reset>"` field on the same
+guarded route; the legacy paired-list contract is unchanged.
+`build_user_permission_payload` gained additive read-only source fields.
+ADR 0040 precedence, storage, and the service's three-state semantics are
+unchanged; no migration. A stored exception on a key that became
+non-assignable after a role change is kept and shown on a locked row with only
+"Reset to Role Settings" (no Allow/Deny; creating or changing it stays refused).
+"inherit" remains only the internal, backward-compatible API form of clearing
+an override. Detail in `docs/PROJECT_STATE.md`.
+
+## 2026-09-19 — Role Permissions UI split: Role Packages / School Overrides (Phase 1)
+
+Split the combined Role Permissions editor into two explicit modes on the
+same `/system-configuration/role-permissions` GET/POST route:
+`?mode=packages` (standard/global role editor - no SchoolGroup, no tenant
+name, no Platform Owner tenant context) and `?mode=overrides` (School
+Overrides - the only place a SchoolGroup appears, always as an explicit
+management target, never as actor/session context). Both modes reuse the
+existing `role_permission_service.py` resolver/writer unchanged; a new
+read-only `build_school_override_payload` adds the Standard/Override/
+Effective comparison for School Overrides. This closes a real incident where
+the old single "Permission Scope: Global defaults / Selected school"
+dropdown made a tenant's Deny override visually indistinguishable from the
+Global default, and the Platform Owner UI appeared to belong to whichever
+school was selected. Full detail in `docs/PROJECT_STATE.md`'s "Role
+Permissions UI — Role Packages / School Overrides Split (Phase 1)" entry.
+Owner-review refinements in the same change: a Platform Owner must explicitly
+pick the School Overrides management target (no school pre-selected, explicit
+"Review" button instead of auto-submit), groups containing a School override
+open by default with an override count, and corrected ARIA/focus/markup
+(`aria-current` navigation, no static `aria-expanded`, Reset button outside
+the checkbox label, single-element banner text). School Overrides also drops
+"Select All" / "Clear All" (kept in Role Packages) so overrides stay sparse
+differences from the Standard Role Package; per-permission "Reset to
+standard" remains the only reset in Phase 1.
+
+Files changed: `main.py` (`_build_role_packages_context`,
+`_build_school_overrides_context` replace the single
+`_build_role_permissions_context` scope-dropdown logic; `POST` now takes a
+`mode` form field instead of `scope_type`), `role_permission_service.py`
+(new `build_school_override_payload`), `templates/
+system_configuration_role_permissions.html` (mode tabs, two distinct panels,
+Standard/Override/Effective comparison rows, "Reset to standard" control),
+`tests/test_permission_management.py` (`_update` helper's `scope_type`
+renamed `mode`; two GET-context assertions now request `mode=overrides`
+explicitly), and new `tests/test_role_permissions_ui_split.py`. No schema,
+migration, new permission key, or precedence-rule change; `tis.db`
+unmodified (hash verified unchanged before/after).
 
 ## 2026-09-18 — PR #360 review-response corrective pass
 

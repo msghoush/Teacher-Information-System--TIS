@@ -887,33 +887,6 @@ def _build_school_delete_summary(db: Session, school_group_id: int | None) -> di
     }
 
 
-def _get_role_permission_rows(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-) -> list[models.RolePermission]:
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return []
-
-    query = db.query(models.RolePermission).filter(
-        models.RolePermission.role == normalized_role
-    )
-    if school_group_id is None:
-        query = query.filter(models.RolePermission.school_group_id.is_(None))
-    else:
-        query = query.filter(models.RolePermission.school_group_id == school_group_id)
-    return query.all()
-
-
-def _get_allowed_permission_keys(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-) -> set[str]:
-    return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
-
-
 def _build_role_permission_payload(
     db: Session,
     role: str,
@@ -12561,7 +12534,50 @@ def _build_school_management_context(request: Request, db: Session, current_user
     }
 
 
-def _build_role_permissions_context(request: Request, db: Session, current_user):
+def _normalize_role_permissions_mode(request: Request) -> str:
+    requested_mode = str(request.query_params.get("mode", "") or "").strip().lower()
+    return "overrides" if requested_mode == "overrides" else "packages"
+
+
+def _build_role_packages_context(request: Request, db: Session, current_user):
+    """Role Packages: the standard/global role editor.
+
+    No SchoolGroup selector, no tenant name, and no Platform Owner tenant
+    context anywhere - this mode edits only the built-in default + global
+    ``RolePermission`` layer that every SchoolGroup inherits from unless it
+    has its own School Override (see `_build_school_overrides_context`).
+    """
+    can_manage_all = _can_manage_global_role_permissions(db, current_user)
+    requested_role = request.query_params.get("role", auth.ROLE_ADMINISTRATOR)
+    selected_role = permission_registry.normalize_managed_role(requested_role) or auth.ROLE_ADMINISTRATOR
+
+    permission_payload = _build_role_permission_payload(db, selected_role, None)
+
+    return {
+        "role_permissions_mode": "packages",
+        "permission_groups": permission_registry.PERMISSION_GROUPS,
+        "managed_roles": permission_registry.MANAGED_ROLES,
+        "editable_roles": list(permission_registry.MANAGED_ROLES),
+        "selected_permission_role": selected_role,
+        "selected_permission_school_group": None,
+        "selected_permission_school_group_id": None,
+        "role_permission_payload": permission_payload,
+        "role_permission_summary_map": _build_role_permission_summary_map(db, None),
+        "can_manage_all_role_permissions": can_manage_all,
+        "can_edit_selected_role_permissions": can_manage_all,
+        "notice_message": str(request.query_params.get("notice", "") or "").strip(),
+    }
+
+
+def _build_school_overrides_context(request: Request, db: Session, current_user):
+    """School Overrides: manage one SchoolGroup's tenant-level override layer.
+
+    SchoolGroup selection appears only in this mode, and only as an explicit
+    management target - it is never treated as the acting Platform Owner's
+    own tenant/session context. A Platform Owner may pick any SchoolGroup to
+    manage; a tenant actor is locked to their own authorized SchoolGroup and
+    cannot manage another tenant's overrides.
+    """
     can_manage_all = _can_manage_global_role_permissions(db, current_user)
     user_school_group_id = _get_user_school_group_id(db, current_user)
     school_groups = db.query(models.SchoolGroup).order_by(
@@ -12571,56 +12587,66 @@ def _build_role_permissions_context(request: Request, db: Session, current_user)
 
     requested_role = request.query_params.get("role", auth.ROLE_ADMINISTRATOR)
     selected_role = permission_registry.normalize_managed_role(requested_role) or auth.ROLE_ADMINISTRATOR
-    requested_scope = str(request.query_params.get("scope", "") or "").strip().lower()
-    requested_group_id = request.query_params.get("school_group_id")
-    selected_school_group = None
-    selected_school_group_id = None
-    if can_manage_all and requested_scope == "global":
-        selected_school_group_id = None
-    else:
-        if can_manage_all and requested_group_id:
-            try:
-                selected_school_group_id = int(requested_group_id)
-            except ValueError:
-                selected_school_group_id = None
-        else:
-            selected_school_group_id = user_school_group_id
-        if selected_school_group_id:
-            selected_school_group = next(
-                (school for school in school_groups if school.id == selected_school_group_id),
-                None,
-            )
-        if not selected_school_group and school_groups and not can_manage_all:
-            selected_school_group = school_groups[0]
-            selected_school_group_id = selected_school_group.id
 
-    editable_roles = list(permission_registry.MANAGED_ROLES)
-    permission_payload = _build_role_permission_payload(
-        db,
-        selected_role,
-        selected_school_group_id,
+    requested_group_id = request.query_params.get("school_group_id")
+    selected_school_group_id = None
+    if can_manage_all and requested_group_id:
+        try:
+            selected_school_group_id = int(requested_group_id)
+        except ValueError:
+            selected_school_group_id = None
+        if selected_school_group_id and not any(
+            school.id == selected_school_group_id for school in school_groups
+        ):
+            selected_school_group_id = None
+    if not selected_school_group_id and not can_manage_all:
+        # A tenant actor may only manage their own authorized SchoolGroup.
+        # A Platform Owner must choose a management target explicitly; no
+        # school is ever pre-selected on their behalf.
+        selected_school_group_id = user_school_group_id
+
+    selected_school_group = next(
+        (school for school in school_groups if school.id == selected_school_group_id),
+        None,
+    )
+
+    permission_payload = (
+        role_permission_service.build_school_override_payload(
+            db, selected_role, selected_school_group_id,
+        )
+        if selected_school_group_id
+        else permission_registry.build_role_permission_payload(selected_role, set(), {})
+    )
+
+    can_edit = bool(
+        selected_school_group_id
+        and auth.has_permission(db, current_user, "configuration.manage_permissions")
+        and (can_manage_all or selected_school_group_id == user_school_group_id)
     )
 
     return {
+        "role_permissions_mode": "overrides",
         "permission_groups": permission_registry.PERMISSION_GROUPS,
         "managed_roles": permission_registry.MANAGED_ROLES,
-        "editable_roles": editable_roles,
+        "editable_roles": list(permission_registry.MANAGED_ROLES),
         "selected_permission_role": selected_role,
         "selected_permission_school_group": selected_school_group,
         "selected_permission_school_group_id": selected_school_group_id,
-        "selected_permission_scope": "global" if selected_school_group_id is None else "school",
         "role_permission_payload": permission_payload,
-        "role_permission_summary_map": _build_role_permission_summary_map(
-            db,
-            selected_school_group_id,
+        "role_permission_school_groups": school_groups if can_manage_all else (
+            [selected_school_group] if selected_school_group else []
         ),
-        "role_permission_school_groups": school_groups,
         "can_manage_all_role_permissions": can_manage_all,
-        "can_edit_selected_role_permissions": (
-            auth.has_permission(db, current_user, "configuration.manage_permissions")
-        ),
+        "can_edit_selected_role_permissions": can_edit,
         "notice_message": str(request.query_params.get("notice", "") or "").strip(),
     }
+
+
+def _build_role_permissions_context(request: Request, db: Session, current_user):
+    mode = _normalize_role_permissions_mode(request)
+    if mode == "overrides":
+        return _build_school_overrides_context(request, db, current_user)
+    return _build_role_packages_context(request, db, current_user)
 
 
 @app.get("/system-configuration/role-permissions")
@@ -12648,7 +12674,7 @@ def system_configuration_role_permissions(
 def update_role_permissions(
     request: Request,
     role: str = Form(...),
-    scope_type: str = Form("school"),
+    mode: str = Form("packages"),
     school_group_id: int | None = Form(None),
     permission_keys: list[str] = Form([]),
     db: Session = Depends(get_db),
@@ -12664,24 +12690,29 @@ def update_role_permissions(
             "/system-configuration/role-permissions",
             "Select a valid role.",
         )
-    target_school_group_id = None
-    if can_manage_all and str(scope_type or "").strip().lower() == "global":
+
+    normalized_mode = "overrides" if str(mode or "").strip().lower() == "overrides" else "packages"
+
+    if normalized_mode == "packages":
+        if not can_manage_all:
+            return RedirectResponse(url="/dashboard", status_code=302)
         target_school_group_id = None
     else:
-        target_school_group_id = school_group_id or _get_user_school_group_id(db, current_user)
+        user_school_group_id = _get_user_school_group_id(db, current_user)
+        target_school_group_id = school_group_id or user_school_group_id
         if not target_school_group_id:
             return _redirect_with_error(
                 "/system-configuration/role-permissions",
                 "No school context was found for these permissions.",
             )
-        if not can_manage_all and target_school_group_id != _get_user_school_group_id(db, current_user):
+        if not can_manage_all and target_school_group_id != user_school_group_id:
             return RedirectResponse(url="/dashboard", status_code=302)
 
     allowed_keys = {
         key for key in permission_keys
         if key in permission_registry.PERMISSION_LABELS
     }
-    _set_role_permission_rows(
+    role_permission_service.apply_role_permission_overrides(
         db,
         role=selected_role,
         allowed_keys=allowed_keys,
@@ -12690,12 +12721,12 @@ def update_role_permissions(
     )
     db.commit()
 
-    if target_school_group_id is None:
-        return_to = f"/system-configuration/role-permissions?role={quote_plus(selected_role)}&scope=global"
+    if normalized_mode == "packages":
+        return_to = f"/system-configuration/role-permissions?role={quote_plus(selected_role)}&mode=packages"
     else:
         return_to = (
             f"/system-configuration/role-permissions?role={quote_plus(selected_role)}"
-            f"&school_group_id={target_school_group_id}"
+            f"&mode=overrides&school_group_id={target_school_group_id}"
         )
     return _redirect_with_notice(return_to, f"{selected_role} permissions updated.")
 
@@ -15504,7 +15535,14 @@ def set_scope_organization(
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
-    if not auth.is_platform_user(current_user):
+    # Platform identity AND the canonical switch capability: a Platform Developer
+    # whose `system_owner.switch_all_schools` / `schools.manage_all_schools`
+    # capability was withheld must not be able to select an organization context
+    # (same helper every other all-school scope gate uses).
+    if not (
+        auth.is_platform_user(current_user)
+        and _can_manage_all_school_scopes(db, current_user)
+    ):
         return authorization.build_access_denied_response(
             request,
             db,

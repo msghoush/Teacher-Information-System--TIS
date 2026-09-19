@@ -187,26 +187,6 @@ def _permission_registry_module():
     return permission_registry
 
 
-def _get_role_permission_rows(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-):
-    permission_registry = _permission_registry_module()
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return []
-
-    query = db.query(models.RolePermission).filter(
-        models.RolePermission.role == normalized_role
-    )
-    if school_group_id is None:
-        query = query.filter(models.RolePermission.school_group_id.is_(None))
-    else:
-        query = query.filter(models.RolePermission.school_group_id == school_group_id)
-    return query.all()
-
-
 def get_allowed_permission_keys(
     db: Session,
     user,

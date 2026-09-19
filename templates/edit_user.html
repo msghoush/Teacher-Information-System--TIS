@@ -300,23 +300,36 @@
             font-size: 12px;
         }
 
-        .override-group { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-        .override-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: #f8fbff; font-weight: 800; color: #17365d; font-size: 13px; }
-        .override-group summary::-webkit-details-marker { display: none; }
-        .override-list { display: grid; gap: 8px; padding: 10px 12px; }
-        .override-row { display: grid; gap: 6px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fbfdff; }
-        .override-row.is-platform-only { border-color: #f8d4aa; background: #fffaf5; }
-        .override-row-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-        .override-row-head strong { font-size: 13px; color: #1f2737; }
-        .override-row-head small { color: var(--muted); font-size: 11px; }
-        .override-choices { display: flex; gap: 10px; flex-wrap: wrap; }
-        .override-choice { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; color: #415068; }
-        .override-choice input { margin: 0; }
-        .override-reason { font-size: 11px; font-weight: 700; }
-        .override-reason.is-allow { color: #027a48; }
-        .override-reason.is-deny { color: #9f2d1f; }
-        .override-reason.is-inherit { color: #48607f; }
-        .override-badge { display: inline-flex; padding: 2px 7px; border-radius: 999px; background: #fff7ed; color: #c2410c; font-size: 10px; font-weight: 900; text-transform: uppercase; }
+        .exc-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; margin: 0; padding: 10px 12px; border: 1px solid #d7e3f4; border-radius: 10px; background: #f8fbff; font-size: 12px; }
+        .exc-summary dt { color: var(--muted); font-size: 11px; font-weight: 700; }
+        .exc-summary dd { margin: 0; color: #1f2737; font-weight: 800; overflow-wrap: anywhere; }
+        .exc-notice { padding: 10px 12px; border-left: 4px solid #b54708; border-radius: 6px; background: #fffaeb; color: #7a2e0e !important; font-weight: 700; }
+        .exc-group { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+        .exc-group summary { list-style: none; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 12px; background: #f8fbff; font-weight: 800; color: #17365d; font-size: 13px; }
+        .exc-group summary::-webkit-details-marker { display: none; }
+        .exc-list { display: grid; gap: 8px; padding: 10px 12px; }
+        .exc-row { display: grid; gap: 6px; padding: 10px; border: 1px solid #e1e9f4; border-radius: 10px; background: #fbfdff; min-width: 0; }
+        .exc-row.has-exception { border-color: #9db8dd; background: #f4f8ff; }
+        .exc-row.is-locked { border-color: #f8d4aa; background: #fffaf5; }
+        .exc-row:target { outline: 2px solid var(--brand); outline-offset: 1px; }
+        .exc-row-head { display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; }
+        .exc-row-head strong { font-size: 13px; color: #1f2737; }
+        .exc-row-head small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+        .exc-meta { display: grid; gap: 2px; margin: 0; font-size: 12px; }
+        .exc-meta div { display: flex; gap: 6px; flex-wrap: wrap; }
+        .exc-meta dt { color: var(--muted); font-weight: 700; }
+        .exc-meta dd { margin: 0; font-weight: 800; color: #1f2737; }
+        .exc-meta dd.is-allow { color: #027a48; }
+        .exc-meta dd.is-deny { color: #9f2d1f; }
+        .exc-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+        .exc-btn { appearance: none; cursor: pointer; padding: 6px 12px; border: 1px solid #b6c6dd; border-radius: 8px; background: #fff; color: #1f2737; font: inherit; font-size: 12px; font-weight: 800; }
+        .exc-btn[aria-pressed="true"] { border-width: 2px; border-color: var(--brand); background: #e6f0ff; color: var(--brand-dark); }
+        .exc-btn[aria-pressed="true"]::before { content: "\2713\00a0"; }
+        .exc-btn.is-reset { border-style: dashed; color: #48607f; }
+        .exc-btn:focus-visible, .exc-group summary:focus-visible { outline: 3px solid #f59e0b; outline-offset: 2px; }
+        .exc-help { margin: 0; font-size: 11px; color: #7a2e0e !important; font-weight: 700; }
+        .exc-locked { margin: 0; font-size: 12px; font-weight: 700; color: #c2410c !important; }
+        @media (max-width: 520px) { .exc-actions { flex-direction: column; align-items: stretch; } .exc-btn { text-align: center; } }
 </style>
 {% endblock %}
 
@@ -437,72 +450,74 @@
         </form>
 
         {% if can_manage_user_permissions %}
-        <section class="user-override-panel">
-            <h2>{{ icon("shield", "icon") }} Per-User Permission Overrides</h2>
-            <p>These overrides apply only to {{ user_row.first_name }} {{ user_row.last_name }} and sit on top of the "{{ user_permission_payload.role }}" role package. Inherit follows the role package (grant or deny). Deny always wins over the role and over Allow. Allow can only restate a permission the role package already grants -- it cannot exceed a role-level deny.</p>
+        <section class="user-override-panel" aria-labelledby="user-exceptions-title">
+            <h2 id="user-exceptions-title">{{ icon("shield", "icon") }} User Permission Exceptions</h2>
+            {% set summary = user_permission_summary %}
+            <dl class="exc-summary">
+                <div><dt>Name</dt><dd>{{ summary.name }}</dd></div>
+                <div><dt>Login</dt><dd>{{ summary.login }}</dd></div>
+                <div><dt>Role</dt><dd>{{ summary.role or "Not assigned" }}</dd></div>
+                <div><dt>School</dt><dd>{{ summary.school }}</dd></div>
+                <div><dt>Branch</dt><dd>{{ summary.branch }}</dd></div>
+                <div><dt>Status</dt><dd>{{ "Active" if summary.is_active else "Inactive" }}</dd></div>
+            </dl>
+            {% if not summary.is_active %}
+            <p class="exc-notice" role="note">This account is inactive, so no permission is effective for this user until the account is active again. Stored exceptions are kept.</p>
+            {% endif %}
+            <p>Exceptions apply to this user only and sit on top of the role settings. Deny always wins. Allow cannot exceed a role-level Deny. Use Reset to Role Settings to remove an exception.</p>
 
             <form method="post" action="/users/permissions/{{ user_row.id }}">
-                <div class="override-groups" style="display:grid; gap:8px;">
+                <div style="display:grid; gap:8px;">
                     {% for group in user_permission_payload.groups %}
-                    <details class="override-group" {% if group.override_count %}open{% endif %}>
+                    <details class="exc-group" {% if group.override_count %}open{% endif %}>
                         <summary>
                             <span>{{ group.label }}</span>
-                            <span>{{ group.override_count }} override{{ "s" if group.override_count != 1 else "" }}</span>
+                            <span>{{ group.override_count }} exception{{ "s" if group.override_count != 1 else "" }}</span>
                         </summary>
-                        <div class="override-list">
+                        <div class="exc-list">
                             {% for permission in group.permissions %}
                             {% set locked = permission.platform_only or not permission.assignable %}
-                            <div class="override-row {% if permission.platform_only %}is-platform-only{% endif %}">
-                                <input type="hidden" name="permission_keys" value="{{ permission.key }}">
-                                <div class="override-row-head">
+                            <div class="exc-row {% if permission.has_exception %}has-exception{% endif %} {% if locked %}is-locked{% endif %}" id="perm-{{ permission.key }}">
+                                <div class="exc-row-head">
                                     <strong>{{ permission.label }}</strong>
                                     <small>{{ permission.key }}</small>
-                                    {% if permission.platform_only %}<span class="override-badge">Platform only</span>{% endif %}
                                 </div>
-                                {% if locked %}
-                                {# Disabled <input> elements are not submitted by browsers. To keep
-                                   permission_keys/permission_decisions strictly paired 1:1 on the
-                                   server, locked rows submit a fixed hidden "inherit" decision and
-                                   render the three choices as inert (non-interactive) labels only. #}
-                                <input type="hidden" name="permission_decisions" value="inherit">
-                                <div class="override-choices" aria-disabled="true">
-                                    <span class="override-choice">Inherit</span>
-                                    <span class="override-choice">Allow (unavailable)</span>
-                                    <span class="override-choice">Deny (unavailable)</span>
-                                </div>
-                                {% else %}
-                                <div class="override-choices">
-                                    <label class="override-choice">
-                                        <input type="radio" name="permission_decisions" value="inherit" {% if permission.state == "inherit" %}checked{% endif %}>
-                                        Inherit
-                                    </label>
-                                    <label class="override-choice">
-                                        <input type="radio" name="permission_decisions" value="allow" {% if permission.state == "allow" %}checked{% endif %}>
-                                        Allow
-                                    </label>
-                                    <label class="override-choice">
-                                        <input type="radio" name="permission_decisions" value="deny" {% if permission.state == "deny" %}checked{% endif %}>
-                                        Deny
-                                    </label>
+                                <dl class="exc-meta">
+                                    <div><dt>Effective:</dt><dd class="{{ 'is-allow' if permission.effective else 'is-deny' }}">{{ "Allow" if permission.effective else "Deny" }}</dd></div>
+                                    <div><dt>Source:</dt><dd>{% if permission.source == "user_exception" %}User Exception{% elif permission.source == "school_override" %}School Override{% else %}Standard Role Package{% endif %}</dd></div>
+                                    <div><dt>User Exception:</dt><dd>{% if permission.exception == "allow" %}Allow{% if permission.exception_inert %} (stored, currently ineffective){% endif %}{% elif permission.exception == "deny" %}Deny{% else %}None{% endif %}</dd></div>
+                                </dl>
+                                {% if permission.exception_inert %}
+                                <p class="exc-help">The role policy denies this permission, so this exception cannot override it. It stays stored and applies again if the role grants the permission.</p>
+                                {% endif %}
+                                {% if permission.blocked_by_account %}
+                                <p class="exc-help">Not effective while this account is inactive or outside its school scope.</p>
+                                {% endif %}
+                                {% if permission.platform_only %}
+                                <p class="exc-locked">Platform only - cannot be set per user.</p>
+                                {% elif not permission.assignable %}
+                                <p class="exc-locked">Not available for the {{ user_permission_payload.role or "assigned" }} role.</p>
+                                {% if permission.has_exception %}
+                                {# A stale exception (the key became non-assignable after a role change) can only be removed, never created or changed: Reset deletes the row and grants no authority. #}
+                                <p class="exc-help">A stored exception remains from before this user's role changed. It cannot be changed here, but it can be removed.</p>
+                                <div class="exc-actions">
+                                    <button class="exc-btn is-reset" type="submit" name="change" value="{{ permission.key }}|reset" formaction="/users/permissions/{{ user_row.id }}#perm-{{ permission.key }}" aria-label="Reset {{ permission.label }} to role settings for {{ summary.name }}">Reset to Role Settings</button>
                                 </div>
                                 {% endif %}
-                                {% if permission.state == "deny" %}
-                                <span class="override-reason is-deny">User override: Deny{% if permission.role_allowed %} (overrides role grant){% endif %}</span>
-                                {% elif permission.state == "allow" %}
-                                <span class="override-reason is-allow">User override: Allow{% if not permission.role_allowed %} (inert -- role does not grant this key){% endif %}</span>
-                                {% elif permission.role_allowed %}
-                                <span class="override-reason is-inherit">Inherited from role (granted)</span>
                                 {% else %}
-                                <span class="override-reason is-inherit">Inherited from role (denied)</span>
+                                <div class="exc-actions">
+                                    <button class="exc-btn" type="submit" name="change" value="{{ permission.key }}|allow" formaction="/users/permissions/{{ user_row.id }}#perm-{{ permission.key }}" aria-pressed="{{ 'true' if permission.exception == 'allow' else 'false' }}" aria-label="Allow {{ permission.label }} for {{ summary.name }}">Allow</button>
+                                    <button class="exc-btn" type="submit" name="change" value="{{ permission.key }}|deny" formaction="/users/permissions/{{ user_row.id }}#perm-{{ permission.key }}" aria-pressed="{{ 'true' if permission.exception == 'deny' else 'false' }}" aria-label="Deny {{ permission.label }} for {{ summary.name }}">Deny</button>
+                                    {% if permission.has_exception %}
+                                    <button class="exc-btn is-reset" type="submit" name="change" value="{{ permission.key }}|reset" formaction="/users/permissions/{{ user_row.id }}#perm-{{ permission.key }}" aria-label="Reset {{ permission.label }} to role settings for {{ summary.name }}">Reset to Role Settings</button>
+                                    {% endif %}
+                                </div>
                                 {% endif %}
                             </div>
                             {% endfor %}
                         </div>
                     </details>
                     {% endfor %}
-                </div>
-                <div class="actions">
-                    <button class="btn btn-save" type="submit">{{ icon("save", "icon") }} Save Permission Overrides</button>
                 </div>
             </form>
         </section>

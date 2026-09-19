@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
-documentation_version: 4.2
-last_updated: 2026-09-18
+documentation_version: 4.3
+last_updated: 2026-09-19
 source_of_truth: true
 ---
 
@@ -95,40 +95,56 @@ the role denies. A stored Allow override on a role-denied key is preserved
 inert until then. Enabling true Allow-over-Deny is an open product/security
 decision requiring explicit Owner sign-off before implementation.
 
+The Phase 3 whole-application qualification (see
+`docs/engineering/PERMISSION_CLOSURE_REVIEW.md`) classifies all 175 registered keys
+(143 active-enforced, 14 platform-only enforced, 5 alias/composite, 13
+dormant/reserved, 0 unresolved) and pins that classification in a machine-checked
+test; platform users additionally need the canonical all-school capability
+(`_can_manage_all_school_scopes`) to select an organization context.
+
 Every consumer of "the current user's effective permissions" must resolve
 through `auth.get_allowed_permission_keys` (the sole integration point that
 folds role resolution and user overrides together via `role_permission_service`
-and `user_permission_service`). Role-only helper functions named
-`_get_allowed_permission_keys` in `main.py`, `routers/users.py`, and
-`ui_shell.py` intentionally compute only the abstract role-level set (used to
-render the four managed roles' reference summaries, e.g. "Dashboard: 4/5")
-and are never a substitute for a specific user's effective permissions; a UI
+and `user_permission_service`). The abstract role-level set used to
+render the four managed roles' reference summaries (e.g. "Dashboard: 4/5") is
+read from `role_permission_service` (`get_allowed_permission_keys` /
+`build_role_permission_payload`; the Phase 3 audit deleted the unused duplicate
+`_get_role_permission_rows`/`_get_allowed_permission_keys` helpers formerly
+in `auth.py`, `main.py`, `routers/users.py`, and `ui_shell.py`, so no second
+role-policy reader remains). A role-level summary is never a substitute for
+a specific user's effective permissions; a UI
 that displays a specific user's access must use
 `user_permission_service.build_user_permission_payload` instead, otherwise an
 administrator can be misled by a role-level summary that does not reflect
 that user's per-user override.
 
-`build_user_permission_payload` is now consumed by the Edit User page
+`build_user_permission_payload` is consumed by the Edit User page
 (`templates/edit_user.html`, rendered from `routers/users.py`
-`_render_edit_user_page`), which shows a per-user override panel (Inherit /
-Allow / Deny per permission, with the role baseline, effective state, and a
-plain-language reason) mirrored from the existing role-permission editor's
-direct/inherited UI pattern. Saves post to `/users/permissions/{user_pk}`
-(`routers/users.py` `update_user_permissions`), which is gated by the existing
-`configuration.manage_permissions` key (the same key that gates
-`/system-configuration/role-permissions`; no new permission key was added),
+`_render_edit_user_page`), which shows a "User Permission Exceptions"
+section: a user summary and, per permission, Effective, Source (User
+Exception / School Override / Standard Role Package) and the direct
+exception. The UI is binary Allow / Deny plus **Reset to Role Settings**
+(shown only when an exception exists); "Inherit" is not a user-facing
+choice, although internally no row still means follow-the-role and
+`apply_user_override(..., "inherit")` still deletes the row. A stored
+Allow under a role-level Deny is shown as Effective Deny and "stored,
+currently ineffective", is never deleted silently, and applies again if
+the role re-grants. Each action posts a single
+`change="<key>|<allow|deny|reset>"` to `/users/permissions/{user_pk}`
+(`routers/users.py` `update_user_permissions`; the legacy paired-list form
+remains supported), which is gated by the existing
+`configuration.manage_permissions` key (no new permission key),
 resolves the override's `school_group_id` from the acting admin's own active
 SchoolGroup (never client input), and re-verifies tenant boundary via the
 existing `_get_user_for_management` / `_can_manage_target_user` guard before
-calling `user_permission_service.apply_user_override` per changed key. The
-panel disables Allow/Deny (Inherit-only) for `platform_only` or non-
-`assignable` keys, consistent with the service-layer rejection. A rendered-
-template regression (`tests/test_edit_user_template_render.py`) proves this
-panel's live output: all three Inherit/Allow/Deny controls for a normal
-permission, both the "Inherited from role (granted)" and "User override:
-Deny (overrides role grant)" reason-text branches, and the exact inert
-markup (`aria-disabled="true"`, "Allow (unavailable)"/"Deny (unavailable)")
-for a platform-only key.
+calling `user_permission_service.apply_user_override`. Platform-only and
+non-`assignable` keys render locked with no Allow/Deny buttons, consistent with
+the service-layer rejection; a stored exception that became non-assignable
+after a role change shows only "Reset to Role Settings" (deletion, no
+authority). Normal UX is Allow / Deny + Reset to Role Settings; "inherit"
+remains only the internal, backward-compatible API form of clearing an
+override. Regressions: `tests/test_user_exceptions_ui.py` and
+`tests/test_edit_user_template_render.py`.
 
 The route resolves the override's `school_group_id` from the acting admin's
 own active SchoolGroup for an ordinary tenant administrator. For a

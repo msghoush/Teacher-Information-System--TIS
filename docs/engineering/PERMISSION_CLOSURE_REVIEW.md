@@ -1,11 +1,234 @@
 ---
 title: Independent Permission Closure Review
-documentation_version: 1.2
-last_updated: 2026-09-18
+documentation_version: 1.4
+last_updated: 2026-09-19
 module: architecture
 ---
 
 # Independent Permission Closure Review
+
+## Phase 3 — Whole-Application Permission Qualification
+
+Phase 3 audited the whole application against the objective that every surface
+(sidebar, Dashboard cards/tabs, direct GET routes, POST mutations, bulk/export/API
+paths, configuration controls and server-rendered action affordances) consumes ONE
+canonical effective permission result (`auth.get_allowed_permission_keys`), with no
+role-name shortcuts, tenant-scope drift, stale caches, or duplicated resolver logic.
+ADR 0040 precedence is unchanged; there is no second resolver, no schema change, no
+migration, and no new permission key.
+
+### Final registry classification (175 keys, 26 groups)
+
+Machine-checked by `tests/test_permission_registry_matrix.py`. Consumers are
+discovered by AST and template scan of non-test source and compared with a reviewed
+table. The test fails on an unclassified new key, an active key with no consumer, a
+dormant key that gains a guard consumer, a lost consumer, or any unresolved key.
+
+| Status | Count | Meaning |
+| --- | --- | --- |
+| A active-enforced | 143 | Tenant-assignable key with a discovered route, handler, middleware, service or template consumer |
+| B platform-only, enforced | 14 | Platform-only key with a real guard consumer |
+| C alias/composite | 5 | Governed by another guard or by identity |
+| D dormant/reserved | 13 | No enforcement anywhere |
+| E unresolved | 0 | none |
+
+Platform-only keys (24 = 22 developer-only + 4 owner-only, with 2 in both): 14 are B,
+5 are C and 5 are D (`dashboard.view_all_schools`,
+`configuration.manage_global_defaults`, `system_owner.manage_subscriptions`,
+`system_owner.create_subscription_school`, `system_owner.run_startup_repairs`).
+
+Aliases/composites (C): `system_owner.manage_developer_accounts`,
+`system_owner.manage_ownership`, `system_owner.transfer_ownership` (owner-identity
+gates; the key is only cited in the denial), `system_owner.view_cross_school_audit`
+and `system_owner.export_cross_school_data` (`match="any"` aliases of
+`configuration.view_audit_log` / `configuration.export_audit_log`).
+
+Dormant/reserved (D, 13): `reports.view`, `teachers.import`, `teachers.export`,
+`subjects.manage_colors`, `planning.import`, `planning.export`,
+`observations.submit`, `observations.manage_templates`, `dashboard.view_all_schools`,
+`configuration.manage_global_defaults`, `system_owner.manage_subscriptions`,
+`system_owner.create_subscription_school`, `system_owner.run_startup_repairs`.
+
+Differences from the prior disposition (re-verified rather than trusted):
+`planning.import` and `planning.export` were recorded as resolved with real
+consumers in `routers/planning.py`; that was stale (no planning import or export
+route or literal exists) and both are dormant. `observations.submit` was recorded as
+an alias of `observations.sign_evaluator`, but no code evaluates it, so it is dormant
+(enforcement is `observations.sign_evaluator` only). `dashboard.view_all_schools` is
+only cited in a denial-message label (the all-school scope gate is the access-scope
+identity) and is dormant. `dashboard.view_branch_summary` and
+`dashboard.view_reports` remain template (presentation) gates on the already
+route-guarded `/dashboard` page. `ai.use` is an active service-layer consumer:
+`saas/ai_entitlement_service.evaluate_ai_availability` passes the feature definition's
+`permission_key` (`ai.use`) to `entitlement_service.evaluate_feature_access`, which
+calls `auth.has_permission` with that key. The matrix does not credit the bare constant
+in `saas/ai_feature_registry.py`; it credits `saas/ai_entitlement_service.py` only when
+an AST check confirms all three links (the `AI_PERMISSION_KEY` constant holds `ai.use`,
+the feature definitions pass it as `permission_key=`, and `evaluate_ai_availability`
+passes `<feature>.permission_key` to `evaluate_feature_access`); removing any link
+fails `tests/test_permission_registry_matrix.py`. Runtime behaviour is proven by
+`tests/test_ai_entitlement_service.py::test_ai_use_permission_key_is_the_runtime_gate_for_every_ai_feature`
+(every AI feature carries `ai.use`; the real service calls `auth.has_permission` with
+`ai.use`; an Administrator is allowed, a school-level Deny of `ai.use` yields
+`ai_permission_denied`, and removing the Deny restores access) plus the existing
+role-Limited denial test. Not proven: every individual AI feature key end to end (the
+runtime test exercises `ai.academic_assistant`; all features share the one
+`permission_key` constant and evaluator path), and any HTTP route that fronts AI.
+
+### Route authorization enumeration
+
+`tests/test_permission_route_coverage.py` enumerates the real `main.app` route table:
+468 routes (215 GET, 224 POST, 12 DELETE, 9 PATCH, 8 PUT; 253 non-GET). Evidence
+classes: 136 middleware rule (`authorization.PROTECTED_ROUTE_RULES`), 182 in-handler
+permission guard, 10 guard through a same-module helper, 34 platform-identity guard,
+65 SaaS account-session guard, and 41 reviewed allowlist entries (public or
+pre-authentication routes, provider webhook, scope selectors, and the Talent
+organization-analytics routes guarded in the service layer). Zero are uncovered.
+Every middleware rule is also proven at runtime to deny a user with an empty
+effective permission set. Static guard reachability is necessary but not sufficient
+evidence; representative handler-level denials are exercised in
+`tests/test_permission_surface_consistency.py`. A full authenticated HTTP sweep of
+every handler was not performed.
+
+### Defects found and fixed
+
+1. `POST /scope/organization` selected an organization context for any platform user
+   by identity alone, while its denial cited `system_owner.switch_all_schools`. A
+   Platform Developer whose switch/manage-all-schools capability had been withheld
+   could still switch organization. Proven by a failing test first; fixed by
+   requiring platform identity AND the existing canonical helper
+   `_can_manage_all_school_scopes` (`schools.manage_all_schools` or
+   `system_owner.switch_all_schools`). The Owner (all keys) is unaffected.
+2. Four unused duplicate raw `RolePermission` readers named
+   `_get_role_permission_rows` (`auth.py`, `main.py`, `routers/users.py`,
+   `ui_shell.py`) and three unused `_get_allowed_permission_keys` wrappers were deleted.
+   At the base commit each was only defined and never called (the `ui_shell.py` wrapper
+   caught any exception and returned role defaults, which would have failed open had it
+   ever been reachable, but it was dead code). Removing them eliminates duplicated
+   resolver-adjacent code that could be revived as a second resolver. No behaviour
+   change.
+
+### Dangerous-pattern scan
+
+`tests/test_permission_dangerous_patterns.py` scans non-test source for role
+constants and literals used as authority, admin-style flags, platform identity checks,
+raw `RolePermission` / `UserPermissionOverride` access, form-supplied SchoolGroup ids,
+per-request permission snapshots stashed on ORM instances, `lru_cache`, module-level
+permission caches, and template role gates. Every hit is classified (20 approved
+helper, 15 valid identity boundary, 5 legacy safe, 0 escalations, 0 bypass defects) with
+exact per-file counts, so a new hit fails the test. Raw policy queries exist only in
+the two services (plus tenant purge and count code in `saas/workspace_*`).
+`user.permission_keys` snapshots are per-request and have no reader. No
+request-independent permission cache exists.
+
+### Freshness, role change, tenant and platform-only results
+
+Allow to Deny to Allow for Role Package, School Override and User Exception is proven
+on fresh sessions across resolver, sidebar, Dashboard, route and POST action.
+Administrator to Editor to Administrator (and Editor to User) with a user exception
+and a tenant School Override present recomputes on the next request and retains the
+exception row. School Overrides and user exceptions never cross tenants, a tenant
+actor cannot write another tenant's overrides or global Role Packages, user
+exception scope uses the target user's school, a Platform Owner management target
+never gains tenant membership, platform-only keys cannot be granted through Role
+Packages, School Overrides, User Exceptions or crafted role-permission POSTs, and
+platform routes stay identity-guarded.
+
+### Verification scope and limits
+
+The route coverage test is structural: it matches guard-named calls in each handler's
+same-module call closure against the real route table, so a new mutating route with no
+guard-named call fails, but a guard that is called and ignored would still pass. The
+middleware runtime denial test stubs the resolver to an empty set and proves each
+`PROTECTED_ROUTE_RULES` rule fires. Accessibility of the permission-management
+templates is verified by template-source assertions plus a rendered-page test in
+`tests/test_permission_surfaces_accessibility.py` (the real User Exceptions panel and
+School Overrides page are rendered; every colour-classed Allow/Deny element must carry
+the same word as visible text, and "Effective", "School Override" and "Using Standard
+Role Package" states are asserted as text); no browser rendering was run. The
+existing Role Packages / School Overrides split, User Exceptions, permission
+management/qualification, tenant-isolation, platform-access and override route/service
+suites are the regression evidence for Phase 1 and Phase 2 behaviour. The read-only
+diagnostic CLI (`scripts/diagnose_user_permissions.py`) was re-qualified in the final
+hardening pass: `tests/test_diagnose_user_permissions.py` passed 6 of 6 (not-found is
+safe and minimal, unknown permission key gives no trace, user-override trace, no
+password hash or database URL in output, login-equivalent case-insensitive email
+resolution, direct invocation without `PYTHONPATH`); a manual direct run reported an
+unknown user as `not_found` (exit 1) and an unreachable database as the generic
+`database_unavailable` message (exit 2) with no URL, credential or host detail. The
+script resolves identity through `auth.resolve_login_user` and contains no commit,
+INSERT, UPDATE or DELETE. Read-only behaviour and the database-unavailable path were
+confirmed by source inspection and the manual run, not by a dedicated automated test.
+
+### ADR 0040 historical references
+
+ADR 0040 remains authoritative for precedence semantics (built-in role package ->
+global `RolePermission` -> SchoolGroup `RolePermission` -> per-user override; user
+Deny wins; a user Allow cannot resurrect a role-level Deny). Helper names the ADR
+mentions describe the implementation at decision time. Current runtime authority is the
+canonical resolver and service path: `auth.get_allowed_permission_keys`,
+`role_permission_service` and `user_permission_service`, as documented in current KMS.
+The unused duplicate wrappers deleted in Phase 3 do not change the ADR's semantics; the
+ADR itself is intentionally left unedited.
+
+### Open Owner/product decisions (unresolved; not invented here)
+
+Exactly four decisions remain open and require an Owner/product decision. None is
+resolved by Phase 3.
+
+1. Teacher-create field-level enforcement: `create_teacher` persists subject
+   assignments, qualifications and capacity from the create form for any holder of
+   `teachers.create`, although the edit route enforces `teachers.assign_subjects`,
+   `teachers.manage_qualifications` and `teachers.manage_capacity` field-level.
+2. Tenant-toggleable dormant keys: the tenant-assignable dormant keys
+   (`reports.view`, `teachers.import`, `teachers.export`, `subjects.manage_colors`,
+   `planning.import`, `planning.export`, `observations.submit`,
+   `observations.manage_templates`) remain toggleable in the Role Package editor with
+   no effect; whether to hide, lock or implement them is undecided.
+3. Whether role `User` may ever author observations: `routers/observations._is_teacher_user`
+   is a restrictive role-name compatibility rule (role `User` is the observed teacher
+   and is denied observation create/edit/delete/evaluator-sign even when granted;
+   reads are limited to the caller's own teacher record). It never authorises another
+   user's data, so it is not a bypass and does not block this audit.
+4. Orphan `UserPermissionOverride` rows on workspace deletion: workspace deletion in
+   `saas` purges `RolePermission` rows but no `UserPermissionOverride` rows for the
+   deleted tenant (orphan exceptions cannot grant access); whether and how to purge
+   them is undecided.
+
+Not a decision: `dashboard.view_branch_summary` and `dashboard.view_reports` gate
+presentation only.
+
+## Role Permissions UI — Role Packages / School Overrides Split (Phase 1)
+
+The live Owner reproduction below (Dashboard Tab/Panel Permission-Gate
+Closure) surfaced the underlying Role Permissions UI defect this Phase 1
+pass corrects: the combined editor's single "Permission Scope: Global
+defaults / Selected school" dropdown made a real tenant Deny override
+(built-in Allow, global override none, tenant override Deny, effective Deny)
+visually indistinguishable from the Global default Allow, and the Platform
+Owner UI displayed the selected tenant's name even while "Global defaults"
+was selected. `/system-configuration/role-permissions` now serves two
+explicit modes (`mode=packages`, `mode=overrides`) reusing the unchanged
+`role_permission_service.py` resolver; School Overrides always labels its
+SchoolGroup selector as a management target, never as Platform Owner actor
+context, and read-only viewing never creates a tenant `RolePermission` row.
+An Owner-review pass over the running application (real browser rendering plus
+a live save/reset round trip on a throwaway database, never `tis.db`) further
+required: a Platform Owner must explicitly choose the School Overrides
+management target (no school is pre-selected); groups holding a School
+override open by default with an override count; and corrected accessibility
+semantics (`aria-current` navigation, no static `aria-expanded`, the Reset
+button kept out of the checkbox `<label>`, single-element banner text,
+explicit focus outlines). The live round trip confirmed the incident's
+resolution path: a tenant Administrator's fresh `GET /subjects` was denied
+while the tenant Deny override existed, allowed after "Reset to standard" +
+Save removed it, and denied again on re-deny, with no global row touched and a
+tenant actor unable to save Role Packages or another school's override.
+See `docs/PROJECT_STATE.md` for full detail and
+`tests/test_role_permissions_ui_split.py` for the regression matrix,
+including a constructed Al-Andalus-style fixture. This is a UI/route
+structural correction only; ADR 0040's precedence chain is unchanged and no
+permission data was read or mutated on any production row.
 
 ## Dashboard Tab/Panel Permission-Gate Closure (Live Owner Reproduction)
 
@@ -135,9 +358,9 @@ Every previously-unconsumed key listed in the prior revision of this section
 was individually traced against the implemented product (routes, services,
 templates, nav, and the route-permission middleware in
 `authorization.PROTECTED_ROUTE_RULES`) and classified. `planning.import` and
-`planning.export` were already resolved in an earlier corrective pass (real
-consumers exist in `routers/planning.py`) and are omitted below; the other 22
-keys close as follows.
+`planning.export` were previously recorded here as resolved with real consumers;
+the Phase 3 audit found that stale (no planning import or export route exists) and
+classified both dormant. The other 22 keys close as follows.
 
 **Enforced as an existing capability with a dedicated key** (server-side gate
 added/aligned; UI aligned to match):
@@ -183,7 +406,8 @@ added/aligned; UI aligned to match):
 **Existing capability governed by an explicit alias/composite** (documented,
 not a second independently-built gate):
 
-- `observations.submit` — alias of `observations.sign_evaluator`. The
+- `observations.submit` — documented as an alias of `observations.sign_evaluator`
+  (Phase 3 finds no code evaluates it, so it is now classified dormant). The
   implementation has no separate "submit without signature" step: applying
   the evaluator signature is the exact action that submits the observation
   for the teacher's review (`_notify_teacher_observation_ready` fires only
@@ -310,6 +534,26 @@ mutation authorization. No SchoolGroup-related code was changed in this
 corrective pass; this discrepancy between the delegated task summary and the
 actual GitHub review content is recorded here rather than acted on
 speculatively.
+
+## User Exceptions UX (Phase 2)
+
+The edit-user per-user panel is now "User Permission Exceptions": binary
+Allow/Deny plus Reset to Role Settings (internal inherit == delete the
+override row; "Inherit" is never shown). ADR 0040 precedence is unchanged.
+`user_permission_service.build_user_permission_payload` projects Effective
+(equal to `auth.get_allowed_permission_keys`), Source, exception, and an
+`exception_inert` flag. A stored Allow under a role-level Deny is kept,
+displayed as Effective Deny and "stored, currently ineffective", and
+re-applies if the role re-grants. Tenant/platform scope resolution, the
+platform-only and non-assignable rejections, and inactive-user fail-closed
+behaviour are unchanged. Locked rows expose no Allow/Deny buttons; a stored
+exception on a key that became non-assignable for the user's role (for example
+after a role change) is kept, never silently deleted, and the locked row shows
+only "Reset to Role Settings" so an operator can remove it (Reset deletes the
+row and grants no authority; the service already accepted `inherit` for such
+keys, and creating or changing an exception on a locked key is still refused).
+The legacy paired-list / `inherit` route contract is unchanged and never shown
+in the UI. Coverage: `tests/test_user_exceptions_ui.py`.
 
 ## Migration and operational safety
 

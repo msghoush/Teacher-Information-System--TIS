@@ -131,10 +131,33 @@ def build_user_permission_payload(
     normalized_role: str,
     school_group_id: int | None,
 ) -> dict:
+    """Read-only per-permission projection for the User Exceptions panel.
+
+    Composes the canonical helpers only (no second resolver): ``effective`` is
+    exactly ``auth.get_allowed_permission_keys`` for the target user, so it
+    already fails closed for inactive users and mismatched scope.
+
+    Additive fields per permission: ``standard_allowed`` (built-in + global
+    layer), ``school_override`` (True/False when a SchoolGroup RolePermission
+    row exists for the target's school, else None), ``exception``
+    ("allow"|"deny"|None), ``exception_inert`` (stored Allow while the role
+    layer denies), ``source`` ("user_exception"|"school_override"|
+    "standard_role") and ``has_exception``. ``state`` keeps the legacy
+    allow/deny/inherit value for the service contract.
+    """
     normalized_role = permission_registry.normalize_managed_role(
         auth.get_effective_tenant_role(target_user)
     )
     role_allowed = role_permission_service.get_allowed_permission_keys(db, normalized_role, school_group_id)
+    standard_allowed = role_permission_service.get_allowed_permission_keys(db, normalized_role, None)
+    school_rows = {}
+    if school_group_id is not None:
+        school_rows = {
+            row.permission_key: bool(row.is_allowed)
+            for row in role_permission_service.get_role_permission_rows(
+                db, normalized_role, school_group_id
+            )
+        }
     overrides = get_user_overrides(db, target_user.id, school_group_id)
     effective = auth.get_allowed_permission_keys(db, target_user, school_group_id)
 
@@ -150,16 +173,34 @@ def build_user_permission_payload(
                 state = "deny"
             else:
                 state = "inherit"
+            exception = None if state == "inherit" else state
+            role_grants = key in role_allowed
+            inert = exception == "allow" and not role_grants
+            school_override = school_rows.get(key)
+            if exception == "deny" or (exception == "allow" and role_grants):
+                source = "user_exception"
+            elif school_override is not None:
+                source = "school_override"
+            else:
+                source = "standard_role"
+            expected = role_grants and exception != "deny"
             permissions.append(
                 {
                     "key": key,
                     "label": label,
                     "platform_only": platform_only,
                     "assignable": _is_assignable(normalized_role, key),
-                    "role_allowed": key in role_allowed,
+                    "role_allowed": role_grants,
                     "override": override,
                     "effective": key in effective,
                     "state": state,
+                    "standard_allowed": key in standard_allowed,
+                    "school_override": school_override,
+                    "exception": exception,
+                    "exception_inert": inert,
+                    "has_exception": exception is not None,
+                    "source": source,
+                    "blocked_by_account": expected and key not in effective,
                 }
             )
         groups.append(
@@ -173,5 +214,6 @@ def build_user_permission_payload(
     return {
         "user_id": target_user.id,
         "role": normalized_role,
+        "account_active": bool(auth.is_user_active(target_user)),
         "groups": groups,
     }

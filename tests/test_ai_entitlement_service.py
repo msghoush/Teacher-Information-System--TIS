@@ -370,6 +370,54 @@ class TestAIEntitlementService:
         assert permission.reason_code == "ai_permission_denied"
         assert tenant.reason_code == "workspace_access_denied"
 
+    def test_ai_use_permission_key_is_the_runtime_gate_for_every_ai_feature(self):
+        """Evidence for the registry matrix: `ai.use` is enforced at runtime.
+
+        Every AI feature carries permission_key `ai.use`; the service passes it to
+        `entitlement_service.evaluate_feature_access`, which calls `auth.has_permission`
+        with that exact key. A school-level Deny of `ai.use` flips an otherwise allowed
+        Administrator to `ai_permission_denied`; removing the Deny restores access.
+        """
+        assert ai_feature_registry.AI_PERMISSION_KEY == "ai.use"
+        assert {f.permission_key for f in ai_feature_registry.list_features()} == {"ai.use"}
+        group_id, user_id = self._workspace(role=auth.ROLE_ADMINISTRATOR)
+        seen = []
+        real_has_permission = auth.has_permission
+
+        def spy(db, user, key, *args, **kwargs):
+            seen.append(key)
+            return real_has_permission(db, user, key, *args, **kwargs)
+
+        with self.Session() as db:
+            user = self._user(db, user_id, group_id)
+            with patch.object(auth, "has_permission", spy):
+                allowed = ai_entitlement_service.evaluate_ai_entitlement(
+                    db, user=user, school_group_id=group_id, feature_key=FEATURE,
+                )
+            assert "ai.use" in seen
+            assert allowed.allowed, allowed.reason_code
+            row = models.RolePermission(
+                school_group_id=group_id, role=auth.ROLE_ADMINISTRATOR,
+                permission_key="ai.use", is_allowed=False, updated_by_user_id="system",
+            )
+            db.add(row)
+            db.commit()
+            db.expire_all()
+            user = self._user(db, user_id, group_id)
+            denied = ai_entitlement_service.evaluate_ai_entitlement(
+                db, user=user, school_group_id=group_id, feature_key=FEATURE,
+            )
+            assert not denied.allowed
+            assert denied.reason_code == "ai_permission_denied"
+            db.delete(row)
+            db.commit()
+            db.expire_all()
+            user = self._user(db, user_id, group_id)
+            restored = ai_entitlement_service.evaluate_ai_entitlement(
+                db, user=user, school_group_id=group_id, feature_key=FEATURE,
+            )
+            assert restored.allowed, restored.reason_code
+
     def test_unknown_and_disabled_features_fail_safely(self):
         group_id, user_id = self._workspace()
         with self.Session() as db:
