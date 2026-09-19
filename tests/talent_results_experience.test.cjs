@@ -120,11 +120,10 @@ test('the shared Grade filter is Planning-driven, not a blanket hardcoded KG-12 
   assert.match(fs.readFileSync(path.join(__dirname,'..','templates','talent','workspace.html'),'utf8'),/for="tp-section"/);
 });
 
-test('Talent module expands as a permission-aware sidebar tree with the Ghars brand logo', () => {
+test('Talent module expands as a permission-aware sidebar tree using the shared sidebar icon system', () => {
   const shellSource = fs.readFileSync(path.join(__dirname, '..', 'ui_shell.py'), 'utf8');
   const base = fs.readFileSync(path.join(__dirname, '..', 'templates', 'base.html'), 'utf8');
   const shellCss = fs.readFileSync(path.join(__dirname, '..', 'static', 'css', 'app-shell.css'), 'utf8');
-  const brandLogoPath = path.join(__dirname, '..', 'static', 'img', 'talent-ghars-symbol.png');
   for (const destination of ['/talent/overview','/talent/programs','/talent/assessments','/talent/reviews','/talent/analytics']) {
     assert.match(shellSource, new RegExp(destination.replaceAll('/','\\/')));
   }
@@ -132,15 +131,14 @@ test('Talent module expands as a permission-aware sidebar tree with the Ghars br
   assert.match(shellSource, /talent_assessments\.view/);
   assert.match(shellSource, /talent_review_candidates\.view/);
   assert.match(shellSource, /talent_analytics\.view/);
-  assert.match(shellSource, /"brand_logo": "img\/talent-ghars-symbol\.png"/);
-  // The Ghars mark renders small (icon-sized), and the visible
-  // "Talent & Potential" text is never suppressed - only the icon glyph
-  // swaps between the brand symbol and the default module icon.
+  // The Talent entry uses the shared inline-SVG icon macro like every other
+  // module (no per-item brand image), and its visible label is never suppressed.
+  const talentItem = shellSource.match(/"label": "Talent & Potential",[\s\S]*?\},/)[0];
+  assert.match(talentItem, /"icon": "sparkles"/);
+  assert.doesNotMatch(talentItem, /brand_logo/);
   assert.match(base, /class="sidebar-brand-symbol shell-icon"/);
   assert.match(base, /item\.brand_logo/);
   assert.match(base, /<span class="sidebar-link-copy">/);
-  assert.ok(fs.existsSync(brandLogoPath));
-  assert.ok(fs.statSync(brandLogoPath).size > 0);
   assert.match(shellCss, /\.sidebar-brand-symbol\s*\{[\s\S]*width:\s*var\(--app-icon-size\)[\s\S]*height:\s*var\(--app-icon-size\)[\s\S]*object-fit:\s*contain/);
   assert.match(base, /class="sidebar-tree"/);
   assert.match(base, /class="sidebar-tree-link/);

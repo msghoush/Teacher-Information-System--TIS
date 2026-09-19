@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
-documentation_version: 3.9
-last_updated: 2026-09-09
+documentation_version: 4.0
+last_updated: 2026-09-19
 recommended_first_read: true
 ---
 
@@ -2820,9 +2820,12 @@ matching current attempt if legacy/bad data exposes more than one, so a newer
 Completed attempt cannot be masked as Continue Assessment by an older In Progress
 row. No Grade or annual Program-configuration gate was reintroduced.
 
-The Talent & Potential sidebar uses the Owner-supplied symbol-only Ghars PNG at
-`static/img/talent-ghars-symbol.png`, rendered by the existing icon-size shell
-rule with the visible "Talent & Potential" label preserved.
+The Talent & Potential sidebar entry now uses the shared inline-SVG `sparkles`
+icon from the `icon()` macro in `templates/_app_icons.html`, like every other
+module (2026-09-19 UI polish; the per-item `brand_logo` override was removed from
+`ui_shell.py`). The earlier Owner-supplied Ghars PNG (`static/img/talent-ghars-symbol.png`)
+is no longer referenced by the sidebar; earlier entries in this file describing it in
+the sidebar are historical. The visible "Talent & Potential" label is unchanged.
 
 ## Organization Analytics availability correction (2026-09-12)
 

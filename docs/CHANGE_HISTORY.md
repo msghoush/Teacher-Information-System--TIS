@@ -1,11 +1,19 @@
 ---
 title: TIS Change History
-documentation_version: 4.8
+documentation_version: 4.9
 last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-19 — Talent & Potential sidebar icon uses the shared icon system (UI polish)
+
+Removed the per-item `brand_logo` (Ghars PNG) override from the Talent & Potential
+nav item in `ui_shell.py`, so the sidebar renders the shared `sparkles` SVG from the
+existing `icon()` macro like the other modules. Cosmetic only: no routing,
+permission, label, structure, other-icon, asset, dependency, or schema change. The
+JS shell test that pinned the PNG was updated to assert the shared icon system.
 
 ## 2026-09-19 — Whole-Application Permission Qualification (Phase 3)
 
