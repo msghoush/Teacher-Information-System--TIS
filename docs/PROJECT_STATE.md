@@ -1,11 +1,42 @@
 ---
 title: TIS Project State
-documentation_version: 5.4
+documentation_version: 5.5
 last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Whole-Application Permission Qualification (Phase 3)
+
+Phase 3 qualified the whole application against the single canonical effective
+permission result (`auth.get_allowed_permission_keys`; ADR 0040 precedence
+unchanged, no second resolver, no schema/migration, no new key). Final registry
+classification of the 175 keys (26 groups): 143 active-enforced, 14 platform-only
+enforced, 5 alias/composite, 13 dormant/reserved, 0 unresolved. The prior note that
+`planning.import`/`planning.export` had consumers was stale, and
+`observations.submit` and `dashboard.view_all_schools` have no enforcement, so all
+three are now dormant (13 dormant total). The route table (468 routes, 253 non-GET)
+is machine-enumerated: 136 middleware rules, 182 in-handler guards, 10 helper
+guards, 34 platform-identity, 65 SaaS-account-session and 41 reviewed allowlist
+entries, none uncovered. One real defect was fixed: `POST /scope/organization`
+accepted any platform user without the `system_owner.switch_all_schools` /
+`schools.manage_all_schools` capability its own denial cited; it now also requires
+the canonical `_can_manage_all_school_scopes` helper. Seven unused duplicate raw
+`_get_role_permission_rows` / `_get_allowed_permission_keys` helpers were deleted.
+Sidebar, Dashboard tab/panel and direct-route consistency is parametrized over every
+nav module (including the multi-key Talent and System Configuration gates and the
+Talent sub-nav); Allow/Deny/Allow freshness for Role Package, School Override and
+User Exception, role change with retained exceptions, tenant isolation and
+platform-only protection are covered on fresh sessions. Four Owner/product
+decisions remain open and unresolved (teacher-create field-level enforcement,
+tenant-toggleable dormant keys, whether role User may author observations, orphan
+`UserPermissionOverride` rows on workspace deletion); ADR 0040 remains authoritative
+for precedence and its historical helper names are addressed in
+`docs/engineering/PERMISSION_CLOSURE_REVIEW.md`. Tests:
+`test_permission_registry_matrix.py`, `test_permission_route_coverage.py`,
+`test_permission_dangerous_patterns.py`, `test_permission_surface_consistency.py`,
+`test_permission_surfaces_accessibility.py`.
 
 ## Role Permissions UI — User Exceptions (Phase 2)
 

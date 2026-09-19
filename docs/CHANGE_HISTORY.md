@@ -1,11 +1,27 @@
 ---
 title: TIS Change History
-documentation_version: 4.7
+documentation_version: 4.8
 last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-19 — Whole-Application Permission Qualification (Phase 3)
+
+Audited all 175 registered permission keys, 468 routes and every nav module
+against the single canonical effective permission result. Added a governed registry
+evidence matrix (143 active / 14 platform-only enforced / 5 alias / 13 dormant / 0
+unresolved), a route authorization enumeration, a classified dangerous-pattern scan,
+sidebar/Dashboard/route consistency tests for every nav module, freshness,
+role-change, tenant-isolation and platform-only tests, and template-source
+accessibility checks. Fixed `POST /scope/organization` so platform users must also
+hold the canonical all-school switch capability (`_can_manage_all_school_scopes`),
+deleted seven unused duplicate role-policy reader helpers, and corrected stale KMS
+dispositions (`planning.import`/`planning.export`, `observations.submit`,
+`dashboard.view_all_schools` are dormant). ADR 0040 precedence, storage, schema and
+the permission registry are unchanged; no migration. Web Service only; no Timetable
+Workflow change.
 
 ## 2026-09-19 — Role Permissions UI: User Exceptions (Phase 2)
 

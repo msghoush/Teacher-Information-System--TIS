@@ -81,19 +81,6 @@ def _get_user_school_group_id(db: Session, current_user) -> int | None:
     )
 
 
-def _get_role_permission_rows(db: Session, role: str, school_group_id: int | None = None):
-    query = db.query(models.RolePermission).filter(models.RolePermission.role == role)
-    if school_group_id is None:
-        query = query.filter(models.RolePermission.school_group_id.is_(None))
-    else:
-        query = query.filter(models.RolePermission.school_group_id == school_group_id)
-    return query.all()
-
-
-def _get_allowed_permission_keys(db: Session, role: str, school_group_id: int | None = None) -> set[str]:
-    return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
-
-
 def _build_role_permission_summary_map(db: Session, current_user):
     school_group_id = _get_user_school_group_id(db, current_user)
     return {

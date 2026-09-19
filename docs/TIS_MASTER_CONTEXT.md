@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
-documentation_version: 4.2
-last_updated: 2026-09-18
+documentation_version: 4.3
+last_updated: 2026-09-19
 source_of_truth: true
 ---
 
@@ -95,14 +95,24 @@ the role denies. A stored Allow override on a role-denied key is preserved
 inert until then. Enabling true Allow-over-Deny is an open product/security
 decision requiring explicit Owner sign-off before implementation.
 
+The Phase 3 whole-application qualification (see
+`docs/engineering/PERMISSION_CLOSURE_REVIEW.md`) classifies all 175 registered keys
+(143 active-enforced, 14 platform-only enforced, 5 alias/composite, 13
+dormant/reserved, 0 unresolved) and pins that classification in a machine-checked
+test; platform users additionally need the canonical all-school capability
+(`_can_manage_all_school_scopes`) to select an organization context.
+
 Every consumer of "the current user's effective permissions" must resolve
 through `auth.get_allowed_permission_keys` (the sole integration point that
 folds role resolution and user overrides together via `role_permission_service`
-and `user_permission_service`). Role-only helper functions named
-`_get_allowed_permission_keys` in `main.py`, `routers/users.py`, and
-`ui_shell.py` intentionally compute only the abstract role-level set (used to
-render the four managed roles' reference summaries, e.g. "Dashboard: 4/5")
-and are never a substitute for a specific user's effective permissions; a UI
+and `user_permission_service`). The abstract role-level set used to
+render the four managed roles' reference summaries (e.g. "Dashboard: 4/5") is
+read from `role_permission_service` (`get_allowed_permission_keys` /
+`build_role_permission_payload`; the Phase 3 audit deleted the unused duplicate
+`_get_role_permission_rows`/`_get_allowed_permission_keys` helpers formerly
+in `auth.py`, `main.py`, `routers/users.py`, and `ui_shell.py`, so no second
+role-policy reader remains). A role-level summary is never a substitute for
+a specific user's effective permissions; a UI
 that displays a specific user's access must use
 `user_permission_service.build_user_permission_payload` instead, otherwise an
 administrator can be misled by a role-level summary that does not reflect

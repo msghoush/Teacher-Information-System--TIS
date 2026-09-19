@@ -887,33 +887,6 @@ def _build_school_delete_summary(db: Session, school_group_id: int | None) -> di
     }
 
 
-def _get_role_permission_rows(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-) -> list[models.RolePermission]:
-    normalized_role = permission_registry.normalize_managed_role(role)
-    if not normalized_role:
-        return []
-
-    query = db.query(models.RolePermission).filter(
-        models.RolePermission.role == normalized_role
-    )
-    if school_group_id is None:
-        query = query.filter(models.RolePermission.school_group_id.is_(None))
-    else:
-        query = query.filter(models.RolePermission.school_group_id == school_group_id)
-    return query.all()
-
-
-def _get_allowed_permission_keys(
-    db: Session,
-    role: str,
-    school_group_id: int | None = None,
-) -> set[str]:
-    return role_permission_service.get_allowed_permission_keys(db, role, school_group_id)
-
-
 def _build_role_permission_payload(
     db: Session,
     role: str,
@@ -15562,7 +15535,14 @@ def set_scope_organization(
     current_user = auth.get_current_user(request, db)
     if not current_user:
         return RedirectResponse(url="/", status_code=302)
-    if not auth.is_platform_user(current_user):
+    # Platform identity AND the canonical switch capability: a Platform Developer
+    # whose `system_owner.switch_all_schools` / `schools.manage_all_schools`
+    # capability was withheld must not be able to select an organization context
+    # (same helper every other all-school scope gate uses).
+    if not (
+        auth.is_platform_user(current_user)
+        and _can_manage_all_school_scopes(db, current_user)
+    ):
         return authorization.build_access_denied_response(
             request,
             db,
