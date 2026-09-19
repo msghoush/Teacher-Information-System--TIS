@@ -1,11 +1,28 @@
 ---
 title: TIS Project State
-documentation_version: 5.5
+documentation_version: 5.6
 last_updated: 2026-09-19
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent & Potential Sidebar Icon (UI Polish, 2026-09-19)
+
+The Talent & Potential sidebar entry now renders the shared inline-SVG `sparkles`
+icon through the existing `icon()` macro (`templates/_app_icons.html`: 24x24
+viewBox, stroke-only, styled by `.shell-icon`), consistent with every other module.
+The nav item already declared `"icon": "sparkles"` (also used by the Talent page
+header); only the `"brand_logo": "img/talent-ghars-symbol.png"` override in
+`ui_shell.py` was removed, so the sidebar no longer draws an `<img>` for this
+item. Routing, permissions (`permission_keys` / `permission_mode: any`), label,
+child tree and all other icons are unchanged; no new icon, asset, dependency, or
+schema. The generic `brand_logo` support in `templates/base.html` and the
+`.sidebar-brand-symbol` CSS remain available but are unused, and
+`static/img/talent-ghars-symbol.png` stays in the repository unreferenced by the
+sidebar. Earlier entries below that describe the Ghars PNG in the sidebar are
+historical. `tests/talent_results_experience.test.cjs` now asserts the Talent item
+uses the shared icon macro instead of the PNG.
 
 ## Whole-Application Permission Qualification (Phase 3)
 
