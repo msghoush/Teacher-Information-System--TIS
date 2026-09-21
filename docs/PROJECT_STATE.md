@@ -1,11 +1,104 @@
 ---
 title: TIS Project State
-documentation_version: 5.6
-last_updated: 2026-09-19
+documentation_version: 5.7
+last_updated: 2026-09-21
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Promo Grant Replacement — "Replace / Extend Promotional Access" (2026-09-21)
+
+Per ADR 0041, a new Platform Console-only workflow implements the
+promo-to-promo transfer capability ADR 0020 previously deferred
+("Promo renewal, transfer, ... remain deferred"). An operator can now
+atomically replace an organization's existing active `PromoGrant` with a
+fresh grant redeemed against a different, currently valid `PromoCode` -
+for example when Al-Andalus's original 4-branch promo (from a now-revoked
+`PromoCode`) is replaced by a new 25 branch / 100 system user / 500 teacher
+promo. This is a distinct transition from ADR 0024's promo-to-paid
+conversion; the two do not share a code path, though both follow the same
+"end old evidence, create new evidence, repoint the tenant link, one
+transaction" shape (`_apply_confirmed_promo_conversion` for promo-to-paid,
+`saas.promo_redemption_service.replace_promo_grant` for promo-to-promo).
+
+Two new functions in `saas/promo_redemption_service.py`,
+`preview_grant_replacement` and `replace_promo_grant`, reuse the existing
+`_validate_promo_definition` gate (the same promo-definition validation
+`activate_promo` uses - active, approved, within its redemption window, not
+itself superseded, scope/redemption-limit rules satisfied) rather than a
+second, weaker validation path. `replace_promo_grant` locks the target
+`SchoolGroup`, the replacement `PromoCode`, the existing active
+`PromoGrant`/`TenantProvisioningLink`/`WorkspaceEntitlement`, and the
+organization owner's `SaaSAccountUserLink`, then inside one
+`db.begin_nested()` transaction: marks the old grant `status='superseded'`
+(retained, never deleted) and its `WorkspaceEntitlement`
+`status='ended'`; creates a new `PromoActivationSession`
+(`context_type='existing_organization'`, already `status='activated'`),
+`PromoRedemption`, and `PromoGrant` against the replacement promo, with
+`new_grant.supersedes_grant_id = old_grant.id` (the new row records which
+grant it replaced - matching the existing
+`PromoCode.supersedes_promo_code_id` convention, where
+`promo_code_service.replace_promo` sets the newly created replacement
+definition's `supersedes_promo_code_id` to the id of the definition it
+replaces); creates a new active `WorkspaceEntitlement` with entitlement
+values (plan features, `quota.active_branches`) derived from the new
+promo's plan via the existing `_create_entitlement_values` helper, so
+capacity/plan evidence is never left pointing at stale numbers; re-assigns
+the exact same `PromoGrantBranchAssignment` set the old grant had to the
+new grant; and repoints the single `TenantProvisioningLink.promo_grant_id`
+from the old grant to the new grant. A final in-transaction check re-runs
+`promo_grant_service.resolve_promo_grant` and
+`workspace_entitlement_service.resolve_workspace_entitlement` and raises
+(rolling back the whole operation) unless both resolve cleanly against the
+new grant - mirroring the post-validation check `activate_promo` already
+performs. No `Branch`, `User`/staff, or `Teacher` row is created, modified,
+or deleted by this operation; only the commercial capacity/plan evidence
+(`PromoGrant`, `WorkspaceEntitlement`, `TenantProvisioningLink`,
+`PromoGrantBranchAssignment`/`BranchEntitlement`) changes. The existing
+`uq_promo_grants_active_group` / `uq_workspace_entitlements_active_group`
+partial unique indexes continue to guarantee exactly one active grant and
+one active entitlement per organization throughout - no schema or
+migration change was required or made.
+
+Authorization reuses the same platform-only `promo_codes.manage` decision
+already enforced on every other Platform Console promo-code admin route
+(`saas.router._require_promo_permission`), re-checked defensively at the
+service layer (matching the existing `promo_code_service.revoke_promo`
+service-level check precedent); a non-platform actor or an unauthenticated
+request (`actor=None`) is denied before any row is read for update. Two new
+`saas/router.py` admin routes back the workflow: `GET
+/saas-admin/promo-codes/{promo_uuid}/replace-grant?school_group_id=...`
+renders a server-rendered confirmation page
+(`templates/saas/admin_promo_grant_replace_confirm.html`, styled
+consistently with the existing `admin_promo_code_detail.html`) showing the
+old grant's limits against the replacement promo's limits (branches/system
+users/teachers, plan, promo reference) before the operator confirms; `POST
+/saas-admin/promo-codes/{promo_uuid}/replace-grant` executes the
+replacement and redirects with a notice. The existing promo code detail
+page gained a new "Replace / Extend Promotional Access" section (visible
+only to `promo_codes.manage` holders, only for an effective-active promo)
+listing organizations that currently have an active promotional grant,
+explicitly separated from the pre-existing "Definition Actions" section
+whose own copy already states those actions "do not change tenant access or
+commercial authority" - this new section does.
+
+Tests: `tests/test_promo_redemption.py::PromoGrantReplacementTests` (service
+layer - end-to-end replacement, exact-record branch/user/teacher
+preservation, old grant becomes `superseded`, new grant is `active`, only
+one active grant per organization, capacity display reflects the new
+grant's limits via `commercial_authority_service.resolve_commercial_authority`,
+denial for a non-platform/unauthenticated actor, denial for a
+revoked/invalid replacement promo leaving all existing rows untouched, and
+rollback on a forced mid-transaction failure) and
+`tests/test_promo_code_management.py::PromoGrantReplacementRouteTests`
+(route-level - the confirmation page renders old-vs-new limits, the execute
+route applies the replacement, and a non-platform actor is denied with
+403). ADR 0020's "promo renewal, transfer... remain deferred" consequence
+is corrected: promo-to-promo transfer is no longer deferred; promo renewal
+and automated-expiry-job transfer remain deferred, unchanged. No `tis.db`
+change; this task did not touch any pre-existing promo/commercial code path
+beyond the two new service functions and two new routes/templates.
 
 ## Talent & Potential Sidebar Icon (UI Polish, 2026-09-19)
 

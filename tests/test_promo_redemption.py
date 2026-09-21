@@ -1027,6 +1027,514 @@ class PromoRedemptionTests(unittest.TestCase):
         )
 
 
+class PromoGrantReplacementTests(unittest.TestCase):
+    """Platform Console "Replace / Extend Promotional Access": atomically
+    supersedes an organization's active PromoGrant with a fresh grant against
+    a different, currently valid PromoCode. Mirrors the Al-Andalus scenario:
+    an existing active 4-branch promo grant (from a now-revoked PromoCode) is
+    replaced by a new 25 branch / 100 system user / 500 teacher promo.
+    """
+
+    def setUp(self):
+        self.old_secret = os.environ.get("TIS_PROMO_CODE_HMAC_SECRET")
+        os.environ["TIS_PROMO_CODE_HMAC_SECRET"] = "promo-replacement-tests-need-thirty-two-bytes-minimum"
+        self.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        models.Base.metadata.create_all(self.engine)
+        db_migrations.run_pending_migrations(self.engine)
+        self.Session = sessionmaker(bind=self.engine, autoflush=False)
+        self.db = self.Session()
+        self.plans = {}
+        for order, (code, name, branches, users, teachers) in enumerate((
+            ("starter", "Starter", 1, 5, 25),
+            ("professional", "Professional", 5, 20, 100),
+            ("enterprise_ai", "Enterprise AI", 25, 100, 500),
+        ), 1):
+            plan = self.db.query(saas.models.SubscriptionPlan).filter_by(
+                plan_code=code
+            ).one_or_none()
+            if plan is None:
+                plan = saas.models.SubscriptionPlan(plan_code=code, plan_name=name)
+                self.db.add(plan)
+            plan.plan_name = name
+            plan.sort_order = order
+            plan.max_branches = branches
+            plan.max_staff_users = users
+            plan.max_system_users = users
+            plan.max_teachers = teachers
+            plan.is_active = True
+            plan.is_public = True
+            self.db.flush()
+            self.plans[code] = plan
+        self.actor = models.User(
+            user_id="9920000001",
+            username="promo.replace.owner",
+            email="promo.replace.owner@example.com",
+            email_normalized="promo.replace.owner@example.com",
+            user_type=auth.USER_TYPE_PLATFORM,
+            platform_role=auth.PLATFORM_ROLE_OWNER,
+            access_scope=auth.ACCESS_SCOPE_GLOBAL,
+            is_active=True,
+        )
+        self.db.add(self.actor)
+        self.db.commit()
+
+    def tearDown(self):
+        self.db.close()
+        self.engine.dispose()
+        if self.old_secret is None:
+            os.environ.pop("TIS_PROMO_CODE_HMAC_SECRET", None)
+        else:
+            os.environ["TIS_PROMO_CODE_HMAC_SECRET"] = self.old_secret
+
+    def _account(self, email=None):
+        email = email or f"{uuid.uuid4().hex}@example.edu"
+        account = saas.models.SaaSAccount(
+            account_uuid=str(uuid.uuid4()),
+            email=email,
+            email_normalized=email,
+            status="active",
+            onboarding_status="ready_for_checkout",
+            account_purpose="customer",
+            email_verified_at=datetime.utcnow(),
+        )
+        self.db.add(account)
+        self.db.flush()
+        return account
+
+    def _promo(self, plan_code="professional", **overrides):
+        now = datetime.now(timezone.utc)
+        plan = self.plans[plan_code]
+        values = {
+            "title": "Replacement promo",
+            "subscription_plan_id": plan.id,
+            "max_branches": plan.max_branches,
+            "max_system_users": plan.max_system_users,
+            "max_teachers": plan.max_teachers,
+            "scope_type": "global",
+            "school_group_id": None,
+            "pending_organization_id": None,
+            "intended_account_email_normalized": None,
+            "permitted_email_domain_normalized": None,
+            "branch_ids": (),
+            "transferable": False,
+            "one_redemption_per_organization": True,
+            "max_total_redemptions": 10,
+            "valid_from": now - timedelta(minutes=1),
+            "redemption_deadline": now + timedelta(days=30),
+            "fixed_access_expires_at": None,
+            "access_duration_days": 90,
+            "grace_period_days": 2,
+        }
+        values.update(overrides)
+        with patch("saas.promo_code_service.audit.write_audit_event"):
+            created = promo_code_service.create_promo(
+                self.db, actor=self.actor, values=values
+            )
+            promo_code_service.activate_promo(
+                self.db, promo_uuid=created.promo.promo_uuid, actor=self.actor
+            )
+        self.db.commit()
+        return created
+
+    def _organization_with_active_grant(self, *, branch_count=4, staff_count=4, teacher_count=3):
+        """Builds an Al-Andalus-style organization: `branch_count` branches,
+        `staff_count` active tenant staff users (including the owner),
+        `teacher_count` teachers, and one active PromoGrant sized exactly to
+        the current branch count, redeemed from a promo definition that is
+        then revoked (matching the "now-revoked PromoCode" scenario)."""
+        unique = uuid.uuid4().hex[:10]
+        account = self._account()
+        group = models.SchoolGroup(
+            name=f"Al-Andalus {unique}",
+            workspace_classification="customer",
+            workspace_lifecycle_status="provisioning",
+        )
+        self.db.add(group)
+        self.db.flush()
+        year = models.AcademicYear(
+            school_group_id=group.id, year_name="2026-2027", is_active=True,
+        )
+        branches = [
+            models.Branch(school_group_id=group.id, name=f"Campus {index + 1}", status=True)
+            for index in range(branch_count)
+        ]
+        self.db.add_all((year, *branches))
+        self.db.flush()
+        owner_user = models.User(
+            user_id=f"owner{unique}",
+            username=f"owner.{unique}",
+            email=account.email,
+            email_normalized=account.email_normalized,
+            user_type=auth.USER_TYPE_TENANT,
+            access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+            school_group_id=group.id,
+            branch_id=branches[0].id,
+            academic_year_id=year.id,
+            is_active=True,
+        )
+        self.db.add(owner_user)
+        self.db.flush()
+        self.db.add(saas.models.SaaSAccountUserLink(
+            saas_account_id=account.id,
+            operational_user_id=owner_user.id,
+            school_group_id=group.id,
+            link_type="tenant_owner",
+        ))
+        for index in range(staff_count - 1):
+            self.db.add(models.User(
+                user_id=f"staff{unique}{index}",
+                username=f"staff.{unique}.{index}",
+                email=f"staff.{unique}.{index}@example.edu",
+                email_normalized=f"staff.{unique}.{index}@example.edu",
+                user_type=auth.USER_TYPE_TENANT,
+                access_scope=auth.ACCESS_SCOPE_BRANCH,
+                school_group_id=group.id,
+                branch_id=branches[0].id,
+                academic_year_id=year.id,
+                is_active=True,
+            ))
+        for index in range(teacher_count):
+            self.db.add(models.Teacher(
+                teacher_id=f"T{unique}{index}",
+                first_name="Teacher",
+                last_name=str(index),
+                branch_id=branches[0].id,
+                academic_year_id=year.id,
+            ))
+        self.db.flush()
+
+        old_promo = self._promo(
+            plan_code="professional",
+            title="Al-Andalus original promo",
+            max_branches=branch_count,
+            max_system_users=staff_count,
+            max_teachers=teacher_count + 5,
+        )
+        with patch("saas.promo_redemption_service.audit.write_audit_event"):
+            review = promo_redemption_service.start_activation(
+                self.db,
+                account=account,
+                raw_code=old_promo.raw_code,
+                school_group=group,
+                operational_user=owner_user,
+                idempotency_key=f"{unique}:start",
+            )
+            self.assertFalse(review.selection_required)
+            activated = promo_redemption_service.activate_promo(
+                self.db,
+                activation_uuid=review.session.activation_uuid,
+                account=account,
+                idempotency_key=f"{unique}:activate",
+            )
+        self.db.commit()
+        with patch("saas.promo_code_service.audit.write_audit_event"):
+            promo_code_service.revoke_promo(
+                self.db,
+                promo_uuid=old_promo.promo.promo_uuid,
+                actor=self.actor,
+                reason="Superseded by a new promo offer.",
+            )
+        self.db.commit()
+        return account, group, owner_user, branches, year, old_promo, activated
+
+    def test_replace_promo_grant_end_to_end(self):
+        account, group, owner_user, branches, year, old_promo, activated = (
+            self._organization_with_active_grant()
+        )
+        new_promo = self._promo(
+            plan_code="enterprise_ai",
+            title="Al-Andalus replacement promo",
+            max_branches=25,
+            max_system_users=100,
+            max_teachers=500,
+        )
+
+        preview = promo_redemption_service.preview_grant_replacement(
+            self.db,
+            school_group_id=group.id,
+            new_promo_uuid=new_promo.promo.promo_uuid,
+            actor=self.actor,
+        )
+        self.assertEqual(preview.old_grant.id, activated.grant.id)
+        self.assertEqual(preview.current_branches, 4)
+        self.assertEqual(preview.current_staff_users, 4)
+        self.assertEqual(preview.current_teachers, 3)
+        self.assertEqual(preview.new_promo.id, new_promo.promo.id)
+
+        with patch("saas.promo_redemption_service.audit.write_audit_event"):
+            result = promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=self.actor,
+                idempotency_key="al-andalus:replace",
+            )
+        self.db.commit()
+
+        old_grant = self.db.get(saas.models.PromoGrant, activated.grant.id)
+        self.assertEqual(old_grant.status, "superseded")
+        new_grant = result.new_grant
+        self.assertEqual(new_grant.status, "active")
+        self.assertEqual(new_grant.supersedes_grant_id, old_grant.id)
+        self.assertEqual(new_grant.allowed_branches, 25)
+        self.assertEqual(new_grant.allowed_staff_users, 100)
+        self.assertEqual(new_grant.allowed_teachers, 500)
+
+        self.assertEqual(
+            self.db.query(saas.models.PromoGrant).filter_by(
+                school_group_id=group.id, status="active"
+            ).count(),
+            1,
+        )
+
+        tenant_link = self.db.query(saas.models.TenantProvisioningLink).filter_by(
+            school_group_id=group.id
+        ).one()
+        self.assertEqual(tenant_link.promo_grant_id, new_grant.id)
+
+        old_entitlement = self.db.get(
+            saas.models.WorkspaceEntitlement, activated.workspace_entitlement.id
+        )
+        self.assertEqual(old_entitlement.status, "ended")
+        new_entitlement = self.db.query(saas.models.WorkspaceEntitlement).filter_by(
+            school_group_id=group.id, status="active"
+        ).one()
+        self.assertEqual(new_entitlement.promo_grant_id, new_grant.id)
+        self.assertEqual(new_entitlement.entitlement_type, "promo")
+
+    def test_replacement_capacity_display_reflects_new_grant(self):
+        account, group, owner_user, branches, year, old_promo, activated = (
+            self._organization_with_active_grant()
+        )
+        new_promo = self._promo(
+            plan_code="enterprise_ai",
+            title="Capacity display replacement",
+            max_branches=25,
+            max_system_users=100,
+            max_teachers=500,
+        )
+        with patch("saas.promo_redemption_service.audit.write_audit_event"):
+            promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=self.actor,
+            )
+        self.db.commit()
+
+        authority = commercial_authority_service.resolve_commercial_authority(self.db, group.id)
+        self.assertTrue(authority.resolved)
+        self.assertTrue(authority.access_allowed)
+        self.assertEqual(authority.source, commercial_authority_service.PROMO_GRANT)
+        self.assertEqual(authority.usage.branches, 4)
+        self.assertEqual(authority.limits.branches, 25)
+        self.assertEqual(authority.usage.staff_users, 4)
+        self.assertEqual(authority.limits.staff_users, 100)
+        self.assertEqual(authority.usage.teachers, 3)
+        self.assertEqual(authority.limits.teachers, 500)
+
+    def test_replacement_preserves_existing_branches_users_teachers(self):
+        account, group, owner_user, branches, year, old_promo, activated = (
+            self._organization_with_active_grant()
+        )
+        branch_ids_before = sorted(row.id for row in branches)
+        user_ids_before = sorted(
+            row.id for row in self.db.query(models.User).filter_by(school_group_id=group.id).all()
+        )
+        teacher_ids_before = sorted(
+            row.id for row in self.db.query(models.Teacher)
+            .join(models.Branch, models.Branch.id == models.Teacher.branch_id)
+            .filter(models.Branch.school_group_id == group.id).all()
+        )
+        branch_status_before = {
+            row.id: (row.name, row.status)
+            for row in self.db.query(models.Branch).filter_by(school_group_id=group.id).all()
+        }
+
+        new_promo = self._promo(
+            plan_code="enterprise_ai", title="Preservation replacement",
+        )
+        with patch("saas.promo_redemption_service.audit.write_audit_event"):
+            promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=self.actor,
+            )
+        self.db.commit()
+
+        branch_ids_after = sorted(
+            row.id for row in self.db.query(models.Branch).filter_by(school_group_id=group.id).all()
+        )
+        user_ids_after = sorted(
+            row.id for row in self.db.query(models.User).filter_by(school_group_id=group.id).all()
+        )
+        teacher_ids_after = sorted(
+            row.id for row in self.db.query(models.Teacher)
+            .join(models.Branch, models.Branch.id == models.Teacher.branch_id)
+            .filter(models.Branch.school_group_id == group.id).all()
+        )
+        branch_status_after = {
+            row.id: (row.name, row.status)
+            for row in self.db.query(models.Branch).filter_by(school_group_id=group.id).all()
+        }
+        self.assertEqual(branch_ids_before, branch_ids_after)
+        self.assertEqual(user_ids_before, user_ids_after)
+        self.assertEqual(teacher_ids_before, teacher_ids_after)
+        self.assertEqual(branch_status_before, branch_status_after)
+
+    def test_replacement_denied_for_non_platform_or_unauthenticated_actor(self):
+        account, group, owner_user, branches, year, old_promo, activated = (
+            self._organization_with_active_grant()
+        )
+        new_promo = self._promo(plan_code="enterprise_ai", title="Denied replacement")
+        tenant_actor = models.User(
+            user_id="tenant-actor-01",
+            username="tenant.actor.01",
+            email="tenant.actor.01@example.com",
+            email_normalized="tenant.actor.01@example.com",
+            user_type=auth.USER_TYPE_TENANT,
+            access_scope=auth.ACCESS_SCOPE_ORGANIZATION,
+            school_group_id=group.id,
+            branch_id=branches[0].id,
+            academic_year_id=year.id,
+            is_active=True,
+        )
+        self.db.add(tenant_actor)
+        self.db.commit()
+
+        with self.assertRaises(promo_redemption_service.PromoActivationError) as ctx:
+            promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=tenant_actor,
+            )
+        self.assertEqual(ctx.exception.reason_code, "platform_promo_management_required")
+
+        with self.assertRaises(promo_redemption_service.PromoActivationError) as ctx_none:
+            promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=None,
+            )
+        self.assertEqual(ctx_none.exception.reason_code, "platform_promo_management_required")
+
+        self.assertEqual(
+            self.db.query(saas.models.PromoGrant).filter_by(
+                school_group_id=group.id, status="active"
+            ).one().id,
+            activated.grant.id,
+        )
+
+    def test_replacement_denied_for_revoked_new_promo_and_leaves_rows_untouched(self):
+        account, group, owner_user, branches, year, old_promo, activated = (
+            self._organization_with_active_grant()
+        )
+        new_promo = self._promo(plan_code="enterprise_ai", title="Will be revoked")
+        with patch("saas.promo_code_service.audit.write_audit_event"):
+            promo_code_service.revoke_promo(
+                self.db,
+                promo_uuid=new_promo.promo.promo_uuid,
+                actor=self.actor,
+                reason="Revoked before use.",
+            )
+        self.db.commit()
+
+        grant_count_before = self.db.query(saas.models.PromoGrant).filter_by(
+            school_group_id=group.id
+        ).count()
+        entitlement_count_before = self.db.query(saas.models.WorkspaceEntitlement).filter_by(
+            school_group_id=group.id
+        ).count()
+        redemption_count_before = self.db.query(saas.models.PromoRedemption).filter_by(
+            school_group_id=group.id
+        ).count()
+
+        with self.assertRaises(promo_redemption_service.PromoActivationError) as ctx:
+            promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=self.actor,
+            )
+        self.assertEqual(ctx.exception.reason_code, "promo_not_active")
+        self.db.rollback()
+
+        old_grant = self.db.get(saas.models.PromoGrant, activated.grant.id)
+        self.assertEqual(old_grant.status, "active")
+        self.assertEqual(
+            self.db.query(saas.models.PromoGrant).filter_by(school_group_id=group.id).count(),
+            grant_count_before,
+        )
+        self.assertEqual(
+            self.db.query(saas.models.WorkspaceEntitlement).filter_by(
+                school_group_id=group.id
+            ).count(),
+            entitlement_count_before,
+        )
+        self.assertEqual(
+            self.db.query(saas.models.PromoRedemption).filter_by(
+                school_group_id=group.id
+            ).count(),
+            redemption_count_before,
+        )
+
+    def test_replacement_rolls_back_on_mid_transaction_failure(self):
+        account, group, owner_user, branches, year, old_promo, activated = (
+            self._organization_with_active_grant()
+        )
+        new_promo = self._promo(plan_code="enterprise_ai", title="Rollback replacement")
+        old_entitlement_id = activated.workspace_entitlement.id
+        old_grant_id = activated.grant.id
+
+        # Force a failure after the old grant/entitlement have been marked
+        # superseded/ended but before the new grant/entitlement are created,
+        # by breaking the very next call the service makes inside the nested
+        # transaction (masked_code, used to build the new activation session).
+        with (
+            patch(
+                "saas.promo_redemption_service.promo_code_service.masked_code",
+                side_effect=RuntimeError("forced mid-transaction failure"),
+            ),
+            self.assertRaisesRegex(RuntimeError, "forced mid-transaction failure"),
+        ):
+            promo_redemption_service.replace_promo_grant(
+                self.db,
+                school_group_id=group.id,
+                new_promo_uuid=new_promo.promo.promo_uuid,
+                actor=self.actor,
+            )
+        self.db.rollback()
+
+        old_grant = self.db.get(saas.models.PromoGrant, old_grant_id)
+        self.assertEqual(old_grant.status, "active")
+        old_entitlement = self.db.get(saas.models.WorkspaceEntitlement, old_entitlement_id)
+        self.assertEqual(old_entitlement.status, "active")
+        self.assertEqual(
+            self.db.query(saas.models.PromoGrant).filter_by(school_group_id=group.id).count(), 1,
+        )
+        self.assertEqual(
+            self.db.query(saas.models.PromoRedemption).filter_by(school_group_id=group.id).count(),
+            1,
+        )
+        self.assertEqual(
+            self.db.query(saas.models.WorkspaceEntitlement).filter_by(
+                school_group_id=group.id
+            ).count(),
+            1,
+        )
+        tenant_link = self.db.query(saas.models.TenantProvisioningLink).filter_by(
+            school_group_id=group.id
+        ).one()
+        self.assertEqual(tenant_link.promo_grant_id, old_grant_id)
+
+
 @unittest.skipUnless(
     os.getenv("TIS_TEST_POSTGRESQL_URL"),
     "Disposable PostgreSQL URL not configured",
@@ -1663,6 +2171,212 @@ class PromoRedemptionPostgreSQLTests(unittest.TestCase):
                     school_group_id=group.id
                 ).count(),
                 0,
+            )
+        finally:
+            db.close()
+
+    def test_replace_promo_grant_is_atomic_under_postgresql(self):
+        """Exercises the real replace_promo_grant transaction against actual
+        PostgreSQL: one active PromoGrant is atomically superseded by a new
+        one, TenantProvisioningLink/WorkspaceEntitlement are repointed, and
+        uq_promo_grants_active_group still rejects a second active grant for
+        the same organization afterward."""
+        db = self.Session()
+        try:
+            account, group, user, branches = self._create_context(
+                db, label="Replace Grant Success", branch_count=1
+            )
+            old_created = self._create_promo(db, title="Old promo before PostgreSQL replacement")
+            _review, old_result = self._activate(
+                db,
+                created=old_created,
+                account=account,
+                group=group,
+                user=user,
+                branches=branches,
+                key="pg-replace-old",
+            )
+            new_created = self._create_promo(db, title="New promo for PostgreSQL replacement")
+            db.commit()
+
+            self.assertEqual(
+                db.query(saas.models.PromoGrant).filter_by(
+                    school_group_id=group.id, status="active",
+                ).count(),
+                1,
+            )
+            old_grant_id = old_result.grant.id
+            old_entitlement_id = old_result.workspace_entitlement.id
+            tenant_link_id = old_result.tenant_link.id
+
+            actor = db.get(models.User, self.actor_id)
+            with patch("saas.promo_redemption_service.audit.write_audit_event"):
+                replacement = promo_redemption_service.replace_promo_grant(
+                    db,
+                    school_group_id=group.id,
+                    new_promo_uuid=new_created.promo.promo_uuid,
+                    actor=actor,
+                    idempotency_key="pg-replace-atomic",
+                )
+            db.commit()
+
+            old_grant = db.get(saas.models.PromoGrant, old_grant_id)
+            new_grant = db.get(saas.models.PromoGrant, replacement.new_grant.id)
+            tenant_link = db.get(saas.models.TenantProvisioningLink, tenant_link_id)
+            old_entitlement = db.get(saas.models.WorkspaceEntitlement, old_entitlement_id)
+            new_entitlement = db.query(saas.models.WorkspaceEntitlement).filter_by(
+                promo_grant_id=new_grant.id
+            ).one()
+
+            self.assertEqual(old_grant.status, "superseded")
+            self.assertEqual(new_grant.status, "active")
+            self.assertEqual(new_grant.supersedes_grant_id, old_grant.id)
+            self.assertEqual(old_entitlement.status, "ended")
+            self.assertEqual(new_entitlement.status, "active")
+            self.assertEqual(tenant_link.promo_grant_id, new_grant.id)
+            self.assertEqual(
+                db.query(saas.models.PromoGrant).filter_by(
+                    school_group_id=group.id, status="active",
+                ).count(),
+                1,
+            )
+
+            # uq_promo_grants_active_group must still be enforced by real
+            # PostgreSQL after the replacement: inserting a second active
+            # PromoGrant for the same organization is rejected at the
+            # database level (mirrors test_active_grant_uniqueness_is_
+            # enforced_by_postgresql's duplicate-row construction).
+            duplicate_session = saas.models.PromoActivationSession(
+                promo_code_id=replacement.redemption.promo_code_id,
+                promo_definition_version=replacement.redemption.promo_definition_version,
+                school_group_id=group.id,
+                saas_account_id=account.id,
+                operational_user_id=user.id,
+                context_type="existing_organization",
+                status="activated",
+                stage="activated",
+                idempotency_key=f"pg-duplicate-session:{uuid.uuid4()}",
+                masked_promo_reference=replacement.redemption.masked_promo_reference,
+                expires_at=replacement.redemption.effective_to,
+                activated_at=datetime.utcnow(),
+            )
+            db.add(duplicate_session)
+            db.flush()
+            duplicate_redemption = saas.models.PromoRedemption(
+                activation_session_id=duplicate_session.id,
+                promo_code_id=replacement.redemption.promo_code_id,
+                promo_definition_version=replacement.redemption.promo_definition_version,
+                school_group_id=group.id,
+                redeeming_saas_account_id=account.id,
+                redeeming_operational_user_id=user.id,
+                redeemed_at=replacement.redemption.redeemed_at,
+                idempotency_key=f"pg-duplicate-redemption:{uuid.uuid4()}",
+                masked_promo_reference=replacement.redemption.masked_promo_reference,
+                plan_id=replacement.redemption.plan_id,
+                plan_code_snapshot=replacement.redemption.plan_code_snapshot,
+                plan_name_snapshot=replacement.redemption.plan_name_snapshot,
+                allowed_branches=replacement.redemption.allowed_branches,
+                allowed_staff_users=replacement.redemption.allowed_staff_users,
+                allowed_teachers=replacement.redemption.allowed_teachers,
+                effective_from=replacement.redemption.effective_from,
+                effective_to=replacement.redemption.effective_to,
+                grace_period_days=replacement.redemption.grace_period_days,
+                scope_type_snapshot=replacement.redemption.scope_type_snapshot,
+                scope_snapshot_json=replacement.redemption.scope_snapshot_json,
+                definition_snapshot_json=replacement.redemption.definition_snapshot_json,
+                immutable_snapshot_hash=replacement.redemption.immutable_snapshot_hash,
+            )
+            db.add(duplicate_redemption)
+            db.flush()
+            db.add(saas.models.PromoGrant(
+                promo_redemption_id=duplicate_redemption.id,
+                school_group_id=group.id,
+                plan_id=new_grant.plan_id,
+                plan_code_snapshot=new_grant.plan_code_snapshot,
+                plan_name_snapshot=new_grant.plan_name_snapshot,
+                allowed_branches=new_grant.allowed_branches,
+                allowed_staff_users=new_grant.allowed_staff_users,
+                allowed_teachers=new_grant.allowed_teachers,
+                effective_from=new_grant.effective_from,
+                effective_to=new_grant.effective_to,
+                grace_period_days=new_grant.grace_period_days,
+                definition_snapshot_json=new_grant.definition_snapshot_json,
+                capacity_snapshot_json=new_grant.capacity_snapshot_json,
+                scope_snapshot_json=new_grant.scope_snapshot_json,
+                immutable_snapshot_hash=new_grant.immutable_snapshot_hash,
+                activated_at=new_grant.activated_at,
+            ))
+            with self.assertRaises(IntegrityError):
+                db.flush()
+            db.rollback()
+            self.assertEqual(
+                db.query(saas.models.PromoGrant).filter_by(
+                    school_group_id=group.id, status="active",
+                ).count(),
+                1,
+            )
+        finally:
+            db.close()
+
+    def test_replace_promo_grant_rollback_preserves_original_state_under_postgresql(self):
+        """A simulated failure inside replace_promo_grant's nested PostgreSQL
+        transaction (after the old grant/entitlement were marked superseded/
+        ended and the new rows were created, but before the final commit)
+        rolls back cleanly: the original grant/link/entitlement are left
+        exactly as they were before the attempt."""
+        db = self.Session()
+        try:
+            account, group, user, branches = self._create_context(
+                db, label="Replace Grant Rollback", branch_count=1
+            )
+            old_created = self._create_promo(db, title="Old promo before PostgreSQL rollback")
+            _review, old_result = self._activate(
+                db,
+                created=old_created,
+                account=account,
+                group=group,
+                user=user,
+                branches=branches,
+                key="pg-replace-rollback-old",
+            )
+            new_created = self._create_promo(db, title="New promo for PostgreSQL rollback")
+            db.commit()
+
+            old_grant_id = old_result.grant.id
+            old_entitlement_id = old_result.workspace_entitlement.id
+            tenant_link_id = old_result.tenant_link.id
+
+            actor = db.get(models.User, self.actor_id)
+            with (
+                patch(
+                    "saas.promo_redemption_service.audit.write_audit_event",
+                    side_effect=RuntimeError("forced mid-transaction PostgreSQL replacement failure"),
+                ),
+                self.assertRaisesRegex(RuntimeError, "forced mid-transaction PostgreSQL replacement failure"),
+            ):
+                promo_redemption_service.replace_promo_grant(
+                    db,
+                    school_group_id=group.id,
+                    new_promo_uuid=new_created.promo.promo_uuid,
+                    actor=actor,
+                    idempotency_key="pg-replace-rollback",
+                )
+            db.rollback()
+
+            old_grant = db.get(saas.models.PromoGrant, old_grant_id)
+            old_entitlement = db.get(saas.models.WorkspaceEntitlement, old_entitlement_id)
+            tenant_link = db.get(saas.models.TenantProvisioningLink, tenant_link_id)
+            self.assertEqual(old_grant.status, "active")
+            self.assertEqual(old_entitlement.status, "active")
+            self.assertEqual(tenant_link.promo_grant_id, old_grant_id)
+            self.assertEqual(
+                db.query(saas.models.PromoGrant).filter_by(school_group_id=group.id).count(), 1,
+            )
+            self.assertEqual(
+                db.query(saas.models.PromoRedemption).filter_by(school_group_id=group.id).count(), 1,
+            )
+            self.assertEqual(
+                db.query(saas.models.WorkspaceEntitlement).filter_by(school_group_id=group.id).count(), 1,
             )
         finally:
             db.close()

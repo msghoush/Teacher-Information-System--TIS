@@ -1,10 +1,15 @@
 knowledge_impact: yes
-summary: "Talent & Potential sidebar icon polish: removed the per-item brand_logo (Ghars PNG) override from the Talent nav item in ui_shell.py so the sidebar renders the shared inline-SVG sparkles icon via the existing icon() macro, consistent with every other module. The item already declared icon sparkles (also used by the Talent page header). Cosmetic only - no routing, permission, label, sidebar-structure, other-icon, asset, dependency, or schema change. Knowledge impact is a documentation-truth correction: AI_PROJECT_CONTEXT.md stated the sidebar uses static/img/talent-ghars-symbol.png; that passage is corrected and PROJECT_STATE.md / CHANGE_HISTORY.md record the change. tests/talent_results_experience.test.cjs was updated to assert the shared icon system instead of the PNG. Generic brand_logo support in base.html, the .sidebar-brand-symbol CSS and the PNG file are left in place, unused by the sidebar."
+summary: "Implemented the previously-deferred ADR 0020 promo-to-promo transfer capability: a new Platform Console-only 'Replace / Extend Promotional Access' workflow (ADR 0041) atomically supersedes an organization's active PromoGrant with a fresh grant redeemed against a different, currently valid PromoCode. saas/promo_redemption_service.py gained preview_grant_replacement/replace_promo_grant, reusing the existing _validate_promo_definition gate and the same 'end old evidence, create new evidence, repoint the tenant link, one nested transaction' shape ADR 0024 already established for promo-to-paid conversion. The old PromoGrant becomes status=superseded (retained) and the new grant's supersedes_grant_id points back at it, matching the existing PromoCode.supersedes_promo_code_id convention. Existing branches/users/teachers are never touched (no Branch/User/Teacher row is created, modified, or deleted) - only PromoGrant/WorkspaceEntitlement/TenantProvisioningLink/PromoGrantBranchAssignment commercial evidence changes. No schema or migration change was needed (supersedes_grant_id and the 'superseded' status already existed unused). Two new saas/router.py admin routes and one new confirm template add a server-rendered old-vs-new-limits confirmation step, reusing the existing platform-only promo_codes.manage authorization. Regression coverage: tests/test_promo_redemption.py::PromoGrantReplacementTests (6 tests) and tests/test_promo_code_management.py::PromoGrantReplacementRouteTests (2 route tests). Continuation task added tests/test_promo_redemption.py::PromoRedemptionPostgreSQLTests::test_replace_promo_grant_is_atomic_under_postgresql and ::test_replace_promo_grant_rollback_preserves_original_state_under_postgresql, following this file's existing TIS_TEST_POSTGRESQL_URL skip-marked class convention exactly (no new DB-testing framework); both auto-skip in this environment (no TIS_TEST_POSTGRESQL_URL, no local PostgreSQL listener). It also corrected an ADR-governance defect from the prior uncommitted pass: ADR 0020's historical Consequences bullet ('Promo renewal, transfer, communication, automated expiry jobs, and active-promo early conversion remain deferred') had been reworded in place to delete 'transfer', erasing the historical decision record. Restored the original bullet verbatim and added a new, separate 'Amended by ADR 0041' bullet immediately after it (plus an amends: frontmatter note on ADR 0041) so the historical record is preserved and the forward pointer is additive only. No code behavior changed in this continuation task."
 affected_areas:
-  - ui_ux
+  - architecture
+  - business_rules
+  - user_system_workflows
+  - apis
+  - platform_console
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
+  - docs/adr/0020-promo-redemption-and-commercial-grants.md
+  - docs/adr/0041-promo-grant-replacement.md
+  - docs/adr/README.md
   - docs/PROJECT_STATE.md
-  - docs/CHANGE_HISTORY.md
 no_impact_reason: ""
 major_change_override: no

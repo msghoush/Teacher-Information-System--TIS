@@ -1,0 +1,44 @@
+{% extends "saas/base.html" %}
+{% block content %}
+<style>
+    .promo-replace-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; margin-bottom:18px; }
+    .promo-card { border:1px solid var(--line); border-radius:8px; background:#fff; padding:18px; }
+    .promo-facts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+    .promo-fact { border-top:1px solid #e4ebf3; padding-top:9px; }
+    .promo-fact span,.promo-fact strong { display:block; }
+    .promo-fact span { color:var(--muted); font-size:12px; font-weight:800; }
+    .promo-detail-actions { display:flex; flex-wrap:wrap; gap:9px; align-items:center; }
+    .promo-detail-actions form { margin:0; }
+    @media(max-width:760px){.promo-replace-grid,.promo-facts{grid-template-columns:1fr}}
+</style>
+<div><span class="page-eyebrow">Platform Console</span><h1>Replace / Extend Promotional Access</h1>
+<p class="page-subtitle">Review the current grant and the replacement promo before confirming. This action changes tenant commercial capacity; existing branches, users, and teachers are never modified.</p></div>
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+<div class="promo-replace-grid">
+    <section class="promo-card"><h2>Current Grant (Will Be Superseded)</h2><div class="promo-facts">
+        <div class="promo-fact"><span>Organization</span><strong>{{ preview.school_group.name }}</strong></div>
+        <div class="promo-fact"><span>Plan</span><strong>{{ preview.old_plan.plan_name if preview.old_plan else 'Unavailable' }}</strong></div>
+        <div class="promo-fact"><span>Branches</span><strong>{{ preview.current_branches }} of {{ preview.old_grant.allowed_branches }}</strong></div>
+        <div class="promo-fact"><span>System users</span><strong>{{ preview.current_staff_users }} of {{ preview.old_grant.allowed_staff_users }}</strong></div>
+        <div class="promo-fact"><span>Teachers</span><strong>{{ preview.current_teachers }} of {{ preview.old_grant.allowed_teachers }}</strong></div>
+        <div class="promo-fact"><span>Grant reference</span><strong>{{ preview.old_grant.grant_uuid }}</strong></div>
+    </div></section>
+    <section class="promo-card"><h2>Replacement Promo (Will Become Active)</h2><div class="promo-facts">
+        <div class="promo-fact"><span>Promo</span><strong>{{ preview.new_promo.title }}</strong></div>
+        <div class="promo-fact"><span>Plan</span><strong>{{ preview.new_plan.plan_name if preview.new_plan else 'Unavailable' }}</strong></div>
+        <div class="promo-fact"><span>Branches</span><strong>{{ preview.current_branches }} of {{ preview.new_promo.max_branches }}</strong></div>
+        <div class="promo-fact"><span>System users</span><strong>{{ preview.current_staff_users }} of {{ preview.new_promo.max_system_users }}</strong></div>
+        <div class="promo-fact"><span>Teachers</span><strong>{{ preview.current_teachers }} of {{ preview.new_promo.max_teachers }}</strong></div>
+        <div class="promo-fact"><span>Promo reference</span><strong>{{ preview.new_promo.promo_uuid }}</strong></div>
+    </div></section>
+</div>
+<p class="muted">Existing branches, system users, and teachers are preserved exactly as-is. Only capacity/limits and the commercial source change. The previous grant is retained as history (status: superseded), never deleted.</p>
+<div class="promo-detail-actions">
+    <form method="post" action="/saas-admin/promo-codes/{{ preview.new_promo.promo_uuid }}/replace-grant">
+        <input type="hidden" name="school_group_id" value="{{ preview.school_group.id }}">
+        <input type="hidden" name="operation_key" value="replace-grant-{{ preview.school_group.id }}-{{ preview.new_promo.promo_uuid }}">
+        <button class="btn" type="submit">Confirm Replacement</button>
+    </form>
+    <a class="btn secondary" href="/saas-admin/promo-codes/{{ preview.new_promo.promo_uuid }}">Cancel</a>
+</div>
+{% endblock %}

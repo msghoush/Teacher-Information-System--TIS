@@ -20,7 +20,7 @@ import models
 import permission_registry
 import saas.models
 from dependencies import get_db
-from saas import commercial_authority_service, promo_code_service
+from saas import commercial_authority_service, promo_code_service, promo_redemption_service
 from saas.router import admin_router
 
 
@@ -854,6 +854,275 @@ class PromoCodePostgreSQLTests(unittest.TestCase):
             )
         finally:
             db.rollback()
+            db.close()
+
+
+class PromoGrantReplacementRouteTests(unittest.TestCase):
+    """Platform Console "Replace / Extend Promotional Access" routes: the
+    confirm page must show old-vs-new limits and only be reachable by a
+    platform actor with promo_codes.manage; the execute route must apply
+    the same replacement the service layer already proves atomic/reversible
+    (see tests/test_promo_redemption.py::PromoGrantReplacementTests)."""
+
+    def setUp(self):
+        self.old_secret = os.environ.get("TIS_PROMO_CODE_HMAC_SECRET")
+        self.old_session_secret = os.environ.get("TIS_SESSION_SECRET")
+        os.environ["TIS_PROMO_CODE_HMAC_SECRET"] = TEST_PROMO_SECRET
+        os.environ["TIS_SESSION_SECRET"] = "promo-test-session-secret-with-more-than-thirty-two-bytes"
+        self.engine = create_engine(
+            "sqlite:///:memory:",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        models.Base.metadata.create_all(self.engine)
+        db_migrations.run_pending_migrations(self.engine)
+        self.Session = sessionmaker(bind=self.engine, autocommit=False, autoflush=False)
+        self.app = FastAPI()
+        self.app.mount("/static", StaticFiles(directory="static"), name="static")
+        self.app.include_router(admin_router)
+
+        def override_get_db():
+            db = self.Session()
+            try:
+                yield db
+            finally:
+                db.close()
+
+        self.app.dependency_overrides[get_db] = override_get_db
+        self.client = TestClient(self.app)
+        self.extra_clients = []
+        self.plans = {}
+
+        db = self._db()
+        try:
+            for order, (code, name, branches, users, teachers) in enumerate((
+                ("starter", "Starter", 1, 5, 25),
+                ("professional", "Professional", 5, 20, 100),
+                ("enterprise_ai", "Enterprise AI", 25, 100, 500),
+            ), 1):
+                plan = db.query(saas.models.SubscriptionPlan).filter_by(plan_code=code).one_or_none()
+                if plan is None:
+                    plan = saas.models.SubscriptionPlan(plan_code=code, plan_name=name)
+                    db.add(plan)
+                plan.plan_name = name
+                plan.sort_order = order
+                plan.max_branches = branches
+                plan.max_staff_users = users
+                plan.max_system_users = users
+                plan.max_teachers = teachers
+                plan.is_active = True
+                plan.is_public = True
+                db.flush()
+                self.plans[code] = plan.id
+            self.owner = models.User(
+                user_id="grroute01", username="grant.route.owner",
+                email="grant.route.owner@example.com", email_normalized="grant.route.owner@example.com",
+                user_type=auth.USER_TYPE_PLATFORM, platform_role=auth.PLATFORM_ROLE_OWNER,
+                access_scope=auth.ACCESS_SCOPE_GLOBAL, is_active=True,
+            )
+            db.add(self.owner)
+            db.commit()
+            self.owner_id = self.owner.id
+        finally:
+            db.close()
+
+    def tearDown(self):
+        for client in self.extra_clients:
+            client.close()
+        self.client.close()
+        self.engine.dispose()
+        if self.old_secret is None:
+            os.environ.pop("TIS_PROMO_CODE_HMAC_SECRET", None)
+        else:
+            os.environ["TIS_PROMO_CODE_HMAC_SECRET"] = self.old_secret
+        if self.old_session_secret is None:
+            os.environ.pop("TIS_SESSION_SECRET", None)
+        else:
+            os.environ["TIS_SESSION_SECRET"] = self.old_session_secret
+
+    def _db(self):
+        return self.Session()
+
+    def _platform_client(self, *, role=auth.PLATFORM_ROLE_OWNER, permissions=()):
+        db = self._db()
+        try:
+            identifier = str(uuid.uuid4())[:8]
+            user = models.User(
+                user_id=identifier[:8], username=f"grroute.{identifier}",
+                email=f"grroute.{identifier}@example.com", email_normalized=f"grroute.{identifier}@example.com",
+                user_type=auth.USER_TYPE_PLATFORM, platform_role=role,
+                platform_owner_kind=(auth.PLATFORM_OWNER_PRIMARY if role == auth.PLATFORM_ROLE_OWNER else None),
+                platform_permissions_initialized=(role == auth.PLATFORM_ROLE_DEVELOPER),
+                access_scope=auth.ACCESS_SCOPE_GLOBAL, is_active=True,
+            )
+            db.add(user)
+            db.flush()
+            for key in permissions:
+                db.add(models.PlatformUserPermission(
+                    platform_user_id=user.id, permission_key=key, is_allowed=True,
+                ))
+            db.commit()
+            token = auth.create_session_token(user)
+        finally:
+            db.close()
+        client = TestClient(self.app)
+        client.cookies.set(auth.SESSION_COOKIE_KEY, token)
+        self.extra_clients.append(client)
+        return client
+
+    def _promo_values(self, plan_code, **overrides):
+        now = datetime.now(timezone.utc)
+        ceilings = {"starter": (1, 5, 25), "professional": (5, 20, 100), "enterprise_ai": (25, 100, 500)}
+        branches, users, teachers = ceilings[plan_code]
+        values = {
+            "title": f"{plan_code} route promo",
+            "subscription_plan_id": self.plans[plan_code],
+            "max_branches": branches, "max_system_users": users, "max_teachers": teachers,
+            "scope_type": "global", "school_group_id": None, "pending_organization_id": None,
+            "intended_account_email_normalized": None, "permitted_email_domain_normalized": None,
+            "branch_ids": (), "transferable": False, "one_redemption_per_organization": True,
+            "max_total_redemptions": 10, "valid_from": now - timedelta(minutes=1),
+            "redemption_deadline": now + timedelta(days=30), "fixed_access_expires_at": None,
+            "access_duration_days": 90, "grace_period_days": 0,
+        }
+        values.update(overrides)
+        return values
+
+    def _organization_with_active_grant(self, db, *, branch_count=4, staff_count=4):
+        owner = db.query(models.User).filter_by(id=self.owner_id).one()
+        unique = uuid.uuid4().hex[:10]
+        account = saas.models.SaaSAccount(
+            account_uuid=str(uuid.uuid4()), email=f"{unique}@example.edu",
+            email_normalized=f"{unique}@example.edu", status="active",
+            onboarding_status="ready_for_checkout", account_purpose="customer",
+            email_verified_at=datetime.utcnow(),
+        )
+        group = models.SchoolGroup(
+            name=f"Route Al-Andalus {unique}", workspace_classification="customer",
+            workspace_lifecycle_status="provisioning",
+        )
+        db.add_all((account, group))
+        db.flush()
+        year = models.AcademicYear(school_group_id=group.id, year_name="2026-2027", is_active=True)
+        branches = [
+            models.Branch(school_group_id=group.id, name=f"Campus {i + 1}", status=True)
+            for i in range(branch_count)
+        ]
+        db.add_all((year, *branches))
+        db.flush()
+        owner_user = models.User(
+            user_id=f"owner{unique}", username=f"owner.{unique}", email=account.email,
+            email_normalized=account.email_normalized, user_type=auth.USER_TYPE_TENANT,
+            access_scope=auth.ACCESS_SCOPE_ORGANIZATION, school_group_id=group.id,
+            branch_id=branches[0].id, academic_year_id=year.id, is_active=True,
+        )
+        db.add(owner_user)
+        db.flush()
+        db.add(saas.models.SaaSAccountUserLink(
+            saas_account_id=account.id, operational_user_id=owner_user.id,
+            school_group_id=group.id, link_type="tenant_owner",
+        ))
+        for index in range(staff_count - 1):
+            db.add(models.User(
+                user_id=f"staff{unique}{index}", username=f"staff.{unique}.{index}",
+                email=f"staff.{unique}.{index}@example.edu", email_normalized=f"staff.{unique}.{index}@example.edu",
+                user_type=auth.USER_TYPE_TENANT, access_scope=auth.ACCESS_SCOPE_BRANCH,
+                school_group_id=group.id, branch_id=branches[0].id, academic_year_id=year.id, is_active=True,
+            ))
+        db.flush()
+        with patch("saas.promo_code_service.audit.write_audit_event"):
+            old_created = promo_code_service.create_promo(
+                db, actor=owner, values=self._promo_values(
+                    "professional", title="Route original promo",
+                    max_branches=branch_count, max_system_users=staff_count, max_teachers=10,
+                ),
+            )
+            promo_code_service.activate_promo(db, promo_uuid=old_created.promo.promo_uuid, actor=owner)
+        with patch("saas.promo_redemption_service.audit.write_audit_event"):
+            review = promo_redemption_service.start_activation(
+                db, account=account, raw_code=old_created.raw_code, school_group=group,
+                operational_user=owner_user, idempotency_key=f"{unique}:start",
+            )
+            activated = promo_redemption_service.activate_promo(
+                db, activation_uuid=review.session.activation_uuid, account=account,
+                idempotency_key=f"{unique}:activate",
+            )
+        with patch("saas.promo_code_service.audit.write_audit_event"):
+            promo_code_service.revoke_promo(
+                db, promo_uuid=old_created.promo.promo_uuid, actor=owner,
+                reason="Superseded by a new promo offer.",
+            )
+        db.commit()
+        return group, activated
+
+    def _new_promo_uuid(self, db, **overrides):
+        owner = db.query(models.User).filter_by(id=self.owner_id).one()
+        with patch("saas.promo_code_service.audit.write_audit_event"):
+            created = promo_code_service.create_promo(
+                db, actor=owner, values=self._promo_values("enterprise_ai", **overrides),
+            )
+            promo_code_service.activate_promo(db, promo_uuid=created.promo.promo_uuid, actor=owner)
+        db.commit()
+        return created.promo.promo_uuid
+
+    def test_confirm_page_shows_old_and_new_limits(self):
+        db = self._db()
+        try:
+            group, activated = self._organization_with_active_grant(db)
+            group_id = group.id
+            new_promo_uuid = self._new_promo_uuid(db, title="Route replacement promo")
+        finally:
+            db.close()
+
+        owner_client = self._platform_client()
+        response = owner_client.get(
+            f"/saas-admin/promo-codes/{new_promo_uuid}/replace-grant",
+            params={"school_group_id": group_id},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Replace / Extend Promotional Access", response.text)
+        self.assertIn("4 of 4", response.text)
+        self.assertIn("4 of 25", response.text)
+        self.assertIn("Confirm Replacement", response.text)
+
+    def test_execute_replacement_via_route_and_denies_non_platform_actor(self):
+        db = self._db()
+        try:
+            group, activated = self._organization_with_active_grant(db)
+            group_id = group.id
+            old_grant_id = activated.grant.id
+            new_promo_uuid = self._new_promo_uuid(db, title="Route execute promo")
+        finally:
+            db.close()
+
+        tenant_client = self._platform_client(role=auth.PLATFORM_ROLE_DEVELOPER, permissions=())
+        denied = tenant_client.post(
+            f"/saas-admin/promo-codes/{new_promo_uuid}/replace-grant",
+            data={"school_group_id": str(group_id), "operation_key": "denied-attempt"},
+            follow_redirects=False,
+        )
+        self.assertEqual(denied.status_code, 403)
+        self.assertEqual(self.client.get("/saas-admin/promo-codes").status_code, 403)
+
+        owner_client = self._platform_client()
+        response = owner_client.post(
+            f"/saas-admin/promo-codes/{new_promo_uuid}/replace-grant",
+            data={"school_group_id": str(group_id), "operation_key": "route-execute"},
+            follow_redirects=False,
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("promo-codes/", response.headers["location"])
+
+        db = self._db()
+        try:
+            old_grant = db.get(saas.models.PromoGrant, old_grant_id)
+            self.assertEqual(old_grant.status, "superseded")
+            new_grant = db.query(saas.models.PromoGrant).filter_by(
+                school_group_id=group_id, status="active"
+            ).one()
+            self.assertEqual(new_grant.allowed_branches, 25)
+            self.assertEqual(new_grant.supersedes_grant_id, old_grant.id)
+        finally:
             db.close()
 
 
