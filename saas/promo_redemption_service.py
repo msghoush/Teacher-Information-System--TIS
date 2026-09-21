@@ -65,6 +65,28 @@ class ActivatedPromo:
     school_group: object
 
 
+@dataclass(frozen=True)
+class PromoGrantReplacementPreview:
+    school_group: object
+    old_grant: object
+    old_plan: object
+    new_promo: object
+    new_plan: object
+    current_branches: int
+    current_staff_users: int
+    current_teachers: int
+
+
+@dataclass(frozen=True)
+class PromoGrantReplacementResult:
+    school_group: object
+    old_grant: object
+    new_grant: object
+    redemption: object
+    workspace_entitlement: object
+    tenant_link: object
+
+
 def utc_now() -> datetime:
     return datetime.now(UTC)
 
@@ -842,4 +864,370 @@ def record_failed_activation(
         organization=organization,
         school_group=group,
         failure_code=session.last_failure_code,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Promo Grant Replacement (Platform Console "Replace / Extend Promotional
+# Access"): atomically retires an organization's active PromoGrant and
+# replaces it with a fresh PromoRedemption/PromoGrant against a different,
+# currently-valid PromoCode. This never touches Branch, User/staff, or
+# Teacher rows; it only replaces the commercial capacity/plan evidence
+# (PromoGrant, WorkspaceEntitlement, TenantProvisioningLink, and the
+# promo-branch commercial junction rows). Mirrors the transactional shape of
+# existing_workspace_paid_activation_service._apply_confirmed_promo_conversion
+# (end old evidence -> create new evidence -> repoint the tenant link -> one
+# nested transaction), adapted for promo-to-promo instead of promo-to-paid.
+# ---------------------------------------------------------------------------
+
+
+def _existing_promo_source(db: Session, group, *, lock: bool = False):
+    """Locate the organization's single active PromoGrant plus its linked
+    TenantProvisioningLink and active WorkspaceEntitlement. Fails closed
+    (raises) unless all three agree on exactly one active grant, matching
+    the mismatch guard in _apply_confirmed_promo_conversion."""
+    grant_query = db.query(models.PromoGrant).filter(
+        models.PromoGrant.school_group_id == group.id,
+        models.PromoGrant.status == "active",
+    )
+    grant = grant_query.with_for_update().one_or_none() if lock else grant_query.one_or_none()
+    link_query = db.query(models.TenantProvisioningLink).filter(
+        models.TenantProvisioningLink.school_group_id == group.id
+    )
+    link = link_query.with_for_update().one_or_none() if lock else link_query.one_or_none()
+    entitlement_query = db.query(models.WorkspaceEntitlement).filter(
+        models.WorkspaceEntitlement.school_group_id == group.id,
+        models.WorkspaceEntitlement.status == "active",
+    )
+    entitlement = (
+        entitlement_query.with_for_update().one_or_none()
+        if lock
+        else entitlement_query.one_or_none()
+    )
+    if (
+        grant is None
+        or link is None
+        or entitlement is None
+        or int(link.promo_grant_id or 0) != grant.id
+        or int(entitlement.promo_grant_id or 0) != grant.id
+        or entitlement.entitlement_type != "promo"
+    ):
+        raise PromoActivationError(
+            "promo_replacement_source_mismatch",
+            "This organization has no active promotional grant to replace.",
+        )
+    return grant, link, entitlement
+
+
+def _owner_account_for_group(db: Session, school_group_id: int, *, lock: bool = False):
+    query = db.query(models.SaaSAccountUserLink).filter(
+        models.SaaSAccountUserLink.school_group_id == school_group_id,
+        models.SaaSAccountUserLink.link_type == "tenant_owner",
+    )
+    link = query.with_for_update().one_or_none() if lock else query.one_or_none()
+    if link is None:
+        raise PromoActivationError(
+            "promo_owner_relationship_required",
+            "The organization owner could not be resolved.",
+        )
+    account = db.get(models.SaaSAccount, link.saas_account_id)
+    if account is None:
+        raise PromoActivationError(
+            "promo_owner_account_missing",
+            "The organization owner account could not be resolved.",
+        )
+    return link, account
+
+
+def _require_platform_promo_management(db: Session, actor) -> None:
+    # Same underlying authorization decision as saas.router._require_promo_permission
+    # (platform identity + promo_codes.manage), re-checked here at the service
+    # layer, matching the existing defense-in-depth precedent in
+    # promo_code_service.revoke_promo.
+    if not auth.is_platform_user(actor) or not auth.has_permission(db, actor, "promo_codes.manage"):
+        raise PromoActivationError(
+            "platform_promo_management_required",
+            "Platform promo management access is required.",
+        )
+
+
+def preview_grant_replacement(
+    db: Session,
+    *,
+    school_group_id: int,
+    new_promo_uuid: str,
+    actor,
+) -> PromoGrantReplacementPreview:
+    _require_platform_promo_management(db, actor)
+    group = db.get(operational_models.SchoolGroup, int(school_group_id))
+    if group is None:
+        raise PromoActivationError("promo_replacement_group_not_found", "Organization was not found.")
+    new_promo = db.query(models.PromoCode).filter(
+        models.PromoCode.promo_uuid == str(new_promo_uuid or "").strip()
+    ).one_or_none()
+    if new_promo is None:
+        raise PromoActivationError("promo_not_found")
+
+    old_grant, _link, _entitlement = _existing_promo_source(db, group)
+    _owner_link, account = _owner_account_for_group(db, group.id)
+    _validate_promo_definition(db, new_promo, account=account, organization=None, school_group=group)
+
+    from saas import promo_grant_service
+
+    resolution = promo_grant_service.resolve_promo_grant(db, group.id)
+    if not resolution.resolved or resolution.grant_id != old_grant.id:
+        raise PromoActivationError(
+            "promo_replacement_source_mismatch",
+            "This organization's promotional grant could not be resolved.",
+        )
+    usage = commercial_authority_service.count_capacity_usage(
+        db, group.id, active_branch_ids=set(resolution.active_branch_ids)
+    )
+    return PromoGrantReplacementPreview(
+        school_group=group,
+        old_grant=old_grant,
+        old_plan=db.get(models.SubscriptionPlan, old_grant.plan_id),
+        new_promo=new_promo,
+        new_plan=db.get(models.SubscriptionPlan, new_promo.subscription_plan_id),
+        current_branches=usage.branches,
+        current_staff_users=usage.staff_users,
+        current_teachers=usage.teachers,
+    )
+
+
+def replace_promo_grant(
+    db: Session,
+    *,
+    school_group_id: int,
+    new_promo_uuid: str,
+    actor,
+    idempotency_key: str | None = None,
+) -> PromoGrantReplacementResult:
+    _require_platform_promo_management(db, actor)
+    group = db.query(operational_models.SchoolGroup).filter(
+        operational_models.SchoolGroup.id == int(school_group_id)
+    ).with_for_update().one_or_none()
+    if group is None:
+        raise PromoActivationError("promo_replacement_group_not_found", "Organization was not found.")
+    new_promo = db.query(models.PromoCode).filter(
+        models.PromoCode.promo_uuid == str(new_promo_uuid or "").strip()
+    ).with_for_update().one_or_none()
+    if new_promo is None:
+        raise PromoActivationError("promo_not_found")
+
+    old_grant, link, old_entitlement = _existing_promo_source(db, group, lock=True)
+    owner_link, account = _owner_account_for_group(db, group.id, lock=True)
+    _validate_promo_definition(db, new_promo, account=account, organization=None, school_group=group)
+
+    from saas import promo_grant_service, workspace_entitlement_service
+
+    resolution = promo_grant_service.resolve_promo_grant(db, group.id)
+    if not resolution.resolved or not resolution.active or resolution.grant_id != old_grant.id:
+        raise PromoActivationError(
+            "promo_replacement_source_mismatch",
+            "This organization's promotional grant could not be resolved.",
+        )
+    assigned_branch_ids = set(resolution.active_branch_ids)
+
+    usage = commercial_authority_service.count_capacity_usage(
+        db, group.id, active_branch_ids=assigned_branch_ids
+    )
+    if (
+        usage.branches > int(new_promo.max_branches)
+        or usage.staff_users > int(new_promo.max_system_users)
+        or usage.teachers > int(new_promo.max_teachers)
+    ):
+        raise PromoActivationError(
+            "promo_replacement_capacity_exceeded",
+            "Current organization usage exceeds the replacement promo's capacity.",
+        )
+
+    plan = db.get(models.SubscriptionPlan, new_promo.subscription_plan_id)
+    if plan is None:
+        raise PromoActivationError("promo_plan_missing")
+
+    effective_from = utc_now()
+    effective_to = (
+        _utc(new_promo.fixed_access_expires_at)
+        if new_promo.fixed_access_expires_at
+        else effective_from + timedelta(days=int(new_promo.access_duration_days))
+    )
+    definition = _definition_snapshot(new_promo, plan)
+    scope = _scope_snapshot(db, new_promo)
+    snapshot = {"definition": definition, "scope": scope}
+    snapshot_hash = _snapshot_hash(snapshot)
+    base_key = str(idempotency_key or uuid.uuid4())[:80]
+
+    with db.begin_nested():
+        # End the old evidence first so the partial-unique "one active grant/
+        # entitlement per organization" indexes never see two active rows at
+        # once, matching _apply_confirmed_promo_conversion's ordering.
+        old_grant.status = "superseded"
+        old_entitlement.status = "ended"
+        db.flush()
+
+        session = models.PromoActivationSession(
+            promo_code_id=new_promo.id,
+            promo_definition_version=new_promo.definition_version,
+            pending_organization_id=None,
+            school_group_id=group.id,
+            saas_account_id=account.id,
+            operational_user_id=owner_link.operational_user_id,
+            context_type="existing_organization",
+            status="activated",
+            stage="activated",
+            idempotency_key=f"{base_key}:replace-session",
+            masked_promo_reference=promo_code_service.masked_code(new_promo),
+            expires_at=_db_time(effective_from),
+            activated_at=_db_time(effective_from),
+        )
+        db.add(session)
+        db.flush()
+
+        redemption = models.PromoRedemption(
+            activation_session_id=session.id,
+            promo_code_id=new_promo.id,
+            promo_definition_version=new_promo.definition_version,
+            school_group_id=group.id,
+            pending_organization_id=None,
+            redeeming_saas_account_id=account.id,
+            redeeming_operational_user_id=owner_link.operational_user_id,
+            redeemed_at=_db_time(effective_from),
+            idempotency_key=f"{base_key}:replace-redemption",
+            masked_promo_reference=session.masked_promo_reference,
+            plan_id=plan.id,
+            plan_code_snapshot=plan.plan_code,
+            plan_name_snapshot=plan.plan_name,
+            allowed_branches=new_promo.max_branches,
+            allowed_staff_users=new_promo.max_system_users,
+            allowed_teachers=new_promo.max_teachers,
+            effective_from=_db_time(effective_from),
+            effective_to=_db_time(effective_to),
+            grace_period_days=new_promo.grace_period_days,
+            scope_type_snapshot=new_promo.scope_type,
+            scope_snapshot_json=_canonical_json(scope),
+            definition_snapshot_json=_canonical_json(definition),
+            immutable_snapshot_hash=snapshot_hash,
+        )
+        db.add(redemption)
+        db.flush()
+
+        new_grant = models.PromoGrant(
+            promo_redemption_id=redemption.id,
+            school_group_id=group.id,
+            plan_id=plan.id,
+            plan_code_snapshot=plan.plan_code,
+            plan_name_snapshot=plan.plan_name,
+            allowed_branches=new_promo.max_branches,
+            allowed_staff_users=new_promo.max_system_users,
+            allowed_teachers=new_promo.max_teachers,
+            effective_from=_db_time(effective_from),
+            effective_to=_db_time(effective_to),
+            grace_period_days=new_promo.grace_period_days,
+            definition_snapshot_json=_canonical_json(definition),
+            capacity_snapshot_json=_canonical_json({
+                "branches": usage.branches,
+                "staff_users": usage.staff_users,
+                "teachers": usage.teachers,
+                "selected_branch_count": len(assigned_branch_ids),
+            }),
+            scope_snapshot_json=_canonical_json(scope),
+            immutable_snapshot_hash=snapshot_hash,
+            activated_at=_db_time(effective_from),
+            # New row points back at the grant it supersedes (matches the
+            # existing PromoCode.supersedes_promo_code_id convention: see
+            # promo_code_service.replace_promo, which sets
+            # supersedes_promo_code_id=source.id on the newly created row).
+            supersedes_grant_id=old_grant.id,
+        )
+        db.add(new_grant)
+        db.flush()
+
+        new_entitlement = models.WorkspaceEntitlement(
+            school_group_id=group.id,
+            entitlement_type="promo",
+            status="active",
+            source="promo",
+            promo_grant_id=new_grant.id,
+            effective_from=_db_time(effective_from),
+            effective_to=_db_time(effective_to),
+        )
+        db.add(new_entitlement)
+        db.flush()
+        _create_entitlement_values(db, new_entitlement, plan, int(new_promo.max_branches))
+
+        branches = db.query(operational_models.Branch).filter(
+            operational_models.Branch.school_group_id == group.id
+        ).order_by(operational_models.Branch.id.asc()).all()
+        existing_branch_entitlements = {
+            int(row.branch_id): row
+            for row in db.query(models.BranchEntitlement).filter(
+                models.BranchEntitlement.school_group_id == group.id
+            ).all()
+        }
+        for branch in branches:
+            selected = int(branch.id) in assigned_branch_ids
+            row = existing_branch_entitlements.get(int(branch.id))
+            if row is None:
+                row = models.BranchEntitlement(
+                    school_group_id=group.id,
+                    branch_id=branch.id,
+                    workspace_entitlement_id=new_entitlement.id,
+                )
+                db.add(row)
+            row.workspace_entitlement_id = new_entitlement.id
+            row.entitlement_mode = (
+                BranchEntitlementMode.ACTIVE.value if selected else BranchEntitlementMode.INACTIVE.value
+            )
+            row.reason_code = "promo_grant_replaced" if selected else "promo_grant_not_selected"
+            if selected:
+                db.add(models.PromoGrantBranchAssignment(
+                    promo_grant_id=new_grant.id,
+                    school_group_id=group.id,
+                    branch_id=branch.id,
+                    branch_identity_snapshot=str(branch.id),
+                    branch_name_snapshot=str(branch.name)[:160],
+                    assigned_by_saas_account_id=account.id,
+                    assignment_reason="promo_grant_replacement",
+                    assigned_at=_db_time(effective_from),
+                ))
+
+        link.promo_grant_id = new_grant.id
+        db.flush()
+
+        _event(
+            db, event_type="grant_replaced", result="success",
+            operation_key=f"{base_key}:replace-event", account=account,
+            session=session, promo=new_promo, redemption=redemption, grant=new_grant,
+            organization=None, school_group=group,
+            details={
+                "previous_grant_id": old_grant.id,
+                "previous_grant_uuid": str(old_grant.grant_uuid or ""),
+                "plan_code": plan.plan_code,
+                "selected_branch_count": len(assigned_branch_ids),
+            },
+        )
+
+        refreshed = promo_grant_service.resolve_promo_grant(db, group.id)
+        entitlement_check = workspace_entitlement_service.resolve_workspace_entitlement(db, group.id)
+        if (
+            not refreshed.resolved
+            or not refreshed.active
+            or refreshed.grant_id != new_grant.id
+            or not entitlement_check.resolved
+            or entitlement_check.entitlement_type != "promo"
+            or int(entitlement_check.promo_grant_id or 0) != new_grant.id
+        ):
+            raise PromoActivationError(
+                "promo_replacement_validation_failed",
+                "Promo grant replacement could not be validated.",
+            )
+
+    return PromoGrantReplacementResult(
+        school_group=group,
+        old_grant=old_grant,
+        new_grant=new_grant,
+        redemption=redemption,
+        workspace_entitlement=new_entitlement,
+        tenant_link=link,
     )

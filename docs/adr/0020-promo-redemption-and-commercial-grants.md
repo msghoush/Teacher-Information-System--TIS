@@ -1,7 +1,7 @@
 ---
 title: Promo Redemption And Commercial Grants
-documentation_version: 3.1
-last_updated: 2026-08-05
+documentation_version: 3.2
+last_updated: 2026-09-21
 status: Accepted
 ---
 
@@ -79,5 +79,13 @@ tenant data.
   entitlement evidence.
 - Promo renewal, transfer, communication, automated expiry jobs, and active-promo
   early conversion remain deferred.
+- Amended by ADR 0041 (2026-09-21): the "transfer" deferral recorded in the
+  bullet immediately above is resolved for the promo-to-promo case only —
+  replacing one organization's active grant with a grant against a different
+  promo definition is no longer deferred; see ADR 0041, which implements it
+  as a separate Platform Console operation. Promo renewal (extending the same
+  promo's own window) and communication/automated-expiry-job transfer remain
+  deferred exactly as originally decided above; this amendment note does not
+  alter that original decision.
 - Expired and recovery-period promo authority may enter the separately governed,
   provider-authoritative existing-workspace paid continuation in ADR 0024.

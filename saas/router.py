@@ -6770,20 +6770,97 @@ def promo_code_detail(promo_uuid: str, request: Request, db: Session = Depends(g
         if promo.supersedes_promo_code_id else None
     )
     replacement = db.query(models.PromoCode).filter_by(supersedes_promo_code_id=promo.id).one_or_none()
+    effective_status = promo_code_service.effective_status(promo)
+    organizations_with_active_grant = ()
+    if effective_status == "active":
+        organizations_with_active_grant = db.query(
+            operational_models.SchoolGroup, models.PromoGrant
+        ).join(
+            models.PromoGrant,
+            models.PromoGrant.school_group_id == operational_models.SchoolGroup.id,
+        ).filter(
+            models.PromoGrant.status == "active",
+        ).order_by(operational_models.SchoolGroup.name).all()
     return _render(request, "saas/admin_promo_code_detail.html", {
         "current_user": current_user,
         "promo": promo,
         "plan": plan,
         "masked_code": promo_code_service.masked_code(promo),
-        "effective_status": promo_code_service.effective_status(promo),
+        "effective_status": effective_status,
         "branch_restrictions": promo_code_service.list_branch_restrictions(db, promo.id),
         "audit_events": promo_code_service.list_audit_events(db, promo.id),
         "predecessor": predecessor,
         "replacement": replacement,
+        "organizations_with_active_grant": organizations_with_active_grant,
         "promo_permissions": _promo_permissions(db, current_user),
         "notice": request.query_params.get("notice", ""),
         "error": request.query_params.get("error", ""),
     })
+
+
+@admin_router.get("/promo-codes/{promo_uuid}/replace-grant", response_class=HTMLResponse)
+def promo_grant_replacement_confirm(
+    promo_uuid: str,
+    request: Request,
+    school_group_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    promo = promo_code_service.get_promo(db, promo_uuid)
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo definition not found.")
+    try:
+        preview = promo_redemption_service.preview_grant_replacement(
+            db,
+            school_group_id=school_group_id,
+            new_promo_uuid=promo.promo_uuid,
+            actor=current_user,
+        )
+    except promo_redemption_service.PromoActivationError as exc:
+        return _promo_action_redirect(promo_uuid, error=str(exc))
+    return _render(request, "saas/admin_promo_grant_replace_confirm.html", {
+        "current_user": current_user,
+        "preview": preview,
+        "promo_permissions": _promo_permissions(db, current_user),
+        "error": request.query_params.get("error", ""),
+    })
+
+
+@admin_router.post("/promo-codes/{promo_uuid}/replace-grant")
+def promo_grant_replacement_apply(
+    promo_uuid: str,
+    request: Request,
+    school_group_id: int = Form(...),
+    operation_key: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    current_user = _require_promo_permission(request, db, "promo_codes.manage")
+    promo = promo_code_service.get_promo(db, promo_uuid)
+    if not promo:
+        raise HTTPException(status_code=404, detail="Promo definition not found.")
+    try:
+        result = promo_redemption_service.replace_promo_grant(
+            db,
+            school_group_id=school_group_id,
+            new_promo_uuid=promo.promo_uuid,
+            actor=current_user,
+            idempotency_key=operation_key or None,
+        )
+        db.commit()
+    except promo_redemption_service.PromoActivationError as exc:
+        db.rollback()
+        return RedirectResponse(
+            f"/saas-admin/promo-codes/{promo_uuid}/replace-grant"
+            f"?school_group_id={school_group_id}&error={quote_plus(str(exc))}",
+            status_code=302,
+        )
+    return _promo_action_redirect(
+        promo_uuid,
+        notice=(
+            f"Promotional access for {result.school_group.name} was replaced. "
+            "The previous grant is now superseded."
+        ),
+    )
 
 
 @admin_router.get("/promo-codes/{promo_uuid}/edit", response_class=HTMLResponse)
