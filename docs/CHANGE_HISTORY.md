@@ -7,6 +7,28 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-22 — Al-Andalus Section Display M5: Shared Presentation Implementation
+
+Implements the ADR 0045-authorized presentation convention: one shared
+`academic_grade.format_section_display(workspace_uuid, grade_level,
+section_name) -> str` helper, activated only on exact
+`SchoolGroup.workspace_uuid` equality to `72e52eb2-3844-447b-92a8-c55015f73257`,
+rendering `{grade_number}.{section_ordinal}` (Section A=1...Z=26) and
+falling back to the unchanged canonical `section_name` for every other
+workspace and every non-deterministic Grade/Section. Wired into: Students UI
+current placement and placement history, the Academic Placement Section
+selector, the Students list Grade/Section filter, the Talent frozen
+historical Learner Profile context (using frozen
+`TalentAssessmentCyclePopulationMember` Grade/Section, never the Student's
+current placement), the Talent Student Assessment eligible-students roster,
+and the Talent Results/Analytics Grade/Section filter. Canonical
+`PlanningSection`/Student Academic Placement/frozen Talent Grade-Section
+values, analytics grouping identity, and query/filter/import-export
+identity are unchanged everywhere - `section_display` is a bounded, additive
+presentation projection only. No schema, migration, or new permission. See
+`docs/PROJECT_STATE.md` ("Al-Andalus Section Display M5 - Shared
+Presentation Implementation") and ADR 0045.
+
 ## 2026-09-22 — Al-Andalus Section Display: Governance Authorization (KMS-only)
 
 Per new ADR 0045, the Owner authorized the presentation-only Al-Andalus

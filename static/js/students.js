@@ -76,7 +76,7 @@
         items.forEach((item) => {
             const option = document.createElement("option");
             option.value = String(item.id);
-            option.textContent = item.section_name;
+            option.textContent = item.section_display || item.section_name;
             sectionSelect.appendChild(option);
         });
         sectionSelect.disabled = false;

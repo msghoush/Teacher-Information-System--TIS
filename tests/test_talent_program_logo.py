@@ -197,5 +197,8 @@ def test_planning_section_cascade_is_scoped_and_grade_filtered(db):
     with _client(db, user) as client:
         response = client.get("/api/talent/programs/planning-sections", params={"academic_year_id": 100, "branch_id": 10, "grade_level": "4"})
         assert response.status_code == 200
-        assert response.json() == [{"id": 901, "section_name": "A"}]
+        # ADR 0045: section_display is a bounded presentation projection - this
+        # SchoolGroup's workspace_uuid is not the Al-Andalus-authorized UUID, so
+        # it falls back to the unchanged canonical section_name.
+        assert response.json() == [{"id": 901, "section_name": "A", "section_display": "A"}]
         assert client.get("/api/talent/programs/planning-sections", params={"academic_year_id": 100, "branch_id": 20, "grade_level": "4"}).status_code == 404

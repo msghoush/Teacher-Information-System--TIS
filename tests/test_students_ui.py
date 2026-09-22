@@ -479,7 +479,10 @@ def test_sections_endpoint_reuses_planning_scope_authority_and_disabled_state(db
 
     configured = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100, "grade_level": "1"})
     assert configured.status_code == 200
-    assert configured.json() == {"items": [{"id": 9001, "section_name": "A"}]}
+    # ADR 0045: section_display is a bounded presentation projection - this
+    # SchoolGroup's workspace_uuid is not the Al-Andalus-authorized UUID, so
+    # it falls back to the unchanged canonical section_name.
+    assert configured.json() == {"items": [{"id": 9001, "section_name": "A", "section_display": "A"}]}
 
     configured_grades = client.get("/students/sections", params={"branch_id": 10, "academic_year_id": 100})
     assert configured_grades.status_code == 200

@@ -14,19 +14,56 @@ Al-Andalus Section-display presentation convention for the exact verified
 production `SchoolGroup.workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`
 (identified using the repository's existing read-only production audit,
 `scripts/audit_al_andalus_readonly.py`, run by the Owner against the
-deployed Render PostgreSQL environment). This is a **governance/KMS
-correction only**: it closes the stale "deferred" status recorded at M1 and
-in ADR 0042's boundary note and records the authorized workspace identity
-and presentation-convention constraints. It does **not** implement the
-feature - no shared presentation helper, API/UI change, or test exists yet
-for this feature as of this entry. No application code, schema, or
-migration changed. Runtime implementation must key exclusively off the
-exact `workspace_uuid` above (never `SchoolGroup.name`/domain/email/Branch
-label), must remain presentation-only, and must leave canonical
-`PlanningSection`/Student Academic Placement/frozen historical Talent
-Grade-Section identity, analytics grouping, and query/filter/import-export
-identity completely unchanged - see ADR 0045 for the full authorized
-convention and fallback rule.
+deployed Render PostgreSQL environment). Runtime implementation keys
+exclusively off the exact `workspace_uuid` above (never
+`SchoolGroup.name`/domain/email/Branch label), remains presentation-only,
+and leaves canonical `PlanningSection`/Student Academic Placement/frozen
+historical Talent Grade-Section identity, analytics grouping, and
+query/filter/import-export identity completely unchanged - see ADR 0045
+for the full authorized convention and fallback rule.
+
+## Al-Andalus Section Display M5 - Shared Presentation Implementation (2026-09-22)
+
+Implements the ADR 0045-authorized presentation convention. One shared,
+authoritative helper, `academic_grade.format_section_display(workspace_uuid,
+grade_level, section_name) -> str`, activates the numeric
+`{grade_number}.{section_ordinal}` mapping only on exact
+`SchoolGroup.workspace_uuid` equality to the authorized UUID above; every
+other workspace, and any Grade/Section that does not deterministically map
+(custom Section name, non-alphabetic/multi-character Section,
+missing/malformed Grade, missing Section), returns the existing canonical
+`section_name` unchanged. The helper never mutates or replaces canonical
+`grade_level`/`section_name` - it is wired in as a bounded, additive
+`section_display` projection alongside the unchanged canonical fields.
+
+Wired surfaces (M5 boundary): Students UI current placement and placement
+history (`routers/students_ui.py::_placement_view`, `templates/students.html`,
+`templates/student_profile.html`), the Academic Placement Section selector
+(`GET /students/sections`, `static/js/students.js`), the Students list
+Grade/Section filter dropdown, the Talent frozen historical Learner Profile
+context (`talent_learner_profile_service.py::build_learner_profile`'s
+`frozen_context`, used by both `templates/student_profile.html`'s Talent tab
+and the Talent workspace's own `learner-profile` view in
+`static/js/talent.js`) - using the frozen `TalentAssessmentCyclePopulationMember`
+Grade/Section, never the Student's current placement - the Talent Student
+Assessment eligible-students roster (`GET
+/api/talent/assessment-cycles/{id}/eligible-students`,
+`static/js/talent-operations.js`), and the Talent Results/Analytics
+Grade/Section filter (`GET /api/talent/programs/planning-sections`,
+`static/js/talent.js`). Organization-analytics Grade/Section grouping
+identity (e.g. `organization-analytics` grade-map column totals) is
+unchanged and out of scope - ADR 0045 requires analytics grouping identity
+to remain canonical.
+
+Focused tests: `tests/test_academic_grade_section_display.py` (pure
+formatter edge cases, exact UUID activation, A-Z ordinal spot-checks,
+fallback cases) and `tests/test_al_andalus_section_display.py`
+(cross-surface wiring: exact-UUID activation, a different-UUID row sharing
+the exact organization name, workspace rename stability, other-tenant
+isolation, canonical-value-unchanged/no-mutation checks, and frozen Talent
+context proven to diverge from a later current-placement change). No
+schema, migration, or new permission. No application behavior changed for
+any workspace other than the one exact authorized `workspace_uuid`.
 
 ## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (2026-09-22)
 
@@ -1174,11 +1211,11 @@ Not implemented: TIS Student ID create/edit API/UI and its duplicate-value
 messaging, database-level canonical-format enforcement, Learning Style
 percentage API/frontend, Evaluation Progress, and roster import/export -
 all explicitly deferred to later milestones. Al-Andalus Section display was
-also deferred at M1; per ADR 0045 it is now Owner-authorized for the exact
-verified `workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`
-(governance decision only - implementation is separate, later work and is
-not yet done; see "Al-Andalus Section Display - Governance Authorization"
-above).
+also deferred at M1; per ADR 0045 it was Owner-authorized for the exact
+verified `workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`, and its
+M5 implementation is now done - see "Al-Andalus Section Display -
+Governance Authorization" and "Al-Andalus Section Display M5 - Shared
+Presentation Implementation" above.
 Focused coverage is in `tests/test_student_learning_style_profile_foundation.py`
 and `tests/test_student_tis_number_identifier_foundation.py`; PostgreSQL
 migration coverage (upgrade path and preflight-conflict rollback) is added

@@ -49,7 +49,7 @@
       </select>
       <select name="section" aria-label="Section filter" {% if not selected_grade %}disabled{% endif %}>
         <option value="">{{ 'Choose a Grade first' if not selected_grade else 'All configured sections' }}</option>
-        {% for s in section_options %}<option value="{{ s }}" {% if selected_section == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+        {% for s in section_options %}<option value="{{ s.value }}" {% if selected_section == s.value %}selected{% endif %}>{{ s.label }}</option>{% endfor %}
       </select>
       <select name="status" aria-label="Status filter">
         <option value="">All statuses</option>
@@ -138,7 +138,7 @@
             </a>
           </th>
           <td>{{ s.current_placement.grade_level if s.current_placement else '—' }}</td>
-          <td>{{ s.current_placement.section_name if s.current_placement else '—' }}</td>
+          <td>{{ s.current_placement.section_display if s.current_placement else '—' }}</td>
           <td>{{ s.current_placement.branch_name if s.current_placement and s.current_placement.branch_name else '—' }}</td>
           <td>{{ learning_style_badge(s.learning_style) }}</td>
           <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
@@ -177,7 +177,7 @@
       </div>
       <div class="stu-place">
         {% if s.current_placement %}
-        <span class="stu-chip stu-chip-placement">Grade {{ s.current_placement.grade_level }} · {{ s.current_placement.section_name }}</span>
+        <span class="stu-chip stu-chip-placement">Grade {{ s.current_placement.grade_level }} · {{ s.current_placement.section_display }}</span>
         <p>{% if s.current_placement.branch_name %}<strong>{{ s.current_placement.branch_name }}</strong>{% endif %}{% if s.current_placement.year_name %} · {{ s.current_placement.year_name }}{% endif %}</p>
         {% else %}
         <p>No current placement.</p>

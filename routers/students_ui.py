@@ -21,7 +21,7 @@ import auth
 import authorization
 import models
 from academic_grade import GRADE_LEVELS as ALL_GRADE_LEVELS
-from academic_grade import normalize_grade_level
+from academic_grade import format_section_display, normalize_grade_level
 from auth import get_current_user
 from dependencies import get_db
 from homeroom_defaults import normalize_grade_label
@@ -150,7 +150,19 @@ def _branches(db, user, group_id):
     ).order_by(models.Branch.name).all()
 
 
-def _sections_for(db, branch_id, academic_year_id, grade_level):
+def _workspace_uuid(db, school_group_id):
+    """Canonical tenant identity lookup for presentation formatting (ADR 0045).
+
+    Returns the exact ``SchoolGroup.workspace_uuid`` (never a name/label) so
+    callers can key Al-Andalus Section display activation off it.
+    """
+    if not school_group_id:
+        return None
+    group = db.get(models.SchoolGroup, int(school_group_id))
+    return group.workspace_uuid if group else None
+
+
+def _sections_for(db, branch_id, academic_year_id, grade_level, workspace_uuid=None):
     """Real Sections for one Branch+Academic-Year+Grade combination.
 
     Reuses Planning's own canonical ``list_operational_planning_sections``
@@ -159,13 +171,23 @@ def _sections_for(db, branch_id, academic_year_id, grade_level):
     selector pattern) rather than a parallel PlanningSection query, then
     narrows to the one requested Grade the same way
     ``routers/planning.py``'s ``list_sections_for_grade`` already does.
+
+    Adds a bounded ``section_display`` presentation projection (ADR 0045) for
+    the selector's option label - the canonical ``section_name`` (used as the
+    real filter/match value) is always returned unchanged alongside it.
     """
     if not branch_id or not academic_year_id or not grade_level:
         return []
     grade = normalize_grade_label(grade_level)
     sections = list_operational_planning_sections(db, int(branch_id), int(academic_year_id))
     return [
-        {"id": int(section.id), "section_name": str(section.section_name or "").strip()}
+        {
+            "id": int(section.id),
+            "section_name": str(section.section_name or "").strip(),
+            "section_display": format_section_display(
+                workspace_uuid, grade_level, str(section.section_name or "").strip()
+            ),
+        }
         for section in sections
         if normalize_grade_label(section.grade_level) == grade
     ]
@@ -206,6 +228,11 @@ def _placement_view(db, row):
         payload["year_name"] = year.year_name
     payload["effective_from_display"] = row.effective_from.strftime("%d %b %Y") if row.effective_from else None
     payload["effective_to_display"] = row.effective_to.strftime("%d %b %Y") if row.effective_to else None
+    # ADR 0045: bounded presentation projection alongside the unchanged
+    # canonical grade_level/section_name above - never a replacement.
+    payload["section_display"] = format_section_display(
+        _workspace_uuid(db, row.school_group_id), payload["grade_level"], payload["section_name"]
+    )
     return payload
 
 
@@ -281,6 +308,14 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
             if section.section_name
         }) if scoped_year_id else []
     section_name = section_filter if section_filter in allowed_section_options else None
+    # ADR 0045: bounded presentation projection for the filter dropdown label
+    # only - the canonical section_name string above remains the real
+    # filter/query value in every case.
+    workspace_uuid = _workspace_uuid(db, group_id)
+    section_option_views = [
+        {"value": s, "label": format_section_display(workspace_uuid, grade_level, s)}
+        for s in section_options
+    ]
 
     # Grade/Branch/Section reuse the same real current-effective-placement
     # query capability shared with GET /api/students (student_academic_service.
@@ -339,7 +374,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "selected_branch_name": next((b.name for b in branches if b.id == branch_id), None),
         "grade_levels": grade_options,
         "selected_grade": grade_level or "",
-        "section_options": section_options,
+        "section_options": section_option_views,
         "selected_section": section_name or "",
         "search": search,
         "status": status or "",
@@ -515,7 +550,7 @@ def students_sections_for_grade(
         return JSONResponse({"detail": "Branch or academic year is outside the organization."}, status_code=400)
     if not grade_level:
         return {"grades": list_operational_planning_grades(db, branch_id, academic_year_id)}
-    return {"items": _sections_for(db, branch_id, academic_year_id, grade_level)}
+    return {"items": _sections_for(db, branch_id, academic_year_id, grade_level, _workspace_uuid(db, group_id))}
 
 
 @router.get("/placement-open-cycle-preview")

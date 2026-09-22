@@ -301,7 +301,8 @@
         :can('talent_assessments.manage')
           ?button('start','Start Assessment',`data-student="${m.student_id}"`)
           :'<span>Not started</span>';
-      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${studentName}<small>${esc(m.branch_name||'')} · ${esc(m.section_name||'')}</small></span></span></th><td>${esc(m.grade_level)}</td><td>${esc(m.section_name)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${action}</td></tr>`;
+      const sectionDisplay=m.section_display||m.section_name;
+      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${studentName}<small>${esc(m.branch_name||'')} · ${esc(sectionDisplay||'')}</small></span></span></th><td>${esc(m.grade_level)}</td><td>${esc(sectionDisplay)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${action}</td></tr>`;
     }).join(''):'';
 
     // Evaluation Period -> unique Programs. Planned Periods are the display
