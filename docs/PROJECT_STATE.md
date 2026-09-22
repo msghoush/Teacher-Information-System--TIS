@@ -1,6 +1,6 @@
 ---
 title: TIS Project State
-documentation_version: 5.8
+documentation_version: 5.9
 last_updated: 2026-09-22
 source_of_truth: true
 ---
@@ -1035,6 +1035,91 @@ migration coverage (upgrade path and preflight-conflict rollback) is added
 to `tests/test_postgresql_migration_transactions.py` following its existing
 `TIS_TEST_POSTGRESQL_URL` skip-marked convention and auto-skips in this
 environment (no local PostgreSQL listener).
+
+## Students + Talent & Potential M2 — Managed Student ID Backend/Service/API (2026-09-22)
+
+Per ADR 0043, this milestone implements the previously-deferred TIS Student
+number create/edit service/API and canonical-format validation on top of the
+M1 schema foundation (no new migration - the two M1 partial unique indexes on
+`student_external_identifiers` remain the sole concurrency authority). All
+logic lives in `student_academic_service.py` and `routers/students.py`; no
+new table, no new permission, and no frontend.
+
+Business input is exactly ten ASCII digits (leading zeros preserved as a
+string, never parsed as an integer); the service alone controls the
+canonical `STD` + 10-digit stored format
+(`validate_student_number_digits`/`canonical_student_number`). New Students
+created through `POST /api/students` now require `student_number` and the
+new `create_student_with_number` atomically creates the `Student` row and its
+`tis_student_number` `StudentExternalIdentifier` row in one uncommitted
+transaction - an `IntegrityError` on the identifier insert (duplicate/race)
+is caught by the router, which rolls back the whole transaction first, so no
+orphan/partial `Student` row is ever left behind. Existing legacy Students
+(and the existing HTML `/students/new` UI creation path, which is
+intentionally unmodified and continues to call the original `create_student`
+directly) are unaffected and may continue without a number; a legacy Student
+may receive or replace its number later via the new
+`PUT /api/students/{student_id}/student-number` route, backed by
+`set_student_number`, gated by the existing, already-governed
+`students.manage_identifiers` permission (no new permission key was needed
+or added). Replacing a number never mutates the old row: the old active row
+is marked `inactive` (audited as `replace_retire`) and a new row is inserted
+active (audited as `replace`) in the same transaction, so `Student.id` is
+unchanged and the M1 global-uniqueness index keeps the old value permanently
+reserved. The generic `add_external_identifier`/`deactivate_external_identifier`
+functions now explicitly reject the `tis_student_number` namespace
+(`managed_namespace` error) so the generic external-identifier API cannot
+bypass the managed contract in either direction.
+
+Duplicate-value disclosure follows an explicit privacy rule enforced at the
+router layer (`routers/students.py::_student_number_conflict_response`),
+executed only AFTER the failed insert's transaction is rolled back: a
+read-only, unauthenticated lookup
+(`student_academic_service.find_student_number_holder`) identifies the
+conflicting `school_group_id`/`student_id`, and the router discloses
+`student_id`/`display_name` if and only if that identifier belongs to the
+requester's own SchoolGroup AND the actor independently holds
+`students.view` for that scope; every other case (cross-tenant, unauthorized
+same-tenant, or a value retired by a Student the actor cannot/does not
+independently view) returns the exact same generic
+`{"detail": ..., "code": "student_number_unavailable"}` body, so there is no
+enumeration oracle and no cross-tenant/retired-vs-foreign distinction leak.
+The raw lookup itself never grants a general Student-lookup capability - it
+returns only a bare `school_group_id`/`student_id` pair with no name or
+other metadata, and the router's authorization check is applied before any
+identity is ever returned.
+
+A canonical `student_number` field (e.g. `"STD0012345678"`, or `null` for a
+legacy Student) is now exposed on every Student JSON response
+(`GET`/`POST`/`PATCH /api/students...`) via `current_student_number`, without
+renaming any existing field or changing unrelated response shape.
+
+Three pre-existing tests that posted to `POST /api/students` without a
+`student_number` were updated to supply one, since this endpoint's required-
+field contract is the intended M2 behavior change, not a regression:
+`tests/test_student_academic_foundation.py` (two call sites, one with an
+updated audit-event-count assertion reflecting the one additional
+`external_identifier`/`create` audit row every managed-number creation now
+also writes), `tests/test_student_learning_style_v1.py` (two call sites), and
+`tests/test_permission_surface_consistency.py` (one call site, a permission-
+gating test unrelated to the identity field itself). Focused coverage is in
+the new `tests/test_student_managed_number_service.py` (46 tests: format
+validation, atomicity/no-orphan-Student, legacy assignment, replacement
+mechanics, M1 global/same-tenant/cross-tenant/retired-reuse uniqueness, the
+IntegrityError race path, privacy-safe duplicate classification for all four
+combinations, `students.create`/`students.manage_identifiers` permission
+gating, cross-tenant denial, the managed-namespace boundary on the generic
+identifier API, audit events for create/assign/replace, and regression for
+an unrelated namespace and an existing Academic Placement workflow). The
+full relevant regression sweep (`tests/` filtered to
+`student or talent or permission`, excluding the two `ortools`-dependent
+Timetable-Workflow-only solver test modules that fail to import in this
+environment) passes except the same 13 pre-existing failures already present
+on unmodified `dev` HEAD `e98214f` before this task (11 unrelated
+Talent/permission/SaaS failures plus the two Students failures already
+recorded as pre-existing in the M1 entry above); none are newly introduced by
+M2, and both this environment's `ortools` absence and those 13 pre-existing
+failures are unrelated to this task and unresolved by it.
 
 ## Evaluation Plan Scope Regression Correction
 

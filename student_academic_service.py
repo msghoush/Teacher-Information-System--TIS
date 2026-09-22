@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 
 from sqlalchemy import and_, func, or_
@@ -27,6 +28,42 @@ class StudentAcademicError(ValueError):
 # specified", mirroring how other optional Student fields (e.g. gender) are
 # already cleared by ``_clean`` below.
 LEARNING_STYLES = ("Visual", "Auditory", "Read/Write", "Kinesthetic")
+
+
+# TIS Student Number (ADR 0043/M2): the one globally unique, system-managed
+# StudentExternalIdentifier namespace. Business/API input is exactly ten ASCII
+# digits (leading zeros preserved as a string, never parsed as an integer);
+# the service alone controls the canonical "STD" + 10-digit stored format.
+# This namespace is blocked from the generic external-identifier create/
+# deactivate paths below - it may only be created/replaced through the
+# dedicated functions in this section.
+STUDENT_NUMBER_NAMESPACE = "tis_student_number"
+STUDENT_NUMBER_PREFIX = "STD"
+MANAGED_EXTERNAL_IDENTIFIER_NAMESPACES = frozenset({STUDENT_NUMBER_NAMESPACE})
+_STUDENT_NUMBER_DIGITS_RE = re.compile(r"^[0-9]{10}$")
+
+
+def validate_student_number_digits(value):
+    """Validate the business-facing Student number input: exactly 10 ASCII digits.
+
+    Leading zeros are preserved because this never parses the value as an
+    integer. Rejects short/long/non-digit/whitespace/None/empty input; never
+    silently normalizes an arbitrary mixed string.
+    """
+    if not isinstance(value, str) or not _STUDENT_NUMBER_DIGITS_RE.fullmatch(value):
+        raise StudentAcademicError(
+            "invalid_student_number",
+            "Student number must be exactly 10 digits (0-9 only, leading zeros preserved).",
+        )
+    return value
+
+
+def canonical_student_number(value):
+    """Server-controlled canonicalization: STD + the validated 10-digit value.
+
+    The client never supplies or controls the ``STD`` prefix.
+    """
+    return f"{STUDENT_NUMBER_PREFIX}{validate_student_number_digits(value)}"
 
 
 def _clean_learning_style(value):
@@ -108,6 +145,36 @@ def create_student(db: Session, *, school_group_id: int, first_name, last_name,
     db.add(student); db.flush()
     _audit(db, school_group_id=school_group_id, student_id=student.id, actor=actor,
            resource_type="student", resource_id=student.id, action="create", after=_student_payload(student))
+    return student
+
+
+def create_student_with_number(db: Session, *, school_group_id: int, student_number, first_name, last_name,
+                               father_name=None, gender=None, learning_style=None, actor=None):
+    """Create a new Student together with its mandatory managed Student number, atomically.
+
+    ADR 0043/M2: new Students require a Student number (existing legacy
+    Students are unaffected and may continue without one - see
+    ``create_student`` above, still used unchanged by legacy/UI callers).
+    ``student_number`` is exactly 10 business-facing digits; the canonical
+    ``STD``-prefixed value is stored via a normal managed
+    ``StudentExternalIdentifier`` row. Both writes happen in the same
+    uncommitted database transaction: if the identifier insert fails (format
+    error surfaces before either write; a uniqueness conflict/race surfaces
+    as ``IntegrityError`` from the flush below), the caller must roll back
+    the whole transaction so no orphan/partial Student row is left behind -
+    this function never commits.
+    """
+    if student_number is None or str(student_number).strip() == "":
+        raise StudentAcademicError("invalid_student_number", "Student number is required.")
+    canonical_value = canonical_student_number(student_number)
+    student = create_student(
+        db, school_group_id=school_group_id, first_name=first_name, last_name=last_name,
+        father_name=father_name, gender=gender, learning_style=learning_style, actor=actor,
+    )
+    _insert_active_student_number(
+        db, school_group_id=school_group_id, student_id=student.id,
+        canonical_value=canonical_value, actor=actor, action="create",
+    )
     return student
 
 
@@ -325,6 +392,16 @@ def add_external_identifier(db: Session, *, school_group_id: int, student_id: in
     if get_student(db, school_group_id, student_id) is None:
         raise StudentAcademicError("not_found", "Student was not found.")
     namespace = _clean(namespace, "namespace", required=True, maximum=80)
+    # TIS Student Number (ADR 0043/M2) is system-managed: block the generic
+    # create path from touching it so callers cannot bypass the mandatory
+    # ten-digit format validation, canonical STD-prefix, or global-uniqueness
+    # conflict handling that only create_student_with_number/set_student_number
+    # implement. Every other namespace is unaffected.
+    if namespace in MANAGED_EXTERNAL_IDENTIFIER_NAMESPACES:
+        raise StudentAcademicError(
+            "managed_namespace",
+            "This identifier namespace is system-managed and cannot be created directly.",
+        )
     value = _clean(value, "value", required=True, maximum=180)
     if db.query(models.StudentExternalIdentifier).filter_by(school_group_id=school_group_id, namespace=namespace, value=value).first():
         raise StudentAcademicError("duplicate_identifier", "That identifier already exists in this organization and namespace.")
@@ -344,12 +421,115 @@ def deactivate_external_identifier(db: Session, *, school_group_id: int, student
     ).one_or_none()
     if row is None:
         raise StudentAcademicError("not_found", "Student identifier was not found.")
+    # Same managed-namespace boundary as add_external_identifier above: the
+    # canonical Student number's active/inactive lifecycle is owned exclusively
+    # by set_student_number, so a caller cannot silently retire a Student's
+    # current managed number through the generic identifier path.
+    if row.namespace in MANAGED_EXTERNAL_IDENTIFIER_NAMESPACES:
+        raise StudentAcademicError(
+            "managed_namespace",
+            "This identifier namespace is system-managed and cannot be deactivated directly.",
+        )
     before = {"namespace": row.namespace, "value": row.value, "source": row.source, "status": row.status}
     row.status = "inactive"; row.updated_at = datetime.utcnow(); db.flush()
     after = {**before, "status": "inactive"}
     _audit(db, school_group_id=school_group_id, student_id=student_id, actor=actor,
            resource_type="external_identifier", resource_id=row.id, action="deactivate", before=before, after=after)
     return row
+
+
+# ---------------------------------------------------------------------------
+# TIS Student Number managed service (ADR 0043/M2)
+# ---------------------------------------------------------------------------
+
+def _insert_active_student_number(db: Session, *, school_group_id: int, student_id: int,
+                                  canonical_value: str, actor=None, action: str):
+    """Insert one active managed Student-number row and its audit event.
+
+    Deliberately does not catch ``IntegrityError``: the M1 partial unique
+    indexes on ``student_external_identifiers`` remain the final concurrency
+    authority for both the global-uniqueness and one-active-per-Student
+    invariants, and callers (the API routes) are responsible for rolling
+    back the transaction and safely classifying the conflict after a race.
+    """
+    row = models.StudentExternalIdentifier(
+        school_group_id=school_group_id, student_id=student_id,
+        namespace=STUDENT_NUMBER_NAMESPACE, value=canonical_value,
+        source="managed", status="active",
+    )
+    db.add(row)
+    db.flush()
+    _audit(db, school_group_id=school_group_id, student_id=student_id, actor=actor,
+           resource_type="external_identifier", resource_id=row.id, action=action,
+           after={"namespace": row.namespace, "value": row.value, "status": row.status})
+    return row
+
+
+def current_student_number(db: Session, *, school_group_id: int, student_id: int):
+    """Return the current active canonical ``STD``-prefixed value, or ``None``.
+
+    A legacy Student with no managed identifier row is valid and returns
+    ``None`` - this never fabricates or backfills a value.
+    """
+    row = db.query(models.StudentExternalIdentifier).filter_by(
+        school_group_id=school_group_id, student_id=student_id,
+        namespace=STUDENT_NUMBER_NAMESPACE, status="active",
+    ).one_or_none()
+    return row.value if row else None
+
+
+def set_student_number(db: Session, *, school_group_id: int, student_id: int, student_number, actor=None):
+    """Assign a Student number to a legacy Student, or replace its current one.
+
+    Validates and canonicalizes ``student_number`` first (format errors never
+    touch the database). If the Student already has an active managed number
+    with a different value, that row is marked ``inactive`` (never mutated
+    into the new value, preserving history/reservation per ADR 0043) and a
+    new active row is inserted for the new canonical value in the same
+    uncommitted transaction. ``Student.id`` is never changed. Does not catch
+    ``IntegrityError``; the caller rolls back and classifies the conflict.
+    """
+    student = get_student(db, school_group_id, student_id)
+    if student is None:
+        raise StudentAcademicError("not_found", "Student was not found.")
+    canonical_value = canonical_student_number(student_number)
+    existing_active = db.query(models.StudentExternalIdentifier).filter_by(
+        school_group_id=school_group_id, student_id=student_id,
+        namespace=STUDENT_NUMBER_NAMESPACE, status="active",
+    ).one_or_none()
+    if existing_active is not None and existing_active.value == canonical_value:
+        return existing_active
+    if existing_active is not None:
+        before = {"namespace": existing_active.namespace, "value": existing_active.value, "status": "active"}
+        existing_active.status = "inactive"
+        existing_active.updated_at = datetime.utcnow()
+        db.flush()
+        _audit(db, school_group_id=school_group_id, student_id=student_id, actor=actor,
+               resource_type="external_identifier", resource_id=existing_active.id, action="replace_retire",
+               before=before, after={**before, "status": "inactive"})
+    action = "replace" if existing_active is not None else "assign"
+    return _insert_active_student_number(
+        db, school_group_id=school_group_id, student_id=student_id,
+        canonical_value=canonical_value, actor=actor, action=action,
+    )
+
+
+def find_student_number_holder(db: Session, *, canonical_value: str):
+    """Read-only, unauthenticated lookup of who (if anyone) holds a canonical value.
+
+    This must only be called AFTER rolling back a failed insert triggered by
+    the M1 global-uniqueness index, and its raw result must never be returned
+    to a caller without an explicit authorization decision layered on top
+    (see ``routers/students.py``): it deliberately reveals nothing about
+    organization/Student identity by itself and does not grant any lookup
+    capability beyond a bare ``school_group_id``/``student_id`` pair.
+    """
+    row = db.query(models.StudentExternalIdentifier).filter_by(
+        namespace=STUDENT_NUMBER_NAMESPACE, value=canonical_value,
+    ).one_or_none()
+    if row is None:
+        return None
+    return {"school_group_id": row.school_group_id, "student_id": row.student_id}
 
 
 def _lock_student(db, *, school_group_id, student_id):

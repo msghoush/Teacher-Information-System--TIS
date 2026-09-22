@@ -174,12 +174,16 @@ def _admin_client(db, policy=_UNSET, scope="BRANCH"):
 def test_api_accepts_the_four_values_and_rejects_any_other_value(database):
     _, db = database
     client = _admin_client(db)
-    created = client.post("/api/students", json={"first_name": "Lina", "last_name": "Saleh", "learning_style": "Visual"})
+    created = client.post("/api/students", json={
+        "first_name": "Lina", "last_name": "Saleh", "learning_style": "Visual", "student_number": "0000000401",
+    })
     assert created.status_code == 201
     assert created.json()["learning_style"] == "Visual"
     student_id = created.json()["id"]
 
-    rejected = client.post("/api/students", json={"first_name": "Bad", "last_name": "Value", "learning_style": "Telepathic"})
+    rejected = client.post("/api/students", json={
+        "first_name": "Bad", "last_name": "Value", "learning_style": "Telepathic", "student_number": "0000000402",
+    })
     assert rejected.status_code == 400
     assert rejected.json()["code"] == "invalid_learning_style"
 

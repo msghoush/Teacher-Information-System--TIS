@@ -1,11 +1,40 @@
 ---
 title: TIS Change History
-documentation_version: 4.9
-last_updated: 2026-09-19
+documentation_version: 5.0
+last_updated: 2026-09-22
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-22 — Students + Talent & Potential M2: Managed Student ID Backend/Service/API
+
+Implemented the ADR 0043-deferred TIS Student number create/edit service/API
+on the M1 schema foundation (no new migration). Business input is exactly
+ten ASCII digits (leading zeros preserved); the service alone canonicalizes
+to `STD` + the 10 digits. `POST /api/students` now requires `student_number`
+for new Students and atomically creates the Student row plus its managed
+`tis_student_number` identifier (an identifier-insert failure rolls back the
+whole transaction, leaving no orphan Student); existing legacy Students and
+the unmodified HTML `/students/new` UI path are unaffected. A new
+`PUT /api/students/{student_id}/student-number` route (gated by the
+already-governed `students.manage_identifiers` permission - no new
+permission key) assigns or replaces a Student's number: replacement retires
+the old row (never mutates its value) and activates a new one, so
+`Student.id` is unchanged and the M1 global-uniqueness index keeps the old
+value permanently reserved. The generic external-identifier create/deactivate
+functions now reject the `tis_student_number` namespace so they cannot
+bypass the managed contract. Duplicate-value conflicts are classified only
+after the failing transaction is rolled back and disclose `student_id`/
+`display_name` if and only if the conflict is same-tenant AND the requester
+independently holds `students.view`; every other case (cross-tenant,
+unauthorized same-tenant, or a retired value) returns one identical generic
+`student_number_unavailable` body. A canonical `student_number` field is now
+exposed on Student JSON responses. See `docs/PROJECT_STATE.md` for the full
+implementation-truth summary and `tests/test_student_managed_number_service.py`
+(46 tests) for the complete test matrix; three pre-existing tests that
+created Students via the API without a number were updated to supply one.
+No schema, migration, new permission, frontend, or `tis.db` change.
 
 ## 2026-09-19 — Talent & Potential sidebar icon uses the shared icon system (UI polish)
 
