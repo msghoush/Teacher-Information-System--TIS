@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - Added the primary Branch comparison chart
+
+- Replaced Organization Overview's fixed Branch summary with one
+  Program-scoped chart over the existing M4 Branch comparison endpoint.
+- Added the exact seven approved metrics, including permission projection for
+  Candidate/Identification metrics and the four current Learning Style
+  dimensions.
+- Preserved backend Branch/Period order, frozen attribution, real zero, and
+  distinct protected/no-data presentation without exposing hidden counts.
+- Kept framework-incompatible Overall Result non-numeric and added no client
+  aggregation, Organization derivation, privacy logic, second chart, backend
+  semantic change, schema, migration, or M11 roster frontend.
+
 ## 2026-09-23 - Added backend-authoritative Student Evaluation Progress UI
 
 - Added compact Evaluation Progress to each Program and Academic Year in the

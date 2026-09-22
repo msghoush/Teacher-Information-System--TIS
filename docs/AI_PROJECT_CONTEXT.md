@@ -7,6 +7,28 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Results & Analytics Branch Comparison Frontend (M10, Students Product Sequence)
+
+Organization Overview now contains one primary Program-scoped Branch comparison
+chart backed by the existing M4 `branch-comparison` endpoint. Its selector is
+limited to the seven governed metric families: Evaluation Period Result,
+Overall Result, Assessment Completion, Assessments Started, permission-projected
+Meets Program Criteria and Officially Confirmed, and Learning Style. Learning
+Style uses only the current Verbal, Non-verbal, Quantitative, and Spatial
+dimension parameter defined by the backend.
+
+The chart preserves backend row and Period order and uses the existing
+privacy-safe Branch-label projection. Only a `visible` backend state may create
+a numeric bar; zero remains a real `0%`, while suppressed, restricted,
+coarsened, and no-data states stay categorical and disclose no hidden count or
+value. Framework mismatch produces an explanation rather than an Overall Result
+bar. The browser performs no Branch/Organization mean, metric conversion,
+Learning Style aggregation/normalization, privacy-threshold decision,
+suppression reconstruction, current-Placement regrouping, or cross-framework
+calculation. No Organization summary is added because the comparison contract
+does not expose one consistently across all seven metrics. M11 roster UI,
+analytics/backend semantics, schema, and migrations remain unchanged.
+
 ## Student Evaluation Progress Frontend (M9, Students Product Sequence)
 
 Student Profile's Talent tab now renders compact Evaluation Progress for each

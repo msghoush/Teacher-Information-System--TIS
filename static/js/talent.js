@@ -14,6 +14,10 @@
     candidate_of_eligible:'Talent share',
     identified_count:'Officially confirmed', identified_of_eligible:'Officially confirmed share',
     participation_overlap:'Distinct participating Students',
+    evaluation_period_result:'Evaluation Period Result', current_overall_progress:'Overall Result',
+    assessment_completion:'Assessment Completion', assessments_started:'Assessments Started',
+    meets_program_criteria:'Meets Program Criteria', officially_confirmed:'Officially Confirmed',
+    learning_style:'Learning Style',
   };
   const states = {suppressed:'Protected for privacy', complementary_suppressed:'Protected for privacy',
     restricted:'Not available for this view', no_data:'No data yet', coarsened:'Shown as a broader group'};
@@ -109,6 +113,48 @@
     }).join('');
     return `<div class="tp-grade-chart tp-branch-chart" role="group" aria-label="Results by Branch">${body}</div>`;
   }
+  const branchComparisonMetricOptions = (candidateAllowed, identificationAllowed) => [
+    ['evaluation_period_result','Evaluation Period Result'],
+    ['current_overall_progress','Overall Result'],
+    ['assessment_completion','Assessment Completion'],
+    ['assessments_started','Assessments Started'],
+    ...(candidateAllowed?[['meets_program_criteria','Meets Program Criteria']]:[]),
+    ...(identificationAllowed?[['officially_confirmed','Officially Confirmed']]:[]),
+    ['learning_style','Learning Style'],
+  ];
+  const branchStateText = state => ({
+    suppressed:'Protected for privacy', complementary_suppressed:'Protected for privacy',
+    restricted:'Not available for this view', no_data:'No data',
+    coarsened:'Shown as a broader group',
+  }[state] || 'No data');
+  const branchMetricValue = (row, metricName) => {
+    if (!row || row.state !== 'visible') return null;
+    if (metricName === 'current_overall_progress') return typeof row.value === 'number' ? row.value : null;
+    if (metricName === 'learning_style' || metricName === 'evaluation_period_result') return typeof row.mean_normalized_percent === 'number' ? row.mean_normalized_percent : null;
+    return typeof row.percentage === 'number' ? row.percentage : null;
+  };
+  function branchComparisonBar(row, metricName, accessibleLabel) {
+    const value=branchMetricValue(row,metricName);
+    if(value===null)return `<div class="tp-branch-comparison-state is-${esc(row?.state||'no_data')}">${esc(branchStateText(row?.state))}</div>`;
+    return `<div class="tp-branch-comparison-value"><div class="tp-branch-comparison-track" role="img" aria-label="${esc(accessibleLabel)}: ${esc(value)} percent"><span style="width:${esc(value)}%"></span></div><strong>${esc(value)}%</strong></div>`;
+  }
+  function branchComparisonChart(data, branches) {
+    const rows=Array.isArray(data?.rows)?data.rows:[];
+    const branchNames=new Map((branches||[]).map(branch=>[String(branch.id),branch.label||branch.name]));
+    const title=labels[data?.metric]||'Branch result';
+    const frameworkMessage=data?.comparability_state==='not_comparable'&&data?.comparability_reason_code==='framework_changed'
+      ? '<p class="tp-state-explanation" role="status">Overall Result is unavailable because the Program framework changed between Evaluation Periods. No cross-framework result is calculated.</p>' : '';
+    if(!rows.length)return frameworkMessage+empty('No Branch results are available for this Program and Academic Year.');
+    const body=rows.map(row=>{
+      const branchLabel=branchNames.get(String(row.branch_id))||'Authorized Branch';
+      if(data.metric==='evaluation_period_result'){
+        const periods=Array.isArray(row.periods)?row.periods:[];
+        return `<li class="tp-branch-comparison-row"><h4>${esc(branchLabel)}</h4><div class="tp-branch-period-results">${periods.map(period=>`<div><span>${esc(period.label)}</span>${branchComparisonBar(period,data.metric,`${branchLabel}, ${period.label}`)}</div>`).join('')||`<p class="tp-branch-comparison-state is-no_data">No data</p>`}</div></li>`;
+      }
+      return `<li class="tp-branch-comparison-row"><h4>${esc(branchLabel)}</h4>${branchComparisonBar(row,data.metric,`${branchLabel}, ${title}`)}</li>`;
+    }).join('');
+    return frameworkMessage+`<ol class="tp-branch-comparison" aria-label="${esc(title)} by Branch">${body}</ol>`;
+  }
   const rubricLevelIntensity = rubricVisual.intensity;
   const rubricDistribution = rubricVisual.distribution;
   function kpiCard(key, cell, href='', context='') {
@@ -196,7 +242,7 @@
     return path+plot+`<ol class="tp-sequence tp-period-grid">${data.points.map(p=>`<li class="tp-period"><span class="tp-seq">${esc(p.evaluation_period.sequence)}</span><div><h3>${esc(p.evaluation_period.label)}</h3>${badge(p.evaluation_period.status)}<p>${esc(labels[data.metric])}</p>${metric(p.metric_result)}${p.no_data_reason?`<p class="tp-state-explanation">${esc(friendlyReason(p.no_data_reason))}</p>`:''}</div></li>`).join('')}</ol>`;
   }
   // Small pure boundary exported for privacy and injection regression tests.
-  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, branchComparisonMetricOptions, branchMetricValue, branchComparisonChart, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection};
   if (typeof document === 'undefined') return;
   const configNode = document.getElementById('tp-config');
   if (!configNode) return;
@@ -204,7 +250,7 @@
   const root = document.getElementById('tp-content'), status = document.getElementById('tp-status');
   const form = document.getElementById('tp-filters'), year = document.getElementById('tp-year');
   const program = document.getElementById('tp-program'), branch = document.getElementById('tp-branch'), grade = document.getElementById('tp-grade'), section = document.getElementById('tp-section'), metricSelect = document.getElementById('tp-metric');
-  const dimension = document.getElementById('tp-dimension');
+  const dimension = document.getElementById('tp-dimension'), learningStyleDimension = document.getElementById('tp-learning-style-dimension');
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map();
   const can = key => permissions[key] === true;
   const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
@@ -358,7 +404,8 @@
       // three-tier distinction preserved throughout this view.
       const identificationAllowed=can('talent_official_identifications.view');
       const rubricAllowed=Boolean(pid)&&can('talent_analytics.view');
-      const [overview,map,gradeMap,identifiedMap,rubric,longitudinal,studentPreview]=await Promise.all([
+      const selectedBranchMetric=metricSelect.value||'current_overall_progress';
+      const [overview,map,gradeMap,identifiedMap,rubric,longitudinal,studentPreview,branchComparison]=await Promise.all([
         api(`${base}overview?${qs(common)}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_grade'})}`,signal),
@@ -366,6 +413,7 @@
         rubricAllowed?api(`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`,signal).catch(()=>null):Promise.resolve(null),
         pid?api(`${base}programs/${encodeURIComponent(pid)}/longitudinal?${qs({...common,metric:'completion_coverage'})}`,signal).catch(()=>null):Promise.resolve(null),
         can('talent_analytics.view_students')?api(`${base}students?${qs({...common,limit:10,offset:0})}`,signal).catch(()=>null):Promise.resolve(null),
+        pid?api(`evaluation-progress/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/branch-comparison?${qs({metric:selectedBranchMetric,...(selectedBranchMetric==='learning_style'?{learning_style_dimension:learningStyleDimension.value}:{})})}`,signal):Promise.resolve(null),
       ]);
       // Drawn only from the already-privacy-closed organization_total cell the
       // backend returns for this exact scope (org-wide, or the selected
@@ -391,8 +439,7 @@
       const m={...(overview.metrics||{})};
       const rateKpis=['completion_coverage','started_coverage','required_period_execution'].filter(k=>Object.hasOwn(m,k));
       const factKpis=['candidate_membership_count'].filter(k=>Object.hasOwn(m,k));
-      const branchItems=(map.columns||[]).map(branch=>({label:branch.label,cell:(map.column_totals||[]).find(t=>String(t.branch_id)===String(branch.id)),href:`/talent/branch?${qs({academic_year_id:ay,branch_id:branch.id})}`}));
-      const branchVisual=branchBars(branchItems);
+      const branchVisual=pid&&branchComparison?branchComparisonChart(branchComparison,map.columns||[]):empty('Choose one Program to compare its Branch results.');
       const gradeItems=(gradeMap.columns||[]).map(col=>({label:col.label,cell:(gradeMap.column_totals||[]).find(t=>String(t.grade_level)===String(col.id))}));
       const gradeSection=(gradeMap.columns&&gradeMap.columns.length)?`<section aria-labelledby="tp-grade-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Grades</p><h3 id="tp-grade-title">${can('talent_review_candidates.view')?'Talent by Grade':'Assessment progress by Grade'}</h3></div>${link('talent-map','Open the full Talent Map',{metric:overviewMetric,dimension:'program_grade'})}</div>${gradeGauges(gradeItems)}</section>`:'';
       const progressionSection=longitudinal?`<section aria-labelledby="tp-period-progression"><div class="tp-section-heading"><div><p class="tp-eyebrow">Evaluation Periods</p><h3 id="tp-period-progression">Assessment progression</h3></div>${link('longitudinal','Open Progress Over Time',{program_id:pid})}</div>${periodVisual(longitudinal)}</section>`:'';
@@ -403,7 +450,7 @@
         programResultSection+
         competencyAverageSection+
         gradeSection+
-        `<section aria-labelledby="tp-branch-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3 id="tp-branch-summary">${can('talent_review_candidates.view')?'Talent activity by Branch':'Assessment progress by Branch'}</h3></div><p>Select a Branch to drill into its authorized Program, Grade, assessment, review, and identification statistics. Branches are never ranked.</p></div>${branchVisual}</section>`+
+        `<section aria-labelledby="tp-branch-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3 id="tp-branch-summary">Branch comparison</h3></div><p>One backend-authoritative result per Branch. Protected and no-data states never become zero.</p></div>${branchVisual}</section>`+
         progressionSection+
         studentResultsSection+
         `<div class="tp-actions">${link('portfolio','Open Program Results')}${link('talent-map','Open Talent Map',{metric:overviewMetric})}</div>`+
@@ -498,6 +545,7 @@
     if(!section.parentElement.hidden){section.value?params.set('planning_section_id',section.value):params.delete('planning_section_id');}
     if(!metricSelect.parentElement.hidden)params.set('metric',metricSelect.value);
     if(!dimension.parentElement.hidden)params.set('dimension',dimension.value);
+    if(!learningStyleDimension.parentElement.hidden)params.set('learning_style_dimension',learningStyleDimension.value);
     params.delete('offset');
     history.replaceState(null,'',`${location.pathname}?${params}`);
     syncNavigation();updateBreadcrumb();load();
@@ -505,6 +553,10 @@
   form.addEventListener('submit',event=>{event.preventDefault();clearTimeout(autoApplyTimer);applyContext();});
   form.addEventListener('change',async event=>{
     if(!event.target.matches('select'))return;
+    if(event.target===metricSelect&&config.view==='analytics'){
+      learningStyleDimension.parentElement.hidden=metricSelect.value!=='learning_style';
+      if(metricSelect.value!=='learning_style')params.delete('learning_style_dimension');
+    }
     if(event.target===year && !branch.parentElement.hidden) await refreshPlanningBranches();
     else if(event.target===branch && !grade.parentElement.hidden) await refreshPlanningGrades();
     else if(event.target===grade && !section.parentElement.hidden) await refreshPlanningSections();
@@ -553,6 +605,15 @@
       if(can('talent_official_identifications.view'))metrics.push('identified_count','identified_of_eligible');
       metricSelect.innerHTML=metrics.map(m=>`<option value="${m}">${labels[m]}</option>`).join('');
       metricSelect.value=metrics.includes(params.get('metric'))?params.get('metric'):'completion_coverage';
+    }
+    if(config.view==='analytics') {
+      document.getElementById('tp-metric-field').hidden=false;
+      const metrics=branchComparisonMetricOptions(can('talent_review_candidates.view'),can('talent_official_identifications.view'));
+      metricSelect.innerHTML=metrics.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
+      metricSelect.value=metrics.some(([value])=>value===params.get('metric'))?params.get('metric'):'current_overall_progress';
+      document.getElementById('tp-learning-style-dimension-field').hidden=metricSelect.value!=='learning_style';
+      const allowedDimensions=['verbal','non_verbal','quantitative','spatial'];
+      learningStyleDimension.value=allowedDimensions.includes(params.get('learning_style_dimension'))?params.get('learning_style_dimension'):'verbal';
     }
     if(config.view==='talent-map') {
       document.getElementById('tp-dimension-field').hidden=false;

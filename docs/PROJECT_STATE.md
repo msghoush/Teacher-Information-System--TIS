@@ -7,6 +7,34 @@ source_of_truth: true
 
 # TIS Project State
 
+## Results & Analytics Branch Comparison Frontend M10 Implemented (2026-09-23)
+
+Organization Overview's prior fixed Branch summary is replaced by one primary,
+Program-scoped Branch comparison chart consuming the existing M4
+`GET /api/talent/evaluation-progress/programs/{program_id}/academic-years/
+{academic_year_id}/branch-comparison` contract. The metric selector exposes
+only Evaluation Period Result, Overall Result, Assessment Completion,
+Assessments Started, permission-projected Meets Program Criteria and Officially
+Confirmed, and Learning Style. Learning Style conditionally exposes only
+Verbal, Non-verbal, Quantitative, and Spatial and sends the selected dimension
+to the backend.
+
+Backend Branch and Evaluation Period ordering is preserved. Existing Talent Map
+Branch columns provide the already-authorized display names for returned Branch
+IDs. A numeric bar is rendered only for `state="visible"`; zero is valid, while
+suppressed/complementary-suppressed, restricted, coarsened, and no-data states
+remain distinct textual categories. Numeric/count fields are ignored for every
+non-visible state. Framework-changed Overall Result remains non-numeric and is
+explained without cross-version calculation.
+
+The frontend does not calculate Branch or Organization means, derive one metric
+from another, normalize Learning Style, inspect privacy thresholds, reconstruct
+suppressed values, or group by current Placement. No Organization summary is
+added because it is not a uniform field of the seven-metric comparison
+contract. Frozen historical Branch attribution remains backend-authoritative.
+No second chart, M11 roster frontend, backend semantic change, privacy redesign,
+schema, or migration is introduced.
+
 ## Student Evaluation Progress Frontend M9 Implemented (2026-09-23)
 
 The existing Student Profile Talent tab now consumes the M4

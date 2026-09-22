@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Results & Analytics Branch Comparison Frontend (M10)
+
+- `templates/talent/workspace.html`: adds the labeled Learning Style dimension
+  selector beside the existing Program/Academic-Year/Metric context controls.
+- `static/js/talent.js`: Organization Overview requests the existing M4 Branch
+  comparison route for the selected Program, metric, and optional Learning
+  Style dimension; one chart renders backend rows without reordering or
+  analytics calculation. Existing Talent Map columns supply authorized Branch
+  display labels.
+- `static/css/talent.css`: owns the responsive horizontal bar, grouped Period,
+  and categorical protected/no-data treatments.
+- `routers/talent_evaluation_progress.py` and
+  `talent_evaluation_progress_service.py` remain unchanged authorities for the
+  seven-metric allowlist, permissions, frozen Branch grouping, privacy closure,
+  Learning Style means, Framework comparability, and serialized values.
+- The frontend never renders a numeric bar for a non-visible state and never
+  calculates Branch/Organization results or privacy decisions. No second chart,
+  backend route, permission, schema, migration, or M11 roster surface is added.
+
 ## Student Evaluation Progress Frontend (M9)
 
 - `templates/student_profile.html`: owns the existing authorized Student Talent

@@ -7,6 +7,33 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Results & Analytics Branch Comparison Flow (M10)
+
+1. An authorized user opens Organization Overview and selects an Academic Year
+   and one Program.
+2. The metric selector offers the exact backend allowlist, omitting Meets
+   Program Criteria or Officially Confirmed when their independent permissions
+   are absent.
+3. Selecting Learning Style reveals only Verbal, Non-verbal, Quantitative, and
+   Spatial; the selected dimension is sent as `learning_style_dimension`.
+4. A selector change requests the existing M4 Branch comparison endpoint. The
+   backend performs frozen historical Branch attribution, metric calculation,
+   privacy closure, and Framework comparability.
+5. The browser walks returned Branch rows and Evaluation Period entries in
+   response order and resolves their names from the already-authorized Talent
+   Map Branch columns.
+6. Only `visible` rows render supplied percentages as bars and text, including
+   valid zero. Suppressed, restricted, coarsened, and no-data rows render their
+   categorical meaning without inspecting any numeric/count fields.
+7. A framework-changed Overall Result remains non-numeric and receives a concise
+   explanation.
+
+The browser does not calculate or average Branch/Organization values, derive a
+metric, normalize Learning Style, evaluate thresholds, reconstruct hidden
+values, regroup by current Placement, or calculate across Framework versions.
+The comparison contract has no uniform Organization summary across all seven
+metrics, so this M10 surface adds none.
+
 ## Student Evaluation Progress Frontend Flow (M9)
 
 1. An authorized user opens a Student Profile's existing Talent tab.
