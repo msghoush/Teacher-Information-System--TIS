@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Students M7 Frontend Ownership
+
+- `routers/students_ui.py` projects canonical managed Student IDs, delegates new
+  creation/authorized replacement to existing Student services, parses HTML
+  blanks as nullable Learning Style dimensions, and reuses the shared duplicate
+  conflict projection.
+- `templates/student_form.html`, `templates/student_profile.html`, and
+  `templates/students.html` own the bounded create/list/profile/edit presentation.
+- `templates/_learning_style.html`, `static/js/students.js`, and
+  `static/css/students.css` own reusable accessible dimension controls/profile
+  bars and responsive fixed-prefix behavior.
+- `routers/students.py`, `student_academic_service.py`, models, migrations, and
+  the M5 Section formatter remain the backend authorities and are not redesigned.
+- Roster import/export frontend remains absent and assigned to M11.
+
 ## Talent Rubric Visuals And Analytics Ownership
 
 - `static/js/talent-rubric-visual.js` and `static/css/talent-rubric-visual.css`: shared arbitrary-label/count rubric ordering, position cue, selected state, and reduced-motion treatment.

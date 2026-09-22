@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Students M7 Create/Edit/Profile Flow
+
+1. New Student entry shows a fixed `STD` prefix and accepts exactly ten text
+   digits, plus optional independent Verbal, Non-verbal, Quantitative, and
+   Spatial whole percentages from 0 through 100.
+2. The server validates and atomically creates the Student plus managed number;
+   the browser never authorizes, canonicalizes the prefix, or resolves conflicts.
+3. A duplicate response uses the shared privacy-safe conflict projection: an
+   independently authorized same-tenant actor may see minimal Student identity,
+   while cross-tenant and unauthorized cases remain generic.
+4. Legacy Students without a managed number display a neutral missing state and
+   may edit other Student fields. Number assignment/replacement is a separate
+   `students.manage_identifiers` action.
+5. Blank Learning Style dimensions remain null, zero remains `0%`, dimensions
+   are not normalized, and deprecated categorical data is not auto-converted.
+6. Profile/current Placement/history continue to consume server-projected M5
+   `section_display`; canonical Placement and Planning Section identity remain
+   unchanged and are still used for requests.
+
 ## Owner Video Acceptance Flow Corrections
 
 1. Student Assessments groups configured Programs beneath each user-defined Evaluation Period whether or not an internal Cycle already exists.

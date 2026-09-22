@@ -62,7 +62,12 @@ def test_new_student_workflow(db, client):
     assert client.get("/students/new").status_code == 200
     before = db.query(models.Student).filter_by(school_group_id=1).count()
     response = client.post("/students/new", data={
-        "first_name": "Carla", "last_name": "New", "father_name": "", "gender": "Female",
+        "student_number": "0012345678", "first_name": "Carla", "last_name": "New",
+        "father_name": "", "gender": "Female",
+        "learning_style_verbal_percentage": "0",
+        "learning_style_non_verbal_percentage": "25",
+        "learning_style_quantitative_percentage": "75",
+        "learning_style_spatial_percentage": "",
     })
     # TestClient follows the post-login redirect; the student creation is what matters.
     assert response.status_code in (200, 302)
@@ -71,6 +76,142 @@ def test_new_student_workflow(db, client):
     created = db.query(models.Student).filter_by(school_group_id=1, first_name="Carla").one()
     assert created.last_name == "New"
     assert created.status == "active"
+    identifier = db.query(models.StudentExternalIdentifier).filter_by(student_id=created.id, status="active").one()
+    assert identifier.value == "STD0012345678"
+    assert created.learning_style_verbal_percentage == 0
+    assert created.learning_style_non_verbal_percentage == 25
+    assert created.learning_style_quantitative_percentage == 75
+    assert created.learning_style_spatial_percentage is None
+
+
+def test_m7_create_form_has_accessible_fixed_prefix_and_independent_dimensions(db, client):
+    permissions(db, "students.create")
+    response = client.get("/students/new")
+    assert response.status_code == 200
+    text = response.text
+    assert '<span class="stu-id-prefix" aria-hidden="true">STD</span>' in text
+    assert 'name="student_number" type="text" inputmode="numeric" pattern="[0-9]{10}"' in text
+    assert 'minlength="10" maxlength="10" required' in text
+    for field, label in (
+        ("learning_style_verbal_percentage", "Verbal"),
+        ("learning_style_non_verbal_percentage", "Non-verbal"),
+        ("learning_style_quantitative_percentage", "Quantitative"),
+        ("learning_style_spatial_percentage", "Spatial"),
+    ):
+        assert f'for="{field}">{label}</label>' in text
+        assert f'name="{field}" type="text" inputmode="numeric"' in text
+    assert "Each dimension is independent" in text
+    assert "students.js" in text
+
+
+@pytest.mark.parametrize("student_number", ["123456789", "12345678901", "12345x7890"])
+def test_m7_create_rejects_invalid_student_id_and_preserves_entered_data(db, client, student_number):
+    permissions(db, "students.create")
+    before = db.query(models.Student).count()
+    response = client.post("/students/new", data={
+        "student_number": student_number, "first_name": "Preserved", "last_name": "Input",
+        "learning_style_verbal_percentage": "35",
+    })
+    assert response.status_code == 200
+    assert "Student number must be exactly 10 digits" in response.text
+    assert 'value="Preserved"' in response.text
+    assert f'value="{student_number}"' in response.text
+    assert 'value="35"' in response.text
+    assert db.query(models.Student).count() == before
+
+
+def test_m7_duplicate_student_id_disclosure_is_tenant_safe(db, client):
+    permissions(db, "students.create", "students.view")
+    db.add_all([
+        models.StudentExternalIdentifier(
+            school_group_id=1, student_id=1001, namespace="tis_student_number",
+            value="STD1111111111", status="active",
+        ),
+        models.StudentExternalIdentifier(
+            school_group_id=2, student_id=2001, namespace="tis_student_number",
+            value="STD2222222222", status="active",
+        ),
+    ])
+    db.commit()
+
+    same = client.post("/students/new", data={
+        "student_number": "1111111111", "first_name": "Same", "last_name": "Tenant",
+    })
+    assert same.status_code == 200
+    assert "That TIS Student ID is unavailable." in same.text
+    assert "Open Alya Learner" in same.text
+
+    cross = client.post("/students/new", data={
+        "student_number": "2222222222", "first_name": "Cross", "last_name": "Tenant",
+    })
+    assert cross.status_code == 200
+    assert "That TIS Student ID is unavailable." in cross.text
+    assert "Foreign Learner" not in cross.text
+    assert "/students/2001" not in cross.text
+
+
+def test_m7_profile_distinguishes_zero_from_unavailable_and_legacy_student_is_editable(db, client):
+    permissions(db, "students.view", "students.edit", "students.manage_identifiers")
+    student = db.get(models.Student, 1001)
+    student.learning_style = "Visual"
+    student.learning_style_verbal_percentage = 0
+    student.learning_style_non_verbal_percentage = None
+    student.learning_style_quantitative_percentage = 80
+    student.learning_style_spatial_percentage = 35
+    db.commit()
+
+    profile = client.get("/students/1001?section=overview")
+    assert profile.status_code == 200
+    assert "TIS Student ID unavailable" in profile.text
+    assert "Not assigned" in profile.text
+    assert 'aria-label="Verbal: 0 percent"' in profile.text
+    assert 'aria-valuenow="0"' in profile.text
+    assert 'aria-label="Non-verbal: not available"' in profile.text
+    assert "Visual" not in profile.text
+
+    edited = client.post("/students/1001/edit", data={
+        "first_name": "Alya", "last_name": "Updated", "father_name": "", "gender": "",
+        "learning_style_verbal_percentage": "0", "learning_style_non_verbal_percentage": "",
+        "learning_style_quantitative_percentage": "80", "learning_style_spatial_percentage": "35",
+    })
+    assert edited.status_code in (200, 302)
+    assert db.get(models.Student, 1001).last_name == "Updated"
+    assert db.get(models.Student, 1001).learning_style == "Visual"
+    assert db.query(models.StudentExternalIdentifier).filter_by(student_id=1001).count() == 0
+
+    assigned = client.post(
+        "/students/1001/student-number", data={"student_number": "0000000042"},
+        follow_redirects=False,
+    )
+    assert assigned.status_code == 302
+    assert db.query(models.StudentExternalIdentifier).filter_by(
+        student_id=1001, status="active"
+    ).one().value == "STD0000000042"
+    assert "STD0000000042" in client.get("/students/1001?section=overview").text
+
+
+def test_m7_learning_style_validation_does_not_normalize_or_turn_blank_into_zero(db, client):
+    permissions(db, "students.view", "students.edit")
+    response = client.post("/students/1001/edit", data={
+        "first_name": "Alya", "last_name": "Learner", "father_name": "", "gender": "",
+        "learning_style_verbal_percentage": "75", "learning_style_non_verbal_percentage": "75",
+        "learning_style_quantitative_percentage": "", "learning_style_spatial_percentage": "0",
+    }, follow_redirects=False)
+    assert response.status_code == 302
+    student = db.get(models.Student, 1001)
+    assert student.learning_style_verbal_percentage == 75
+    assert student.learning_style_non_verbal_percentage == 75
+    assert student.learning_style_quantitative_percentage is None
+    assert student.learning_style_spatial_percentage == 0
+
+    invalid = client.post("/students/1001/edit", data={
+        "first_name": "Alya", "last_name": "Learner", "father_name": "", "gender": "",
+        "learning_style_verbal_percentage": "101",
+    }, follow_redirects=False)
+    assert invalid.status_code == 302
+    assert "error=" in invalid.headers["location"]
+    db.expire_all()
+    assert db.get(models.Student, 1001).learning_style_verbal_percentage == 75
 
 
 def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permissions(db, client):
@@ -285,7 +426,7 @@ def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
     text = response.text
     # Real <table> structure with the required columns, not a card-only layout.
     assert "stu-list-table" in text and "stu-list-cards" in text
-    for column in ("Student", "Grade", "Section", "Branch", "Learning Style", "Status", "Actions"):
+    for column in ("Student", "TIS Student ID", "Grade", "Section", "Branch", "Status", "Actions"):
         assert column in text
     css = Path("static/css/students.css").read_text(encoding="utf-8")
     assert ".stu-list-table { display: block; }" in css
@@ -295,7 +436,7 @@ def test_list_is_a_compact_table_with_mobile_only_cards(db, client):
     assert ".stu-list-cards { display: grid !important; }" in css
 
 
-def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mobile(db, client):
+def test_list_shows_student_id_and_does_not_promote_legacy_learning_style(db, client):
     # This scenario intentionally exercises organization-wide/cross-Branch
     # Students behavior, which is Administrator-only by the current contract.
     client.app.dependency_overrides[get_current_user] = lambda: actor(
@@ -304,33 +445,33 @@ def test_list_shows_persisted_learning_style_and_neutral_unset_on_desktop_and_mo
     permissions(db, "students.view", "students.edit")
     saved = db.get(models.Student, 1001)
     saved.learning_style = "Read/Write"
+    db.add(models.StudentExternalIdentifier(
+        school_group_id=1, student_id=1001, namespace="tis_student_number",
+        value="STD0000001001", status="active",
+    ))
     db.commit()
 
     response = client.get("/students/")
     assert response.status_code == 200
-    assert response.text.count("Read/Write") >= 2  # desktop row and mobile card
-    assert response.text.count("Not specified") >= 2
+    assert response.text.count("STD0000001001") >= 2  # desktop row and mobile card
+    assert response.text.count("TIS Student ID not assigned") >= 1
+    assert "Read/Write" not in response.text
     assert "<th>Talent score</th>" not in response.text
     assert "<th>Talent status</th>" not in response.text
 
-    # Persist through the real edit route, reload the list, then clear through
-    # the same route and verify the neutral fallback.
+    # Editing current fields must preserve deprecated historical categorical data.
     edited = client.post("/students/1001/edit", data={
         "first_name": "Alya", "last_name": "Learner", "father_name": "",
-        "gender": "", "learning_style": "Kinesthetic",
+        "gender": "", "learning_style_verbal_percentage": "0",
+        "learning_style_non_verbal_percentage": "20",
+        "learning_style_quantitative_percentage": "40",
+        "learning_style_spatial_percentage": "60",
     })
     assert edited.status_code in (200, 302)
-    assert db.get(models.Student, 1001).learning_style == "Kinesthetic"
-    assert "Kinesthetic" in client.get("/students/").text
-    cleared = client.post("/students/1001/edit", data={
-        "first_name": "Alya", "last_name": "Learner", "father_name": "",
-        "gender": "", "learning_style": "",
-    })
-    assert cleared.status_code in (200, 302)
-    assert db.get(models.Student, 1001).learning_style is None
+    assert db.get(models.Student, 1001).learning_style == "Read/Write"
     profile = client.get("/students/1001?section=overview")
-    assert 'value="" checked' in profile.text
-    assert "Not specified" in client.get("/students/").text
+    assert "Verbal: 0 percent" in profile.text
+    assert "Quantitative: 40 percent" in profile.text
 
 
 def test_current_placement_uses_change_flow_instead_of_overlapping_add_form(db, client):

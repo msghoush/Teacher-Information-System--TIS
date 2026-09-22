@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
-{% from "_learning_style.html" import learning_style_field %}
+{% from "_learning_style.html" import learning_style_percentage_fields %}
 {% block title %}Add Student | TIS{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
 {% block content %}
@@ -14,11 +14,21 @@
     <div class="stu-actions"><a class="stu-btn" href="/students/">{{ icon('close', 'shell-icon') }}Cancel</a></div>
   </header>
 
-  {% if error %}<div class="stu-banner stu-banner-error" role="alert">{{ error }}</div>{% endif %}
+  {% if error %}<div class="stu-banner stu-banner-error" role="alert" id="form-error">{{ error }}{% if conflict and conflict.student_id %} <a href="/students/{{ conflict.student_id }}">Open {{ conflict.display_name }}</a>.{% endif %}</div>{% endif %}
 
   <div class="stu-panel">
     <form class="stu-form" method="post" action="/students/new">
       <div class="stu-form-grid">
+        <div class="stu-field stu-field-full">
+          <label for="student_number">TIS Student ID</label>
+          <div class="stu-id-input">
+            <span class="stu-id-prefix" aria-hidden="true">STD</span>
+            <input id="student_number" name="student_number" type="text" inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" required autocomplete="off"
+                   aria-describedby="student-number-help{% if error_code in ('invalid_student_number', 'student_number_unavailable') %} form-error{% endif %}"
+                   value="{{ form.student_number if form else '' }}">
+          </div>
+          <p class="stu-hint" id="student-number-help">Enter exactly 10 digits. Leading zeros are preserved; the STD prefix is added by TIS.</p>
+        </div>
         <div class="stu-field">
           <label for="first_name">First name</label>
           <input id="first_name" name="first_name" required maxlength="100" value="{{ form.first_name if form else '' }}" autofocus>
@@ -38,10 +48,8 @@
           </select>
         </div>
       </div>
-      <div class="stu-field" style="margin-top: 8px;">
-        <label>Learning Style <span class="stu-hint">(optional)</span></label>
-        {{ learning_style_field(learning_style_options, form.learning_style if form else '') }}
-      </div>
+      {% if error_code == 'invalid_learning_style_percentage' %}<p class="stu-field-error" id="learning-style-error" role="alert">{{ error }}</p>{% endif %}
+      {{ learning_style_percentage_fields(learning_style_dimensions, form or {}, error_code or '') }}
       <div class="stu-form-actions">
         <button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save Student</button>
         <a class="stu-btn" href="/students/">Cancel</a>
@@ -50,3 +58,4 @@
   </div>
 </section>
 {% endblock %}
+{% block page_scripts %}<script src="{{ url_for('static', path='js/students.js') }}" defer></script>{% endblock %}

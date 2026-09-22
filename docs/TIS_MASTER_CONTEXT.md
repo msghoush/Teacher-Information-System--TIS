@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Students Frontend Identity And Learning Style (M7)
+
+Students create/list/profile/edit now consume the canonical managed TIS Student
+ID and four-dimension Learning Style backend contracts. The browser accepts only
+the 10-digit portion beside a fixed `STD` prefix, preserves leading zeroes, and
+does not construct authority or duplicate-conflict details. New Students require
+the ID; legacy Students may remain without one and can still edit other fields.
+ID replacement remains separately permissioned by `students.manage_identifiers`.
+
+Verbal, Non-verbal, Quantitative, and Spatial are independent nullable 0-100
+integer values. Blank and zero are distinct, no sum is enforced, and deprecated
+categorical Learning Style data is neither displayed as the current profile nor
+auto-converted. Student Placement identity/history and M5 Section presentation
+remain unchanged. Roster import/export UI remains deferred to M11.
+
 ## Current Permission Resolution Ownership Boundary
 
 Current-user permission evaluation remains canonical through

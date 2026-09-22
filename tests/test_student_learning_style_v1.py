@@ -251,16 +251,7 @@ def test_api_distribution_route_fails_closed_when_policy_unavailable(database):
     assert response.json()["code"] == "analytics_unavailable"
 
 
-def test_new_student_form_renders_the_selector_with_all_four_values_and_none_selected(db):
-    """Real rendered-HTML regression for the Add Student flow.
-
-    Closes a UI-level coverage gap: prior Learning Style V1 tests only
-    asserted service/API behavior, not that the shared
-    ``learning_style_field`` macro actually renders selectable radio pills
-    (as opposed to, say, an empty options list silently producing no
-    markup). A brand-new Student has no saved value, so only the
-    "Not specified" pill should be pre-selected.
-    """
+def test_new_student_form_replaces_legacy_selector_with_four_dimension_inputs(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -274,21 +265,17 @@ def test_new_student_form_renders_the_selector_with_all_four_values_and_none_sel
         response = client.get("/students/new")
     assert response.status_code == 200
     html = response.text
-    assert 'class="stu-ls-options" role="radiogroup"' in html
+    assert 'class="stu-ls-options" role="radiogroup"' not in html
+    for field in (
+        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+    ):
+        assert f'name="{field}"' in html
     for style in LEARNING_STYLES:
-        assert f'value="{style}"' in html
-    assert 'value="" checked' in html
-    assert html.count("is-selected") == 1
+        assert f'value="{style}"' not in html
 
 
-def test_edit_details_form_renders_the_selector_and_preselects_the_current_value(db):
-    """Real rendered-HTML regression for the Edit Details flow.
-
-    Proves the same shared macro renders in ``student_profile.html`` and
-    that a Student's currently saved Learning Style is marked
-    selected/checked when Edit Details is reopened, not just that the
-    read-only badge (which is separately tested/known-good) shows it.
-    """
+def test_edit_details_form_uses_dimensions_without_converting_legacy_value(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -307,30 +294,13 @@ def test_edit_details_form_renders_the_selector_and_preselects_the_current_value
         response = client.get("/students/6001?section=overview")
     assert response.status_code == 200
     html = response.text
-    assert 'class="stu-ls-options" role="radiogroup"' in html
-    for style in LEARNING_STYLES:
-        assert f'value="{style}"' in html
-    assert 'value="Kinesthetic" checked' in html
-    # Exactly one pill (Kinesthetic) is pre-selected in the edit control.
-    assert html.count('name="learning_style" value="Kinesthetic" checked') == 1
-    for style in LEARNING_STYLES:
-        if style != "Kinesthetic":
-            assert f'value="{style}" checked' not in html
+    assert 'name="learning_style"' not in html
+    assert "Kinesthetic" not in html
+    assert 'name="learning_style_verbal_percentage"' in html
+    assert 'aria-label="Verbal: not available"' in html
 
 
-def test_edit_details_form_preselects_not_specified_when_no_value_is_saved(db):
-    """Real rendered-HTML regression for the Edit Details flow when a
-    Student has never had a Learning Style saved (``learning_style`` is
-    ``None`` in the database, not an empty string).
-
-    The shared macro compares the saved value against each option
-    (including the empty-string "Not specified" option) with ``==``; a
-    Python/Jinja ``None`` saved value must still resolve to the
-    "Not specified" pill being checked/selected on load, exactly like a
-    freshly-created Student (see
-    ``test_new_student_form_renders_the_selector_with_all_four_values_and_none_selected``),
-    not leave every pill unselected.
-    """
+def test_edit_details_form_renders_blank_dimension_values_as_unavailable(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -349,30 +319,12 @@ def test_edit_details_form_preselects_not_specified_when_no_value_is_saved(db):
         response = client.get("/students/6002?section=overview")
     assert response.status_code == 200
     html = response.text
-    assert 'value="" checked' in html
-    assert html.count("is-selected") == 1
-    for style in LEARNING_STYLES:
-        assert f'value="{style}" checked' not in html
+    assert html.count("Not available") == 4
+    assert html.count('value=""') >= 4
+    assert 'name="learning_style"' not in html
 
 
-def test_learning_style_label_structurally_wraps_its_radio_with_no_intervening_element_or_id_collision(db):
-    """Structural proof that the click target is correct native HTML.
-
-    A Learning Style click/select defect was reported and reproduced in a
-    real browser. Reading ``_learning_style.html`` shows a ``<label>``
-    directly wrapping its ``<input type="radio">`` with a shared ``name``
-    (no ``id``/``for`` pairing at all, so a duplicate ``id`` elsewhere on
-    the page cannot break this specific control's association) - this is
-    exactly the robust native pattern that should make "click anywhere on
-    the pill selects it" work with zero JavaScript. This test proves that
-    structure holds in the real rendered page rather than only in the
-    template source: every ``stu-ls-option`` label's *first* child element
-    is its own radio input (nothing wraps or sits between the label and its
-    input that could intercept the click), and no ``id`` attribute is
-    duplicated anywhere on the rendered page (which would otherwise be able
-    to break unrelated ``for``/``id`` associations on the same page, e.g.
-    First/Last name).
-    """
+def test_learning_style_dimension_labels_are_unique_and_programmatically_associated(db):
     import re
 
     from fastapi.staticfiles import StaticFiles
@@ -394,16 +346,12 @@ def test_learning_style_label_structurally_wraps_its_radio_with_no_intervening_e
     assert response.status_code == 200
     html = response.text
 
-    # Every stu-ls-option label's first child (ignoring whitespace) is its
-    # own radio input - no wrapping/overlapping element sits in between.
-    label_opens = list(re.finditer(r'<label class="stu-ls-option[^"]*"[^>]*>', html))
-    assert len(label_opens) == 5  # "" + the four LEARNING_STYLES
-    for match in label_opens:
-        remainder = html[match.end():].lstrip()
-        assert remainder.startswith('<input type="radio" name="learning_style"'), (
-            "an element other than the radio input directly follows the "
-            "stu-ls-option <label> open tag, which could intercept clicks"
-        )
+    for field in (
+        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+    ):
+        assert f'<label for="{field}">' in html
+        assert f'id="{field}" name="{field}"' in html
 
     # No duplicate id anywhere on the page (a duplicate id could silently
     # break an unrelated for/id association elsewhere on the same page).

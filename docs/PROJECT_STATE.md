@@ -7,6 +7,32 @@ source_of_truth: true
 
 # TIS Project State
 
+## Students M7 Frontend Implemented (2026-09-23)
+
+The existing Students Jinja UI now uses the M2/M3 backend contracts for managed
+TIS Student IDs and the current four-dimension Learning Style profile. New
+Student creation renders a fixed `STD` prefix and submits exactly ten text
+digits through `create_student_with_number`; list/profile render the canonical
+value, and a legacy missing value is neutral rather than fabricated. Authorized
+assignment/replacement is a separate `students.manage_identifiers` UI action.
+Duplicate handling uses `describe_student_number_conflict`, exposing only the
+approved minimal same-tenant identity when independently authorized and staying
+generic for cross-tenant/unavailable values.
+
+Create/edit expose optional Verbal, Non-verbal, Quantitative, and Spatial
+whole-number inputs bounded 0-100. Profile display distinguishes unavailable
+from 0%, provides visible text and progress ARIA, and never normalizes the four
+values. The deprecated categorical value is preserved as historical data but is
+not auto-converted or used as the normal Student profile/list/edit presentation.
+Existing Placement and M5 server-produced `section_display` presentation are
+consumed unchanged, including historical Placement context.
+
+Implementation is bounded to `routers/students_ui.py`, existing Student
+templates/JS/CSS, and focused tests. No schema/migration, backend API contract,
+canonical Section identity, Student architecture, Learning Style architecture,
+roster import/export frontend, Talent cleanup, Evaluation Progress UI, or
+Results/Analytics chart work was introduced.
+
 ## Student Roster Import/Export Backend Implemented (M6) (2026-09-23)
 
 Following the M6 governance prerequisite below (permission registration,

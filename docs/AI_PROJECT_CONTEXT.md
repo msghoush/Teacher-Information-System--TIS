@@ -7,6 +7,28 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Students M7 Frontend
+
+The existing FastAPI/Jinja and vanilla JS/CSS Students surfaces now consume the
+authoritative M2 managed Student-number and M3 four-dimension Learning Style
+contracts. New Student creation requires the ten business-facing digits while
+the UI presents a fixed, non-editable `STD` prefix; leading zeroes remain text.
+The Students list and profile show the canonical managed value, while legacy
+Students without one show a neutral unavailable state and remain editable.
+Authorized number assignment/replacement continues through
+`students.manage_identifiers`, and duplicate disclosure reuses the one
+privacy-safe backend conflict projection.
+
+Create/edit/profile now present independent nullable Verbal, Non-verbal,
+Quantitative, and Spatial integer percentages. Blank remains null and `0`
+remains an assessed zero; values are never normalized or converted from the
+deprecated categorical field. Profile bars include visible values and ARIA
+semantics, including an explicit unavailable state. Existing current Placement,
+historical Placement, tenant/Branch/RBAC boundaries, and the M5 server-derived
+Al-Andalus `section_display` projection remain unchanged. M7 adds no schema,
+migration, API redesign, backend business rule, or roster import/export UI; the
+latter remains assigned to M11.
+
 ## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (Backend)
 
 Per ADR 0044, M4 adds the backend-authoritative Evaluation Progress

@@ -7,6 +7,29 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - Implemented Students M7 identity and Learning Style frontend
+
+Area/module:
+Students frontend
+
+New state:
+Student create/list/profile/edit surfaces now consume the canonical managed
+Student ID and four nullable Learning Style percentage contracts. The UI owns
+only presentation and input affordances: fixed `STD` prefix plus ten digits,
+safe duplicate messaging from the shared backend projection, independent
+Verbal/Non-verbal/Quantitative/Spatial inputs, and accessible profile bars with
+distinct zero/unavailable states. Existing Placement history and M5 Section
+display projections are unchanged.
+
+Scope exclusions:
+No roster frontend (M11), Talent M8 cleanup, Evaluation Progress M9 UI,
+Results/Analytics M10 charts, schema/migration, API redesign, or backend business
+rule was added.
+
+Documentation updated:
+Yes. AI Project Context, Master Context, Project State, Change History, Module
+Map, and User/System Flows.
+
 ## 2026-09-23 — Student Roster Import/Export Backend Implemented (M6)
 
 Implements the .xlsx-only Student roster import/export backend authorized by

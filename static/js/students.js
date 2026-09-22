@@ -249,4 +249,20 @@
         });
         section.addEventListener("change", () => form.requestSubmit());
     });
+
+    document.querySelectorAll('input[name="student_number"]').forEach((input) => {
+        input.addEventListener("input", () => {
+            input.value = input.value.replace(/[^0-9]/g, "").slice(0, 10);
+            input.setCustomValidity(
+                input.value.length === 10 ? "" : "Enter exactly 10 digits after the STD prefix."
+            );
+        });
+    });
+
+    document.querySelectorAll('.stu-ls-dimensions input[inputmode="numeric"]').forEach((input) => {
+        input.addEventListener("input", () => {
+            const valid = input.value === "" || /^(?:100|[0-9]{1,2})$/.test(input.value);
+            input.setCustomValidity(valid ? "" : "Enter a whole number from 0 to 100, or leave this blank.");
+        });
+    });
 })();

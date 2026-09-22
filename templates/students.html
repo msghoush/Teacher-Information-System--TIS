@@ -119,10 +119,10 @@
         <tr>
           {% if can_bulk_delete %}<th scope="col"><input type="checkbox" data-student-select-all aria-label="Select all Students"></th>{% endif %}
           <th scope="col">Student</th>
+          <th scope="col">TIS Student ID</th>
           <th scope="col">Grade</th>
           <th scope="col">Section</th>
           <th scope="col">Branch</th>
-          <th scope="col">Learning Style</th>
           <th scope="col">Status</th>
           <th scope="col">Actions</th>
         </tr>
@@ -137,10 +137,10 @@
               <span>{{ s.display_name }}</span>
             </a>
           </th>
+          <td>{{ s.student_number or 'Not assigned' }}</td>
           <td>{{ s.current_placement.grade_level if s.current_placement else '—' }}</td>
           <td>{{ s.current_placement.section_display if s.current_placement else '—' }}</td>
           <td>{{ s.current_placement.branch_name if s.current_placement and s.current_placement.branch_name else '—' }}</td>
-          <td>{{ learning_style_badge(s.learning_style) }}</td>
           <td>{% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}</td>
           <td>
             <div class="stu-actions">
@@ -168,11 +168,11 @@
         <span class="stu-avatar" aria-hidden="true">{{ s.initials }}</span>
         <div>
           <h3><a class="stu-row-name" href="/students/{{ s.id }}">{{ s.display_name }}</a></h3>
+          <p class="stu-sub">{{ s.student_number or 'TIS Student ID not assigned' }}</p>
           {% if s.gender %}<p class="stu-sub">{{ s.gender }}</p>{% endif %}
         </div>
       </div>
       <div>
-        <p class="stu-card-fact"><span>Learning Style</span>{{ learning_style_badge(s.learning_style) }}</p>
         {% if s.status == 'active' %}<span class="stu-status-quiet"><span class="stu-visually-hidden">Active</span>—</span>{% else %}<span class="stu-chip stu-chip-inactive">{{ s.status|replace('_', ' ')|title }}</span>{% endif %}
       </div>
       <div class="stu-place">

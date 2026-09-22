@@ -136,6 +136,24 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-field select:disabled { opacity: .6; cursor: not-allowed; }
 .stu-field .stu-hint { font-size: 12px; color: var(--app-muted, #5d6b82); }
 .stu-form-actions { display: flex; gap: var(--stu-space-2); flex-wrap: wrap; }
+.stu-field-full { grid-column: 1 / -1; }
+.stu-field-error { color: var(--app-danger, #b42318); font-size: 13px; font-weight: 700; margin: 0; }
+.stu-id-input { display: flex; width: min(100%, 360px); }
+.stu-id-prefix { display: inline-flex; align-items: center; flex: 0 0 auto; height: 44px; padding: 0 12px; border: 1px solid var(--app-line); border-right: 0; border-radius: 10px 0 0 10px; background: var(--app-surface-muted); color: var(--app-muted, #5d6b82); font-weight: 800; letter-spacing: .04em; }
+.stu-field .stu-id-input input { min-width: 0; width: 100%; border-radius: 0 10px 10px 0; }
+.stu-percent-input { display: flex; align-items: center; position: relative; }
+.stu-percent-input input { width: 100%; padding-right: 38px; }
+.stu-percent-input span { position: absolute; right: 13px; color: var(--app-muted, #5d6b82); font-weight: 700; pointer-events: none; }
+.stu-ls-dimensions { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--stu-space-3); }
+.stu-ls-dimensions legend { padding: 0; font-weight: 800; color: var(--app-ink); }
+.stu-ls-profile-section { margin-top: var(--stu-space-4); }
+.stu-ls-profile { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--stu-space-3) var(--stu-space-4); width: min(100%, 760px); }
+.stu-ls-dimension { display: grid; gap: 6px; min-width: 0; }
+.stu-ls-dimension-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.stu-ls-dimension-label strong { white-space: nowrap; }
+.stu-ls-profile-track { height: 10px; overflow: hidden; border-radius: 999px; background: var(--app-surface-muted); border: 1px solid var(--app-line); }
+.stu-ls-profile-track > span { display: block; height: 100%; background: var(--app-brand); border-radius: inherit; }
+.stu-ls-profile-track.is-unavailable { background: repeating-linear-gradient(135deg, var(--app-surface-muted), var(--app-surface-muted) 5px, var(--app-line) 5px, var(--app-line) 6px); }
 
 /* Learning Style V1 (ADR 0031): compact visual selector + display badge.
    Reuses existing design tokens (--app-brand/--app-accent/--app-success/
@@ -201,6 +219,8 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
     .stu-search { flex-wrap: wrap; }
     .stu-tabs a { flex: 1 1 42%; justify-content: center; }
     .stu-profile { padding: var(--stu-space-4); }
+    .stu-ls-profile { grid-template-columns: 1fr; }
+    .stu-id-input { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
     .stu * { transition: none !important; animation: none !important; }
