@@ -7,6 +7,53 @@ source_of_truth: true
 
 # TIS Project State
 
+## Student Roster Import/Export — Permission Registration (Governance Prerequisite, M6) (2026-09-22)
+
+The Owner reviewed and approved registering exactly two new semantic
+permission keys in the canonical `permission_registry.py` `students` group:
+`students.import` ("Import student roster data") and `students.export`
+("Export student roster data"). Both follow the exact existing
+`students.*` naming/grouping/description/ordering convention and are
+classified dormant/reserved (status `D` in
+`tests/test_permission_registry_matrix.py`, matching the established
+`teachers.import`/`teachers.export` precedent documented under "22-Key
+Permission Registry Closure" below): no roster import/export route,
+service, or frontend consumes them yet, so no template/nav/guard is wired
+to either key. Neither key is added to `DEVELOPER_ONLY_PERMISSION_KEYS`,
+`OWNER_ONLY_PERMISSION_KEYS`, `ADMINISTRATOR_ONLY_PERMISSION_KEYS`,
+`LIMITED_READ_ONLY_PERMISSION_KEYS`, or `_EDITOR_LIKE_PERMISSIONS` - no new
+default-role grant was introduced by this task; each key is assignable to
+Administrator/Editor/User (the same class as the rest of the `students`
+group) and, like every other `students.*` key, is included in the
+Administrator role's default set only because `DEFAULT_ROLE_PERMISSIONS`
+already computes Administrator's defaults as "all registered keys except
+platform-only" - a pre-existing structural formula unchanged by this task,
+not a new grant decision.
+
+`students.import` permits Student roster import operations only within the
+caller's already-authorized tenant/Branch/Student-management scope; it does
+not expand tenant scope, bypass existing Student create/update
+authorization, TIS Student ID rules, or Academic Placement validation,
+grant cross-tenant access, or override backend invariant enforcement.
+`students.export` permits Student roster export only for Students the
+caller is otherwise authorized to access within the existing
+tenant/Branch/Student scope; it does not expand Student visibility, grant
+cross-tenant access, bypass existing scope restrictions, or authorize
+unrelated Student operations. Permission and scope remain separate checks,
+per the existing pattern used throughout this codebase.
+
+This task registers only the two permission keys and this KMS record. It
+implements no roster import/export service logic, API route, or frontend,
+and changes no Student data, schema, or migration. The .xlsx-only,
+stateless-preview, atomic-apply M6 roster import/export backend referenced
+below (and in "Students + Talent & Potential M1" and "Student & Academic
+Placement Foundation And Talent Program & Framework Foundation
+Implemented") remains subsequent, separate, not-yet-implemented work; the
+prior "deferred to later milestones" wording in those entries described the
+pre-registration state and is superseded only insofar as the permission
+governance prerequisite is now approved - roster import/export
+functionality itself is still not implemented.
+
 ## Al-Andalus Section Display - Governance Authorization (2026-09-22)
 
 Per new ADR 0045, the Owner has authorized the previously-deferred
@@ -1210,7 +1257,12 @@ with zero managed-identifier rows remains valid.
 Not implemented: TIS Student ID create/edit API/UI and its duplicate-value
 messaging, database-level canonical-format enforcement, Learning Style
 percentage API/frontend, Evaluation Progress, and roster import/export -
-all explicitly deferred to later milestones. Al-Andalus Section display was
+all explicitly deferred to later milestones at this point in time. (The
+`students.import`/`students.export` permission keys were later registered
+as a governance prerequisite - see "Student Roster Import/Export —
+Permission Registration (Governance Prerequisite, M6)" above - but the
+roster import/export feature itself remained, and remains, unimplemented.)
+Al-Andalus Section display was
 also deferred at M1; per ADR 0045 it was Owner-authorized for the exact
 verified `workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`, and its
 M5 implementation is now done - see "Al-Andalus Section Display -
@@ -2282,7 +2334,11 @@ PostgreSQL validation (constraints, concurrent placement/framework writes)
 has not been executed against live PostgreSQL for these foundations; only
 SQLite-backed pytest coverage exists. No Student UI, import/merge,
 Assessment, Review/Identification, Learner Profile, analytics/Talent
-Map, or AI code exists yet.
+Map, or AI code exists yet at this point in time. (The `students.import`/
+`students.export` permission keys were later registered as a governance
+prerequisite only - see "Student Roster Import/Export — Permission
+Registration (Governance Prerequisite, M6)" above - roster import/merge
+functionality itself remained, and remains, unimplemented.)
 
 ## Planning Subject Requirement Removal (Single And Bulk) Implemented
 

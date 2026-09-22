@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-22 — Student Roster Import/Export: Permission Registration (Governance Prerequisite, M6)
+
+Owner-approved governance prerequisite for the future M6 Student roster
+import/export backend. Registers two new semantic capability permission
+keys in `permission_registry.py`'s `students` group - `students.import`
+("Import student roster data") and `students.export` ("Export student
+roster data") - following the exact existing `students.*` naming,
+grouping, description, and ordering conventions, and classified dormant/
+reserved (no route/UI consumer yet), matching the established
+`teachers.import`/`teachers.export` precedent. Neither key was added to
+any developer-only, owner-only, administrator-only, or limited-read-only
+set, and neither was added to `_EDITOR_LIKE_PERMISSIONS`; no new
+default-role grant decision was made by this task. This task registers
+permission keys only - no roster import/export route, service logic, or
+frontend was added, and no Student data, schema, or migration changed. See
+`docs/PROJECT_STATE.md` ("Student Roster Import/Export — Permission
+Registration (Governance Prerequisite, M6)").
+
 ## 2026-09-22 — Al-Andalus Section Display M5: Shared Presentation Implementation
 
 Implements the ADR 0045-authorized presentation convention: one shared
