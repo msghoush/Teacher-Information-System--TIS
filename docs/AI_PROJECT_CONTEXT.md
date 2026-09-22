@@ -7,6 +7,28 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Student Roster Import / Export Frontend (M11)
+
+The Students list now exposes compact, independently permission-projected
+**Import Students** and **Export Students** actions backed exclusively by the
+existing M6 roster API. Export downloads the backend-produced `.xlsx` bytes and
+preserves its response filename; the browser never rebuilds roster data.
+
+Import is a transient `.xlsx`-only dialog. It uploads the selected workbook to
+the stateless preview route, renders backend summary/row results and safe
+messages, then requires explicit confirmation before uploading the same file to
+the apply route. Apply re-parses and independently revalidates the workbook and
+remains create-only and atomic. The browser never parses Excel, submits a
+trusted valid-row list, performs partial apply, decides Student-ID uniqueness,
+resolves tenant/Placement identity, or infers conflict ownership.
+
+Canonical `STD` plus ten-digit Student IDs remain textual with leading zeroes.
+Same-tenant identity appears only when supplied by the privacy-safe backend;
+cross-tenant conflicts stay generic. Canonical Section name remains import
+identity, and no client `section_display` formatter exists. There is no CSV or
+`.xls` support, persistent batch, background job, backend semantic change,
+schema change, or migration.
+
 ## Results & Analytics Branch Comparison Frontend (M10, Students Product Sequence)
 
 Organization Overview now contains one primary Program-scoped Branch comparison

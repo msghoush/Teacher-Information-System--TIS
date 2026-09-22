@@ -57,6 +57,41 @@ def test_list_requires_students_view(db, client):
     assert "Alya" in response.text
 
 
+def test_roster_actions_are_projected_by_independent_permissions(db, client):
+    permissions(db, "students.view")
+    neither = client.get("/students/")
+    assert "Import Students" not in neither.text
+    assert "Export Students" not in neither.text
+    assert "data-roster-dialog" not in neither.text
+
+    permissions(db, "students.view", "students.import")
+    importer = client.get("/students/")
+    assert "Import Students" in importer.text
+    assert "data-roster-dialog" in importer.text
+    assert "Export Students" not in importer.text
+
+    permissions(db, "students.import", allow=False)
+    permissions(db, "students.view", "students.export")
+    exporter = client.get("/students/")
+    assert "Export Students" in exporter.text
+    assert "Import Students" not in exporter.text
+    assert "data-roster-dialog" not in exporter.text
+
+
+def test_roster_import_markup_is_accessible_xlsx_only_and_create_only(db, client):
+    permissions(db, "students.view", "students.import", "students.export")
+    response = client.get("/students/")
+    text = response.text
+    assert 'aria-labelledby="stu-roster-title"' in text
+    assert 'for="stu-roster-file"' in text
+    assert 'accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"' in text
+    assert 'role="status" aria-live="polite"' in text
+    assert '<th scope="col">Row</th>' in text
+    assert "creates all Students atomically" in text
+    assert "never updates, merges, or partially imports" in text
+    assert ".csv" not in text.lower()
+
+
 def test_new_student_workflow(db, client):
     permissions(db, "students.view", "students.create")
     assert client.get("/students/new").status_code == 200

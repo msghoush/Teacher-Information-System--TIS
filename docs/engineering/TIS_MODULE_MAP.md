@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Students M11 Roster Frontend Ownership
+
+- `routers/students_ui.py` projects the existing `students.import` and
+  `students.export` capabilities into the Students list; it does not authorize
+  M6 API requests.
+- `templates/students.html` owns compact actions and the transient accessible
+  `.xlsx` import dialog.
+- `static/js/students-roster.js` owns opaque workbook download, file-extension
+  usability checks, multipart preview/apply submission, safe DOM rendering,
+  duplicate-submit guards, explicit apply confirmation, and roster refresh.
+- `static/css/students.css` owns the bounded dialog/table responsive treatment.
+- `routers/students.py` and `student_roster_service.py` remain the authorities
+  for workbook parsing, Student-ID/tenant/Placement validation, privacy-safe
+  conflicts, permission enforcement, create-only semantics, and atomic apply.
+- No spreadsheet parser, CSV/`.xls`, persistent import batch, background job,
+  schema, migration, or backend semantic change belongs to M11.
+
 ## Results & Analytics Branch Comparison Frontend (M10)
 
 - `templates/talent/workspace.html`: adds the labeled Learning Style dimension

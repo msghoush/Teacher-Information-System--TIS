@@ -11,8 +11,10 @@
       <h1>Students</h1>
       <p class="stu-intro">Every learner in one place, with their current placement and history kept in context.</p>
     </div>
-    {% if can_create or can_bulk_delete %}
+    {% if can_create or can_bulk_delete or can_import or can_export %}
     <div class="stu-actions">
+      {% if can_import %}<button class="stu-btn" type="button" data-roster-import-open>Import Students</button>{% endif %}
+      {% if can_export %}<button class="stu-btn" type="button" data-roster-export>Export Students</button>{% endif %}
       {% if can_bulk_delete %}
       <form id="student-bulk-delete" method="post" action="/students/bulk-delete" data-student-bulk-delete-form>
         <button class="stu-btn stu-icon-btn" type="submit" data-student-bulk-delete disabled aria-label="Delete selected" title="Delete selected">{{ icon('trash', 'shell-icon') }}<span class="stu-visually-hidden" data-bulk-delete-label>Delete selected</span></button>
@@ -24,7 +26,42 @@
   </header>
 
   {% if success %}
-  <div class="stu-banner stu-banner-success" role="status">Saved successfully.</div>
+  <div class="stu-banner stu-banner-success" role="status">{{ 'Student roster imported successfully.' if success.startswith('roster-imported') else 'Saved successfully.' }}</div>
+  {% endif %}
+
+  {% if can_import %}
+  <dialog class="stu-roster-dialog" data-roster-dialog aria-labelledby="stu-roster-title" aria-describedby="stu-roster-help">
+    <form method="dialog" class="stu-roster-dialog-head">
+      <div><p class="stu-eyebrow">Create-only roster import</p><h2 id="stu-roster-title">Import Students</h2></div>
+      <button class="stu-btn stu-btn-sm" value="cancel" aria-label="Close Student import">Close</button>
+    </form>
+    <p id="stu-roster-help">Choose one <strong>.xlsx</strong> workbook. Preview validates every row without changing Student data. Apply revalidates the workbook and creates all Students atomically; it never updates, merges, or partially imports existing Students.</p>
+    <div class="stu-roster-picker">
+      <label for="stu-roster-file">Student roster workbook (.xlsx only)</label>
+      <input id="stu-roster-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" data-roster-file>
+      <p class="stu-count" data-roster-filename>No workbook selected.</p>
+      <div class="stu-actions">
+        <button class="stu-btn stu-btn-primary" type="button" data-roster-preview disabled>Preview and validate</button>
+        <button class="stu-btn stu-btn-sm" type="button" data-roster-clear disabled>Clear</button>
+      </div>
+    </div>
+    <div class="stu-banner" role="status" aria-live="polite" tabindex="-1" data-roster-status>Choose a workbook to begin.</div>
+    <section data-roster-results hidden aria-labelledby="stu-roster-results-title">
+      <h3 id="stu-roster-results-title">Validation preview</h3>
+      <p class="stu-roster-summary" data-roster-summary></p>
+      <div class="stu-table-wrap">
+        <table class="stu-table stu-roster-table">
+          <caption class="stu-visually-hidden">Student roster validation results</caption>
+          <thead><tr><th scope="col">Row</th><th scope="col">Student ID</th><th scope="col">Student</th><th scope="col">Branch</th><th scope="col">Grade / Section</th><th scope="col">Academic Year</th><th scope="col">Result</th></tr></thead>
+          <tbody data-roster-rows></tbody>
+        </table>
+      </div>
+      <div class="stu-roster-apply" data-roster-apply-area hidden>
+        <p><strong>Ready to create these Students?</strong> Apply will upload and validate this workbook again. If any row fails, no Student will be created.</p>
+        <button class="stu-btn stu-btn-primary" type="button" data-roster-apply>Confirm and apply import</button>
+      </div>
+    </section>
+  </dialog>
   {% endif %}
   {% if error %}
   <div class="stu-banner stu-banner-error" role="alert">{{ error }}</div>
@@ -200,6 +237,7 @@
 {% endblock %}
 
 {% block page_scripts %}
+{% if can_import or can_export %}<script src="{{ url_for('static', path='js/students-roster.js') }}" defer></script>{% endif %}
 <script>
 (() => {
   const selections = Array.from(document.querySelectorAll('[data-student-select]'));

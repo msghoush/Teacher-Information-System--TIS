@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Student Roster Frontend (M11)
+
+The Students list owns a bounded `.xlsx` roster workflow over the existing M6
+API. `students.export` projects a compact export action that downloads the
+server workbook unchanged. `students.import` projects a transient import dialog
+for file selection, stateless validation preview, structured row feedback, and
+explicit apply confirmation. UI projection is not authorization; each M6 API
+route continues to enforce its own permission and SchoolGroup/Branch scope.
+
+The selected workbook itself is submitted to both preview and apply. The
+frontend never treats preview as a write authorization or sends a generated
+approved-row list. Apply remains independently revalidated, all-or-nothing, and
+create-only. Student-ID uniqueness, privacy-safe conflict disclosure, canonical
+Placement/Section matching, workbook parsing, and transaction atomicity remain
+backend responsibilities. M5 `section_display` stays presentation-only. No CSV,
+`.xls`, persistent import batch, background job, schema, or migration is added.
+
 ## Students Frontend Identity And Learning Style (M7)
 
 Students create/list/profile/edit now consume the canonical managed TIS Student

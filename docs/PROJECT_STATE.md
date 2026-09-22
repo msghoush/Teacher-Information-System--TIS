@@ -7,6 +7,33 @@ source_of_truth: true
 
 # TIS Project State
 
+## Student Roster Import / Export Frontend M11 Implemented (2026-09-23)
+
+The existing Students list now presents **Import Students** only with
+`students.import` and **Export Students** only with `students.export`; M6 still
+authorizes every API request. Export consumes `GET /api/students/roster/export`
+as an opaque workbook download and preserves the server filename.
+
+Import uses a transient accessible dialog rather than a persistent page panel.
+It accepts `.xlsx` only, shows the selected filename, uploads multipart field
+`roster_file` to the M6 preview endpoint, and renders backend-provided totals,
+valid rows, row numbers, fields, safe messages, canonical Student/Placement
+display fields, and privacy-safe duplicate identity where supplied. The UI uses
+text nodes for backend content and does not expose raw exceptions.
+
+Apply requires an explicit confirmation and uploads the original workbook again
+to the M6 apply endpoint. It never submits client-generated valid rows or offers
+partial import. Successful atomic apply clears stale state and reloads the
+Students roster; rejection retains useful preview/file state and explains that
+no Students were created. Copy is create-only and does not imply update, merge,
+sync, overwrite, or upsert.
+
+Student IDs remain strings with canonical `STD` presentation and leading zeroes.
+The browser performs no workbook parsing, uniqueness check, tenant inference,
+Branch/Academic-Year/Section authorization, or `section_display` conversion.
+No CSV/`.xls`, persistent batch, background job, backend change, schema, or
+migration is included.
+
 ## Results & Analytics Branch Comparison Frontend M10 Implemented (2026-09-23)
 
 Organization Overview's prior fixed Branch summary is replaced by one primary,

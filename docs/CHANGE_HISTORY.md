@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - Student Roster Import / Export Frontend Implemented (M11)
+
+- Added permission-projected Import Students and Export Students actions to the
+  existing Students list, using only the M6 `.xlsx` routes.
+- Added a transient accessible import dialog with file selection, stateless
+  preview, structured backend-safe row feedback, explicit confirmation, and
+  re-uploaded/revalidated atomic create-only apply.
+- Preserved canonical textual Student IDs, privacy-safe duplicate disclosure,
+  canonical Section identity, backend authorization, and M5 presentation-only
+  `section_display` semantics.
+- Added no CSV/`.xls`, client spreadsheet parser, partial apply, persistent
+  batch, background job, backend semantic change, schema, or migration.
+
 ## 2026-09-23 - Added the primary Branch comparison chart
 
 - Replaced Organization Overview's fixed Branch summary with one

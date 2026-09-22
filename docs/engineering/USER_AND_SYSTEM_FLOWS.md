@@ -7,6 +7,31 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Student Roster Import / Export Frontend Flow (M11)
+
+1. The Students list shows Import and Export independently according to
+   `students.import` and `students.export`; the API repeats authorization.
+2. Export requests the M6 export route and downloads its `.xlsx` response using
+   the server filename without reconstructing Student rows in JavaScript.
+3. Import opens a transient dialog. The user selects one `.xlsx`; unsupported
+   extensions are rejected for usability while backend validation remains final.
+4. Preview sends the actual file as multipart `roster_file`. M6 parses and
+   validates without mutation and returns summary, row data, and safe issues.
+5. The browser renders only supplied values/messages. Student IDs remain text;
+   optional same-tenant identity is shown only when supplied, while cross-tenant
+   conflicts remain generic. Canonical Section remains identity.
+6. Apply becomes available only after a non-empty, error-free preview and still
+   requires explicit confirmation. The same actual file is uploaded again; no
+   client-generated approved-row payload is accepted.
+7. M6 independently revalidates and either creates every Student plus initial
+   Placement in one transaction or creates none. Success clears stale state and
+   reloads Students; rejection retains useful context for correction and retry.
+
+The browser never parses workbook cells/formulas, determines uniqueness or
+ownership, authorizes itself, performs partial apply, or transforms M5
+`section_display` into canonical input. The first release is create-only and
+`.xlsx` only, with no persistent batch or background job.
+
 ## Results & Analytics Branch Comparison Flow (M10)
 
 1. An authorized user opens Organization Overview and selects an Academic Year

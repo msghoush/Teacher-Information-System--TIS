@@ -395,6 +395,8 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         students.append(student)
 
     can_create = auth.has_permission(db, user, "students.create", school_group_id=group_id)
+    can_import = auth.has_permission(db, user, "students.import", school_group_id=group_id)
+    can_export = auth.has_permission(db, user, "students.export", school_group_id=group_id)
     can_delete = organization_scope and auth.has_permission(db, user, "students.delete", school_group_id=group_id)
     can_bulk_delete = organization_scope and auth.has_permission(db, user, "students.bulk_delete", school_group_id=group_id)
     can_force_delete_history = organization_scope and auth.has_permission(db, user, "students.force_delete_history", school_group_id=group_id)
@@ -438,6 +440,8 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "learning_style_distribution": learning_style_distribution,
         "scoped_year_id": scoped_year_id,
         "can_create": can_create,
+        "can_import": can_import,
+        "can_export": can_export,
         "can_delete": can_delete,
         "can_bulk_delete": can_bulk_delete,
         "can_force_delete_history": can_force_delete_history,
