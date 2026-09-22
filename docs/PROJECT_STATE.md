@@ -1036,6 +1036,75 @@ to `tests/test_postgresql_migration_transactions.py` following its existing
 `TIS_TEST_POSTGRESQL_URL` skip-marked convention and auto-skips in this
 environment (no local PostgreSQL listener).
 
+## Students + Talent & Potential M3 — Four-Dimensional Learning Style Backend/Service/API (2026-09-22)
+
+Per ADR 0042, this milestone implements the previously-deferred server-side
+service/API for the four-dimension Learning Style percentage profile on top
+of the M1 schema foundation (no new migration - the four nullable, 0-100
+CHECK-constrained `Student` columns already exist). All logic lives in
+`student_academic_service.py` and `routers/students.py`; no new table, no
+new permission, and no frontend.
+
+`student_academic_service.py` gained `LEARNING_STYLE_PERCENTAGE_FIELDS` (the
+four column names) and `_clean_learning_style_percentage`, which validates
+each dimension strictly and independently: `None` is valid ("not
+assessed"), and an `int` 0-100 inclusive is valid, explicitly including both
+boundary values; `bool` is rejected even though it is a Python `int`
+subclass, and any other non-`int` type - a float/decimal or a numeric
+string such as `"75"` - is rejected rather than coerced, matching this
+dict-based JSON body's existing no-schema-coercion convention (there is no
+Pydantic model on this route). There is no sum-to-100 rule and no
+derivation to or from the legacy categorical `learning_style` column, which
+remains completely untouched. `create_student`/`create_student_with_number`
+gained the four optional keyword parameters (default `None`, all four may
+be omitted); an invalid value raises before any row is added, so an invalid
+dimension never leaves a partial/orphan Student, matching the existing M2
+atomicity guarantee for `student_number`. `update_student` applies each of
+the four fields only when its key is present in the caller's `**changes`
+(the same partial-update convention the function already uses for
+`learning_style`/`first_name`/etc.), so PATCH's existing partial-payload
+semantics (`routers/students.py` only forwards keys actually present in the
+request body) mean an unspecified dimension is never cleared and an
+explicit `null` does clear it. `_student_payload` (used for the existing
+`StudentAudit` before/after snapshots) now includes all four fields, so a
+Learning Style percentage update participates in the existing append-only
+Student audit trail exactly like every other Student field - no new audit
+subsystem, no history/version table, and no Talent snapshot were added,
+matching ADR 0042's explicit prohibition.
+
+`routers/students.py`: `POST /api/students` and `PATCH
+/api/students/{student_id}` now accept the four fields under the existing
+`students.create`/`students.edit` permission gates (no new permission); the
+M2 mandatory `student_number`-on-create contract is unchanged and
+re-verified by regression. Every Student JSON response
+(`GET`/`POST`/`PATCH /api/students...`) now exposes all four fields
+alongside the unchanged legacy `learning_style` field, with no derived
+dominant-style, total, or normalized field ever added.
+
+Confirmed by source-scan regression (extending the existing M1 pattern) that
+no Talent scoring/eligibility module (`talent_program_service.py`,
+`talent_analytics_service.py`, `talent_org_intelligence_service.py`,
+`talent_analytics_privacy.py`, `talent_student_assessment_service.py`,
+`routers/talent_assessments.py`, `routers/talent_review_candidates.py`,
+`routers/talent_assessment_cycles.py`, `routers/talent_programs.py`) reads
+any of the four percentage fields or the new validator. Focused coverage is
+in `tests/test_student_learning_style_four_dimension_api.py` (73 tests:
+independent service-level validation of null/partial/0/100/no-sum-rule
+profiles, out-of-range and wrong-type rejection per field, create-time
+atomicity, partial-update semantics proving sibling/unspecified-field
+isolation, legacy-field preservation on create and update, Student-create
+API acceptance/omission of all four dimensions with the M2 `student_number`
+requirement re-verified intact, Student-update API permission reuse and
+cross-tenant denial, response serialization, audit participation, and the
+Talent source-scan regression). The full relevant regression sweep
+(`tests/` filtered to `student or talent or permission`, excluding the two
+`ortools`-dependent Timetable-Workflow-only solver test modules that fail to
+import in this environment) passes with exactly the same 13 pre-existing
+failures directly confirmed present and unchanged via an explicit
+before/after comparison run against unmodified `dev` HEAD `24bdb06` in this
+task (not merely cited from the prior M2 note); none are newly introduced
+or newly fixed by M3.
+
 ## Students + Talent & Potential M2 — Managed Student ID Backend/Service/API (2026-09-22)
 
 Per ADR 0043, this milestone implements the previously-deferred TIS Student

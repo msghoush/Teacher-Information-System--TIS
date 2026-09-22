@@ -30,6 +30,19 @@ class StudentAcademicError(ValueError):
 LEARNING_STYLES = ("Visual", "Auditory", "Read/Write", "Kinesthetic")
 
 
+# Learning Style four-dimension profile (ADR 0042, amends ADR 0031; M3 service/
+# API implementation). Four independent, optional 0-100 integer percentages -
+# each validated only against its own range, with no sum-to-100 rule and no
+# automatic derivation from, or to, the legacy categorical ``learning_style``
+# field above, which remains preserved unchanged.
+LEARNING_STYLE_PERCENTAGE_FIELDS = (
+    "learning_style_verbal_percentage",
+    "learning_style_non_verbal_percentage",
+    "learning_style_quantitative_percentage",
+    "learning_style_spatial_percentage",
+)
+
+
 # TIS Student Number (ADR 0043/M2): the one globally unique, system-managed
 # StudentExternalIdentifier namespace. Business/API input is exactly ten ASCII
 # digits (leading zeros preserved as a string, never parsed as an integer);
@@ -78,6 +91,34 @@ def _clean_learning_style(value):
     return cleaned
 
 
+def _clean_learning_style_percentage(value, field: str):
+    """Validate one Learning Style four-dimension percentage (ADR 0042/M3).
+
+    Each dimension is independent: ``None`` is valid ("not assessed"), and an
+    integer 0-100 inclusive is valid, including the boundary values 0 and 100
+    (0 is a real assessed value, never conflated with "unset"). There is no
+    sum-to-100 rule and no derivation from any other field. ``bool`` is
+    explicitly rejected even though Python's ``bool`` is an ``int`` subclass;
+    a float/decimal or any other non-``int`` type (including a numeric
+    string such as ``"75"``) is rejected rather than silently coerced, since
+    this dict-based JSON request body performs no schema-level type
+    coercion anywhere else in this module.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise StudentAcademicError(
+            "invalid_learning_style_percentage",
+            f"{field} must be an integer between 0 and 100, or null.",
+        )
+    if value < 0 or value > 100:
+        raise StudentAcademicError(
+            "invalid_learning_style_percentage",
+            f"{field} must be between 0 and 100 inclusive.",
+        )
+    return value
+
+
 def _clean(value, field: str, *, required: bool = False, maximum: int = 100):
     cleaned = " ".join(str(value or "").split())
     if required and not cleaned:
@@ -93,6 +134,7 @@ def _student_payload(student):
         "first_name": student.first_name, "father_name": student.father_name,
         "last_name": student.last_name, "gender": student.gender, "status": student.status,
         "learning_style": student.learning_style,
+        **{field: getattr(student, field) for field in LEARNING_STYLE_PERCENTAGE_FIELDS},
     }
 
 
@@ -129,7 +171,10 @@ def get_student(db: Session, school_group_id: int, student_id: int):
 
 
 def create_student(db: Session, *, school_group_id: int, first_name, last_name,
-                   father_name=None, gender=None, learning_style=None, actor=None):
+                   father_name=None, gender=None, learning_style=None,
+                   learning_style_verbal_percentage=None, learning_style_non_verbal_percentage=None,
+                   learning_style_quantitative_percentage=None, learning_style_spatial_percentage=None,
+                   actor=None):
     if db.get(models.SchoolGroup, school_group_id) is None:
         raise StudentAcademicError("invalid_scope", "The selected organization is unavailable.")
     student = models.Student(
@@ -139,6 +184,14 @@ def create_student(db: Session, *, school_group_id: int, first_name, last_name,
         last_name=_clean(last_name, "last_name", required=True),
         gender=_clean(gender, "gender", maximum=24), status="active",
         learning_style=_clean_learning_style(learning_style),
+        learning_style_verbal_percentage=_clean_learning_style_percentage(
+            learning_style_verbal_percentage, "learning_style_verbal_percentage"),
+        learning_style_non_verbal_percentage=_clean_learning_style_percentage(
+            learning_style_non_verbal_percentage, "learning_style_non_verbal_percentage"),
+        learning_style_quantitative_percentage=_clean_learning_style_percentage(
+            learning_style_quantitative_percentage, "learning_style_quantitative_percentage"),
+        learning_style_spatial_percentage=_clean_learning_style_percentage(
+            learning_style_spatial_percentage, "learning_style_spatial_percentage"),
         created_by_user_id=getattr(actor, "user_id", None),
         updated_by_user_id=getattr(actor, "user_id", None),
     )
@@ -149,7 +202,10 @@ def create_student(db: Session, *, school_group_id: int, first_name, last_name,
 
 
 def create_student_with_number(db: Session, *, school_group_id: int, student_number, first_name, last_name,
-                               father_name=None, gender=None, learning_style=None, actor=None):
+                               father_name=None, gender=None, learning_style=None,
+                               learning_style_verbal_percentage=None, learning_style_non_verbal_percentage=None,
+                               learning_style_quantitative_percentage=None, learning_style_spatial_percentage=None,
+                               actor=None):
     """Create a new Student together with its mandatory managed Student number, atomically.
 
     ADR 0043/M2: new Students require a Student number (existing legacy
@@ -163,13 +219,22 @@ def create_student_with_number(db: Session, *, school_group_id: int, student_num
     as ``IntegrityError`` from the flush below), the caller must roll back
     the whole transaction so no orphan/partial Student row is left behind -
     this function never commits.
+
+    ``learning_style_*_percentage`` (ADR 0042/M3) are optional and may all be
+    omitted/``None``; an invalid dimension raises before either write, so no
+    partial Student row is created.
     """
     if student_number is None or str(student_number).strip() == "":
         raise StudentAcademicError("invalid_student_number", "Student number is required.")
     canonical_value = canonical_student_number(student_number)
     student = create_student(
         db, school_group_id=school_group_id, first_name=first_name, last_name=last_name,
-        father_name=father_name, gender=gender, learning_style=learning_style, actor=actor,
+        father_name=father_name, gender=gender, learning_style=learning_style,
+        learning_style_verbal_percentage=learning_style_verbal_percentage,
+        learning_style_non_verbal_percentage=learning_style_non_verbal_percentage,
+        learning_style_quantitative_percentage=learning_style_quantitative_percentage,
+        learning_style_spatial_percentage=learning_style_spatial_percentage,
+        actor=actor,
     )
     _insert_active_student_number(
         db, school_group_id=school_group_id, student_id=student.id,
@@ -188,6 +253,9 @@ def update_student(db: Session, *, school_group_id: int, student_id: int, actor=
             setattr(student, field, _clean(changes[field], field, required=field in {"first_name", "last_name"}, maximum=24 if field == "gender" else 100))
     if "learning_style" in changes:
         student.learning_style = _clean_learning_style(changes["learning_style"])
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        if field in changes:
+            setattr(student, field, _clean_learning_style_percentage(changes[field], field))
     if "status" in changes:
         status = str(changes["status"] or "").strip().lower()
         if status not in {"active", "inactive"}:

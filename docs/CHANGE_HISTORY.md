@@ -7,6 +7,37 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-22 — Students + Talent & Potential M3: Four-Dimensional Learning Style Backend/Service/API
+
+Implemented the ADR 0042-authorized server-side service/API for the four
+independent Student Learning Style percentages
+(`learning_style_verbal_percentage`, `learning_style_non_verbal_percentage`,
+`learning_style_quantitative_percentage`, `learning_style_spatial_percentage`)
+on the M1 schema foundation (no new migration). Each dimension is validated
+independently in `student_academic_service.py`: `null` is valid, an integer
+0-100 inclusive is valid (including both boundaries), and there is no
+sum-to-100 rule; `bool` and any other non-integer type (float, numeric
+string) are rejected rather than coerced. `POST /api/students` and `PATCH
+/api/students/{student_id}` now accept the four fields under the existing
+`students.create`/`students.edit` permission gates (no new permission); the
+M2 mandatory `student_number` requirement on create is unchanged.
+`update_student` applies each field only when present in the request,
+preserving PATCH's existing partial-update semantics so an unspecified
+dimension is never cleared. Every Student JSON response now exposes all
+four fields with no derived dominant-style/total field. The legacy
+categorical `learning_style` field, its values, and its single-select
+nature are completely unchanged - no rewrite, no mapping, no automatic
+conversion in either direction. Percentage updates participate in the
+existing append-only `StudentAudit` trail with no new audit subsystem. See
+`docs/PROJECT_STATE.md` for the full implementation-truth summary and
+`tests/test_student_learning_style_four_dimension_api.py` (73 tests,
+including a Talent source-scan regression proving zero Talent scoring/
+eligibility dependency) for the complete test matrix. No schema, migration,
+new permission, frontend, or `tis.db` change; the same 13 pre-existing
+failures unrelated to this task were directly re-confirmed present on
+unmodified `dev` HEAD before this task via an explicit before/after
+comparison run.
+
 ## 2026-09-22 — Students + Talent & Potential M2: Managed Student ID Backend/Service/API
 
 Implemented the ADR 0043-deferred TIS Student number create/edit service/API

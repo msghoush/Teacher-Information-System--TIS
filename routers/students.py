@@ -56,6 +56,10 @@ def _student_json(db, row):
     return {"id": row.id, "school_group_id": row.school_group_id, "first_name": row.first_name,
             "father_name": row.father_name, "last_name": row.last_name, "gender": row.gender,
             "status": row.status, "learning_style": row.learning_style,
+            "learning_style_verbal_percentage": row.learning_style_verbal_percentage,
+            "learning_style_non_verbal_percentage": row.learning_style_non_verbal_percentage,
+            "learning_style_quantitative_percentage": row.learning_style_quantitative_percentage,
+            "learning_style_spatial_percentage": row.learning_style_spatial_percentage,
             "student_number": current_student_number(db, school_group_id=row.school_group_id, student_id=row.id),
             "created_at": row.created_at, "updated_at": row.updated_at}
 
@@ -105,7 +109,11 @@ def student_create(request: Request, payload: dict = Body(...), db: Session = De
     try:
         row = create_student_with_number(
             db, school_group_id=group_id, actor=user, student_number=payload.get("student_number"),
-            **{key: payload.get(key) for key in ("first_name", "father_name", "last_name", "gender", "learning_style")},
+            **{key: payload.get(key) for key in (
+                "first_name", "father_name", "last_name", "gender", "learning_style",
+                "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+                "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+            )},
         )
         db.commit(); db.refresh(row)
         return JSONResponse(jsonable_encoder(_student_json(db, row)), status_code=201)
@@ -175,7 +183,11 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
     keys = ("students.activate_deactivate",) if set(payload) == {"status"} else ("students.edit",)
     user, group_id, denied = _authorize(request, db, current_user, *keys)
     if denied: return denied
-    allowed = {key: payload[key] for key in ("first_name", "father_name", "last_name", "gender", "learning_style", "status") if key in payload}
+    allowed = {key: payload[key] for key in (
+        "first_name", "father_name", "last_name", "gender", "learning_style", "status",
+        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+    ) if key in payload}
     try:
         row = update_student(db, school_group_id=group_id, student_id=student_id, actor=user, **allowed)
         db.commit(); db.refresh(row); return _student_json(db, row)
