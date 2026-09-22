@@ -67,10 +67,16 @@ This ADR authorizes the four-dimension persistence/schema foundation
 described above. Consistent with the Students + Talent & Potential M1
 milestone, this ADR does not itself authorize or claim: a create/update
 API contract for the four percentages, any frontend surface, Evaluation
-Progress, roster import/export, Al-Andalus Section display, or any Talent
-frontend change. Those remain separately governed, later implementation
-work. This ADR also does not authorize multi-select of the legacy
-categorical values, which remains governed exactly as ADR 0031 recorded it.
+Progress, roster import/export, or any Talent frontend change. Those remain
+separately governed, later implementation work. Al-Andalus Section display
+was also out of this ADR's scope at M1; it is now owner-authorized
+(presentation-only, for the exact verified `workspace_uuid`
+`72e52eb2-3844-447b-92a8-c55015f73257`, canonical identity unchanged,
+implementation not yet complete) under ADR 0045, which is the governing
+authorization record for that feature - this ADR's scope remains the
+Learning Style four-dimension profile only. This ADR also does
+not authorize multi-select of the legacy categorical values, which remains
+governed exactly as ADR 0031 recorded it.
 
 ## Status
 

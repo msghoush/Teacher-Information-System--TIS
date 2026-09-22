@@ -7,6 +7,27 @@ source_of_truth: true
 
 # TIS Project State
 
+## Al-Andalus Section Display - Governance Authorization (2026-09-22)
+
+Per new ADR 0045, the Owner has authorized the previously-deferred
+Al-Andalus Section-display presentation convention for the exact verified
+production `SchoolGroup.workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`
+(identified using the repository's existing read-only production audit,
+`scripts/audit_al_andalus_readonly.py`, run by the Owner against the
+deployed Render PostgreSQL environment). This is a **governance/KMS
+correction only**: it closes the stale "deferred" status recorded at M1 and
+in ADR 0042's boundary note and records the authorized workspace identity
+and presentation-convention constraints. It does **not** implement the
+feature - no shared presentation helper, API/UI change, or test exists yet
+for this feature as of this entry. No application code, schema, or
+migration changed. Runtime implementation must key exclusively off the
+exact `workspace_uuid` above (never `SchoolGroup.name`/domain/email/Branch
+label), must remain presentation-only, and must leave canonical
+`PlanningSection`/Student Academic Placement/frozen historical Talent
+Grade-Section identity, analytics grouping, and query/filter/import-export
+identity completely unchanged - see ADR 0045 for the full authorized
+convention and fallback rule.
+
 ## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (2026-09-22)
 
 Implements the complete backend Evaluation Progress contract per ADR 0044,
@@ -1151,8 +1172,13 @@ with zero managed-identifier rows remains valid.
 
 Not implemented: TIS Student ID create/edit API/UI and its duplicate-value
 messaging, database-level canonical-format enforcement, Learning Style
-percentage API/frontend, Evaluation Progress, roster import/export, and
-Al-Andalus Section display - all explicitly deferred to later milestones.
+percentage API/frontend, Evaluation Progress, and roster import/export -
+all explicitly deferred to later milestones. Al-Andalus Section display was
+also deferred at M1; per ADR 0045 it is now Owner-authorized for the exact
+verified `workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`
+(governance decision only - implementation is separate, later work and is
+not yet done; see "Al-Andalus Section Display - Governance Authorization"
+above).
 Focused coverage is in `tests/test_student_learning_style_profile_foundation.py`
 and `tests/test_student_tis_number_identifier_foundation.py`; PostgreSQL
 migration coverage (upgrade path and preflight-conflict rollback) is added

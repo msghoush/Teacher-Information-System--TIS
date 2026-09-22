@@ -7,6 +7,29 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-22 — Al-Andalus Section Display: Governance Authorization (KMS-only)
+
+Per new ADR 0045, the Owner authorized the presentation-only Al-Andalus
+Section-display convention (Grade/Section rendered as
+`{grade_number}.{section_ordinal}`, e.g. Grade 1/Section A -> `1.1`, with
+deterministic alphabetic Section-ordinal mapping and an unchanged-fallback
+rule for anything that does not map deterministically) for the exact
+verified production `SchoolGroup.workspace_uuid`
+`72e52eb2-3844-447b-92a8-c55015f73257`. The workspace identity was
+identified using the repository's existing read-only production audit
+(`scripts/audit_al_andalus_readonly.py`), run by the Owner against the
+deployed Render PostgreSQL environment (exact_name "Al-Andalus", no
+duplicate-organization conflict, audit exit code 0); no credentials,
+connection strings, or other production detail were recorded. This closes
+the "deferred" status recorded for this feature at the Students + Talent &
+Potential M1 milestone and in ADR 0042's boundary note. This is a KMS
+governance correction only - no application code, schema, or migration
+changed, and the feature itself (a shared server-side presentation
+helper and its Student/Talent UI surfaces) is not implemented by this
+change. See `docs/PROJECT_STATE.md` ("Al-Andalus Section Display -
+Governance Authorization") and ADR 0045 for the full authorized convention,
+fallback rule, and canonical-identity-unchanged constraints.
+
 ## 2026-09-22 — Talent & Potential M4: Authoritative Evaluation Progress Analytics
 
 Implemented the complete backend Evaluation Progress contract per new
