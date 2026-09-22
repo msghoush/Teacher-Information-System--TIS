@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Student Evaluation Progress Frontend (M9)
+
+- `templates/student_profile.html`: owns the existing authorized Student Talent
+  profile location and declares one Evaluation Progress mount per Program and
+  Academic Year already returned by the Learner Profile.
+- `static/js/student-evaluation-progress.js`: fetches only the M4 Student
+  Evaluation Progress endpoint and renders its ordered Period labels, explicit
+  result states, comparable Overall Result, and framework-change explanation.
+  It performs no active-Period selection, weighting, sorting, averaging,
+  comparability decision, aggregate reconstruction, or placement substitution.
+- `static/css/students.css`: supplies compact responsive period cards and a
+  distinct Overall Result treatment using existing Student design tokens.
+- `routers/talent_evaluation_progress.py` and
+  `talent_evaluation_progress_service.py` remain the unchanged authority for
+  authorization, active/open Period selection, state, order, Framework
+  comparability, and results.
+- M9 exposes no Branch/Organization progress surface or comparison chart and
+  adds no route, permission, schema, or migration.
+
 ## Talent Frontend Cleanup M8 Ownership
 
 - `static/js/talent-operations.js`: omits Reload Saved Rubric and Educator Input

@@ -7,6 +7,31 @@ source_of_truth: true
 
 # TIS Project State
 
+## Student Evaluation Progress Frontend M9 Implemented (2026-09-23)
+
+The existing Student Profile Talent tab now consumes the M4
+`GET /api/talent/evaluation-progress/programs/{program_id}/academic-years/
+{academic_year_id}/students/{student_id}` contract for every authorized
+Program/Academic-Year section already present in the Learner Profile. It shows
+the backend-ordered active/opened Evaluation Periods using their configured
+labels and explicit result states. Available percentages, including real zero,
+are displayed exactly; Pending and other unavailable states are textual and
+never rendered as `0%` or as a zero-valued progress bar.
+
+The page renders **Overall Result** only from a backend-provided comparable
+`current_overall_result`. A backend `framework_changed` response preserves all
+individual Period results, omits the combined number, and explains that the
+frameworks are not comparable. The dedicated frontend renderer does not read
+`nominal_weight`, sort Periods, calculate averages, select active Periods, or
+decide comparability. The endpoint retains existing Student/Talent permission,
+tenant, and frozen historical Branch authorization; aggregate suppression is
+not applicable to this single-Student contract.
+
+Existing frozen Grade/Section presentation and M5 server-derived
+`section_display` remain unchanged. No Branch/Organization Evaluation Progress
+UI, M10 Branch comparison chart, M11 roster frontend, backend calculation,
+privacy redesign, schema, or migration is introduced.
+
 ## Talent Frontend Cleanup M8 Implemented (2026-09-23)
 
 The normal Talent assessment workspace no longer presents the Reload Saved

@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - Added backend-authoritative Student Evaluation Progress UI
+
+- Added compact Evaluation Progress to each Program and Academic Year in the
+  Student Profile Talent tab, using the existing M4 Student endpoint.
+- Preserved backend Period order and configured labels; available zero remains
+  `0%`, while Pending/unavailable states remain textual and non-numeric.
+- Displayed Overall Result only from the backend-provided comparable value.
+- Kept individual Period results and explained the boundary when Framework
+  versions are not comparable, without calculating an equivalence.
+- Added no client-side weighting/averaging, aggregate UI, chart, backend
+  semantic change, schema, or migration; frozen context and M5 Section display
+  remain unchanged.
+
 ## 2026-09-23 - Removed retired controls from normal Talent UX
 
 Area/module:

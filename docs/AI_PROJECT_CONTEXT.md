@@ -7,6 +7,26 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Student Evaluation Progress Frontend (M9, Students Product Sequence)
+
+Student Profile's Talent tab now renders compact Evaluation Progress for each
+authorized Program and Academic Year from the existing M4 Student endpoint.
+The browser preserves the backend period order and configured labels, displays
+an explicit backend result percentage or textual unavailable state for every
+active/opened Evaluation Period, and distinguishes Pending from a real `0%`.
+It displays **Overall Result** only when the backend supplies a comparable
+numeric `current_overall_result`.
+
+When the backend reports `framework_changed`, individual Evaluation Period
+results remain visible, the combined numeric Overall Result is absent, and the
+page explains the comparability boundary without treating historical evidence
+as corrupt. Frontend code does not select active Periods, read nominal weights,
+sort Periods, average results, decide framework compatibility, or reconstruct
+aggregate values. Existing frozen historical Grade/Section context and M5
+`section_display` remain unchanged. This milestone adds no Branch/Organization
+progress UI, M10 comparison chart, M11 roster UI, backend semantic change,
+schema, or migration.
+
 ## Talent Frontend Cleanup (M8, Students Product Sequence)
 
 The normal Talent assessment frontend no longer exposes **Reload Saved Rubric**

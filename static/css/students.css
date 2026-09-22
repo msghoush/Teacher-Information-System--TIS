@@ -225,3 +225,14 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 @media (prefers-reduced-motion: reduce) {
     .stu * { transition: none !important; animation: none !important; }
 }
+.stu-evaluation-progress{margin:12px 0 16px;padding:14px;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface-muted)}
+.stu-evaluation-progress h5{margin:0 0 10px;font-size:1rem;color:var(--app-brand-deep)}
+.stu-evaluation-periods{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin:0;padding:0;list-style:none}
+.stu-evaluation-period{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:12px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface-strong)}
+.stu-evaluation-period>div{display:flex;align-items:center;gap:8px;min-width:0}.stu-evaluation-period strong{overflow-wrap:anywhere}
+.stu-evaluation-sequence{display:inline-grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:var(--app-brand-soft);color:var(--app-brand-deep);font-weight:800}
+.stu-evaluation-value{flex:0 0 auto;color:var(--app-brand-deep);font-size:1.1rem;font-variant-numeric:tabular-nums}
+.stu-evaluation-state{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--app-surface);color:var(--app-muted);font-size:.875rem;font-weight:700}
+.stu-evaluation-overall{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--app-brand-soft);color:var(--app-brand-deep)}
+.stu-evaluation-overall strong{font-size:1.35rem;font-variant-numeric:tabular-nums}.stu-evaluation-explanation{margin:12px 0 0;padding:10px 12px;border-left:3px solid var(--app-brand);background:var(--app-surface-strong)}
+@media(max-width:680px){.stu-evaluation-period{align-items:flex-start;flex-direction:column}.stu-evaluation-overall{align-items:flex-start;flex-direction:column}}

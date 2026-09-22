@@ -7,6 +7,31 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Student Evaluation Progress Frontend Flow (M9)
+
+1. An authorized user opens a Student Profile's existing Talent tab.
+2. The server-rendered Learner Profile supplies only authorized Program and
+   Academic Year contexts plus the unchanged frozen historical evidence.
+3. For each context, the browser requests the existing M4 Student Evaluation
+   Progress endpoint using the same Student identity.
+4. The endpoint enforces `talent_learner_profiles.view`, SchoolGroup scope, and
+   frozen historical Branch access, then returns backend-selected and
+   backend-ordered active/opened Periods.
+5. The browser renders each configured Period label and its explicit result
+   state. `available` renders the supplied percentage, including real `0%`;
+   Pending and unavailable states render text without numeric progress
+   semantics.
+6. A comparable supplied `current_overall_result` renders as Overall Result.
+   For `framework_changed`, individual Period results remain visible, the
+   combined number stays absent, and a concise explanation is shown.
+7. Existing historical assessment details continue to render their frozen
+   Grade/Section and server-derived M5 `section_display` independently.
+
+The browser never selects active Periods, reads weights, reorders Periods,
+averages results, decides Framework comparability, reconstructs suppressed
+aggregates, or substitutes current Placement. Branch/Organization progress,
+M10 comparison charts, and M11 roster UI are not part of this flow.
+
 ## Talent Frontend Cleanup M8 Flow
 
 1. Opening a Student Assessment loads its exact persisted Framework,

@@ -205,6 +205,13 @@
         <h3>{{ prog.program.name }}</h3>
         {% for yr in prog.academic_years %}
         <h4 style="margin: 16px 0 8px;">{{ yr.academic_year.year_name }}</h4>
+        <div data-evaluation-progress
+             data-program-id="{{ prog.program.id }}"
+             data-academic-year-id="{{ yr.academic_year.id }}"
+             data-student-id="{{ student.id }}"
+             aria-live="polite">
+          <p class="stu-hint">Loading Evaluation Progress…</p>
+        </div>
         {% for c in yr.cycles %}
         <details style="margin-bottom: 8px;">
           <summary>{{ c.cycle.title }} · {{ c.assessment.status | replace('_', ' ') }}</summary>
@@ -256,5 +263,6 @@
 {% endblock %}
 {% block page_scripts %}
 <script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/student-evaluation-progress.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/students.js') }}" defer></script>
 {% endblock %}
