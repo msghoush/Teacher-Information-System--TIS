@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
+from io import BytesIO
 
-from fastapi import APIRouter, Body, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, File, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -14,11 +15,12 @@ from dependencies import get_db
 from student_academic_service import (
     StudentAcademicError, add_external_identifier, audit_event_payload, canonical_student_number,
     correct_placement, create_placement, create_student_with_number, current_student_number,
-    deactivate_external_identifier, delete_student, delete_students, find_student_number_holder,
+    deactivate_external_identifier, delete_student, delete_students, describe_student_number_conflict,
     force_delete_student_history, student_delete_blockers, end_placement, get_student,
     list_audit_events, list_placements, list_students, placement_payload, resolve_placement, set_student_number,
     transition_placement, update_student,
 )
+import student_roster_service
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
 from talent_analytics_privacy import resolve_privacy_policy_provider
@@ -76,26 +78,19 @@ def _student_number_conflict_response(db, group_id, user, canonical_value):
     inactive value reserved by nobody currently visible) returns the exact
     same generic body, so no enumeration oracle is introduced.
     """
-    holder = find_student_number_holder(db, canonical_value=canonical_value)
-    if (
-        holder is not None
-        and holder["school_group_id"] == group_id
-        and auth.has_permission(db, user, "students.view", school_group_id=group_id)
-    ):
-        student = get_student(db, group_id, holder["student_id"])
-        if student is not None:
-            display_name = " ".join(
-                part for part in (student.first_name, student.father_name, student.last_name) if part
-            )
-            return JSONResponse(
-                {
-                    "detail": "That Student number is unavailable.",
-                    "code": "student_number_unavailable",
-                    "student_id": student.id,
-                    "display_name": display_name,
-                },
-                status_code=409,
-            )
+    conflict = describe_student_number_conflict(
+        db, requester_school_group_id=group_id, actor=user, canonical_value=canonical_value
+    )
+    if not conflict.get("available", True) and conflict.get("student_id") is not None:
+        return JSONResponse(
+            {
+                "detail": "That Student number is unavailable.",
+                "code": "student_number_unavailable",
+                "student_id": conflict["student_id"],
+                "display_name": conflict["display_name"],
+            },
+            status_code=409,
+        )
     return JSONResponse(
         {"detail": "That Student number is unavailable.", "code": "student_number_unavailable"},
         status_code=409,
@@ -429,6 +424,43 @@ def placement_transition(student_id: int, placement_id: int, request: Request, p
         db.commit(); db.refresh(row); return JSONResponse(jsonable_encoder(placement_payload(row)), status_code=201)
     except (StudentAcademicError, TypeError, ValueError) as exc:
         db.rollback(); return _error(exc) if isinstance(exc, StudentAcademicError) else JSONResponse({"detail": "Invalid placement payload."}, status_code=400)
+
+
+# ---------------------------------------------------------------------------
+# Roster import/export (M6). Bounded, stateless-preview, revalidated-atomic-
+# apply backend; see student_roster_service.py for the full scope contract.
+# ---------------------------------------------------------------------------
+
+@router.get("/roster/export")
+def roster_export(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.export")
+    if denied: return denied
+    workbook = student_roster_service.export_roster(db, school_group_id=group_id, actor=user)
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=student_roster_export_{stamp}.xlsx"},
+    )
+
+
+@router.post("/roster/import/preview")
+def roster_import_preview(request: Request, roster_file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.import")
+    if denied: return denied
+    result = student_roster_service.preview_roster(db, school_group_id=group_id, actor=user, upload=roster_file)
+    return JSONResponse(jsonable_encoder(result), status_code=200 if result["status"] == "ok" else 422)
+
+
+@router.post("/roster/import/apply")
+def roster_import_apply(request: Request, roster_file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.import")
+    if denied: return denied
+    result = student_roster_service.apply_roster(db, school_group_id=group_id, actor=user, upload=roster_file)
+    return JSONResponse(jsonable_encoder(result), status_code=201 if result["status"] == "ok" else 422)
 
 
 @router.patch("/{student_id}/placements/{placement_id}")

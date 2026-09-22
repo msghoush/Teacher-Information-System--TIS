@@ -93,8 +93,8 @@ CLASSIFICATION = {
     "students.force_delete_history": ("A", ('routers/students.py', 'routers/students_ui.py')),
     "students.manage_identifiers": ("A", ('routers/students.py',)),
     "students.manage_placements": ("A", ('routers/students.py', 'routers/students_ui.py')),
-    "students.import": ("D", ()),
-    "students.export": ("D", ()),
+    "students.import": ("A", ('routers/students.py',)),
+    "students.export": ("A", ('routers/students.py',)),
     # --- talent_programs
     "talent_programs.view": ("A", ('routers/talent_programs.py', 'ui_shell.py')),
     "talent_programs.manage": ("A", ('routers/talent_programs.py',)),
@@ -239,8 +239,6 @@ DORMANT_REASONS = {
     "subjects.manage_colors": "Subject color is auto-derived; no manual color editing exists.",
     "planning.import": "No planning import route or control exists (a prior KMS note claiming a consumer was stale).",
     "planning.export": "No planning export route or control exists (a prior KMS note claiming a consumer was stale).",
-    "students.import": "Governance prerequisite only (owner-approved); no roster import route or control exists yet (M6 backend implementation is separate, later work).",
-    "students.export": "Governance prerequisite only (owner-approved); no roster export route or control exists yet (M6 backend implementation is separate, later work).",
     "observations.submit": "Documented alias of observations.sign_evaluator but no code path evaluates it; enforcement is sign_evaluator only.",
     "observations.manage_templates": "Observation rubric is an auto-seeded fixture; no template management route exists.",
     "dashboard.view_all_schools": "Platform-only; referenced only in a denial-message label. The all-school scope gate is the access scope identity, not this key.",
@@ -384,7 +382,7 @@ def test_no_key_is_unresolved_and_statuses_are_valid():
 
 def test_classification_counts_are_pinned():
     counts = collections.Counter(status for status, _ in CLASSIFICATION.values())
-    assert dict(counts) == {"A": 143, "B": 14, "C": 5, "D": 15}
+    assert dict(counts) == {"A": 145, "B": 14, "C": 5, "D": 13}
 
 
 def test_active_platform_and_alias_keys_have_a_discovered_consumer():

@@ -10,6 +10,7 @@ from datetime import datetime
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
+import auth
 import models
 from academic_grade import normalize_grade_level
 
@@ -598,6 +599,38 @@ def find_student_number_holder(db: Session, *, canonical_value: str):
     if row is None:
         return None
     return {"school_group_id": row.school_group_id, "student_id": row.student_id}
+
+
+def describe_student_number_conflict(db: Session, *, requester_school_group_id, actor, canonical_value):
+    """Single source of truth for the ADR 0043/M2 privacy-safe Student-number
+    conflict disclosure contract.
+
+    Reused by both the direct create/replace API 409 response
+    (``routers/students.py``) and the M6 roster import preview/apply conflict
+    checks (``student_roster_service.py``), so preview and apply never grow a
+    richer or different disclosure path than the one already approved for the
+    single-Student API. Returns ``{"available": True}`` when the canonical
+    value is free, or ``{"available": False, "student_id": int|None,
+    "display_name": str|None}``. ``student_id``/``display_name`` are
+    populated only when the conflicting identifier belongs to the SAME
+    ``school_group_id`` as the requester AND the actor independently holds
+    ``students.view`` for that scope; every other case (cross-tenant,
+    unauthorized same-tenant, or a retired/reserved value with no currently
+    visible holder) returns the fully generic unavailable signal.
+    """
+    holder = find_student_number_holder(db, canonical_value=canonical_value)
+    if holder is None:
+        return {"available": True}
+    if holder["school_group_id"] == requester_school_group_id and auth.has_permission(
+        db, actor, "students.view", school_group_id=requester_school_group_id
+    ):
+        student = get_student(db, requester_school_group_id, holder["student_id"])
+        if student is not None:
+            display_name = " ".join(
+                part for part in (student.first_name, student.father_name, student.last_name) if part
+            )
+            return {"available": False, "student_id": student.id, "display_name": display_name}
+    return {"available": False, "student_id": None, "display_name": None}
 
 
 def _lock_student(db, *, school_group_id, student_id):

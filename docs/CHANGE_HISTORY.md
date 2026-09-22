@@ -1,11 +1,34 @@
 ---
 title: TIS Change History
-documentation_version: 5.1
-last_updated: 2026-09-22
+documentation_version: 5.2
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-23 — Student Roster Import/Export Backend Implemented (M6)
+
+Implements the .xlsx-only Student roster import/export backend authorized by
+the governance prerequisite below. Adds `student_roster_service.py`
+(create-only workbook import for this first release, stateless preview,
+independently-revalidated atomic apply, `.xlsx` export) and three new routes
+in `routers/students.py`: `GET /api/students/roster/export`
+(`students.export`), `POST /api/students/roster/import/preview` and
+`POST /api/students/roster/import/apply` (`students.import`). Reuses
+`student_academic_service.py`'s canonical Student/TIS Student number/Academic
+Placement invariants throughout; extracts one new shared helper,
+`describe_student_number_conflict`, so the direct create API and the roster
+preview/apply share exactly one implementation of the ADR 0043/M2
+privacy-safe conflict-disclosure contract. Reclassifies
+`students.import`/`students.export` from dormant (`D`) to active-enforced
+(`A`) in `tests/test_permission_registry_matrix.py` (dormant 15→13, active
+143→145); no role-grant or default-permission change. `section_display`
+(ADR 0045) stays additive-only on export and is never import matching
+identity (canonical `PlanningSection`/`grade_level`/`section_name` only). No
+schema, migration, or frontend change. 40 new focused tests added in
+`tests/test_student_roster_import_export.py`. See `docs/PROJECT_STATE.md`
+("Student Roster Import/Export Backend Implemented (M6)").
 
 ## 2026-09-22 — Student Roster Import/Export: Permission Registration (Governance Prerequisite, M6)
 

@@ -1,11 +1,107 @@
 ---
 title: TIS Project State
-documentation_version: 5.10
-last_updated: 2026-09-22
+documentation_version: 5.11
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Student Roster Import/Export Backend Implemented (M6) (2026-09-23)
+
+Following the M6 governance prerequisite below (permission registration,
+2026-09-22), the `students.import`/`students.export` roster import/export
+backend is now implemented. First release, .xlsx-only, no frontend (M11,
+later), no persistent import-job/batch table, no schema/migration.
+
+**Service**: `student_roster_service.py` is a bounded roster service reusing
+`student_academic_service.py`'s canonical Student/TIS Student number/Academic
+Placement invariants (`create_student_with_number`,
+`create_placement`, `describe_student_number_conflict`) - it never
+duplicates canonicalization, uniqueness, or privacy-disclosure logic.
+`student_academic_service.py` gained one new shared helper,
+`describe_student_number_conflict`, extracted from the existing single-Student
+create/replace 409 conflict handler in `routers/students.py` so that the
+direct API, roster preview, and roster apply all share exactly one
+implementation of the ADR 0043/M2 privacy-safe conflict-disclosure contract
+(same-tenant + `students.view` reveals `student_id`/`display_name`;
+cross-tenant or unauthorized same-tenant is fully generic) - never a richer or
+different disclosure path for either surface.
+
+**Scope decision (judgment call, not previously documented)**: M6 import is
+CREATE-ONLY for this first release - every workbook row enrolls a NEW Student
+with an initial Academic Placement. Updating an existing Student's identity or
+placement through the roster file is out of scope for M6 and was not
+attempted, avoiding invented merge/overwrite semantics the KMS does not
+authorize.
+
+**Routes** (`routers/students.py`, existing `students.*` permission-check
+pattern via `_authorize`/`auth.has_permission`, tenant/Branch scope reused
+from existing Student routes):
+- `GET /api/students/roster/export` (`students.export`) - streams an `.xlsx`
+  workbook (`openpyxl`, matching `routers/subjects.py`'s existing
+  `StreamingResponse` convention). Columns: `student_id, first_name,
+  father_name, last_name, gender, status, branch, academic_year, grade,
+  section, section_display`. Tenant-isolated; a Branch-restricted actor only
+  sees Students whose CURRENT effective Academic Placement Branch is in their
+  accessible-Branch set (mirrors the existing granular Branch-gating already
+  applied to placement data in `routers/students_ui.py`). Student ID is
+  written as a canonical `STD`+10-digit TEXT cell (`number_format="@"`,
+  Python `str`) so Excel never strips leading zeros or applies scientific
+  notation; a legacy Student with no managed Student number gets a blank
+  cell, never a fabricated one. `section_display` reuses
+  `academic_grade.format_section_display` unchanged (ADR 0045): additive only,
+  activates exclusively on the exact Al-Andalus `workspace_uuid`, and the
+  canonical `section` column is never replaced by it.
+- `POST /api/students/roster/import/preview` (`students.import`) - stateless,
+  zero-DB-mutation: parses the uploaded `.xlsx` (`load_workbook(...,
+  data_only=True, keep_links=False)`, so a formula cell is read as its cached
+  value and never evaluated, and external links are dropped), validates
+  workbook structure/headers/every row, normalizes values, resolves Branch/
+  Academic Year/Grade/`PlanningSection` by canonical identity only (never the
+  ADR 0045 `section_display` label, even for the Al-Andalus workspace), and
+  runs the same privacy-safe TIS Student ID conflict check as the direct
+  create API. Returns a bounded per-row result:
+  `{row, status, data|errors}` with `errors` as
+  `{row, field, error_code, safe_message}` - never a raw exception, SQL
+  error, or sensitive tenant detail.
+- `POST /api/students/roster/import/apply` (`students.import`) - never trusts
+  a client-submitted preview payload: it independently re-parses and
+  revalidates the freshly uploaded workbook using the identical validation
+  core preview uses, then applies atomically inside the existing DB
+  transaction pattern. Any row failure - including a `IntegrityError` race
+  discovered only at apply time (classified as `student_id_conflict`, never
+  the raw database error text) - rolls back the entire apply; there is no
+  partial Student/Placement write.
+
+**File safety**: `.xlsx` extension only; 5 MB upload-size and 2000-data-row
+bounds (this feature's own explicit judgment call - no existing
+repository-wide upload convention was found); malformed/empty/oversized
+workbooks are rejected with a bounded file-level error
+(`{row: null, field: null, error_code, safe_message}`), never a stack trace.
+
+**Permission status**: `students.import`/`students.export` are reclassified
+from dormant/reserved (`D`) to active-enforced (`A`) in
+`tests/test_permission_registry_matrix.py`, matching the `subjects.import`/
+`subjects.export` precedent (discovered consumer: `routers/students.py`, via
+the same `_authorize` guard-call pattern already used by every other
+`students.*` key). Dormant count 15→13, active count 143→145; total
+registered keys unchanged at 177. No new role grant, no `DEVELOPER_ONLY`/
+`OWNER_ONLY`/`ADMINISTRATOR_ONLY`/`LIMITED_READ_ONLY` membership change - the
+governance decision recorded below is unchanged, only the enforcement status
+now reflects that real routes exist.
+
+**Tests**: `tests/test_student_roster_import_export.py` (40 focused tests
+covering export tenant/Branch isolation, deterministic columns, Student-ID
+text-cell/leading-zero preservation, legacy-no-ID handling; preview
+statelessness, file/structural/row-level error classification, same-tenant
+and cross-tenant privacy-safe conflict disclosure, Branch/Grade/Section/
+Academic-Year reference validation, formula-cell and oversized-workbook
+safety; apply atomicity, independent revalidation, race-conflict rollback,
+permission/scope re-checking, and historical-placement non-corruption; and
+M5/ADR 0045 regression proving `section_display` is never import matching
+identity and stays additive-only on export). `tests/test_permission_registry_
+matrix.py`'s classification update keeps all of its own tests passing.
 
 ## Student Roster Import/Export — Permission Registration (Governance Prerequisite, M6) (2026-09-22)
 
