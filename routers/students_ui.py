@@ -725,7 +725,7 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
                 include_timeline=True,
                 include_review_candidates=auth.has_permission(db, user, "talent_review_candidates.view", school_group_id=group_id),
                 include_identifications=auth.has_permission(db, user, "talent_official_identifications.view", school_group_id=group_id),
-                include_educator_inputs=auth.has_permission(db, user, "talent_educator_inputs.view", school_group_id=group_id),
+                include_educator_inputs=False,
             )
         except TalentLearnerProfileError:
             talent_profile = None

@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - Removed retired controls from normal Talent UX
+
+Area/module:
+Talent & Potential frontend
+
+New state:
+Normal Student Assessment and Student Talent-profile presentation no longer
+expose Reload Saved Rubric or Educator Input. Frontend-only fetches and handlers
+used exclusively by those controls were retired without changing backend
+contracts or stored evidence.
+
+Preservation and exclusions:
+Historical assessments, rubric evidence, Educator Input records/lineage, audit,
+Official Results, frozen context, and M5 Section display remain intact. No
+four-dimension Learning Style Talent presentation, M9/M10/M11 frontend work,
+schema/migration, scoring, or privacy change was included.
+
 ## 2026-09-23 - Implemented Students M7 identity and Learning Style frontend
 
 Area/module:

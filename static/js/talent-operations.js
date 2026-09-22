@@ -17,7 +17,7 @@
     return `<span class="tp-overall-result" style="--tp-overall-score:${percent}" aria-label="Overall Program Result ${value} out of ${scaleMax}"><strong>${value}</strong><span>/${scaleMax}</span><span class="tp-overall-result-track" aria-hidden="true"><i style="width:${percent}%"></i></span></span>`;
   };
   const note = value => `<aside class="tp-note">${esc(value)}</aside>`;
-  const button = (action, label, extra='') => `<button type="button" data-action="${action}" ${extra}>${esc(label)}</button>`;
+  const button = (action, label, extra='') => action==='reload' ? '' : `<button type="button" data-action="${action}" ${extra}>${esc(label)}</button>`;
   const programLogo = program => program && typeof window !== 'undefined' && window.TalentProgramIdentity ? window.TalentProgramIdentity.logoBadge(program, 'tp-logo-sm') : '';
   const query = values => new URLSearchParams(Object.entries(values).filter(([,v])=>v !== '' && v != null)).toString();
   const field = (label, name, value='', type='text', attrs='') => `<label>${esc(label)}<input name="${name}" type="${type}" value="${esc(value)}" ${attrs}></label>`;
@@ -41,7 +41,10 @@
     return current;
   }
   async function render(ctx) {
-    const {root,api,can,params,navigate}=ctx;
+    const {root,api,can:permissionCan,params,navigate}=ctx;
+    // M8 retires Educator Input from normal Talent UX while preserving its
+    // governed backend history and compatibility APIs.
+    const can=key=>!key.startsWith('talent_educator_inputs.')&&permissionCan(key);
     const year=ctx.year?.value ?? ctx.year;
     const dirtyForms=new Set();
     let busy=false, stale=false;
@@ -60,7 +63,7 @@
       try {await work();}
       catch(error){
         stale=stale||error.status===409;
-        feedback(el,`${error.message}${stale?' Your entries are still here. Reload the saved version before making further changes.':''}`,true);
+        feedback(el,`${error.message}${stale?' Your entries are still here. Refresh the page before making further changes.':''}`,true);
         const message=root.querySelector('#op-message');
         if(message){message.setAttribute('role','alert');message.classList.add('tp-error');message.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
       }
@@ -70,7 +73,7 @@
       const el=root.querySelector(`[data-operation="${name}"]`);if(!el)return;
       el.addEventListener('input',()=>{dirtyForms.add(el);feedback(el,'Unsaved changes');});
       el.addEventListener('reset',()=>{dirtyForms.delete(el);feedback(el,'Changes cancelled.');});
-      el.addEventListener('submit',e=>{e.preventDefault();if(stale){feedback(el,'Reload the saved version before retrying.',true);return;}if([...dirtyForms].some(form=>form!==el)){feedback(el,'Save or cancel changes in the other form first.',true);return;}const data=Object.fromEntries(new FormData(el));action(el,()=>work(data,el));});
+      el.addEventListener('submit',e=>{e.preventDefault();if(stale){feedback(el,'Refresh the page before retrying.',true);return;}if([...dirtyForms].some(form=>form!==el)){feedback(el,'Save or cancel changes in the other form first.',true);return;}const data=Object.fromEntries(new FormData(el));action(el,()=>work(data,el));});
     };
     const on=(name,work)=>root.querySelectorAll(`[data-action="${name}"]`).forEach(el=>el.addEventListener('click',()=>action(null,()=>work(el))));
     if(ctx.view==='reviews') {
@@ -161,13 +164,11 @@
       }
       const base=`/api/talent/programs/${assessment.program_id}/frameworks/${assessment.framework_version_id}`;
       const canViewPrograms=can('talent_programs.view');
-      const canViewInputs=can('talent_educator_inputs.view');
-      const [assessmentProgram,results,framework,configuration,loadedInputs]=await Promise.all([
+      const [assessmentProgram,results,framework,configuration]=await Promise.all([
         canViewPrograms?api(`/api/talent/programs/${assessment.program_id}`).catch(()=>null):Promise.resolve(null),
         api(`/api/talent/assessments/${assessment.id}/competency-results`),
         canViewPrograms?api(base):Promise.resolve(null),
         canViewPrograms?api(`${base}/configuration`):Promise.resolve(null),
-        canViewInputs?api(`/api/talent/educator-inputs?${query({student_id:assessment.student_id,program_id:assessment.program_id})}`):Promise.resolve([]),
       ]);
       if(!canViewPrograms) {mount(`<article class="tp-card"><h3>${programLogo(assessmentProgram)} ${esc(assessment.context?.student_name || 'Student name unavailable')}</h3>${context(assessment)}</article>`+note('Program viewing permission is needed to display the competency and rubric labels. Ask your administrator for access.'));return;}
       const editable=assessment.status==='in_progress';
@@ -201,8 +202,6 @@
         ? `<aside class="tp-note tp-grade-criteria-empty"><strong>No assessment criteria for Grade ${esc(assessmentGrade||'—')}.</strong> Configure Competency → KPI → Level criteria for this Grade in the Program before assessing this Student. Criteria from another Grade are never substituted.</aside>`
         : '';
       const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===assessmentGrade)?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
-      let inputs=(loadedInputs||[]).filter(r=>r.academic_year_id===assessment.academic_year_id&&r.assessment_id===assessment.id);
-      const educatorFields=(r={})=>select('Input category','category',[['observation','Observation'],['context','Context'],['supporting_evidence','Supporting evidence']],r.category || 'observation')+field('Observed at (your local time)','observed_at',r.observed_at?localDate(r.observed_at):'','datetime-local','required')+area('Educator input','content',r.content || '',2000);
       const reassessmentNotice=assessment.reassessment?.required
         ? note(`The rubric has changed since this assessment was completed. Re-evaluation is required against rubric version ${esc(assessment.reassessment.framework_version_number || '')}.`)
           + ((assessment.actions||[]).includes('reassess')?`<p class="tp-actions">${button('reassess','Re-evaluate Student')}</p>`:'')
@@ -230,14 +229,13 @@
       editor.addEventListener('input',e=>{dirtyForms.add(editor);const p=e.target.closest('fieldset')?.querySelector('[data-save-state]');if(p)p.textContent='Unsaved changes';feedback(editor,'Unsaved changes');});
       editor.addEventListener('reset',e=>{e.preventDefault();for(const c of competencies){const box=editor.querySelector(`[data-competency="${c.id}"]`),old=saved.get(c.id);box.querySelectorAll('input[type="radio"]').forEach(input=>input.checked=Number(input.value)===old?.rubric_level_id);box.querySelector('textarea').value=old?.evidence || '';box.querySelector('[data-save-state]').textContent=old?'Saved':'Not yet assessed';}dirtyForms.delete(editor);feedback(editor,'Assessment changes cancelled.');});
       editor.addEventListener('submit',e=>{e.preventDefault();action(editor,async()=>{
-        if(stale)throw new Error('Reload the saved version before retrying.');
+        if(stale)throw new Error('Refresh the page before retrying.');
         const evidenceOnly=competencies.some(c=>{const box=editor.querySelector(`[data-competency="${c.id}"]`);return box.querySelector('textarea').value.trim()&&!box.querySelector('input:checked');});
         if(evidenceOnly)throw new Error('Choose a rubric level for each competency with evidence.');
         let count=0;
         try {assessment=await saveResults(api,assessment,pending(),(result,current)=>{assessment=current;saved.set(result.framework_competency_id,result);count++;editor.querySelector(`[data-competency="${result.framework_competency_id}"] [data-save-state]`).textContent='Saved';root.querySelector('#assessment-progress').textContent=`${saved.size} of ${competencies.length} competencies saved`;});dirtyForms.delete(editor);feedback(editor,'Assessment saved.');}
         catch(error){error.message=`${count?`${count} competency changes saved. `:''}${error.message}`;throw error;}
       });});
-      on('reload',async()=>{if(dirtyForms.size&&!window.confirm('Discard unsaved entries and reload the saved assessment?'))return;dirtyForms.clear();await reload();});
       on('clear-result',async el=>{
         if(dirtyForms.size)throw new Error('Save or cancel your unsaved changes first.');
         if(!window.confirm('Remove this saved competency result? This cannot be undone.'))return;
@@ -255,11 +253,6 @@
         window.scrollTo(0,savedScrollY);
       });
       for(const target of ['complete','incomplete','insufficient-evidence'])on(target,async()=>{if(dirtyForms.size)throw new Error('Save or cancel your unsaved changes first.');if(!window.confirm('Record this final assessment outcome? It cannot be reopened or edited.'))return;await api(`/api/talent/assessments/${assessment.id}/${target}`,{method:'POST',body:{expected_revision:assessment.revision}});await reload();notify('Final assessment outcome recorded.');});
-      const binding={student_id:assessment.student_id,program_id:assessment.program_id,academic_year_id:assessment.academic_year_id,cycle_id:assessment.cycle_id,cycle_population_member_id:assessment.cycle_population_member_id,assessment_id:assessment.id};
-      const saveInput=path=>async(data)=>{await api(path,{method:'POST',body:{...binding,...data,observed_at:new Date(data.observed_at).toISOString()}});dirtyForms.clear();await reload();notify('Educator input saved separately from assessment results.');};
-      bindForm('educator-add',saveInput('/api/talent/educator-inputs'));
-      inputs.forEach(r=>bindForm(`educator-amend-${r.id}`,saveInput(`/api/talent/educator-inputs/${r.id}/amend`)));
-      on('input-history',async el=>{const history=await api(`/api/talent/educator-inputs/${el.dataset.id}/history`);root.querySelector(`[data-history="${el.dataset.id}"]`).innerHTML=history.map(r=>`<p>${esc(r.observed_at)} · ${esc(words(r.category))}</p><p>${esc(r.content)}</p>`).join('');});
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');

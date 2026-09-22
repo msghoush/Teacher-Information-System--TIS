@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent Frontend Cleanup M8 Ownership
+
+- `static/js/talent-operations.js`: omits Reload Saved Rubric and Educator Input
+  from normal Student Assessment rendering and no longer fetches or binds the
+  retired Educator Input controls.
+- `routers/students_ui.py` and `templates/student_profile.html`: omit Educator
+  Input from the normal Student Talent-profile projection/presentation.
+- `routers/talent_educator_inputs.py`, its service/model, assessment/rubric
+  persistence, audit, and permissions remain unchanged compatibility/history
+  authorities. No historical evidence is deleted.
+- Talent scoring, analytics, Evaluation Progress, Student Learning Style,
+  Section formatting, schema, and migrations are unchanged.
+
 ## Students M7 Frontend Ownership
 
 - `routers/students_ui.py` projects canonical managed Student IDs, delegates new

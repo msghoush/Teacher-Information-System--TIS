@@ -1,5 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const path=require('node:path');
 const {saveResults,context,esc,render}=require('../static/js/talent-operations.js');
 
 function domRoot() {
@@ -118,6 +120,28 @@ test('an editable assessment shows Clear Result only for competencies with a sav
   assert.doesNotMatch(root.innerHTML,/data-competency="102"[\s\S]{0,400}?data-action="clear-result"/);
   assert.match(root.innerHTML,/role="progressbar"/);
   assert.match(root.innerHTML,/tp-rubric-level/);
+});
+
+test('M8 removes Reload Saved Rubric and Educator Input from normal assessment UX',async()=>{
+  const root=domRoot();
+  const calls=[];
+  const base=assessmentApi();
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:async(path,options)=>{calls.push([path,options]);return base(path,options);}};
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/Reload Saved Rubric|data-action="reload"/);
+  assert.doesNotMatch(root.innerHTML,/Educator Input|educator-add|educator-amend|input-history/);
+  assert.equal(calls.some(([path])=>path.startsWith('/api/talent/educator-inputs')),false);
+
+  const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent-operations.js'),'utf8');
+  assert.doesNotMatch(source,/^\s*on\('reload'/m);
+  assert.doesNotMatch(source,/bindForm\('educator-add'/);
+  assert.doesNotMatch(source,/data-action="input-history"/);
+
+  const profile=fs.readFileSync(path.join(__dirname,'..','templates','student_profile.html'),'utf8');
+  const studentsUi=fs.readFileSync(path.join(__dirname,'..','routers','students_ui.py'),'utf8');
+  assert.doesNotMatch(profile,/Educator Input|talent_profile\.educator_inputs/);
+  assert.match(studentsUi,/include_educator_inputs=False/);
 });
 
 test('opened Student Assessment shows a Back to Students action preserving Academic Year, Program, and Evaluation context',async()=>{

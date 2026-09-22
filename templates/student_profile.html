@@ -231,14 +231,6 @@
     <div class="stu-empty">{{ icon('sparkles', 'shell-icon') }}<h3>No Talent history yet</h3><p>Evaluation evidence will appear here once the student participates in a Talent Program.</p></div>
     {% endif %}
 
-    {% if talent_profile and talent_profile.educator_inputs %}
-    <h3 style="margin-top: 16px;">Educator Input</h3>
-    <ul class="stu-timeline">
-      {% for ei in talent_profile.educator_inputs %}
-      <li><div class="stu-t">{{ ei.category | default('Input') }}</div><p>{{ ei.content }}</p><div class="stu-d">{{ ei.observed_at }}</div></li>
-      {% endfor %}
-    </ul>
-    {% endif %}
   </div>
   {% endif %}
 

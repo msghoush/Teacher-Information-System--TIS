@@ -7,6 +7,27 @@ source_of_truth: true
 
 # TIS Project State
 
+## Talent Frontend Cleanup M8 Implemented (2026-09-23)
+
+The normal Talent assessment workspace no longer presents the Reload Saved
+Rubric action or Educator Input read/create/amend/history controls. Their
+obsolete frontend fetch/state/handlers are no longer active. Student Profile's
+Talent tab likewise no longer requests or renders Educator Input as a normal
+product concept.
+
+This is presentation cleanup only. Historical rubric responses, competency
+results, persisted Educator Input rows and amendment lineage, Official Results,
+Candidate/Identification evidence, audit history, frozen population context,
+and Framework references remain unchanged. Backend APIs/services and permissions
+remain available for historical compatibility. Deterministic scoring and M5
+server-derived Section presentation are unchanged.
+
+Current four-dimension Learning Style display inside Talent is not assigned to
+this cleanup by the authoritative roadmap and was not added. M9 Evaluation
+Progress frontend, M10 Branch analytics charts, M11 roster frontend, migrations,
+schema changes, new privacy logic, and new Student/Talent business rules remain
+out of scope.
+
 ## Students M7 Frontend Implemented (2026-09-23)
 
 The existing Students Jinja UI now uses the M2/M3 backend contracts for managed

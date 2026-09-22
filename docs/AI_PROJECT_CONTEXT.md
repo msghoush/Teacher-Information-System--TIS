@@ -7,6 +7,25 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Talent Frontend Cleanup (M8, Students Product Sequence)
+
+The normal Talent assessment frontend no longer exposes **Reload Saved Rubric**
+or **Educator Input**. The obsolete reload click flow and Educator Input
+fetch/create/amend/history handlers were removed from normal UI orchestration,
+and the Student Talent-profile presentation no longer requests or renders
+Educator Input. Existing assessment/rubric evidence and persisted Educator Input
+records, lineage, permissions, audit, services, and API compatibility remain
+unchanged and are not deleted or rewritten.
+
+This bounded cleanup does not change deterministic result/KPI semantics,
+Review Candidate or Official Identification behavior, reassessment rules,
+privacy, frozen historical attribution, or M5 `section_display`. Although the
+four-dimension Student Learning Style profile may be informational context in a
+future Talent presentation, current authoritative roadmap material does not
+assign that presentation to this M8 cleanup, so it is not implemented here.
+M9 Evaluation Progress UI, M10 Branch analytics charts, and M11 roster UI remain
+out of scope. No schema or migration is introduced.
+
 ## Students M7 Frontend
 
 The existing FastAPI/Jinja and vanilla JS/CSS Students surfaces now consume the

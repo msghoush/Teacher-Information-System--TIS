@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Talent Frontend Cleanup M8 Flow
+
+1. Opening a Student Assessment loads its exact persisted Framework,
+   competencies, rubric levels, results, and frozen historical context as before.
+2. The normal assessment editor no longer offers Reload Saved Rubric; a stale
+   response directs the user to refresh the page through normal browser behavior.
+3. Normal assessment and Student Talent-profile presentation no longer fetch,
+   display, create, or amend Educator Input.
+4. These presentation removals perform no deletion or mutation. Existing
+   Educator Input lineage, rubric/assessment evidence, audit, results, Candidate,
+   Identification, frozen attribution, and Framework references remain stored
+   under their existing backend contracts.
+5. M5 server-derived Section display and canonical/frozen Section identity remain
+   unchanged. No Learning Style, Evaluation Progress, analytics-chart, or roster
+   frontend work is introduced by this flow.
+
 ## Students M7 Create/Edit/Profile Flow
 
 1. New Student entry shows a fixed `STD` prefix and accepts exactly ten text
