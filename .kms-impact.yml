@@ -11,4 +11,8 @@ kms_files_updated:
   - docs/PROJECT_STATE.md
   - docs/CHANGE_HISTORY.md
   - docs/adr/0044-talent-evaluation-progress-analytics.md
+  - docs/adr/0031-student-learning-style-v1.md
+  - docs/adr/0042-student-learning-style-four-dimension-profile.md
+  - docs/adr/0043-tis-student-number-managed-identifier-invariant.md
+  - docs/adr/README.md
 no_impact_reason: ""
