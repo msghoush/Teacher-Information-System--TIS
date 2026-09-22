@@ -1,11 +1,69 @@
 ---
 title: TIS AI Project Context
 documentation_version: 4.0
-last_updated: 2026-09-19
+last_updated: 2026-09-22
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (Backend)
+
+Per ADR 0044, M4 adds the backend-authoritative Evaluation Progress
+contract for Student, Branch, and Organization scope, plus the seven
+approved Branch comparison metrics and the Learning Style Branch
+aggregate, in `talent_evaluation_progress_service.py` and one new router,
+`routers/talent_evaluation_progress.py`
+(`/api/talent/evaluation-progress/...`), strictly inside one Talent
+Program + one Academic Year exactly like every M9/M10 module. The
+canonical Evaluation Period numerical input is ADR 0037's Overall Program
+Result `normalized_percent`; the active/opened predicate is confirmed
+(not new) as `TalentPlannedEvaluationPeriod.status == 'planned'` AND its
+linked `TalentAssessmentCycle.status IN ('open', 'closed')`, with nominal
+weight `1/A` for A active Periods, derived only and never persisted.
+
+Two previously open design questions are now owner-ratified and recorded
+in ADR 0044: (1) Evaluation Periods combine into one Overall Result only
+when every contributing active Period shares one identical governed
+`framework_version_id` - a mixed-framework active set returns every Period
+individually with `comparability_state="not_comparable"` /
+`"framework_changed"` and a `null` combined Overall, never a
+cross-framework delta or equivalence inference; (2) an individually
+authorized Student's own Evaluation Progress
+(`GET /api/talent/evaluation-progress/programs/{id}/academic-years/{id}
+/students/{id}`, gated by the existing `talent_learner_profiles.view`
+permission plus frozen-historical-Branch scope) is governed by normal
+Student/Talent authorization, never aggregate cohort-size privacy
+suppression - it has no `policy` dependency at all, by construction.
+
+`BranchPeriodResult`/`OrganizationPeriodResult` are the direct mean of
+valid governed Student `normalized_percent` results attributed to that
+scope via frozen `TalentAssessmentCyclePopulationMember.branch_id`
+attribution; `OrganizationPeriodResult` is computed directly from every
+Student in scope, never as an average of `BranchPeriodResult` values
+(proven by a dedicated unequal-Branch-size regression test). Pending/
+unavailable results are excluded, never zero. Every Branch/Organization
+aggregate (and the Learning Style Branch aggregate) reuses only the M9
+generic `Cell`/`Group`/`apply_primary_privacy`/
+`run_complementary_suppression` primitives - never the M10
+`talent_org_intelligence_contract.py` `MetricCode`/`CellIdentity`
+vocabulary, which remains frozen and unmodified. The bounded Branch
+comparison dispatcher (`branch_comparison_metric`) supports exactly seven
+metrics - Evaluation Period Result, Current/Overall Progress, Assessment
+Completion, Assessments Started, Meets Program Criteria, Officially
+Confirmed (the last four reusing the existing M9 breakdown-by-dimension
+providers unchanged), and Learning Style - and adds no `MetricCode` value.
+
+No schema, migration, new permission, or frontend change. The existing
+client-side Review-Candidate average in `talent-operations.js` is
+unrelated to this new backend contract and is untouched; a future
+frontend milestone may adopt these new endpoints. Focused coverage is
+`tests/test_talent_evaluation_progress.py`; see `docs/PROJECT_STATE.md`
+for the full implementation-truth summary and ADR 0044 for the complete
+governance record, including both owner-ratified decisions and a disclosed
+non-blocking characteristic inherited from the reused M9 breakdown
+providers (an all-zero-cohort total may label as `suppressed` rather than
+`no_data` - no raw value is ever leaked either way).
 
 ## Owner Video Acceptance Correction
 

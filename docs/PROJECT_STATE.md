@@ -1,11 +1,135 @@
 ---
 title: TIS Project State
-documentation_version: 5.9
+documentation_version: 5.10
 last_updated: 2026-09-22
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (2026-09-22)
+
+Implements the complete backend Evaluation Progress contract per ADR 0044,
+building on M8 (Evaluation Plans/Periods), M9 (Deterministic Talent
+Analytics privacy primitives), ADR 0037 (Overall Program Result), ADR 0031
+/ ADR 0042 (Learning Style). New files: `talent_evaluation_progress_service.py`
+(core logic) and `routers/talent_evaluation_progress.py` (four routes under
+`/api/talent/evaluation-progress`), registered in `main.py` alongside the
+other Talent routers. No schema, migration, or new permission.
+
+**Active/opened predicate** (verified, not invented):
+`TalentPlannedEvaluationPeriod.status == 'planned'` AND its linked
+`TalentAssessmentCycle.status IN ('open', 'closed')`
+(`resolve_active_periods`). Nominal weight `1/A` for A active Periods is
+derived only, never persisted. Configured label/short_code never affect
+order; only `sequence` does.
+
+**Student Progress** (`GET .../students/{student_id}`, permission
+`talent_learner_profiles.view`): per-active-Period result state
+(`available`/`pending`/`incomplete`/`insufficient_evidence`/`unassessed`/
+`not_applicable`), `normalized_percent` only when `available`, `Current
+Overall Result` = mean of only the available results (Pending/unavailable
+excluded, never zero), plus authoritative
+`active_period_count`/`available_result_count`/
+`pending_or_unavailable_count` counts. Owner-ratified Decision 2: this
+route has NO privacy-policy dependency at all - authorization is frozen-
+historical-Branch scope (mirroring `talent_learner_profile_service`)
+exactly, never aggregate cohort-size suppression. An out-of-scope Student
+is a non-enumerating 404.
+
+**Branch/Organization Progress** (`GET .../branches/{branch_id}` and
+`.../organization`, permission `talent_analytics.view`):
+`BranchPeriodResult`/`OrganizationPeriodResult` are the direct mean of
+valid governed Student `normalized_percent` results via frozen
+`TalentAssessmentCyclePopulationMember.branch_id` attribution;
+`OrganizationPeriodResult` is computed directly from every Student in the
+authorized scope, never as `average(BranchPeriodResult)` (proven by a
+dedicated unequal-Branch-size test: Branch A mean 85.0, Branch B mean
+60.0, but the direct Organization mean is 76.67, not the naive 72.5
+average-of-averages). Every result is gated by one `Cell`/`Group`
+(`_privacy_safe_branch_mean_group`): a contributing-count `Cell` per
+Branch plus an org-total `Cell`, `apply_primary_privacy` then
+`run_complementary_suppression`; a derived mean is serialized only when
+its own count `Cell` is `visible` (never for `suppressed`/`restricted`/
+`coarsened`/`no_data`). Overall Results across active Periods use only
+the `visible` per-Period means (Pending/suppressed excluded, never zero,
+never reconstructable from the combined value).
+
+**Framework comparability** (owner-ratified Decision 1): every
+Student/Branch/Organization progress payload carries
+`comparability_state`/`comparability_reason_code`; when active Periods
+span more than one `framework_version_id`, every Period is still returned
+individually but the combined Overall Result is `null`
+(`{"state": "no_data", "value": None}` for Branch/Organization) with
+`reason_code="framework_changed"`.
+
+**Branch comparison metrics** (`GET .../branch-comparison?metric=...`):
+`talent_evaluation_progress_service.branch_comparison_metric` is a bounded
+local dispatcher for exactly the seven approved metrics -
+`evaluation_period_result`, `current_overall_progress` (both new, above),
+`assessment_completion`, `assessments_started` (reusing
+`svc.raw_coverage_by_dimension` unchanged), `meets_program_criteria`
+(reusing `svc.raw_candidate_by_dimension`, requires
+`talent_review_candidates.view` or 403 - query-skipped, not merely
+filtered), `officially_confirmed` (reusing
+`svc.raw_identification_by_dimension`, requires
+`talent_official_identifications.view` or 403), and `learning_style`
+(new). This dispatcher does not add to, or modify, the frozen 14-value M10
+`MetricCode` enum in `talent_org_intelligence_contract.py`.
+
+**Learning Style Branch aggregate** (ADR 0031/ADR 0042 privacy contract):
+arithmetic mean of valid (non-null) `learning_style_{verbal,non_verbal,
+quantitative,spatial}_percentage` values in the Program's authorized
+population cohort; `null` excluded, `0` is a real included value, no sum
+rule, no dominant-style derivation, protected by the identical `Cell`/
+`Group` mechanism. A Student frozen into more than one Cycle within the
+same Program+Year is de-duplicated to one contribution per Branch context
+(`DISTINCT` on `branch_id, student_id, value`) since Learning Style is a
+per-Student attribute, not a per-membership fact - unlike the reused M9
+`frozen_membership`-grain metrics, which intentionally count once per
+Cycle a Student was frozen into.
+
+**Known, disclosed, non-blocking characteristic** (inherited from reused
+M9 code, not a new M4 defect): `assessment_completion`/
+`assessments_started`/`meets_program_criteria`/`officially_confirmed`
+reuse `svc.build_breakdown_group` exactly as `/breakdowns/branch` already
+does, which does not convert an all-zero cohort's `total_raw=0` to `None`
+- a policy may therefore label a genuinely empty cohort `suppressed`
+rather than `no_data` for those four metrics only. No raw value is ever
+leaked either way (a suppressed cell's `value` is always `None`); the two
+NEW aggregates this milestone adds (Branch/Organization Period Result and
+Learning Style) explicitly avoid this by converting a falsy total to
+`None` before privacy evaluation.
+
+Second-pass adversarial review (required by this milestone, given its
+privacy sensitivity) traced all 16 specified risk categories - suppressed-
+Period reconstruction through Overall Result, complementary-suppression
+failures, sparse-matrix/cell omission, privacy call ordering, hidden raw
+values, numerator/denominator leakage, average-of-Branch-averages,
+current-placement vs. frozen attribution, cross-tenant contamination,
+Framework-version mixing, Pending-as-zero, null-Learning-Style-as-zero,
+privacy-provider fail-open, unauthorized single-Student access, M10
+registry modification, and client arithmetic becoming authoritative - and
+found the implementation clean; no remediation was required beyond the
+Learning Style de-duplication fix made during initial test-writing (fixed
+before any review pass, not a post-review defect). See ADR 0044 for the
+complete governance record and `tests/test_talent_evaluation_progress.py`
+(25 tests: active-period predicate, pure worked-example arithmetic,
+Student progress including authorization/tenant isolation, Branch/
+Organization Period and Overall Result including the unequal-Branch-size
+proof, cross-framework comparability blocking combined Overall while
+preserving individual Periods, missing-privacy-provider fail-closed,
+primary and complementary suppression, Learning Style null/zero handling
+and suppression, and all seven Branch comparison metrics including
+permission query-skip) for the full test matrix. Regression: the existing
+M9/M10 Talent analytics suites, M2 Student number, and M3 Learning Style
+CRUD suites all pass unchanged (three pre-existing, unrelated failures -
+one query-count assertion in
+`tests/test_talent_organization_student_drill.py` and two in
+`tests/test_student_learning_style_v1.py`/
+`tests/test_talent_rubric_kpi_candidate_policy.py` - were directly
+reconfirmed present and unchanged on unmodified `dev` HEAD `96dd454`
+before this task).
 
 ## Promo Grant Replacement — "Replace / Extend Promotional Access" (2026-09-21)
 

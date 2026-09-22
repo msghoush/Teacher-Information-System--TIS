@@ -1,11 +1,46 @@
 ---
 title: TIS Change History
-documentation_version: 5.0
+documentation_version: 5.1
 last_updated: 2026-09-22
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-22 — Talent & Potential M4: Authoritative Evaluation Progress Analytics
+
+Implemented the complete backend Evaluation Progress contract per new
+ADR 0044: Student Progress (per-active-Period result state, Current
+Overall Result excluding Pending/unavailable, authoritative counts),
+Branch/Organization Progress (`BranchPeriodResult`/
+`OrganizationPeriodResult` computed directly from governed Student
+`normalized_percent` results via frozen historical Branch attribution -
+proven not to be an average of Branch averages), the seven approved
+Branch comparison metrics (a bounded local dispatcher reusing existing M9
+coverage/candidate/identification breakdown providers unchanged for four
+of them), and the Learning Style Branch aggregate (ADR 0031/ADR 0042).
+Two owner-ratified decisions are recorded in ADR 0044: (1) Evaluation
+Periods combine into one Overall Result only when every contributing
+active Period shares one identical governed `framework_version_id`, else
+every Period is returned individually with a `null` combined Overall and
+`comparability_reason_code="framework_changed"`; (2) an individually
+authorized Student's own Evaluation Progress is governed by normal
+Student/Talent authorization and frozen-historical-Branch scope, never by
+aggregate cohort-size privacy suppression - that route has no privacy-
+policy dependency at all. Every Branch/Organization aggregate reuses only
+the M9 generic `Cell`/`Group`/`apply_primary_privacy`/
+`run_complementary_suppression` primitives; the frozen M10 `MetricCode`
+registry is unmodified. New files: `talent_evaluation_progress_service.py`,
+`routers/talent_evaluation_progress.py` (registered in `main.py`). No
+schema, migration, new permission, or frontend change. See
+`docs/PROJECT_STATE.md` for the full implementation-truth summary
+(including a disclosed, non-blocking characteristic inherited from the
+reused M9 breakdown providers) and `tests/test_talent_evaluation_progress.py`
+(25 tests) for the complete test matrix. A required second-pass
+adversarial privacy/reconstruction review across 16 specified risk
+categories found the implementation clean. Three pre-existing, unrelated
+test failures were directly reconfirmed present and unchanged on
+unmodified `dev` HEAD `96dd454` before this task.
 
 ## 2026-09-22 — Students + Talent & Potential M3: Four-Dimensional Learning Style Backend/Service/API
 
