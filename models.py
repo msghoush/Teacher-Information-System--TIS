@@ -227,6 +227,31 @@ class Student(Base):
             "learning_style IS NULL OR learning_style IN ('Visual','Auditory','Read/Write','Kinesthetic')",
             name="ck_students_learning_style",
         ),
+        # Learning Style four-dimension profile (ADR 0042, amends ADR 0031):
+        # four independent, optional 0-100 percentages. Each is nullable and
+        # validated only against its own range - there is no sum-to-100 rule
+        # and no automatic derivation from the legacy categorical
+        # ``learning_style`` column above, which remains preserved unchanged.
+        CheckConstraint(
+            "learning_style_verbal_percentage IS NULL OR "
+            "(learning_style_verbal_percentage >= 0 AND learning_style_verbal_percentage <= 100)",
+            name="ck_students_learning_style_verbal_percentage",
+        ),
+        CheckConstraint(
+            "learning_style_non_verbal_percentage IS NULL OR "
+            "(learning_style_non_verbal_percentage >= 0 AND learning_style_non_verbal_percentage <= 100)",
+            name="ck_students_learning_style_non_verbal_percentage",
+        ),
+        CheckConstraint(
+            "learning_style_quantitative_percentage IS NULL OR "
+            "(learning_style_quantitative_percentage >= 0 AND learning_style_quantitative_percentage <= 100)",
+            name="ck_students_learning_style_quantitative_percentage",
+        ),
+        CheckConstraint(
+            "learning_style_spatial_percentage IS NULL OR "
+            "(learning_style_spatial_percentage >= 0 AND learning_style_spatial_percentage <= 100)",
+            name="ck_students_learning_style_spatial_percentage",
+        ),
         UniqueConstraint("id", "school_group_id", name="uq_students_id_school_group"),
         Index("ix_students_group_name", "school_group_id", "last_name", "first_name"),
     )
@@ -240,8 +265,19 @@ class Student(Base):
     status = Column(String(16), nullable=False, default="active")
     # Learning Style V1 (ADR 0031): optional single primary Learning Style.
     # Student-domain learner-profile context only - never read by any Talent
-    # scoring/eligibility/Official Identification computation.
+    # scoring/eligibility/Official Identification computation. Preserved
+    # unchanged as legacy/deprecated data per ADR 0042 (no rewrite, no
+    # automatic conversion to/from the four-dimension profile below).
     learning_style = Column(String(20), nullable=True)
+    # Learning Style four-dimension profile (ADR 0042, amends ADR 0031):
+    # schema/persistence foundation only in this milestone - no API/service
+    # write path and no frontend exist yet. Independent nullable integer
+    # percentages; never read by any Talent scoring/eligibility/Official
+    # Identification computation, matching the legacy field's invariant.
+    learning_style_verbal_percentage = Column(Integer, nullable=True)
+    learning_style_non_verbal_percentage = Column(Integer, nullable=True)
+    learning_style_quantitative_percentage = Column(Integer, nullable=True)
+    learning_style_spatial_percentage = Column(Integer, nullable=True)
     created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
     updated_at = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     created_by_user_id = Column(String(10), ForeignKey("users.user_id"), nullable=True)
@@ -258,6 +294,27 @@ class StudentExternalIdentifier(Base):
         ),
         UniqueConstraint("school_group_id", "namespace", "value", name="uq_student_external_identifiers_scope_namespace_value"),
         Index("ix_student_external_identifiers_student", "school_group_id", "student_id"),
+        # TIS Student Number global managed-identifier invariant (ADR 0043).
+        # The ``tis_student_number`` namespace is the one exception to the
+        # tenant-scoped uniqueness above: its canonical value must be unique
+        # across every SchoolGroup, including retired/inactive rows (a
+        # retired value is never reissued), and at most one row per Student
+        # may be ``active`` at a time. Every other namespace keeps the
+        # existing tenant-scoped-only uniqueness unchanged.
+        Index(
+            "uq_student_external_identifiers_tis_student_number_value",
+            "value",
+            unique=True,
+            sqlite_where=text("namespace = 'tis_student_number'"),
+            postgresql_where=text("namespace = 'tis_student_number'"),
+        ),
+        Index(
+            "uq_student_external_identifiers_tis_student_number_active_student",
+            "student_id",
+            unique=True,
+            sqlite_where=text("namespace = 'tis_student_number' AND status = 'active'"),
+            postgresql_where=text("namespace = 'tis_student_number' AND status = 'active'"),
+        ),
     )
 
     id = Column(Integer, primary_key=True)

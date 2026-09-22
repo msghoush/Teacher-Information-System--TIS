@@ -1,7 +1,7 @@
 ---
 title: TIS Project State
-documentation_version: 5.7
-last_updated: 2026-09-21
+documentation_version: 5.8
+last_updated: 2026-09-22
 source_of_truth: true
 ---
 
@@ -977,6 +977,64 @@ and `routers/talent_assessments.py`, both already carrying substantial
 uncommitted in-flight changes from separate concurrent work at the time of
 this change, and extending it was judged unsafe to combine with that
 in-flight work rather than a scope decision about the feature itself.
+
+## Students + Talent & Potential M1 — Governance Reconciliation And Additive Schema Foundation (2026-09-22)
+
+Per ADR 0042 (amends ADR 0031) and ADR 0043, this milestone adds only the
+persistence/schema foundation for two later capabilities: a four-dimension
+Student Learning Style profile and the globally unique managed TIS Student
+ID namespace. No API, service-layer write path, or frontend was added in
+this task; both are explicitly out of scope for M1.
+
+`Student` gains four independent, nullable `INTEGER` columns -
+`learning_style_verbal_percentage`, `learning_style_non_verbal_percentage`,
+`learning_style_quantitative_percentage`, `learning_style_spatial_percentage`
+- each constrained to NULL or 0-100 with no sum rule and no relationship to
+any other field. Migration
+`20260922_001_student_learning_style_four_dimension_profile` adds the
+columns via `ALTER TABLE ... ADD COLUMN` and, on PostgreSQL only, a
+non-locking `NOT VALID` + `VALIDATE CONSTRAINT` CHECK per column (SQLite
+relies on the fresh-schema SQLAlchemy `CheckConstraint`, matching the
+existing `20260910_002_student_learning_style_v1` precedent's documented
+dialect asymmetry). The legacy categorical `learning_style` column, its
+CHECK constraint, and every existing row are completely unchanged - no
+rewrite, no mapping, no automatic conversion in either direction.
+
+The existing `StudentExternalIdentifier` model/table gains no new column.
+Migration `20260922_002_student_tis_number_identifier_integrity` adds two
+partial unique indexes scoped to `namespace = 'tis_student_number'`:
+`uq_student_external_identifiers_tis_student_number_value` (global
+uniqueness of `value` across every SchoolGroup, covering active AND
+inactive rows, so a retired value can never be reissued) and
+`uq_student_external_identifiers_tis_student_number_active_student` (at
+most one `active` row per `student_id`, correct organization-wide because
+`Student.id` is already a single global primary key). Every other
+namespace's existing tenant-scoped uniqueness
+(`uq_student_external_identifiers_scope_namespace_value`) is unchanged.
+Before installing either index, the migration inspects any existing
+`tis_student_number` rows and fails safely with a descriptive
+`RuntimeError` (no delete/merge/rename) if it finds a non-canonical value
+(not `STD` + exactly 10 digits), a value duplicated across SchoolGroups, or
+a Student with more than one active row; the current `tis.db` and every
+exercised test/local database had zero pre-existing `tis_student_number`
+rows, so this preflight path was exercised only via seeded-conflict tests,
+not a real historical blocker.
+
+`Student.id` remains the sole internal relational identity; no new Student
+identity table or column was added, and no existing legacy Student was
+backfilled with a fabricated `tis_student_number` value - a legacy Student
+with zero managed-identifier rows remains valid.
+
+Not implemented: TIS Student ID create/edit API/UI and its duplicate-value
+messaging, database-level canonical-format enforcement, Learning Style
+percentage API/frontend, Evaluation Progress, roster import/export, and
+Al-Andalus Section display - all explicitly deferred to later milestones.
+Focused coverage is in `tests/test_student_learning_style_profile_foundation.py`
+and `tests/test_student_tis_number_identifier_foundation.py`; PostgreSQL
+migration coverage (upgrade path and preflight-conflict rollback) is added
+to `tests/test_postgresql_migration_transactions.py` following its existing
+`TIS_TEST_POSTGRESQL_URL` skip-marked convention and auto-skips in this
+environment (no local PostgreSQL listener).
 
 ## Evaluation Plan Scope Regression Correction
 

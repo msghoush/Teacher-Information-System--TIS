@@ -378,6 +378,144 @@ def test_postgresql_failed_preledger_create_all_rolls_back_partial_student_table
         admin_engine.dispose()
 
 
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_student_learning_style_profile_and_tis_number_migrations_apply_and_are_idempotent_under_postgresql():
+    schema_name = f"tis_student_m1_foundation_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=60s",
+    })
+    try:
+        models.Base.metadata.create_all(
+            engine, tables=run_migrations._baseline_metadata_tables(),
+        )
+        applied = db_migrations.run_pending_migrations(engine)
+        assert "20260922_001_student_learning_style_four_dimension_profile" in applied
+        assert "20260922_002_student_tis_number_identifier_integrity" in applied
+        # Idempotent: nothing left to apply on a second run.
+        assert db_migrations.run_pending_migrations(engine) == []
+
+        inspector = inspect(engine)
+        student_columns = {column["name"] for column in inspector.get_columns("students")}
+        assert {
+            "learning_style_verbal_percentage",
+            "learning_style_non_verbal_percentage",
+            "learning_style_quantitative_percentage",
+            "learning_style_spatial_percentage",
+        } <= student_columns
+        identifier_indexes = {
+            index["name"] for index in inspector.get_indexes("student_external_identifiers")
+        }
+        assert "uq_student_external_identifiers_tis_student_number_value" in identifier_indexes
+        assert "uq_student_external_identifiers_tis_student_number_active_student" in identifier_indexes
+
+        # Transaction/rollback proof for the upgrade path itself: valid data
+        # for both new invariants actually persists and enforces.
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO school_groups (id, name, status, created_at, updated_at) "
+                "VALUES (1, 'PG Test Group', TRUE, NOW(), NOW())"
+            ))
+            connection.execute(text(
+                "INSERT INTO students (id, school_group_id, first_name, last_name, status, "
+                "created_at, updated_at) VALUES (1, 1, 'A', 'One', 'active', NOW(), NOW())"
+            ))
+            connection.execute(text(
+                "INSERT INTO student_external_identifiers "
+                "(school_group_id, student_id, namespace, value, status, created_at, updated_at) "
+                "VALUES (1, 1, 'tis_student_number', 'STD0000000009', 'active', NOW(), NOW())"
+            ))
+        with engine.connect() as connection, pytest.raises(Exception):
+            with connection.begin():
+                connection.execute(text(
+                    "INSERT INTO student_external_identifiers "
+                    "(school_group_id, student_id, namespace, value, status, created_at, updated_at) "
+                    "VALUES (1, 1, 'tis_student_number', 'STD0000000010', 'active', NOW(), NOW())"
+                ))
+        with engine.connect() as connection:
+            count = connection.execute(text(
+                "SELECT COUNT(*) FROM student_external_identifiers WHERE student_id = 1"
+            )).scalar()
+        assert count == 1
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_tis_number_identifier_integrity_preflight_conflict_rolls_back_under_postgresql():
+    schema_name = f"tis_student_number_conflict_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE TABLE students (id INTEGER PRIMARY KEY, school_group_id INTEGER NOT NULL)"
+            ))
+            connection.execute(text(
+                "CREATE TABLE student_external_identifiers ("
+                "id SERIAL PRIMARY KEY, school_group_id INTEGER NOT NULL, student_id INTEGER NOT NULL, "
+                "namespace VARCHAR(80) NOT NULL, value VARCHAR(180) NOT NULL, "
+                "status VARCHAR(16) NOT NULL DEFAULT 'active')"
+            ))
+            # Pre-existing conflicting data: the same canonical value already
+            # duplicated across two SchoolGroups.
+            connection.execute(text(
+                "INSERT INTO student_external_identifiers "
+                "(school_group_id, student_id, namespace, value, status) VALUES "
+                "(1, 1, 'tis_student_number', 'STD0000000099', 'active'), "
+                "(2, 2, 'tis_student_number', 'STD0000000099', 'active')"
+            ))
+        db_migrations._ensure_schema_migrations_table(engine)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO schema_migrations (migration_id, description) "
+                "VALUES (:migration_id, :description)"
+            ), [
+                {"migration_id": migration.migration_id, "description": migration.description}
+                for migration in db_migrations.MIGRATIONS
+                if migration.migration_id != "20260922_002_student_tis_number_identifier_integrity"
+            ])
+
+        with pytest.raises(RuntimeError, match="duplicated across SchoolGroups"):
+            db_migrations.run_pending_migrations(engine)
+
+        with engine.connect() as connection:
+            # No delete/merge/rename of the conflicting rows.
+            assert connection.execute(text(
+                "SELECT COUNT(*) FROM student_external_identifiers WHERE value = 'STD0000000099'"
+            )).scalar() == 2
+            # Transaction rolled back: no marker recorded for the failed migration.
+            assert connection.execute(text(
+                "SELECT COUNT(*) FROM schema_migrations "
+                "WHERE migration_id = '20260922_002_student_tis_number_identifier_integrity'"
+            )).scalar() == 0
+        inspector = inspect(engine)
+        index_names = {index["name"] for index in inspector.get_indexes("student_external_identifiers")}
+        assert "uq_student_external_identifiers_tis_student_number_value" not in index_names
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
 def test_talent_reassessment_migration_uses_postgresql_boolean_default(monkeypatch):
     added_columns = []
     monkeypatch.setattr(db_migrations, "_table_exists", lambda connection, table: True)

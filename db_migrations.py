@@ -1,7 +1,9 @@
 import logging
 import json
+import re
 import unicodedata
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable
@@ -7014,6 +7016,127 @@ def _role_permission_logical_key_uniqueness(engine, connection):
         """)
 
 
+def _student_learning_style_four_dimension_profile(engine, connection):
+    """Add the four independent Learning Style percentages to Student.
+
+    Per ADR 0042 (amends ADR 0031), this is a schema/persistence foundation
+    only: four nullable ``INTEGER`` columns, each independently constrained
+    to NULL or 0-100 with no sum-to-100 rule. Purely additive - no rewrite of
+    any existing row and no change to the legacy categorical
+    ``learning_style`` column/check, which remains preserved unchanged. A
+    non-locking ``NOT VALID`` + ``VALIDATE CONSTRAINT`` CHECK is added on
+    PostgreSQL for defense in depth, mirroring
+    ``ck_students_learning_style``; SQLite relies on the fresh-schema
+    SQLAlchemy ``CheckConstraint`` for a brand-new database and (as with the
+    existing ``learning_style`` migration) has no server-side enforcement
+    path yet for an already-migrated database, since this milestone adds no
+    API/service write path for these columns.
+    """
+    if not _table_exists(connection, "students"):
+        return
+    columns = (
+        "learning_style_verbal_percentage",
+        "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage",
+        "learning_style_spatial_percentage",
+    )
+    for column in columns:
+        _add_column_if_missing(connection, connection, "students", column, f"{column} INTEGER")
+    if engine.dialect.name == "postgresql":
+        for column in columns:
+            constraint_name = f"ck_students_{column}"
+            if not _check_constraint_exists(connection, "students", constraint_name):
+                _execute(
+                    connection,
+                    f"ALTER TABLE students ADD CONSTRAINT {constraint_name} "
+                    f"CHECK ({column} IS NULL OR ({column} >= 0 AND {column} <= 100)) NOT VALID",
+                )
+                _execute(connection, f"ALTER TABLE students VALIDATE CONSTRAINT {constraint_name}")
+
+
+_TIS_STUDENT_NUMBER_NAMESPACE = "tis_student_number"
+_TIS_STUDENT_NUMBER_FORMAT = re.compile(r"^STD\d{10}$")
+
+
+def _student_tis_number_identifier_integrity(engine, connection):
+    """Install the global managed-identifier invariant for ``tis_student_number``.
+
+    Per ADR 0043, the ``tis_student_number`` namespace on the existing
+    ``student_external_identifiers`` table is the one exception to normal
+    tenant-scoped external-identifier uniqueness: its canonical value
+    (``STD`` + exactly 10 digits) must be globally unique across every
+    SchoolGroup, including inactive/retired rows (a retired value is never
+    reissued), and at most one row per Student may be ``active``. This adds
+    no new column and no new table - only two partial unique indexes - and
+    never rewrites, merges, deletes, or renames any existing row. Every
+    other namespace's existing tenant-scoped uniqueness
+    (``uq_student_external_identifiers_scope_namespace_value``) is
+    unchanged.
+
+    If any existing ``tis_student_number`` row already violates the
+    canonical format, has a value duplicated across SchoolGroups, or leaves
+    a Student with more than one active row, this fails safely with a
+    descriptive ``RuntimeError`` and installs neither index - it never
+    silently deletes, merges, or renames conflicting data.
+    """
+    if not _table_exists(connection, "student_external_identifiers"):
+        return
+
+    existing_rows = connection.execute(
+        text(
+            "SELECT id, student_id, value, status FROM student_external_identifiers "
+            "WHERE namespace = :namespace"
+        ),
+        {"namespace": _TIS_STUDENT_NUMBER_NAMESPACE},
+    ).all()
+
+    if existing_rows:
+        invalid_format_ids = [
+            row.id for row in existing_rows if not _TIS_STUDENT_NUMBER_FORMAT.match(row.value or "")
+        ]
+        if invalid_format_ids:
+            raise RuntimeError(
+                "student_external_identifiers contains "
+                f"{len(invalid_format_ids)} existing '{_TIS_STUDENT_NUMBER_NAMESPACE}' row(s) "
+                "(ids: " + ", ".join(str(i) for i in invalid_format_ids) + ") "
+                "with a value that is not the canonical STD + exactly 10 digits format; "
+                "manual review is required before global uniqueness can be installed."
+            )
+
+        value_counts = Counter(row.value for row in existing_rows)
+        duplicate_values = [value for value, count in value_counts.items() if count > 1]
+        if duplicate_values:
+            raise RuntimeError(
+                "student_external_identifiers contains "
+                f"{len(duplicate_values)} '{_TIS_STUDENT_NUMBER_NAMESPACE}' value(s) duplicated "
+                "across SchoolGroups; manual review is required before global uniqueness can "
+                "be installed."
+            )
+
+        active_counts = Counter(row.student_id for row in existing_rows if row.status == "active")
+        multi_active_students = [student_id for student_id, count in active_counts.items() if count > 1]
+        if multi_active_students:
+            raise RuntimeError(
+                "student_external_identifiers has "
+                f"{len(multi_active_students)} Student(s) with more than one active "
+                f"'{_TIS_STUDENT_NUMBER_NAMESPACE}' row; manual review is required before "
+                "the one-active-per-Student constraint can be installed."
+            )
+
+    if not _index_exists(connection, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_value"):
+        _execute(connection, f"""
+            CREATE UNIQUE INDEX uq_student_external_identifiers_tis_student_number_value
+            ON student_external_identifiers (value)
+            WHERE namespace = '{_TIS_STUDENT_NUMBER_NAMESPACE}'
+        """)
+    if not _index_exists(connection, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_active_student"):
+        _execute(connection, f"""
+            CREATE UNIQUE INDEX uq_student_external_identifiers_tis_student_number_active_student
+            ON student_external_identifiers (student_id)
+            WHERE namespace = '{_TIS_STUDENT_NUMBER_NAMESPACE}' AND status = 'active'
+        """)
+
+
 MIGRATIONS = (
     Migration(
         migration_id="20260613_001_tenant_scope_columns",
@@ -7369,6 +7492,16 @@ MIGRATIONS = (
         migration_id="20260915_001_role_permission_logical_key_uniqueness",
         description="Protect global and tenant role permission keys after duplicate preflight",
         apply=_role_permission_logical_key_uniqueness,
+    ),
+    Migration(
+        migration_id="20260922_001_student_learning_style_four_dimension_profile",
+        description="Add the four independent Learning Style percentages to Student (ADR 0042)",
+        apply=_student_learning_style_four_dimension_profile,
+    ),
+    Migration(
+        migration_id="20260922_002_student_tis_number_identifier_integrity",
+        description="Install global uniqueness and one-active-per-Student invariants for the tis_student_number namespace (ADR 0043)",
+        apply=_student_tis_number_identifier_integrity,
     ),
 )
 
