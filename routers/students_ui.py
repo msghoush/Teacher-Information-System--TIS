@@ -28,6 +28,7 @@ from dependencies import get_db
 from homeroom_defaults import normalize_grade_label
 from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
 from student_academic_service import (
+    LEARNING_STYLES,
     StudentAcademicError,
     audit_event_payload,
     canonical_student_number,
@@ -71,12 +72,13 @@ templates = Jinja2Templates(directory="templates")
 GRADE_LEVELS = list(ALL_GRADE_LEVELS[1:])
 GENDER_OPTIONS = ["", "Male", "Female"]
 PROFILE_SECTIONS = ("overview", "placement", "talent", "history")
-LEARNING_STYLE_DIMENSIONS = (
-    ("verbal", "Verbal", "learning_style_verbal_percentage"),
-    ("non_verbal", "Non-verbal", "learning_style_non_verbal_percentage"),
-    ("quantitative", "Quantitative", "learning_style_quantitative_percentage"),
-    ("spatial", "Spatial", "learning_style_spatial_percentage"),
-)
+# M14 owner correction: one Learning Style selector, exactly the eight
+# categorical values, with a leading blank option rendered as "Not assigned"
+# by templates/_learning_style.html's ``learning_style_field`` macro. The
+# four-dimension percentage Form fields/inputs this constant and its sibling
+# helpers previously backed are removed - those four fields (ADR 0042) are
+# operationally deprecated and no longer collected by this UI.
+LEARNING_STYLE_OPTIONS = ("",) + LEARNING_STYLES
 
 
 def _scope(db, user):
@@ -137,35 +139,6 @@ def _student_view(db, row):
         ),
         "created_at": row.created_at,
         "updated_at": row.updated_at,
-    }
-
-
-def _learning_style_percentage(value, field):
-    """Translate an HTML blank to null without conflating it with zero."""
-    text = str(value or "").strip()
-    if text == "":
-        return None
-    try:
-        parsed = int(text)
-    except ValueError:
-        raise StudentAcademicError(
-            "invalid_learning_style_percentage",
-            f"{field} must be a whole number between 0 and 100, or left blank.",
-        )
-    if str(parsed) != text:
-        raise StudentAcademicError(
-            "invalid_learning_style_percentage",
-            f"{field} must be a whole number between 0 and 100, or left blank.",
-        )
-    return parsed
-
-
-def _learning_style_values(verbal, non_verbal, quantitative, spatial):
-    return {
-        "learning_style_verbal_percentage": _learning_style_percentage(verbal, "Verbal"),
-        "learning_style_non_verbal_percentage": _learning_style_percentage(non_verbal, "Non-verbal"),
-        "learning_style_quantitative_percentage": _learning_style_percentage(quantitative, "Quantitative"),
-        "learning_style_spatial_percentage": _learning_style_percentage(spatial, "Spatial"),
     }
 
 
@@ -533,7 +506,7 @@ def students_new(request: Request, db: Session = Depends(get_db), current_user=D
         "request": request,
         "student": None,
         "gender_options": GENDER_OPTIONS,
-        "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
+        "learning_style_options": LEARNING_STYLE_OPTIONS,
         "error": request.query_params.get("error") or "",
         "mode": "new",
     })
@@ -547,10 +520,7 @@ def students_new_post(
     father_name: str = Form(""),
     gender: str = Form(""),
     student_number: str = Form(""),
-    learning_style_verbal_percentage: str = Form(""),
-    learning_style_non_verbal_percentage: str = Form(""),
-    learning_style_quantitative_percentage: str = Form(""),
-    learning_style_spatial_percentage: str = Form(""),
+    learning_style: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -558,10 +528,6 @@ def students_new_post(
     if denied:
         return denied
     try:
-        percentages = _learning_style_values(
-            learning_style_verbal_percentage, learning_style_non_verbal_percentage,
-            learning_style_quantitative_percentage, learning_style_spatial_percentage,
-        )
         row = create_student_with_number(
             db,
             school_group_id=group_id,
@@ -570,7 +536,7 @@ def students_new_post(
             last_name=last_name,
             father_name=father_name or None,
             gender=gender or None,
-            **percentages,
+            learning_style=learning_style or None,
             actor=user,
         )
         db.commit()
@@ -581,15 +547,11 @@ def students_new_post(
             "request": request,
             "student": None,
             "gender_options": GENDER_OPTIONS,
-            "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
+            "learning_style_options": LEARNING_STYLE_OPTIONS,
             "error": exc.message,
             "error_code": exc.code,
             "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender,
-                     "student_number": student_number,
-                     "learning_style_verbal_percentage": learning_style_verbal_percentage,
-                     "learning_style_non_verbal_percentage": learning_style_non_verbal_percentage,
-                     "learning_style_quantitative_percentage": learning_style_quantitative_percentage,
-                     "learning_style_spatial_percentage": learning_style_spatial_percentage},
+                     "student_number": student_number, "learning_style": learning_style},
             "mode": "new",
         })
     except IntegrityError:
@@ -600,15 +562,11 @@ def students_new_post(
             conflict = {"message": exc.message, "student_id": None, "display_name": None}
         return _render(request, db, current_user, "student_form.html", {
             "request": request, "student": None, "gender_options": GENDER_OPTIONS,
-            "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
+            "learning_style_options": LEARNING_STYLE_OPTIONS,
             "error": conflict["message"], "error_code": "student_number_unavailable",
             "conflict": conflict,
             "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender,
-                     "student_number": student_number,
-                     "learning_style_verbal_percentage": learning_style_verbal_percentage,
-                     "learning_style_non_verbal_percentage": learning_style_non_verbal_percentage,
-                     "learning_style_quantitative_percentage": learning_style_quantitative_percentage,
-                     "learning_style_spatial_percentage": learning_style_spatial_percentage},
+                     "student_number": student_number, "learning_style": learning_style},
             "mode": "new",
         })
 
@@ -784,7 +742,7 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
         "placement_branch_id": placement_branch_id,
         "grades": GRADE_LEVELS,
         "gender_options": GENDER_OPTIONS,
-        "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
+        "learning_style_options": LEARNING_STYLE_OPTIONS,
         "can_edit": can_edit,
         "can_manage_identifiers": auth.has_permission(
             db, user, "students.manage_identifiers", school_group_id=group_id
@@ -806,10 +764,7 @@ def student_edit_post(
     last_name: str = Form(...),
     father_name: str = Form(""),
     gender: str = Form(""),
-    learning_style_verbal_percentage: str = Form(""),
-    learning_style_non_verbal_percentage: str = Form(""),
-    learning_style_quantitative_percentage: str = Form(""),
-    learning_style_spatial_percentage: str = Form(""),
+    learning_style: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -817,10 +772,6 @@ def student_edit_post(
     if denied:
         return denied
     try:
-        percentages = _learning_style_values(
-            learning_style_verbal_percentage, learning_style_non_verbal_percentage,
-            learning_style_quantitative_percentage, learning_style_spatial_percentage,
-        )
         update_student(
             db,
             school_group_id=group_id,
@@ -829,7 +780,7 @@ def student_edit_post(
             last_name=last_name,
             father_name=father_name or None,
             gender=gender or None,
-            **percentages,
+            learning_style=learning_style or None,
             actor=user,
         )
         db.commit()

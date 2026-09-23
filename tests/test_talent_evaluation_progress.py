@@ -504,6 +504,17 @@ def test_organization_overall_never_reconstructs_a_suppressed_period(db, scenari
 
 # ---------------------------------------------------------------------------
 # Section 8: Learning Style Branch aggregate
+#
+# M14 owner correction: this metric is REMOVED from the Branch-comparison
+# dispatcher (see Section 9's updated six-metric test and the new
+# "learning_style is no longer an approved metric" test below) because it
+# averaged the now-deprecated four percentage columns - semantically wrong
+# under the corrected model, where "percentage" means population/aggregate
+# distribution, never a mean of per-Student dimension scores. The two tests
+# below still call ``learning_style_branch_aggregate`` directly (bypassing
+# the dispatcher) to prove the underlying deprecated-column computation and
+# its stored values are left completely untouched, not to assert it is
+# still a reachable product surface.
 # ---------------------------------------------------------------------------
 
 
@@ -543,7 +554,9 @@ def test_learning_style_aggregate_suppressed_below_minimum_cohort(db, scenario):
 # ---------------------------------------------------------------------------
 
 
-def test_branch_comparison_dispatcher_all_seven_metrics(db, scenario):
+def test_branch_comparison_dispatcher_all_six_metrics(db, scenario):
+    # M14 owner correction: six approved metrics (the "learning_style"
+    # metric is removed - see the dedicated test below).
     admin = user("1000000007")
     db.add(admin)
     db.commit()
@@ -554,8 +567,19 @@ def test_branch_comparison_dispatcher_all_seven_metrics(db, scenario):
             response = api.get(base, params={"metric": metric})
             assert response.status_code == 200, (metric, response.text)
             assert response.json()["metric"] == metric
+
+
+def test_branch_comparison_learning_style_metric_is_removed_m14(db, scenario):
+    admin = user("1000000007")
+    db.add(admin)
+    db.commit()
+    with client(db, admin, policy=AllowAllTestPolicy()) as api:
+        base = f"/api/talent/evaluation-progress/programs/{scenario['program'].id}/academic-years/100/branch-comparison"
         response = api.get(base, params={"metric": "learning_style", "learning_style_dimension": "verbal"})
-        assert response.status_code == 200
+        assert response.status_code == 400
+        assert response.json()["code"] == "invalid_filter"
+    assert "learning_style" not in progress_svc.APPROVED_BRANCH_METRICS
+    assert len(progress_svc.APPROVED_BRANCH_METRICS) == 6
 
 
 def test_branch_comparison_candidate_and_identification_metrics_are_query_skipped_without_permission(db, scenario):

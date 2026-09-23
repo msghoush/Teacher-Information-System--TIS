@@ -17,7 +17,6 @@
     evaluation_period_result:'Evaluation Period Result', current_overall_progress:'Overall Result',
     assessment_completion:'Assessment Completion', assessments_started:'Assessments Started',
     meets_program_criteria:'Meets Program Criteria', officially_confirmed:'Officially Confirmed',
-    learning_style:'Learning Style',
   };
   const states = {suppressed:'Protected for privacy', complementary_suppressed:'Protected for privacy',
     restricted:'Not available for this view', no_data:'No data yet', coarsened:'Shown as a broader group'};
@@ -113,6 +112,9 @@
     }).join('');
     return `<div class="tp-grade-chart tp-branch-chart" role="group" aria-label="Results by Branch">${body}</div>`;
   }
+  // M14 owner correction: the 'learning_style' Branch-comparison metric is
+  // removed (it averaged the now-deprecated four percentage columns - see
+  // talent_evaluation_progress_service.py's APPROVED_BRANCH_METRICS comment).
   const branchComparisonMetricOptions = (candidateAllowed, identificationAllowed) => [
     ['evaluation_period_result','Evaluation Period Result'],
     ['current_overall_progress','Overall Result'],
@@ -120,7 +122,6 @@
     ['assessments_started','Assessments Started'],
     ...(candidateAllowed?[['meets_program_criteria','Meets Program Criteria']]:[]),
     ...(identificationAllowed?[['officially_confirmed','Officially Confirmed']]:[]),
-    ['learning_style','Learning Style'],
   ];
   const branchStateText = state => ({
     suppressed:'Protected for privacy', complementary_suppressed:'Protected for privacy',
@@ -130,7 +131,7 @@
   const branchMetricValue = (row, metricName) => {
     if (!row || row.state !== 'visible') return null;
     if (metricName === 'current_overall_progress') return typeof row.value === 'number' ? row.value : null;
-    if (metricName === 'learning_style' || metricName === 'evaluation_period_result') return typeof row.mean_normalized_percent === 'number' ? row.mean_normalized_percent : null;
+    if (metricName === 'evaluation_period_result') return typeof row.mean_normalized_percent === 'number' ? row.mean_normalized_percent : null;
     return typeof row.percentage === 'number' ? row.percentage : null;
   };
   function branchComparisonBar(row, metricName, accessibleLabel) {
@@ -250,7 +251,7 @@
   const root = document.getElementById('tp-content'), status = document.getElementById('tp-status');
   const form = document.getElementById('tp-filters'), year = document.getElementById('tp-year');
   const program = document.getElementById('tp-program'), branch = document.getElementById('tp-branch'), grade = document.getElementById('tp-grade'), section = document.getElementById('tp-section'), metricSelect = document.getElementById('tp-metric');
-  const dimension = document.getElementById('tp-dimension'), learningStyleDimension = document.getElementById('tp-learning-style-dimension');
+  const dimension = document.getElementById('tp-dimension');
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map();
   const can = key => permissions[key] === true;
   const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
@@ -413,7 +414,7 @@
         rubricAllowed?api(`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`,signal).catch(()=>null):Promise.resolve(null),
         pid?api(`${base}programs/${encodeURIComponent(pid)}/longitudinal?${qs({...common,metric:'completion_coverage'})}`,signal).catch(()=>null):Promise.resolve(null),
         can('talent_analytics.view_students')?api(`${base}students?${qs({...common,limit:10,offset:0})}`,signal).catch(()=>null):Promise.resolve(null),
-        pid?api(`evaluation-progress/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/branch-comparison?${qs({metric:selectedBranchMetric,...(selectedBranchMetric==='learning_style'?{learning_style_dimension:learningStyleDimension.value}:{})})}`,signal):Promise.resolve(null),
+        pid?api(`evaluation-progress/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/branch-comparison?${qs({metric:selectedBranchMetric})}`,signal):Promise.resolve(null),
       ]);
       // Drawn only from the already-privacy-closed organization_total cell the
       // backend returns for this exact scope (org-wide, or the selected
@@ -545,7 +546,6 @@
     if(!section.parentElement.hidden){section.value?params.set('planning_section_id',section.value):params.delete('planning_section_id');}
     if(!metricSelect.parentElement.hidden)params.set('metric',metricSelect.value);
     if(!dimension.parentElement.hidden)params.set('dimension',dimension.value);
-    if(!learningStyleDimension.parentElement.hidden)params.set('learning_style_dimension',learningStyleDimension.value);
     params.delete('offset');
     history.replaceState(null,'',`${location.pathname}?${params}`);
     syncNavigation();updateBreadcrumb();load();
@@ -553,10 +553,6 @@
   form.addEventListener('submit',event=>{event.preventDefault();clearTimeout(autoApplyTimer);applyContext();});
   form.addEventListener('change',async event=>{
     if(!event.target.matches('select'))return;
-    if(event.target===metricSelect&&config.view==='analytics'){
-      learningStyleDimension.parentElement.hidden=metricSelect.value!=='learning_style';
-      if(metricSelect.value!=='learning_style')params.delete('learning_style_dimension');
-    }
     if(event.target===year && !branch.parentElement.hidden) await refreshPlanningBranches();
     else if(event.target===branch && !grade.parentElement.hidden) await refreshPlanningGrades();
     else if(event.target===grade && !section.parentElement.hidden) await refreshPlanningSections();
@@ -611,9 +607,6 @@
       const metrics=branchComparisonMetricOptions(can('talent_review_candidates.view'),can('talent_official_identifications.view'));
       metricSelect.innerHTML=metrics.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
       metricSelect.value=metrics.some(([value])=>value===params.get('metric'))?params.get('metric'):'current_overall_progress';
-      document.getElementById('tp-learning-style-dimension-field').hidden=metricSelect.value!=='learning_style';
-      const allowedDimensions=['verbal','non_verbal','quantitative','spatial'];
-      learningStyleDimension.value=allowedDimensions.includes(params.get('learning_style_dimension'))?params.get('learning_style_dimension'):'verbal';
     }
     if(config.view==='talent-map') {
       document.getElementById('tp-dimension-field').hidden=false;

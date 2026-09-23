@@ -1,10 +1,19 @@
-"""Student Learning Style V1 (ADR 0031) focused regression coverage.
+"""Student Learning Style V1 (ADR 0031, amended by M14) focused regression
+coverage.
 
 Learning Style is Student-domain learner-profile context, optional and
-single-select, with exactly four approved values. It must have zero effect
-on Talent scoring/eligibility/Official Identification and must reuse the
-existing `students.edit` permission and the existing Talent privacy/
-suppression contract for aggregate distribution - never a new/weaker rule.
+single-select, with exactly eight approved values as of the M14 owner
+correction (extended from the original four - Visual, Auditory, Read/Write,
+Kinesthetic - by adding Verbal, Non-verbal, Quantitative, Spatial, which
+were previously, mistakenly, modeled as an independent four-dimension
+percentage profile under ADR 0042). It must have zero effect on Talent
+scoring/eligibility/Official Identification and must reuse the existing
+`students.edit` permission and the existing Talent privacy/suppression
+contract for aggregate distribution - never a new/weaker rule. Aggregate
+distribution "percentage" means population/aggregate share, never a
+per-Student dimension percentage; the eighth bucket for Students with no
+value assigned is labeled "Unassigned" and is always part of the
+denominator.
 """
 
 import pathlib
@@ -102,12 +111,36 @@ def test_migration_is_registered_additive_and_idempotent():
     assert {"id", "school_group_id", "first_name", "last_name", "status", "learning_style"}.issubset(columns)
 
 
+def test_eight_value_migration_is_registered_no_op_when_table_missing_and_matches_service_values():
+    """M14: the widened CHECK constraint migration is registered, is a safe
+    no-op against a missing ``students`` table (SQLite has no ALTER-time
+    inspection to exercise on this dialect; PostgreSQL coverage of the
+    actual DROP/ADD/VALIDATE sequence lives in
+    ``tests/test_postgresql_migration_transactions.py`` against a real
+    server), and its approved value set matches the service-layer
+    authoritative ``LEARNING_STYLES`` exactly."""
+    engine = create_engine("sqlite://")
+    with engine.begin() as connection:
+        # Must not raise even though "students" does not exist yet.
+        db_migrations._student_learning_style_eight_values(engine, connection)
+        db_migrations._student_learning_style_eight_values(engine, connection)  # idempotent
+    assert any(
+        m.migration_id == "20260923_002_student_learning_style_eight_values"
+        for m in db_migrations.MIGRATIONS
+    )
+    assert LEARNING_STYLES == (
+        "Visual", "Auditory", "Read/Write", "Kinesthetic",
+        "Verbal", "Non-verbal", "Quantitative", "Spatial",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Service-layer validation
 # ---------------------------------------------------------------------------
 
-def test_nullable_and_four_valid_values_are_accepted_on_create(database):
+def test_nullable_and_all_eight_valid_values_are_accepted_on_create(database):
     _, db = database
+    assert len(LEARNING_STYLES) == 8
     assert _student(db, first="A").learning_style is None
     for style in LEARNING_STYLES:
         row = _student(db, first=f"Student-{style}", learning_style=style)
@@ -239,7 +272,7 @@ def test_api_distribution_route_returns_visible_privacy_safe_counts(database):
     assert payload["state"] == "visible"
     by_label = {level["label"]: level for level in payload["levels"]}
     assert by_label["Visual"]["count"] == 2
-    assert by_label["Not specified"]["count"] == 1
+    assert by_label["Unassigned"]["count"] == 1
 
 
 def test_api_distribution_route_fails_closed_when_policy_unavailable(database):
@@ -251,7 +284,7 @@ def test_api_distribution_route_fails_closed_when_policy_unavailable(database):
     assert response.json()["code"] == "analytics_unavailable"
 
 
-def test_new_student_form_replaces_legacy_selector_with_four_dimension_inputs(db):
+def test_new_student_form_shows_the_eight_value_categorical_selector_m14(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -265,17 +298,17 @@ def test_new_student_form_replaces_legacy_selector_with_four_dimension_inputs(db
         response = client.get("/students/new")
     assert response.status_code == 200
     html = response.text
-    assert 'class="stu-ls-options" role="radiogroup"' not in html
+    assert 'class="stu-ls-options" role="radiogroup"' in html
     for field in (
         "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
         "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
     ):
-        assert f'name="{field}"' in html
+        assert f'name="{field}"' not in html
     for style in LEARNING_STYLES:
-        assert f'value="{style}"' not in html
+        assert f'value="{style}"' in html
 
 
-def test_edit_details_form_uses_dimensions_without_converting_legacy_value(db):
+def test_edit_details_form_uses_the_categorical_selector_with_current_value_selected(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -294,13 +327,17 @@ def test_edit_details_form_uses_dimensions_without_converting_legacy_value(db):
         response = client.get("/students/6001?section=overview")
     assert response.status_code == 200
     html = response.text
-    assert 'name="learning_style"' not in html
-    assert "Kinesthetic" not in html
-    assert 'name="learning_style_verbal_percentage"' in html
-    assert 'aria-label="Verbal: not available"' in html
+    assert 'name="learning_style_verbal_percentage"' not in html
+    for field in (
+        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+    ):
+        assert field not in html
+    assert html.count("Kinesthetic") >= 2  # Overview display chip + edit-form selected radio
+    assert '<input type="radio" name="learning_style" value="Kinesthetic" checked>' in html
 
 
-def test_edit_details_form_renders_blank_dimension_values_as_unavailable(db):
+def test_edit_details_form_shows_not_assigned_when_learning_style_is_null(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -319,12 +356,11 @@ def test_edit_details_form_renders_blank_dimension_values_as_unavailable(db):
         response = client.get("/students/6002?section=overview")
     assert response.status_code == 200
     html = response.text
-    assert html.count("Not available") == 4
-    assert html.count('value=""') >= 4
-    assert 'name="learning_style"' not in html
+    assert "Not assigned" in html
+    assert 'name="learning_style"' in html
 
 
-def test_learning_style_dimension_labels_are_unique_and_programmatically_associated(db):
+def test_learning_style_selector_options_are_unique_and_no_duplicate_ids(db):
     import re
 
     from fastapi.staticfiles import StaticFiles
@@ -346,12 +382,8 @@ def test_learning_style_dimension_labels_are_unique_and_programmatically_associa
     assert response.status_code == 200
     html = response.text
 
-    for field in (
-        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
-        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
-    ):
-        assert f'<label for="{field}">' in html
-        assert f'id="{field}" name="{field}"' in html
+    for style in LEARNING_STYLES:
+        assert f'value="{style}"' in html
 
     # No duplicate id anywhere on the page (a duplicate id could silently
     # break an unrelated for/id association elsewhere on the same page).
@@ -403,7 +435,10 @@ def test_learning_style_badge_and_distribution_bar_use_the_same_accent_color_tok
     badge_accent = _parse_map(badge_match.group(1))
     distribution_accent = _parse_map(distribution_match.group(1))
 
-    assert set(badge_accent) == {"Visual", "Auditory", "Read/Write", "Kinesthetic"}
+    assert set(badge_accent) == {
+        "Visual", "Auditory", "Read/Write", "Kinesthetic",
+        "Verbal", "Non-verbal", "Quantitative", "Spatial",
+    }
     for style, token in badge_accent.items():
         assert distribution_accent.get(style) == token, (
             f"{style} uses {token} in the badge but {distribution_accent.get(style)!r} in the distribution bar"
@@ -530,11 +565,16 @@ def test_build_distribution_visible_with_allow_all_policy():
     by_label = {level["label"]: level for level in result["levels"]}
     assert by_label["Visual"]["count"] == 2
     assert by_label["Visual"]["percentage"] == 50.0
-    assert by_label["Not specified"]["count"] == 1
-    # Order is always the fixed governed order, never magnitude-derived.
+    assert by_label["Unassigned"]["count"] == 1
+    # Order is always the fixed governed order, never magnitude-derived, and
+    # covers all eight categorical values plus the Unassigned bucket (M14).
     assert [level["label"] for level in result["levels"]] == [
-        "Visual", "Auditory", "Read/Write", "Kinesthetic", "Not specified",
+        "Visual", "Auditory", "Read/Write", "Kinesthetic",
+        "Verbal", "Non-verbal", "Quantitative", "Spatial", "Unassigned",
     ]
+    # The denominator (total) always includes Unassigned Students (task H).
+    unassigned_and_categories = sum(level["count"] for level in result["levels"])
+    assert unassigned_and_categories == result["total"]["value"] == 4
 
 
 def test_build_distribution_suppresses_small_protected_cohort_and_its_reconstructible_sibling():

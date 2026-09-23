@@ -1,11 +1,43 @@
 ---
 title: TIS Change History
-documentation_version: 5.4
+documentation_version: 5.5
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-23 - M14 Students + Talent & Potential — Learning Style Correction + Aggregate Distribution
+
+Owner-directed correction milestone following a read-only Post-M13
+Correction Review, implementing two corrections: (1) `Student.learning_style`
+is the single authoritative Learning Style field, extended from four to
+eight values (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
+Quantitative, Spatial); the four `learning_style_*_percentage` columns
+(ADR 0042/M1-M3), previously an independent per-Student percentage profile,
+are now operationally deprecated - no longer written, displayed, or read as
+Learning Style authority anywhere, with existing stored values preserved
+completely untouched and physical column removal separately gated on a
+later data-occupancy verification. (2) "Percentage" means population/
+aggregate distribution, never a per-Student dimension score -
+`student_learning_style_analytics.py` (reused, extended rather than
+parallel-built) now covers all eight values plus an "Unassigned" bucket for
+the authorized Student population, with the denominator always including
+Unassigned Students; the M4/M10 Talent Evaluation Progress "Learning Style"
+Branch-comparison metric (which averaged the four deprecated columns) is
+removed (`talent_evaluation_progress_service.APPROVED_BRANCH_METRICS` is
+now six metrics). Database: one forward-only migration
+(`20260923_002_student_learning_style_eight_values`) widens
+`ck_students_learning_style` on PostgreSQL; no column added or dropped, no
+row rewritten. ADR 0031 and ADR 0042 are amended (not rewritten) with M14
+sections recording the corrected model; ADR 0044 is amended recording the
+removed Branch-comparison metric. `student_roster_service.py`'s column
+contract does not include Learning Style or the four percentage columns and
+is untouched. This entry does not rewrite the M1-M13 historical record of
+what was actually shipped (see the entries below and
+`docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md`) - it
+records the correction as new, dated fact. Does not itself authorize or
+perform any deployment.
 
 ## 2026-09-23 - M13 Students + Talent & Potential Release Readiness Closeout
 

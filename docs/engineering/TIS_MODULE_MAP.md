@@ -1,11 +1,48 @@
 ---
 title: TIS Module Map
-documentation_version: 4.2
+documentation_version: 4.3
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Learning Style Correction + Aggregate Distribution Ownership (M14)
+
+- `models.py` / `db_migrations.py`: `Student.learning_style`'s
+  `ck_students_learning_style` CHECK constraint is widened from four to
+  eight values (`20260923_002_student_learning_style_eight_values`); the
+  four `learning_style_*_percentage` columns/constraints are unchanged and
+  preserved (operationally deprecated, not dropped).
+- `student_academic_service.py`: `LEARNING_STYLES` is the single
+  authoritative eight-value constant (`_clean_learning_style` validates
+  against it); `LEARNING_STYLE_PERCENTAGE_FIELDS`/
+  `_clean_learning_style_percentage` remain present only so a pre-existing
+  stored value is never silently rewritten - no longer reachable from any
+  create/update API or UI input path.
+- `routers/students.py` / `routers/students_ui.py`: Student create/update no
+  longer accept the four percentage fields as input (silently ignored, not
+  validated); `routers/students_ui.py`'s `LEARNING_STYLE_OPTIONS` backs the
+  one categorical selector.
+- `templates/_learning_style.html`: `learning_style_field`/
+  `learning_style_badge` are the sole shared categorical display/edit
+  macros (extended to eight values); the percentage-profile macros are
+  removed.
+- `templates/student_form.html` / `templates/student_profile.html`: one
+  Learning Style selector on create/edit; the profile shows the one
+  selected value (or "Not assigned"), never four percentage bars; the
+  Talent context line reads the current categorical value directly.
+- `student_learning_style_analytics.py`: the existing privacy-safe
+  categorical distribution engine (reused, not parallel-built), extended to
+  all eight values plus an "Unassigned" bucket; unchanged scope/permission/
+  privacy contract from ADR 0031.
+- `talent_evaluation_progress_service.py`: `APPROVED_BRANCH_METRICS` is six
+  metrics (the "learning_style" Branch-comparison metric is removed);
+  `static/js/talent.js` and `templates/talent/workspace.html` no longer
+  offer the Learning Style dimension selector (see the M10 section below,
+  now corrected).
+- `student_roster_service.py` is untouched - its column contract never
+  included Learning Style or the four percentage columns.
 
 ## Students M11 Roster Frontend Ownership
 
@@ -26,19 +63,21 @@ source_of_truth: true
 
 ## Results & Analytics Branch Comparison Frontend (M10)
 
-- `templates/talent/workspace.html`: adds the labeled Learning Style dimension
-  selector beside the existing Program/Academic-Year/Metric context controls.
+- `templates/talent/workspace.html`: originally added the labeled Learning
+  Style dimension selector beside the existing Program/Academic-Year/Metric
+  context controls. **Current state (M14 correction): removed** - see
+  "Learning Style Correction + Aggregate Distribution Ownership (M14)" above.
 - `static/js/talent.js`: Organization Overview requests the existing M4 Branch
-  comparison route for the selected Program, metric, and optional Learning
-  Style dimension; one chart renders backend rows without reordering or
-  analytics calculation. Existing Talent Map columns supply authorized Branch
-  display labels.
+  comparison route for the selected Program and metric; one chart renders
+  backend rows without reordering or analytics calculation. Existing Talent
+  Map columns supply authorized Branch display labels.
 - `static/css/talent.css`: owns the responsive horizontal bar, grouped Period,
   and categorical protected/no-data treatments.
 - `routers/talent_evaluation_progress.py` and
-  `talent_evaluation_progress_service.py` remain unchanged authorities for the
-  seven-metric allowlist, permissions, frozen Branch grouping, privacy closure,
-  Learning Style means, Framework comparability, and serialized values.
+  `talent_evaluation_progress_service.py` remain unchanged authorities for
+  permissions, frozen Branch grouping, privacy closure, Framework
+  comparability, and serialized values; the metric allowlist is now six
+  metrics as of M14 (Learning Style means removed - see above).
 - The frontend never renders a numeric bar for a non-visible state and never
   calculates Branch/Organization results or privacy decisions. No second chart,
   backend route, permission, schema, migration, or M11 roster surface is added.

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
-{% from "_learning_style.html" import learning_style_percentage_fields %}
+{% from "_learning_style.html" import learning_style_field %}
 {% block title %}Add Student | TIS{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}">{% endblock %}
 {% block content %}
@@ -48,8 +48,11 @@
           </select>
         </div>
       </div>
-      {% if error_code == 'invalid_learning_style_percentage' %}<p class="stu-field-error" id="learning-style-error" role="alert">{{ error }}</p>{% endif %}
-      {{ learning_style_percentage_fields(learning_style_dimensions, form or {}, error_code or '') }}
+      {% if error_code == 'invalid_learning_style' %}<p class="stu-field-error" id="learning-style-error" role="alert">{{ error }}</p>{% endif %}
+      <div class="stu-field stu-field-full">
+        <span class="stu-hint" id="learning-style-help">Learning Style <span class="stu-hint">(optional)</span></span>
+        {{ learning_style_field(learning_style_options, form.learning_style if form else '') }}
+      </div>
       <div class="stu-form-actions">
         <button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save Student</button>
         <a class="stu-btn" href="/students/">Cancel</a>

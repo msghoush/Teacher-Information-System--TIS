@@ -217,21 +217,40 @@ class Student(Base):
     __table_args__ = (
         CheckConstraint("status IN ('active','inactive')", name="ck_students_status"),
         # Learning Style V1 (ADR 0031): optional, single-select Student-domain
-        # learner-profile context, never a Talent score. Exactly four approved
-        # values or NULL ("not specified") - mirrors the ``status`` enum
-        # convention above. This constraint is enforced on fresh schema
-        # creation; existing databases additionally enforce the same value
-        # set at the service layer (student_academic_service.py) regardless
-        # of dialect-level DDL coverage for an already-migrated table.
+        # learner-profile context, never a Talent score. Exactly eight approved
+        # values or NULL ("not assigned") - mirrors the ``status`` enum
+        # convention above. Extended from the original four (Visual, Auditory,
+        # Read/Write, Kinesthetic) to eight (adding Verbal, Non-verbal,
+        # Quantitative, Spatial) by the M14 owner correction (ADR 0031,
+        # amended; ADR 0042 superseded) - the four added values were
+        # previously modeled as an independent per-Student percentage profile,
+        # which is now understood to have been a misinterpretation ("percentage"
+        # means population distribution, never a per-Student dimension score).
+        # This constraint is enforced on fresh schema creation; existing
+        # databases additionally enforce the same value set at the service
+        # layer (student_academic_service.py) regardless of dialect-level DDL
+        # coverage for an already-migrated table.
         CheckConstraint(
-            "learning_style IS NULL OR learning_style IN ('Visual','Auditory','Read/Write','Kinesthetic')",
+            "learning_style IS NULL OR learning_style IN "
+            "('Visual','Auditory','Read/Write','Kinesthetic',"
+            "'Verbal','Non-verbal','Quantitative','Spatial')",
             name="ck_students_learning_style",
         ),
-        # Learning Style four-dimension profile (ADR 0042, amends ADR 0031):
-        # four independent, optional 0-100 percentages. Each is nullable and
-        # validated only against its own range - there is no sum-to-100 rule
-        # and no automatic derivation from the legacy categorical
-        # ``learning_style`` column above, which remains preserved unchanged.
+        # Learning Style four-dimension percentage profile (ADR 0042, amended
+        # by ADR 0031 v1.3 / M14): OPERATIONALLY DEPRECATED as of M14. These
+        # four columns were a misinterpretation of "percentage" as a
+        # per-Student dimension score; the corrected model is the single
+        # categorical ``learning_style`` column above (now eight values) plus
+        # aggregate (population) distribution percentages computed by
+        # ``student_learning_style_analytics.py``. The product no longer
+        # writes to, exposes, or reads these four columns anywhere. Existing
+        # stored values are preserved completely untouched - no backfill, no
+        # conversion, no clearing - and physical column removal is separately
+        # gated on a later, explicit data-occupancy verification (not
+        # performed in M14 because it cannot be safely verified yet). Each
+        # remains nullable and validated only against its own 0-100 range;
+        # there is no sum-to-100 rule and no automatic derivation to/from the
+        # categorical ``learning_style`` column above.
         CheckConstraint(
             "learning_style_verbal_percentage IS NULL OR "
             "(learning_style_verbal_percentage >= 0 AND learning_style_verbal_percentage <= 100)",
@@ -263,17 +282,17 @@ class Student(Base):
     last_name = Column(String(100), nullable=False)
     gender = Column(String(24), nullable=True)
     status = Column(String(16), nullable=False, default="active")
-    # Learning Style V1 (ADR 0031): optional single primary Learning Style.
-    # Student-domain learner-profile context only - never read by any Talent
-    # scoring/eligibility/Official Identification computation. Preserved
-    # unchanged as legacy/deprecated data per ADR 0042 (no rewrite, no
-    # automatic conversion to/from the four-dimension profile below).
+    # Learning Style V1 (ADR 0031, amended by M14): optional single primary
+    # Learning Style, exactly eight approved values (see CheckConstraint
+    # above). Student-domain learner-profile context only - never read by any
+    # Talent scoring/eligibility/Official Identification computation.
     learning_style = Column(String(20), nullable=True)
-    # Learning Style four-dimension profile (ADR 0042, amends ADR 0031):
-    # schema/persistence foundation only in this milestone - no API/service
-    # write path and no frontend exist yet. Independent nullable integer
-    # percentages; never read by any Talent scoring/eligibility/Official
-    # Identification computation, matching the legacy field's invariant.
+    # Learning Style four-dimension percentage profile (ADR 0042; operationally
+    # deprecated by the M14 owner correction - see CheckConstraint comment
+    # above). No API/service write path, no frontend surface, and no read
+    # path as Learning Style authority anywhere. Independent nullable integer
+    # percentages, preserved unchanged; never read by any Talent scoring/
+    # eligibility/Official Identification computation.
     learning_style_verbal_percentage = Column(Integer, nullable=True)
     learning_style_non_verbal_percentage = Column(Integer, nullable=True)
     learning_style_quantitative_percentage = Column(Integer, nullable=True)

@@ -1,10 +1,10 @@
 ---
 title: Student Learning Style V1
-documentation_version: 1.2
-last_updated: 2026-09-22
+documentation_version: 1.3
+last_updated: 2026-09-23
 status: accepted
 module: architecture
-amended_by: "ADR 0042 adds a separate, independent four-dimension Learning Style percentage profile (Verbal/Non-verbal/Quantitative/Spatial) alongside this ADR's single-select categorical field. The categorical field, its four fixed values, and its single-select nature (below) are unchanged and remain in effect; ADR 0042 clarifies only that its later four-percentage profile is not the multi-style scaffolding this ADR declined to build speculatively."
+amended_by: "ADR 0042 (2026-09-22, superseded/corrected by the M14 amendment below) added a separate, independent four-dimension Learning Style percentage profile (Verbal/Non-verbal/Quantitative/Spatial) alongside this ADR's single-select categorical field. M14 (2026-09-23, owner correction) determined that ADR 0042's premise was a misinterpretation - 'percentage' was always intended to mean population/aggregate distribution, never a per-Student dimension score - and corrected the model: Verbal, Non-verbal, Quantitative, and Spatial become four MORE single-select categorical values on THIS field (eight total), not an independent percentage profile. The original four values, this field's single-select nature, and its Student-domain/no-Talent-effect governance are unchanged and remain in effect; only the approved value count changes (four to eight) and ADR 0042's four-percentage product model is corrected/superseded (see ADR 0042's own amendment note)."
 ---
 
 # ADR 0031: Student Learning Style V1
@@ -52,8 +52,15 @@ is learner-profile context only.
   - Auditory
   - Read/Write
   - Kinesthetic
-- Server-side validation must reject any value outside this set. The four
-  values are not free text and must not be stored as unconstrained free text.
+  - **Amended by M14** (2026-09-23, unmodified original text above): the
+    approved value set is extended to exactly eight values - the original
+    four above plus Verbal, Non-verbal, Quantitative, and Spatial (see the
+    "M14 Amendment" section at the end of this ADR for the full governance
+    record). The field remains single-select; this is not multi-select of
+    the four categorical values.
+- Server-side validation must reject any value outside this set (now eight
+  values as of the M14 amendment). The values are not free text and must not
+  be stored as unconstrained free text.
 
 ### No effect on Talent semantics
 
@@ -119,3 +126,62 @@ distribution, and focused tests) is tracked separately and is not itself
 part of this governance record; this ADR exists so that implementation work
 has a durable, citable authorization artifact rather than relying on
 unverifiable in-task claims of authorization.
+
+## M14 Amendment (2026-09-23): Eight Values, Aggregate-Only Percentage Semantics
+
+Added 2026-09-23. The original text above (as of documentation_version 1.2)
+is preserved unmodified; this section records the owner-directed correction
+without rewriting the historical decision it amends.
+
+### What was corrected
+
+The M1-M13 delivery history built ADR 0042 as a SEPARATE, independent
+four-dimension Student percentage profile (Verbal/Non-verbal/Quantitative/
+Spatial), read/written through its own create/update/GET API surface and,
+for the four percentages, a real Student create/edit frontend (see ADR 0042's
+own M14 amendment note for the full implementation-history record). The
+Owner has now directed, via a read-only Post-M13 Correction Review followed
+by this M14 correction milestone, that this was a misinterpretation of intent
+on two points:
+
+1. Learning Style was always meant to be ONE categorical selection per
+   Student - originally four values, now extended to eight (this ADR's
+   field), never a set of independent per-Student percentage scores.
+2. "Percentage," wherever Learning Style is concerned, was always meant to
+   describe a POPULATION/AGGREGATE distribution (what share of an authorized
+   Student population selected each category) - never a per-Student
+   dimension percentage.
+
+### Corrected model
+
+- `Student.learning_style` (this ADR's field) now accepts exactly eight
+  values: Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
+  Quantitative, Spatial. Still one nullable, single-select column - no
+  second field, no arrays, no weighting, no dominant-style calculation, no
+  automatic inference between any value and any other data.
+- The four `learning_style_*_percentage` columns (ADR 0042) are
+  OPERATIONALLY DEPRECATED: no longer written, exposed, or read as Learning
+  Style authority anywhere in the product (Student create/edit, Student
+  profile, or Talent Student context). Existing stored values are preserved
+  completely untouched - no backfill, no conversion, no clearing - because
+  the M14 milestone could not safely verify whether any production row is
+  actually non-null before deciding this. Physical column removal is a
+  separately gated, later cleanup contingent on that verification.
+- Aggregate Learning Style distribution (Branch/Organization) is computed
+  over this single categorical field for all eight values plus an
+  "Unassigned" bucket, reusing the existing privacy/suppression contract
+  this ADR already required (`student_learning_style_analytics.py`,
+  extended, not parallel-built). The denominator is every authorized Student
+  in the selected scope, including Unassigned Students.
+- The M4/M10 Talent Evaluation Progress "Learning Style" Branch-comparison
+  metric, which averaged the four now-deprecated percentage columns, is
+  REMOVED as of M14 (see ADR 0044's own record for that surface) rather than
+  silently continuing to report a semantically wrong number.
+
+### Governance boundary (unchanged)
+
+This amendment does not authorize multi-select, Learning Style influencing
+any Talent scoring/eligibility/identification computation, a new or weakened
+privacy rule, or any Branch-level override of the Student-domain ownership
+model - the original Governance boundary section above continues to apply in
+full, now scoped to eight values instead of four.

@@ -6942,6 +6942,50 @@ def _student_learning_style_v1(engine, connection):
             _execute(connection, "ALTER TABLE students VALIDATE CONSTRAINT ck_students_learning_style")
 
 
+def _student_learning_style_eight_values(engine, connection):
+    """Widen ``ck_students_learning_style`` from four to eight approved values.
+
+    M14 owner correction (amends ADR 0031; supersedes ADR 0042's independent
+    four-percentage product model): Verbal, Non-verbal, Quantitative, and
+    Spatial become four more single-select categorical values on the
+    existing ``learning_style`` column, exactly like the original four
+    (Visual, Auditory, Read/Write, Kinesthetic). No column is added, no
+    existing row is rewritten, and the four legacy
+    ``learning_style_*_percentage`` columns (ADR 0042) are left completely
+    untouched - they are operationally deprecated (no longer written or
+    displayed) but their physical removal is separately gated on a later,
+    explicit data-occupancy verification that cannot be safely performed
+    here (this migration never inspects or deletes row data).
+
+    PostgreSQL: mirrors the exact ``DROP CONSTRAINT IF EXISTS`` + non-locking
+    ``NOT VALID`` + ``VALIDATE CONSTRAINT`` ADD pattern already used
+    elsewhere in this module (e.g. ``_m8b9_demo_operations``) for widening an
+    existing CHECK constraint under the same name - idempotent because a
+    rerun simply drops and recreates the identical constraint.
+
+    SQLite: intentionally out of scope here, exactly like
+    ``_student_learning_style_v1`` before it - SQLite CHECK constraints
+    cannot be altered without a full table rebuild, which this purely
+    additive, non-lock-heavy migration does not perform; an already-migrated
+    SQLite database continues to rely on the service-layer guard
+    (``student_academic_service.py``) for the widened value set, and a fresh
+    SQLite database already gets the widened constraint directly from the
+    current SQLAlchemy model metadata (``models.py``).
+    """
+    if not _table_exists(connection, "students"):
+        return
+    if engine.dialect.name == "postgresql":
+        _execute(connection, "ALTER TABLE students DROP CONSTRAINT IF EXISTS ck_students_learning_style")
+        _execute(
+            connection,
+            "ALTER TABLE students ADD CONSTRAINT ck_students_learning_style "
+            "CHECK (learning_style IS NULL OR learning_style IN "
+            "('Visual','Auditory','Read/Write','Kinesthetic',"
+            "'Verbal','Non-verbal','Quantitative','Spatial')) NOT VALID",
+        )
+        _execute(connection, "ALTER TABLE students VALIDATE CONSTRAINT ck_students_learning_style")
+
+
 def _user_permission_override_foundation(engine, connection):
     datetime_type = _datetime_type(engine)
     id_sql = "SERIAL PRIMARY KEY" if engine.dialect.name == "postgresql" else "INTEGER PRIMARY KEY"
@@ -7652,6 +7696,11 @@ MIGRATIONS = (
         migration_id="20260923_001_student_tis_number_index_identifier_length_remediation",
         description="Rename the PostgreSQL-truncated active-per-Student tis_student_number index to its canonical <=63-character name (M12.1)",
         apply=_student_tis_number_index_identifier_length_remediation,
+    ),
+    Migration(
+        migration_id="20260923_002_student_learning_style_eight_values",
+        description="Widen the Student learning_style CHECK constraint from four to eight approved values (M14 owner correction, amends ADR 0031)",
+        apply=_student_learning_style_eight_values,
     ),
 )
 

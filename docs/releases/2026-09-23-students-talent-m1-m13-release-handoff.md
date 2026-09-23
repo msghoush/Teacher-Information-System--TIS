@@ -1,11 +1,20 @@
 ---
 title: Students + Talent & Potential Update Package Release Handoff (M1-M13)
-documentation_version: 1.0
+documentation_version: 1.1
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # Students + Talent & Potential Update Package Release Handoff (M1-M13)
+
+**Superseded in part by M14 (2026-09-23):** the "Learning Style" bullet below
+described the M1-M13 as-shipped four-percentage model, which the M14 owner
+correction determined was a misinterpretation. See
+`docs/PROJECT_STATE.md`'s M14 entry and ADR 0031/0042/0044's M14 amendment
+sections for the corrected model (one categorical field, eight values;
+aggregate-only percentage semantics). This document's text below is left
+unmodified as the accurate historical record of what M1-M13 actually
+shipped.
 
 Milestone range: M1-M13, 2026-09-23. This is a documentation-only closeout
 record for a bounded package on the `dev` branch. It does not itself deploy

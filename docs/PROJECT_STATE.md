@@ -1,11 +1,86 @@
 ---
 title: TIS Project State
-documentation_version: 5.13
+documentation_version: 5.14
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M14 Students + Talent & Potential — Learning Style Correction + Aggregate Distribution (2026-09-23)
+
+Owner-directed correction milestone following a read-only Post-M13
+Correction Review. Two corrections, both governed by amendments to ADR 0031
+and ADR 0042 (see each ADR's own "M14 Amendment"/"M14 Correction" section)
+and, for the removed Talent metric, ADR 0044's M14 Amendment section:
+
+1. **Learning Style is ONE categorical selection per Student, extended from
+   four to eight values.** `Student.learning_style` now accepts Visual,
+   Auditory, Read/Write, Kinesthetic (original four, unchanged) plus Verbal,
+   Non-verbal, Quantitative, Spatial (added). Those four added values were
+   previously, mistakenly, modeled as an independent four-dimension
+   percentage profile (`learning_style_verbal_percentage`,
+   `learning_style_non_verbal_percentage`,
+   `learning_style_quantitative_percentage`,
+   `learning_style_spatial_percentage`; ADR 0042/M1-M3). Verified against
+   actual code that, contrary to ADR 0042's own stated M1 scope boundary,
+   the M2/M3 delivery had already built a full create/update/GET API and a
+   real Student create/edit frontend for the four percentages - while the
+   ORIGINAL single-select categorical field from ADR 0031 had never received
+   any create/edit frontend selector at all until this milestone. Student
+   create/edit now shows one Learning Style selector (all eight values, plus
+   "Not assigned"); the Student profile shows the one selected value (or
+   "Not assigned") instead of four percentage bars; Talent Student context
+   reads the current categorical value directly (no historical snapshot, no
+   effect on rubric/Assessment/Overall Result/Evaluation
+   Progress/classification/Candidate-Identification).
+2. **"Percentage" means population/aggregate distribution, never a
+   per-Student dimension percentage.** The four
+   `learning_style_*_percentage` columns are now OPERATIONALLY DEPRECATED:
+   no longer written (API/UI create/edit no longer accept them - silently
+   ignored, never a validation error), no longer displayed anywhere, and no
+   longer read as Learning Style authority anywhere, including the M4/M10
+   Talent Evaluation Progress "Learning Style" Branch-comparison metric
+   (which averaged them) - that metric is REMOVED from
+   `talent_evaluation_progress_service.APPROVED_BRANCH_METRICS` (six
+   approved metrics remain; a request for it now receives the same
+   `invalid_filter`/400 as any other unrecognized metric). Existing stored
+   percentage values are preserved completely untouched (no backfill, no
+   conversion, no clearing) - physical column removal is a separately
+   gated, later cleanup contingent on an explicit data-occupancy
+   verification this milestone could not safely perform (the local `tis.db`
+   has no `students` table at all, so real occupancy could not be inspected
+   either way). `student_learning_style_analytics.py` (the existing
+   privacy-safe categorical count/percentage/"Unassigned" distribution
+   engine, reused and extended rather than parallel-built) now covers all
+   eight categorical values plus an "Unassigned" bucket for the authorized
+   Student population; the denominator is always every authorized Student in
+   scope, including Unassigned Students - this is served at the existing
+   Students page summary location, unchanged in scope/authorization/privacy
+   contract from ADR 0031.
+
+Database: one forward-only migration
+(`20260923_002_student_learning_style_eight_values`) widens
+`ck_students_learning_style` from four to eight values on PostgreSQL
+(`DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT ... NOT VALID` +
+`VALIDATE CONSTRAINT`, mirroring the exact pattern already used elsewhere in
+`db_migrations.py` for widening a CHECK constraint under the same name);
+SQLite continues to rely on the service-layer guard for an already-migrated
+database, exactly like the original `_student_learning_style_v1` migration,
+and a fresh SQLite database gets the widened constraint directly from
+`models.py`'s current `CheckConstraint`. No column is added or dropped, no
+row is rewritten, and `tis.db` is unchanged (verified by SHA-256 before and
+after this task).
+
+`student_roster_service.py`'s column contract was inspected and does not
+include Learning Style or the four percentage columns at all - roster scope
+is therefore untouched by this milestone, per its explicit boundary.
+
+Out of scope for M14 (left for later, separately governed milestones):
+Student deletion/count correction, roster redesign, Student action layout,
+Talent whole-module performance, assessment classification, the full
+Results & Analytics rebuild, and any privacy-copy cleanup beyond the
+Learning-Style-specific surfaces touched here.
 
 ## M13 Students + Talent & Potential Release Readiness Closeout (2026-09-23)
 

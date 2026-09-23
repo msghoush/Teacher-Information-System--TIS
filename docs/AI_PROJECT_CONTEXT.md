@@ -1,11 +1,32 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.1
+documentation_version: 4.2
 last_updated: 2026-09-23
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Learning Style Correction + Aggregate Distribution (M14)
+
+Owner-directed correction (see ADR 0031's/ADR 0042's/ADR 0044's M14
+amendment sections and `docs/PROJECT_STATE.md`'s M14 entry for the full
+record). Two corrections: (1) Learning Style is ONE categorical selection
+per Student, extended from four to eight values (Visual, Auditory,
+Read/Write, Kinesthetic, Verbal, Non-verbal, Quantitative, Spatial) - the
+four added values were previously, mistakenly, modeled as an independent
+four-dimension percentage profile; those four `learning_style_*_percentage`
+columns are now operationally deprecated (no longer written, displayed, or
+read as authority anywhere), with existing stored values preserved
+untouched and physical removal separately gated on a later data-occupancy
+verification. (2) "Percentage" means population/aggregate distribution,
+never a per-Student dimension score - the Students page's existing
+categorical distribution engine now covers all eight values plus
+"Unassigned" (always part of the denominator), and the M4/M10 Talent
+Evaluation Progress "Learning Style" Branch-comparison metric (which had
+averaged the four deprecated columns) is REMOVED (six approved
+Branch-comparison metrics remain, not seven - see the correction to the M10
+section below).
 
 ## Student Roster Import / Export Frontend (M11)
 
@@ -32,12 +53,15 @@ schema change, or migration.
 ## Results & Analytics Branch Comparison Frontend (M10, Students Product Sequence)
 
 Organization Overview now contains one primary Program-scoped Branch comparison
-chart backed by the existing M4 `branch-comparison` endpoint. Its selector is
-limited to the seven governed metric families: Evaluation Period Result,
+chart backed by the existing M4 `branch-comparison` endpoint. Its selector was
+originally limited to seven governed metric families: Evaluation Period Result,
 Overall Result, Assessment Completion, Assessments Started, permission-projected
-Meets Program Criteria and Officially Confirmed, and Learning Style. Learning
-Style uses only the current Verbal, Non-verbal, Quantitative, and Spatial
-dimension parameter defined by the backend.
+Meets Program Criteria and Officially Confirmed, and Learning Style (which used
+only the current Verbal, Non-verbal, Quantitative, and Spatial dimension
+parameter defined by the backend). **Current state (M14 correction):** the
+Learning Style metric is removed - it averaged the now-deprecated four
+percentage columns, which is semantically wrong under the M14-corrected model.
+Exactly six metric families remain selectable.
 
 The chart preserves backend row and Period order and uses the existing
 privacy-safe Branch-label projection. Only a `visible` backend state may create

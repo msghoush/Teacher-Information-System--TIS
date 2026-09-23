@@ -123,6 +123,21 @@ _UNAVAILABLE_RESULT_STATES = (
     RESULT_STATE_NOT_APPLICABLE,
 )
 
+# M14 owner correction: the "learning_style" Branch-comparison metric is
+# REMOVED as of M14. It computed the arithmetic mean of the four
+# ``learning_style_*_percentage`` columns (ADR 0042) across a Branch
+# population - semantically wrong under the corrected model, where
+# "percentage" means population/aggregate distribution over the single
+# categorical ``learning_style`` field, never a mean of per-Student scores.
+# A request for this metric now falls through to the existing
+# ``invalid_filter``/400 handling below, the same as any other unrecognized
+# metric value, rather than silently returning a wrong number. A categorical
+# distribution replacement (if any) for this Branch-comparison surface is
+# out of M14 scope and is left for a later, separately governed milestone.
+# ``learning_style_branch_aggregate``/``_learning_style_values_by_branch``
+# below are kept, unreferenced by this dispatcher, purely so the mean
+# computation over the deprecated columns is not silently mutated - not
+# because it is still an approved product metric.
 APPROVED_BRANCH_METRICS = (
     "evaluation_period_result",
     "current_overall_progress",
@@ -130,7 +145,6 @@ APPROVED_BRANCH_METRICS = (
     "assessments_started",
     "meets_program_criteria",
     "officially_confirmed",
-    "learning_style",
 )
 
 LEARNING_STYLE_DIMENSIONS = ("verbal", "non_verbal", "quantitative", "spatial")
@@ -541,11 +555,6 @@ def branch_comparison_metric(db: Session, ctx: "svc.AnalyticsContext", *, metric
 
     filters = svc.ResolvedFilters()
     pop_query = svc.population_query(db, ctx, filters, visible_branch_ids)
-
-    if metric == "learning_style":
-        if learning_style_dimension is None:
-            raise EvaluationProgressError("invalid_filter", "learning_style_dimension is required for the learning_style metric.")
-        return {"metric": metric, **learning_style_branch_aggregate(db, ctx, pop_query, dimension=learning_style_dimension, policy=policy)}
 
     coverage_by_dim = svc.raw_coverage_by_dimension(db, pop_query, "branch")
     branch_ids = sorted(coverage_by_dim.keys(), key=lambda v: (v is None, v))

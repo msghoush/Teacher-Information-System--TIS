@@ -22,20 +22,35 @@ class StudentAcademicError(ValueError):
         self.message = message
 
 
-# Learning Style V1 (ADR 0031): exactly four approved values, no others.
-# Student-domain learner-profile context only - never a Talent score and
-# never read by any Talent scoring/eligibility/Official Identification
-# computation. Optional/nullable; an empty value clears it back to "not
-# specified", mirroring how other optional Student fields (e.g. gender) are
-# already cleared by ``_clean`` below.
-LEARNING_STYLES = ("Visual", "Auditory", "Read/Write", "Kinesthetic")
+# Learning Style V1 (ADR 0031, amended by M14): exactly eight approved
+# values, no others. Extended from the original four (Visual, Auditory,
+# Read/Write, Kinesthetic) to eight (Verbal, Non-verbal, Quantitative,
+# Spatial added) by the M14 owner correction - those four were previously,
+# mistakenly, modeled as an independent per-Student percentage profile
+# (ADR 0042); that model is corrected here to be four more categorical
+# Learning Style values on this single-select field, exactly like the
+# original four. Student-domain learner-profile context only - never a
+# Talent score and never read by any Talent scoring/eligibility/Official
+# Identification computation. Optional/nullable; an empty value clears it
+# back to "not assigned", mirroring how other optional Student fields (e.g.
+# gender) are already cleared by ``_clean`` below.
+LEARNING_STYLES = (
+    "Visual", "Auditory", "Read/Write", "Kinesthetic",
+    "Verbal", "Non-verbal", "Quantitative", "Spatial",
+)
 
 
-# Learning Style four-dimension profile (ADR 0042, amends ADR 0031; M3 service/
-# API implementation). Four independent, optional 0-100 integer percentages -
-# each validated only against its own range, with no sum-to-100 rule and no
-# automatic derivation from, or to, the legacy categorical ``learning_style``
-# field above, which remains preserved unchanged.
+# Learning Style four-dimension percentage profile (ADR 0042, amends ADR
+# 0031). OPERATIONALLY DEPRECATED as of M14 (owner correction): "percentage"
+# was always intended to mean population/aggregate distribution, never a
+# per-Student dimension score, so this independent four-percentage profile is
+# a corrected/superseded product model. The product no longer writes to,
+# exposes, or reads these columns anywhere (see ``routers/students.py`` and
+# ``routers/students_ui.py``, which no longer accept these fields as
+# create/update input). These validators and columns are kept only so that
+# any already-stored value is never silently rewritten or cleared by an
+# unrelated Student edit; physical column removal is separately gated on a
+# later, explicit data-occupancy verification.
 LEARNING_STYLE_PERCENTAGE_FIELDS = (
     "learning_style_verbal_percentage",
     "learning_style_non_verbal_percentage",
@@ -87,7 +102,7 @@ def _clean_learning_style(value):
     if cleaned not in LEARNING_STYLES:
         raise StudentAcademicError(
             "invalid_learning_style",
-            "Learning Style must be one of Visual, Auditory, Read/Write, or Kinesthetic.",
+            "Learning Style must be one of " + ", ".join(LEARNING_STYLES) + ".",
         )
     return cleaned
 

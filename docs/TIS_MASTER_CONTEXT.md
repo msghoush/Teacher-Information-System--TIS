@@ -1,11 +1,33 @@
 ---
 title: TIS Master Context
-documentation_version: 4.4
+documentation_version: 4.5
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Learning Style Correction + Aggregate Distribution (M14)
+
+Owner-directed correction (`docs/PROJECT_STATE.md`'s M14 entry and ADR
+0031/0042/0044's M14 amendment sections are the full governance record).
+`Student.learning_style` is the single authoritative Learning Style field,
+now accepting eight values (Visual, Auditory, Read/Write, Kinesthetic,
+Verbal, Non-verbal, Quantitative, Spatial). The four
+`learning_style_*_percentage` columns (previously an independent
+per-Student four-dimension profile) are operationally deprecated: no
+longer written, displayed, or read as Learning Style authority anywhere,
+including in Talent Student context or the M4/M10 Learning Style
+Branch-comparison metric (removed). Existing stored percentage values are
+preserved untouched; physical column removal is a later, separately gated
+cleanup.
+
+Aggregate Learning Style distribution (`student_learning_style_analytics.py`,
+extended rather than parallel-built) now covers all eight values plus an
+"Unassigned" bucket for the authorized Student population, reusing the same
+privacy/suppression contract and Branch/Organization scope ADR 0031 already
+required. The denominator is always every authorized Student in scope,
+including Unassigned Students.
 
 ## Student Roster Frontend (M11)
 
@@ -33,12 +55,20 @@ does not construct authority or duplicate-conflict details. New Students require
 the ID; legacy Students may remain without one and can still edit other fields.
 ID replacement remains separately permissioned by `students.manage_identifiers`.
 
-Verbal, Non-verbal, Quantitative, and Spatial are independent nullable 0-100
-integer values. Blank and zero are distinct, no sum is enforced, and deprecated
-categorical Learning Style data is neither displayed as the current profile nor
-auto-converted. Student Placement identity/history and M5 Section presentation
-remain unchanged. Roster import/export UI was out of scope for M7 and was
-implemented in M11 (see "Student Roster Frontend (M11)" above).
+Verbal, Non-verbal, Quantitative, and Spatial were independent nullable 0-100
+integer values as originally shipped here. Blank and zero were distinct, no sum
+was enforced, and the original single-select categorical Learning Style field
+was neither displayed as the current profile nor auto-converted. Student
+Placement identity/history and M5 Section presentation remain unchanged.
+Roster import/export UI was out of scope for M7 and was implemented in M11
+(see "Student Roster Frontend (M11)" above).
+
+**Current state (M14 owner correction):** the above four-percentage model was
+a misinterpretation and is now operationally deprecated - see "Learning Style
+Correction + Aggregate Distribution (M14)" below for the corrected model
+(one categorical `learning_style` field, eight values, with the four
+percentage columns no longer written/displayed/read anywhere). Existing
+stored percentage values described above remain preserved, untouched.
 
 ## Current Permission Resolution Ownership Boundary
 

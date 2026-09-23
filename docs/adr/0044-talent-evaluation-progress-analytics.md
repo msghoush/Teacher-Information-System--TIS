@@ -1,8 +1,8 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.0
-last_updated: 2026-09-22
-status: Accepted
+documentation_version: 1.1
+last_updated: 2026-09-23
+status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) - see 'M14 Amendment' section at the end of this document. Original text below preserved unmodified as historical record."
 ---
 
 # ADR 0044: Talent Evaluation Progress Analytics (M4)
@@ -156,3 +156,28 @@ analytics."
   way (this is a label-only nuance, not a privacy defect), and it is
   unchanged from the existing, already-reviewed `/breakdowns/branch` route
   behavior this milestone reuses rather than duplicates.
+
+## M14 Amendment (2026-09-23): Learning Style Branch Aggregate Removed
+
+Added 2026-09-23, per the same owner-directed M14 correction recorded in
+ADR 0031's and ADR 0042's own M14 amendment sections. The text above is
+preserved unmodified as the historical record of the seven-metric dispatcher
+as originally delivered.
+
+The "Learning Style Branch aggregate" metric above averaged the four
+`learning_style_*_percentage` columns (ADR 0042) across a Branch population.
+Under the M14-corrected model, "percentage" means population/aggregate
+distribution over the single categorical `Student.learning_style` field
+(now eight values), never a mean of independent per-Student dimension
+scores - so this metric's underlying premise no longer holds. It is REMOVED
+from `talent_evaluation_progress_service.APPROVED_BRANCH_METRICS` as of
+M14: a request for the `learning_style` metric now receives the same
+`invalid_filter`/400 response as any other unrecognized metric value,
+rather than continuing to report a semantically wrong number. The
+Branch-comparison dispatcher now supports exactly six metrics (the seven
+above, minus Learning Style). A categorical distribution replacement for
+this specific Branch-comparison surface (if wanted) is out of M14 scope and
+is left for a later, separately governed milestone; the Student-domain
+aggregate Learning Style distribution required by ADR 0031 continues to be
+served by `student_learning_style_analytics.py` (Students page), unaffected
+by this removal.

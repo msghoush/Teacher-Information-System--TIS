@@ -1,11 +1,38 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.7
-last_updated: 2026-09-09
+documentation_version: 3.8
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Learning Style Correction + Aggregate Distribution Flow (M14)
+
+1. Student create/edit shows exactly one Learning Style selector with eight
+   options (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
+   Quantitative, Spatial) plus a blank "Not assigned" choice; the browser
+   submits the one selected categorical value, never a percentage.
+2. The server independently validates the submitted value against the same
+   eight-value authority server-side; an unsupported value is rejected even
+   if a client bypasses the selector.
+3. The Student profile displays the one selected value (or "Not assigned"),
+   never four percentage bars. The Talent tab's learner-context line reads
+   the same current categorical value directly - no historical snapshot, no
+   effect on rubric/Assessment/Overall Result/Evaluation Progress/
+   classification/Candidate-Identification.
+4. The four legacy percentage fields are no longer collected or displayed
+   anywhere; if a stray client still submits them, the server silently
+   ignores them rather than writing or erroring - a pre-existing stored
+   value is left completely untouched by an unrelated edit.
+5. The Students page's existing Learning Style distribution panel now shows
+   all eight categories plus "Unassigned," each row driven by one
+   backend-authoritative count/percentage for both bar and text; the
+   denominator always includes Unassigned Students. Privacy suppression,
+   scope, and permission behavior are unchanged from ADR 0031.
+6. Organization Overview's Branch-comparison metric selector (M10, below) no
+   longer offers "Learning Style" - requesting it now receives the same
+   `invalid_filter` response as any other unrecognized metric.
 
 ## Student Roster Import / Export Frontend Flow (M11)
 
@@ -39,8 +66,10 @@ ownership, authorizes itself, performs partial apply, or transforms M5
 2. The metric selector offers the exact backend allowlist, omitting Meets
    Program Criteria or Officially Confirmed when their independent permissions
    are absent.
-3. Selecting Learning Style reveals only Verbal, Non-verbal, Quantitative, and
-   Spatial; the selected dimension is sent as `learning_style_dimension`.
+3. Originally, selecting Learning Style revealed only Verbal, Non-verbal,
+   Quantitative, and Spatial, sent as `learning_style_dimension`. **Current
+   state (M14 correction): the Learning Style metric option is removed** -
+   see "Learning Style Correction + Aggregate Distribution Flow (M14)" above.
 4. A selector change requests the existing M4 Branch comparison endpoint. The
    backend performs frozen historical Branch attribution, metric calculation,
    privacy closure, and Framework comparability.
@@ -56,8 +85,9 @@ ownership, authorizes itself, performs partial apply, or transforms M5
 The browser does not calculate or average Branch/Organization values, derive a
 metric, normalize Learning Style, evaluate thresholds, reconstruct hidden
 values, regroup by current Placement, or calculate across Framework versions.
-The comparison contract has no uniform Organization summary across all seven
-metrics, so this M10 surface adds none.
+The comparison contract has no uniform Organization summary across all
+metrics (seven originally, six as of the M14 correction above), so this M10
+surface adds none.
 
 ## Student Evaluation Progress Frontend Flow (M9)
 
@@ -103,8 +133,12 @@ M10 comparison charts, and M11 roster UI are not part of this flow.
 ## Students M7 Create/Edit/Profile Flow
 
 1. New Student entry shows a fixed `STD` prefix and accepts exactly ten text
-   digits, plus optional independent Verbal, Non-verbal, Quantitative, and
-   Spatial whole percentages from 0 through 100.
+   digits. Originally, it also offered optional independent Verbal,
+   Non-verbal, Quantitative, and Spatial whole percentages from 0 through
+   100. **Current state (M14 correction): those four percentage fields are
+   removed from create/edit** - see "Learning Style Correction + Aggregate
+   Distribution Flow (M14)" above for the current one-selector, eight-value
+   categorical flow.
 2. The server validates and atomically creates the Student plus managed number;
    the browser never authorizes, canonicalizes the prefix, or resolves conflicts.
 3. A duplicate response uses the shared privacy-safe conflict projection: an
@@ -113,8 +147,12 @@ M10 comparison charts, and M11 roster UI are not part of this flow.
 4. Legacy Students without a managed number display a neutral missing state and
    may edit other Student fields. Number assignment/replacement is a separate
    `students.manage_identifiers` action.
-5. Blank Learning Style dimensions remain null, zero remains `0%`, dimensions
-   are not normalized, and deprecated categorical data is not auto-converted.
+5. Originally: blank Learning Style dimensions remained null, zero remained
+   `0%`, dimensions were not normalized, and the (then-)deprecated
+   categorical data was not auto-converted. **Current state (M14
+   correction):** those four percentage dimensions are themselves now the
+   deprecated data (preserved, untouched, no longer collected); the
+   categorical field is the current, editable Learning Style value.
 6. Profile/current Placement/history continue to consume server-projected M5
    `section_display`; canonical Placement and Planning Section identity remain
    unchanged and are still used for requests.

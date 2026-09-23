@@ -103,7 +103,13 @@
   <div class="stu-panel stu-ls-panel">
     <h2>Learning Style distribution</h2>
     <p class="stu-lede">{{ icon('insights', 'shell-icon') }}Learner context only - not a Talent score and never part of rubric results, Program Criteria, Review, or Official Identification. Reflects the Branch/Grade/Section filters above.</p>
-    {% set ls_accent_map = {'Visual':'var(--app-brand)','Auditory':'var(--app-accent)','Read/Write':'var(--app-success)','Kinesthetic':'var(--app-warning)'} %}
+    {% set ls_accent_map = {
+      'Visual':'var(--app-brand)','Auditory':'var(--app-accent)','Read/Write':'var(--app-success)','Kinesthetic':'var(--app-warning)',
+      'Verbal':'var(--app-danger)',
+      'Non-verbal':'color-mix(in srgb, var(--app-brand) 50%, var(--app-warning) 50%)',
+      'Quantitative':'color-mix(in srgb, var(--app-success) 50%, var(--app-accent) 50%)',
+      'Spatial':'color-mix(in srgb, var(--app-danger) 50%, var(--app-brand) 50%)',
+    } %}
     {% if learning_style_distribution.state == 'unavailable' %}
     <div class="stu-protected stu-protected-panel" role="status">
       {{ icon('shield', 'shell-icon') }}
