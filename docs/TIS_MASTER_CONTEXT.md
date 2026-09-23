@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Talent Performance And Student Action Layout Authority (M16)
+
+Talent page authorization must compute an effective permission set as a bounded
+request-scoped operation and reuse that already-authorized set for shell and
+action presentation. This reuse never crosses requests, users, SchoolGroups, or
+Branch scopes and does not replace per-request authorization. Talent surfaces
+load only the operational JavaScript bundles they use; `talent.js` and
+`talent-experience.js` remain common. The application remains server-rendered
+with vanilla JavaScript, and no API or product semantics changed.
+
+Students action containers are wrapping horizontal flex rows. Add/Delete and
+Open/Delete therefore remain adjacent on desktop/tablet where space permits and
+wrap safely on narrow mobile without changing accessible labels or permission
+projection.
+
 ## Learning Style Correction + Aggregate Distribution (M14)
 
 Owner-directed correction (`docs/PROJECT_STATE.md`'s M14 entry and ADR

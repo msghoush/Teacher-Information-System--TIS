@@ -115,6 +115,20 @@ source_of_truth: true
 - M9 exposes no Branch/Organization progress surface or comparison chart and
   adds no route, permission, schema, or migration.
 
+## Talent Performance M16 Ownership
+
+- `authorization.py`: resolves each route gate against one effective permission
+  projection and exposes that authorized set on request state for same-request
+  reuse.
+- `routers/talent_ui.py` + `ui_shell.py`: reuse the route-authorized set for
+  Talent action presentation and shell navigation; commercial feature checks
+  remain independent and every request remains authorized.
+- `templates/talent/workspace.html`: owns surface-specific script inclusion;
+  common orchestration/presentation stays universal while Program, Evaluation,
+  Assessment, and Review bundles load only on their owning surfaces.
+- `static/css/students.css`: owns the shared wrapping horizontal Students action
+  row used by page-level and per-Student controls.
+
 ## Talent Frontend Cleanup M8 Ownership
 
 - `static/js/talent-operations.js`: omits Reload Saved Rubric and Educator Input

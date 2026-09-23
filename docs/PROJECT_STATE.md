@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Project State
 
+## M16 Talent Module Performance And Student Actions (2026-09-23)
+
+Implemented on the isolated `m16-talent-performance` branch from `50c049f`.
+Talent page permission projection calls are bounded at three (previously roughly
+28-31 through repeated per-key checks), and unrelated operational JavaScript is
+not emitted by Overview/analytics or other non-owning surfaces. Depending on the
+surface, two to four of the former six scripts are emitted; Overview/analytics
+drop about 135 KB of unminified JavaScript. Student action containers now render
+as wrapping horizontal flex rows. No schema, migration, API, authorization,
+tenant/Branch isolation, analytics calculation, or product-semantic change was
+introduced. Deployment surface is Web Service only; the timetable workflow is
+unchanged.
+
 ## M14 Students + Talent & Potential — Learning Style Correction + Aggregate Distribution (2026-09-23)
 
 Owner-directed correction milestone following a read-only Post-M13

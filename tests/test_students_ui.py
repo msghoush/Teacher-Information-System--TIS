@@ -57,6 +57,12 @@ def test_list_requires_students_view(db, client):
     assert "Alya" in response.text
 
 
+def test_student_row_actions_use_responsive_horizontal_layout():
+    css = Path('static/css/students.css').read_text(encoding='utf-8')
+    assert '.stu-actions { display: flex; flex-wrap: wrap;' in css
+    assert '.stu-actions > form { margin: 0; }' in css
+
+
 def test_roster_actions_are_projected_by_independent_permissions(db, client):
     permissions(db, "students.view")
     neither = client.get("/students/")

@@ -43,10 +43,18 @@
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
 <script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
+{% if talent_view in ['programs', 'evaluation-plans', 'assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
+{% endif %}
+{% if talent_view in ['assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>
+{% endif %}
+{% if talent_view in ['programs', 'evaluation-plans'] %}
 <script src="{{ url_for('static', path='js/talent-program-workspace.js') }}" defer></script>
+{% endif %}
+{% if talent_view == 'evaluation-plans' %}
 <script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}" defer></script>
+{% endif %}
 <script src="{{ url_for('static', path='js/talent.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/talent-experience.js') }}" defer></script>
 {% endblock %}

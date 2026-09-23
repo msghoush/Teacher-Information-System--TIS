@@ -7,6 +7,26 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Talent Module Performance And Student Action Layout (M16)
+
+Talent HTML authorization now resolves the effective permission projection once
+at the route gate and reuses it for the Talent action payload and shared shell.
+The independent commercial feature checks inside the shell remain authorized,
+so runtime instrumentation bounds a Talent page to at most three permission
+projection calls instead of the former per-action loop (roughly 28-31 calls on
+common views). Every HTTP request still performs authentication, permission,
+tenant, and Branch-scope enforcement.
+
+`templates/talent/workspace.html` loads only surface-relevant operational
+bundles. All views retain the common `talent.js` and `talent-experience.js`;
+Programs/Evaluation Plans load Program tooling, Evaluation Plans alone loads
+its standalone scheduler, and Assessments/Review load operational tooling.
+Analytics and Overview no longer download those unrelated bundles. No SPA,
+framework, API, business-rule, privacy, or analytics-semantic change was made.
+Student list action groups now use a shared wrapping flex row so Add/Delete and
+row Open/Delete controls sit side-by-side when space permits and wrap without
+overlap on narrow screens.
+
 ## Learning Style Correction + Aggregate Distribution (M14)
 
 Owner-directed correction (see ADR 0031's/ADR 0042's/ADR 0044's M14

@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - M16 Talent Performance And Student Action Layout
+
+- Reused the Talent route's authorized permission projection for shell/action
+  presentation, removing the per-permission backend projection loop.
+- Made Talent operational scripts surface-specific while preserving dependency
+  order and common presentation scripts.
+- Made Students action groups wrapping horizontal flex rows so Add/Delete and
+  row actions remain adjacent where space permits.
+- Added regression coverage for projection bounds, script ownership, and the
+  responsive action rule. No schema, API, permission, privacy, tenant, Branch,
+  or product-semantic behavior changed.
+
 ## 2026-09-23 - M15 Student Integrity, Talent Visibility & Roster Round-Trip
 
 Two owner requirements, implemented on the isolated `m15-student-integrity-roster`
