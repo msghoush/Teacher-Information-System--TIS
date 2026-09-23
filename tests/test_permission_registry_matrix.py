@@ -127,7 +127,14 @@ CLASSIFICATION = {
     "talent_official_identifications.view": ("A", ('routers/students_ui.py', 'routers/talent_analytics.py', 'routers/talent_learner_profiles.py', 'routers/talent_official_identifications.py')),
     "talent_official_identifications.record": ("A", ('routers/talent_official_identifications.py',)),
     # --- talent_educator_inputs
-    "talent_educator_inputs.view": ("A", ('routers/students_ui.py', 'routers/talent_educator_inputs.py', 'routers/talent_learner_profiles.py')),
+    # M8 Talent frontend cleanup (b7c4791) made the Student Talent-profile
+    # presentation stop requesting/rendering Educator Input
+    # (routers/students_ui.py now passes include_educator_inputs=False
+    # unconditionally instead of gating it on this permission), so
+    # routers/students_ui.py is no longer a live consumer of this key. The
+    # permission itself remains active-enforced via its own dedicated router
+    # and the Learner Profile route below.
+    "talent_educator_inputs.view": ("A", ('routers/talent_educator_inputs.py', 'routers/talent_learner_profiles.py')),
     "talent_educator_inputs.add": ("A", ('routers/talent_educator_inputs.py',)),
     "talent_educator_inputs.amend": ("A", ('routers/talent_educator_inputs.py',)),
     # --- talent_learner_profiles

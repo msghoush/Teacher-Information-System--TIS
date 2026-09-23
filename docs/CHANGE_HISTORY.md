@@ -7,6 +7,25 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - M12 Integrated QA / Regression Verification
+
+Re-verified Students + Talent & Potential M1-M11 end to end (Student ID,
+Learning Style, Al-Andalus Section display, Evaluation Progress, Student
+roster backend/frontend, Talent frontend cleanup, Results & Analytics,
+permissions, tenant isolation, historical/frozen attribution, privacy/
+suppression) with no new functional/UX regression found. Corrected one
+stale test fixture in `tests/test_permission_registry_matrix.py` (removed
+`routers/students_ui.py` from `talent_educator_inputs.view`'s recorded
+consumers, matching M8's already-shipped `include_educator_inputs=False`
+behavior - not a product change). Identified and documented, but
+deliberately did not fix (out of scope for this verification-only task), a
+PostgreSQL identifier-length defect in the M1 managed-Student-number unique
+index (`uq_student_external_identifiers_tis_student_number_active_student`,
+65 characters, exceeds PostgreSQL's 63-character limit) that risks breaking
+this migration's idempotency on a real PostgreSQL redeploy; see
+`docs/PROJECT_STATE.md` for the full finding. No schema, migration, or
+product behavior change.
+
 ## 2026-09-23 - Student Roster Import / Export Frontend Implemented (M11)
 
 - Added permission-projected Import Students and Export Students actions to the

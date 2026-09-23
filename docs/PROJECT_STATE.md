@@ -7,6 +7,47 @@ source_of_truth: true
 
 # TIS Project State
 
+## M12 Integrated QA / Regression Verification (2026-09-23)
+
+Students + Talent & Potential M1-M11 were re-verified end to end (Student ID,
+Learning Style, Al-Andalus Section display, Evaluation Progress, Student
+roster backend/frontend, Talent frontend cleanup, Results & Analytics,
+permissions, tenant isolation, historical/frozen attribution, privacy/
+suppression). No new functional/UX regression was found. One stale test
+fixture was corrected: `tests/test_permission_registry_matrix.py` still
+listed `routers/students_ui.py` as a live consumer of
+`talent_educator_inputs.view` after M8 (commit `b7c4791`) intentionally made
+that route pass `include_educator_inputs=False` unconditionally instead of
+gating on the permission; the permission itself remains active-enforced via
+its two real consumers (`routers/talent_educator_inputs.py`,
+`routers/talent_learner_profiles.py`). This is a test-fixture correction
+only, matching already-shipped M8 behavior - no product, permission, or
+architecture change.
+
+**Known unresolved deployment risk (not fixed by M12 - out of this
+verification task's boundary):** the PostgreSQL index name
+`uq_student_external_identifiers_tis_student_number_active_student`
+(`models.py`; re-declared as raw DDL in `db_migrations.py`, migration
+`20260922_002_student_tis_number_identifier_integrity`; introduced in
+Student M1 commit `e98214f`) is 65 characters, exceeding PostgreSQL's
+63-character `NAMEDATALEN` identifier limit. PostgreSQL silently truncates
+the name on `CREATE UNIQUE INDEX` rather than erroring, which breaks this
+migration's own idempotency check (`_index_exists()` compares against the
+full untruncated 65-character name and will never match the truncated
+63-character name PostgreSQL actually stores) - a redeploy that re-applies
+the full migration ledger against a real PostgreSQL database would attempt
+`CREATE UNIQUE INDEX` a second time and fail with a `DuplicateTable`/
+"relation already exists" error, aborting that migration. SQLite (`tis.db`)
+has no such identifier-length limit and is unaffected, which is why this was
+invisible to all SQLite-backed test runs; it was found and reproduced this
+session against a live PostgreSQL test database. Fixing it requires
+renaming the index in schema-defining code (`models.py`/`db_migrations.py`)
+plus an Owner/architecture decision on rename-and-release coordination for
+any environment where this migration may already have run - both explicitly
+outside M12's verification-only scope. This must be triaged before any
+future PostgreSQL deployment re-applies the migration ledger; it does not
+block SQLite-based development/M13 frontend work.
+
 ## Student Roster Import / Export Frontend M11 Implemented (2026-09-23)
 
 The existing Students list now presents **Import Students** only with
