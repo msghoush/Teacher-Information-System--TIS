@@ -61,6 +61,20 @@ source_of_truth: true
 - No spreadsheet parser, CSV/`.xls`, persistent import batch, background job,
   schema, migration, or backend semantic change belongs to M11.
 
+### Students M15 Roster Round-Trip & Integrity Ownership
+
+- `student_roster_service.py` owns M15 round-trip: `section_display`
+  accepted-but-ignored (display-only, never identity), `STD`-prefix
+  normalization, deterministic NO_CHANGE classification, create-only apply that
+  skips NO_CHANGE rows, and the bold/frozen/autofilter export header styling.
+- `static/js/students-roster.js` renders CREATE / No change / error from backend
+  row status and only enables apply when at least one CREATE row is error-free.
+- `student_academic_service.py::force_delete_student_history` (unchanged by M15,
+  now documented + tested) is the single permanent-delete cascade authority that
+  removes every Student-owned Talent table before the Student row.
+- `tests/test_student_delete_talent_visibility.py` and
+  `tests/test_student_roster_import_export.py` lock the M15 contract.
+
 ## Results & Analytics Branch Comparison Frontend (M10)
 
 - `templates/talent/workspace.html`: originally added the labeled Learning

@@ -46,6 +46,23 @@ Placement/Section matching, workbook parsing, and transaction atomicity remain
 backend responsibilities. M5 `section_display` stays presentation-only. No CSV,
 `.xls`, persistent import batch, background job, schema, or migration is added.
 
+## Student Integrity & Roster Round-Trip (M15)
+
+M15 (isolated `m15-student-integrity-roster` feature branch) verifies and
+documents the permanent-delete boundary rather than changing it: a
+force-deleted Student is removed from every Student-owned Talent table and can
+never appear as a current/live Student in Talent & Potential. The Students vs
+Talent/Review count difference is a deliberate population-scope distinction
+(Branch-scoped current Students list vs frozen multi-Branch Talent membership and
+status-agnostic eligible roster), not a deletion defect.
+
+The Student roster export is now round-trip safe: `section_display` is
+accepted-but-ignored on import (display-only, never identity; canonical
+`section` remains identity) and the `STD` prefix is normalized back to the bare
+10-digit value. Import remains create-only with deterministic NO_CHANGE
+classification for unchanged exported rows and blocked conflicts for any mutated
+existing row. Apply writes only CREATE rows and skips NO_CHANGE rows atomically.
+
 ## Students Frontend Identity And Learning Style (M7)
 
 Students create/list/profile/edit now consume the canonical managed TIS Student

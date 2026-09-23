@@ -272,6 +272,38 @@ Branch/Academic-Year/Section authorization, or `section_display` conversion.
 No CSV/`.xls`, persistent batch, background job, backend change, schema, or
 migration is included.
 
+## Student Integrity, Talent Visibility & Roster Round-Trip M15 Implemented (2026-09-23)
+
+M15 (isolated `m15-student-integrity-roster` feature branch, off `50c049f`)
+delivers two owner corrections without schema change.
+
+**Student permanent delete -> Talent visibility.** `force_delete_student_history`
+(`student_academic_service.py`) already deletes every Student-owned table in
+FK-safe child-before-parent order and never commits itself; Talent current
+operational surfaces INNER-join `models.Student`, so a force-deleted Student
+cannot appear anywhere in Talent & Potential. The owner's "~9 vs ~13" mismatch
+is a population-scope distinction, not a deletion defect: the Students list is
+Branch-scoped (single authorized Branch unless `students.view_all_branches` +
+organization/global scope) over current effective Placement, while Talent/Review
+span frozen `TalentAssessmentCyclePopulationMember` membership (historical,
+multi-Branch) and the eligible-students roster intentionally does not filter
+`Student.status` (ADR 0039). Locked by
+`tests/test_student_delete_talent_visibility.py` (full-chain cascade removal,
+blockers, rollback/transaction boundary, tenant isolation).
+
+**Student roster round-trip.** `student_roster_service.py` export now re-imports
+cleanly: `section_display` is accepted-but-ignored (display-only, never identity;
+`section` remains canonical identity per ADR 0045), and the canonical `STD`
+prefix is stripped back to the 10-digit business value on import. Import stays
+create-only: unchanged exported rows classify **NO_CHANGE** (managed Student ID
+resolves identity; name/gender/status + current Placement Branch/Year/Grade/
+Section must match exactly), new rows **CREATE**, and any mutated existing row
+stays a blocked `student_id_conflict` (never update/merge/upsert). Apply writes
+only CREATE rows, skips NO_CHANGE rows, and stays atomic. Export formatting adds
+a bold header, frozen header row, deterministic widths, and autofilter.
+`static/js/students-roster.js` renders CREATE / No change / error from backend
+row status. Permissions, tenant/Branch scope, uniqueness, and audit unchanged.
+
 ## Results & Analytics Branch Comparison Frontend M10 Implemented (2026-09-23)
 
 Organization Overview's prior fixed Branch summary is replaced by one primary,

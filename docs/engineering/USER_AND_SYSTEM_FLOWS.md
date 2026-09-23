@@ -59,6 +59,14 @@ ownership, authorizes itself, performs partial apply, or transforms M5
 `section_display` into canonical input. The first release is create-only and
 `.xlsx` only, with no persistent batch or background job.
 
+**M15 round-trip.** The exported workbook is now re-uploadable: `section_display`
+is accepted-but-ignored and the `STD` prefix is normalized on import. Preview
+classifies each row as CREATE (new), NO_CHANGE (unchanged existing), or a blocked
+conflict (mutated existing). Apply writes only CREATE rows, skips NO_CHANGE rows
+with zero mutation, and stays atomic. The browser renders these three states from
+the backend-provided row status and enables apply only when at least one CREATE
+row is present and error-free.
+
 ## Results & Analytics Branch Comparison Flow (M10)
 
 1. An authorized user opens Organization Overview and selects an Academic Year

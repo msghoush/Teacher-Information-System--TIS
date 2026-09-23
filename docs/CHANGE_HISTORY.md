@@ -7,6 +7,54 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-23 - M15 Student Integrity, Talent Visibility & Roster Round-Trip
+
+Two owner requirements, implemented on the isolated `m15-student-integrity-roster`
+feature branch (off `50c049f`, parallel to M14 which is not merged):
+
+**Student count / Talent visibility (integrity verification, no cascade defect).**
+Independently verified the permanent-delete graph: `force_delete_student_history`
+already deletes, child-before-parent, every Student-owned table
+(`TalentOfficialIdentification`, `TalentEducatorInput`, `TalentReviewCandidate`,
+`TalentAssessmentAudit`, `TalentStudentCompetencyResult`, `TalentStudentAssessment`,
+`TalentAssessmentCyclePopulationMember`, `StudentAcademicPlacement`,
+`StudentExternalIdentifier`, `StudentAudit`) then the `Student` row, and never
+commits itself (caller controls the transaction; rollback restores the Student).
+Talent current-operational surfaces (`current_placements_for_assessment`,
+`talent_org_student_drill`, `talent_analytics._list_student_rows`) structurally
+INNER-join `models.Student`, so a force-deleted Student cannot appear as a
+current/live Student. The owner's "~9 vs ~13" discrepancy is a **population-scope
+difference, not a deletion defect**: the Students list defaults to the actor's
+authorized Branch (single Branch unless `students.view_all_branches` + org/global
+scope) and current effective Placement, while Talent/Review surfaces span frozen
+`TalentAssessmentCyclePopulationMember` membership (historical, multi-Branch) and
+the eligible-students roster deliberately does not filter `Student.status`
+(ADR 0039: status never reinterprets historical eligibility). No schema or
+cascade change was needed; the behavior is documented and locked with regression
+tests (`tests/test_student_delete_talent_visibility.py`).
+
+**Student roster round-trip (export -> import compatibility + NO_CHANGE).**
+`student_roster_service.py` previously exported `section_display` and a
+`STD`-prefixed Student ID that the importer rejected (`unexpected_column` /
+`invalid_student_id`). M15 makes the same exported workbook re-uploadable:
+`section_display` is now an accepted-but-ignored display-only column (never
+identity; canonical `section` remains identity, ADR 0045 unchanged); the
+canonical `STD` prefix is stripped back to the bare 10-digit business value on
+import. Import remains **create-only**: an unchanged exported row now classifies
+as deterministic **NO_CHANGE** (managed Student ID resolves identity, then
+name/gender/status + current Placement Branch/Year/Grade/Section must match
+exactly), new rows classify **CREATE**, and any mutated existing row stays a
+blocked `student_id_conflict` (never a silent update/merge/upsert). Apply writes
+only CREATE rows and skips NO_CHANGE rows with zero mutation, preserving atomic
+all-or-nothing behavior. Export gains a bold/filled header, frozen header row,
+deterministic column widths, and autofilter (no macros, no new spreadsheet
+dependency). `static/js/students-roster.js` renders CREATE / No change / error
+states from backend-provided row status. Permissions (`students.import`/
+`students.export`), tenant/Branch scope, Student-ID uniqueness, and audit rules
+are unchanged. 40+ new/updated tests in
+`tests/test_student_roster_import_export.py` and
+`tests/test_student_delete_talent_visibility.py`.
+
 ## 2026-09-23 - M14 Students + Talent & Potential — Learning Style Correction + Aggregate Distribution
 
 Owner-directed correction milestone following a read-only Post-M13

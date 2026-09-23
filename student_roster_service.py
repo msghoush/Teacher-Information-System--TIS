@@ -34,6 +34,8 @@ import os
 from datetime import datetime
 
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font, PatternFill
+from openpyxl.utils import get_column_letter
 from sqlalchemy.exc import IntegrityError
 
 import auth
@@ -45,6 +47,8 @@ from student_academic_service import (
     create_student_with_number,
     current_student_number,
     describe_student_number_conflict,
+    find_student_number_holder,
+    get_student,
     list_students,
     resolve_placement,
     update_student,
@@ -62,6 +66,13 @@ REQUIRED_COLUMNS = (
 )
 OPTIONAL_COLUMNS = ("father_name", "gender", "status")
 ROSTER_COLUMNS = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
+
+# M15 round-trip compatibility: ``section_display`` (ADR 0045) is a
+# presentation-only export convenience. It is accepted-but-ignored on import
+# so that a workbook produced by ``export_roster`` can be re-uploaded without
+# an ``unexpected_column`` rejection, while never becoming canonical identity
+# (``section`` remains the only Section identity used for matching).
+DISPLAY_ONLY_COLUMNS = ("section_display",)
 
 # Reuses the exact UI-canonical gender convention already offered by the
 # Student form/profile (``routers/students_ui.py::GENDER_OPTIONS``). The
@@ -101,6 +112,11 @@ def _cell_student_id(value):
     Handles both a safely preserved text cell (the exported/template form)
     and a cell Excel coerced to a number (leading zeros already lost by
     Excel itself before this ever reads it - nothing recovers that data).
+
+    M15 round-trip: the export writes the canonical ``STD``-prefixed value, so
+    a re-uploaded workbook's leading ``STD`` prefix is stripped back to the
+    bare 10-digit business value that ``validate_student_number_digits``
+    expects - the single, authoritative identity input.
     """
     if value is None:
         return None
@@ -112,7 +128,10 @@ def _cell_student_id(value):
         if not value.is_integer():
             return None
         return str(int(value))
-    return _cell_text(value)
+    text = _cell_text(value)
+    if text.startswith("STD"):
+        text = text[3:]
+    return text
 
 
 class RosterFileError(Exception):
@@ -174,7 +193,7 @@ def _validate_headers(sheet):
         raise RosterFileError(_file_error(
             "missing_required_column", f"Missing required column(s): {', '.join(missing)}.",
         ))
-    unexpected = sorted(c for c in positions if c not in ROSTER_COLUMNS)
+    unexpected = sorted(c for c in positions if c not in ROSTER_COLUMNS and c not in DISPLAY_ONLY_COLUMNS)
     if unexpected:
         raise RosterFileError(_file_error(
             "unexpected_column", f"Unexpected column(s): {', '.join(unexpected)}.",
@@ -198,6 +217,42 @@ def _year_lookup(db, school_group_id):
     for row in db.query(models.AcademicYear).filter(models.AcademicYear.school_group_id == school_group_id).all():
         lookup.setdefault(_norm_text(row.year_name), []).append(row)
     return lookup
+
+
+def _existing_row_matches(db, *, school_group_id, existing, first_name, father_name, last_name,
+                          gender, status, branch, year, grade_level, section_name):
+    """Deterministic NO_CHANGE identity check for one existing Student.
+
+    Returns True only when the workbook row reproduces the existing Student's
+    canonical fields (name/gender/status) AND its current effective Academic
+    Placement (Branch/Academic Year/Grade/Section) exactly. Any difference -
+    including a row that changes a field - returns False so the row is
+    classified as a conflict and is never silently updated. Identity is always
+    resolved by the managed Student ID first; this function only confirms the
+    rest of the row is an exact, safe reproduction of that Student.
+    """
+    if _norm_text(existing.first_name) != _norm_text(first_name):
+        return False
+    if _norm_text(existing.father_name) != _norm_text(father_name):
+        return False
+    if _norm_text(existing.last_name) != _norm_text(last_name):
+        return False
+    if _norm_text(existing.gender) != _norm_text(gender):
+        return False
+    if (existing.status or "active").strip().lower() != (status or "active").strip().lower():
+        return False
+    if branch is None or year is None:
+        return False
+    placement = resolve_placement(db, school_group_id=school_group_id, student_id=existing.id, at=datetime.utcnow())
+    if placement is None:
+        return False
+    if placement.branch_id != branch.id or placement.academic_year_id != year.id:
+        return False
+    if normalize_grade_level(placement.grade_level) != grade_level:
+        return False
+    if _norm_text(placement.section_name) != _norm_text(section_name):
+        return False
+    return True
 
 
 def _resolve_row(db, *, school_group_id, actor, row_number, values, branches, years, seen_ids):
@@ -310,6 +365,41 @@ def _resolve_row(db, *, school_group_id, actor, row_number, values, branches, ye
 
     conflict = None
     if canonical_value and not errors:
+        # M15 round-trip: a row that reproduces an existing same-tenant Student
+        # exactly is a deterministic NO_CHANGE (no mutation) rather than a
+        # conflict, so an exported workbook's unchanged rows can be re-imported
+        # alongside new CREATE rows. Identity is resolved by the managed
+        # Student ID first; any difference in the rest of the row still falls
+        # through to the conflict path below and is never silently updated.
+        holder = find_student_number_holder(db, canonical_value=canonical_value)
+        if holder is not None and holder["school_group_id"] == school_group_id:
+            existing = get_student(db, school_group_id, holder["student_id"])
+            if existing is not None and _existing_row_matches(
+                db, school_group_id=school_group_id, existing=existing,
+                first_name=first_name, father_name=father_name, last_name=last_name,
+                gender=gender, status=status, branch=branch, year=year,
+                grade_level=grade_level, section_name=section_name,
+            ):
+                return {
+                    "row": row_number,
+                    "status": "no_change",
+                    "data": {
+                        "student_number": student_id_raw,
+                        "first_name": first_name,
+                        "father_name": father_name,
+                        "last_name": last_name,
+                        "gender": gender,
+                        "status": status,
+                        "branch_id": branch.id,
+                        "branch_name": branch.name,
+                        "academic_year_id": year.id,
+                        "academic_year_name": year.year_name,
+                        "grade_level": grade_level,
+                        "section_name": section_name,
+                        "planning_section_id": planning_section.id if planning_section else None,
+                    },
+                    "existing_student_id": existing.id,
+                }
         conflict = describe_student_number_conflict(
             db, requester_school_group_id=school_group_id, actor=actor, canonical_value=canonical_value,
         )
@@ -388,7 +478,13 @@ def preview_roster(db, *, school_group_id, actor, upload):
 
 def _summary(rows):
     valid = sum(1 for r in rows if r["status"] == "ok")
-    return {"total_rows": len(rows), "valid_rows": valid, "error_rows": len(rows) - valid}
+    no_change = sum(1 for r in rows if r["status"] == "no_change")
+    return {
+        "total_rows": len(rows),
+        "valid_rows": valid,
+        "no_change_rows": no_change,
+        "error_rows": len(rows) - valid - no_change,
+    }
 
 
 def apply_roster(db, *, school_group_id, actor, upload):
@@ -396,6 +492,11 @@ def apply_roster(db, *, school_group_id, actor, upload):
     preview payload) and applies it atomically: any row failure - including a
     fresh conflict discovered only at apply time - rolls back the entire apply
     with no partial Student/Placement writes.
+
+    M15 create-only round-trip: rows classified ``no_change`` (an exact
+    reproduction of an existing Student) perform NO mutation and are skipped;
+    only ``ok`` (CREATE) rows write new Student/Placement records. No existing
+    Student is ever updated, merged, or upserted by this apply.
     """
     try:
         rows = _validate_workbook(db, school_group_id=school_group_id, actor=actor, upload=upload)
@@ -413,8 +514,15 @@ def apply_roster(db, *, school_group_id, actor, upload):
 
     now = datetime.utcnow()
     created_student_ids = []
+    attempted_row = None
     try:
         for row in rows:
+            # NO_CHANGE rows perform no mutation - only CREATE rows write new
+            # Student/Placement records. Create-only is preserved: nothing here
+            # updates or merges an existing Student.
+            if row["status"] == "no_change":
+                continue
+            attempted_row = row["row"]
             data = row["data"]
             student = create_student_with_number(
                 db, school_group_id=school_group_id, student_number=data["student_number"],
@@ -432,7 +540,7 @@ def apply_roster(db, *, school_group_id, actor, upload):
             created_student_ids.append(student.id)
     except Exception as exc:
         db.rollback()
-        row_number = rows[len(created_student_ids)]["row"] if len(created_student_ids) < len(rows) else None
+        row_number = attempted_row
         if isinstance(exc, StudentAcademicError):
             message, code = exc.message, exc.code
         elif isinstance(exc, IntegrityError):
@@ -459,6 +567,43 @@ def apply_roster(db, *, school_group_id, actor, upload):
         "status": "ok", "file_error": None, "rows": rows, "summary": _summary(rows),
         "applied": True, "created_student_ids": created_student_ids,
     }
+
+
+EXPORT_COLUMN_WIDTHS = {
+    "student_id": 18,
+    "first_name": 16,
+    "father_name": 16,
+    "last_name": 16,
+    "gender": 10,
+    "status": 10,
+    "branch": 16,
+    "academic_year": 14,
+    "grade": 8,
+    "section": 10,
+    "section_display": 14,
+}
+
+
+def _style_export_header(sheet):
+    """Apply M15 professional-but-practical header formatting.
+
+    Bold readable header with a subtle fill, frozen header row, and
+    deterministic column widths. No macros, no hidden executable content, no
+    excessive decoration. Header cells remain TEXT (number_format ``@``) so a
+    re-imported workbook keeps every value exactly as written.
+    """
+    header_fill = PatternFill("solid", fgColor="1F3B57")
+    header_font = Font(bold=True, color="FFFFFF")
+    header_align = Alignment(vertical="center")
+    for col_idx in range(1, len(EXPORT_HEADERS) + 1):
+        cell = sheet.cell(row=1, column=col_idx)
+        cell.number_format = "@"
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        header = EXPORT_HEADERS[col_idx - 1]
+        sheet.column_dimensions[get_column_letter(col_idx)].width = EXPORT_COLUMN_WIDTHS.get(header, 14)
+    sheet.freeze_panes = "A2"
 
 
 def export_roster(db, *, school_group_id, actor):
@@ -490,8 +635,7 @@ def export_roster(db, *, school_group_id, actor):
     sheet = workbook.active
     sheet.title = "Roster"
     sheet.append(list(EXPORT_HEADERS))
-    for col_idx in range(1, len(EXPORT_HEADERS) + 1):
-        sheet.cell(row=1, column=col_idx).number_format = "@"
+    _style_export_header(sheet)
 
     for student in list_students(db, school_group_id=school_group_id):
         placement = resolve_placement(db, school_group_id=school_group_id, student_id=student.id, at=now)
@@ -524,5 +668,8 @@ def export_roster(db, *, school_group_id, actor):
         # (legacy Student with no managed number) or purely numeric digits.
         sheet.cell(row=row_index, column=1).number_format = "@"
         sheet.cell(row=row_index, column=1).value = student_number
+
+    if sheet.max_row > 1:
+        sheet.auto_filter.ref = f"A1:{get_column_letter(len(EXPORT_HEADERS))}{sheet.max_row}"
 
     return workbook

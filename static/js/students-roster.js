@@ -11,6 +11,7 @@
   };
   const resultMessage = row => {
     if (row?.status === "ok") return "Valid — ready to create";
+    if (row?.status === "no_change") return "No change — matches existing record";
     return (row?.errors || []).map(error => {
       const field = error.field ? `${String(error.field).replaceAll("_", " ")}: ` : "";
       const identity = error.display_name ? ` (${error.display_name})` : "";
@@ -72,11 +73,15 @@
   };
   const renderPreview = payload => {
     const counts = payload.summary || {};
-    summary.textContent = `${Number(counts.total_rows || 0)} total · ${Number(counts.valid_rows || 0)} valid · ${Number(counts.error_rows || 0)} with problems`;
+    const parts = [`${Number(counts.total_rows || 0)} total`];
+    if (Number(counts.valid_rows || 0) > 0) parts.push(`${Number(counts.valid_rows || 0)} to create`);
+    if (Number(counts.no_change_rows || 0) > 0) parts.push(`${Number(counts.no_change_rows || 0)} no change`);
+    parts.push(`${Number(counts.error_rows || 0)} with problems`);
+    summary.textContent = parts.join(" · ");
     rowsTarget.replaceChildren();
     (payload.rows || []).forEach(item => {
       const tr = document.createElement("tr");
-      tr.className = item.status === "ok" ? "" : "stu-roster-row-error";
+      tr.className = item.status === "ok" ? "" : (item.status === "no_change" ? "stu-roster-row-nochange" : "stu-roster-row-error");
       const data = item.data || {};
       cell(tr, item.row, true);
       cell(tr, displayStudentId(data.student_number));
@@ -88,7 +93,7 @@
       rowsTarget.appendChild(tr);
     });
     results.hidden = false;
-    applyArea.hidden = Number(counts.total_rows || 0) === 0 || Number(counts.error_rows || 0) > 0;
+    applyArea.hidden = Number(counts.valid_rows || 0) === 0 || Number(counts.error_rows || 0) > 0;
   };
   const upload = async path => {
     const body = new FormData();
@@ -135,13 +140,14 @@
     finally { setBusy(false); }
   });
   applyButton?.addEventListener("click", async () => {
-    if (!selectedFile || busy || !window.confirm("Create every Student in this workbook? The server will validate it again. If any row fails, no Student will be created.")) return;
+    if (!selectedFile || busy || !window.confirm("Create the new Students in this workbook? The server will validate it again. Unchanged rows are skipped; if any row fails, no Student will be created.")) return;
     setBusy(true, "apply");
     try {
       const { response, payload } = await upload("/api/students/roster/import/apply");
       if (response.ok && payload.applied === true) {
         const created = Array.isArray(payload.created_student_ids) ? payload.created_student_ids.length : Number(payload.summary?.valid_rows || 0);
-        announce(`${created} Student${created === 1 ? "" : "s"} created successfully.`);
+        const skipped = Number(payload.summary?.no_change_rows || 0);
+        announce(`${created} Student${created === 1 ? "" : "s"} created successfully.${skipped > 0 ? ` ${skipped} unchanged row${skipped === 1 ? "" : "s"} skipped.` : ""}`);
         selectedFile = null;
         fileInput.value = "";
         resetPreview();

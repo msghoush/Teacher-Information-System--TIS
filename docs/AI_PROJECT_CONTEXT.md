@@ -50,6 +50,27 @@ identity, and no client `section_display` formatter exists. There is no CSV or
 `.xls` support, persistent batch, background job, backend semantic change,
 schema change, or migration.
 
+## Student Integrity & Roster Round-Trip (M15)
+
+A permanently force-deleted Student is removed from every Student-owned Talent
+table and cannot appear as a current/live Student in any Talent & Potential
+surface (assessment roster, Talent lists, Review, Learner Profile navigation,
+Results drill). The Students-vs-Talent count difference the owner observed is a
+population-scope distinction - the Branch-scoped current Students list versus
+frozen multi-Branch Talent membership plus the status-agnostic eligible-students
+roster - not a deletion defect. No schema or cascade change was required.
+
+The Student roster export is round-trip safe. `section_display` is an
+accepted-but-ignored display-only import column (never identity; canonical
+`section` remains identity), and the canonical `STD` prefix is normalized back to
+the bare ten-digit value on import. Import stays create-only: an unchanged
+exported row classifies **NO_CHANGE**, a new row **CREATE**, and any mutated
+existing row stays a blocked `student_id_conflict` (never a silent update).
+Apply writes only CREATE rows, skips NO_CHANGE rows, and remains atomic. The
+export workbook gains a bold header, frozen header row, deterministic column
+widths, and autofilter. Permissions, tenant/Branch scope, Student-ID uniqueness,
+and audit rules are unchanged.
+
 ## Results & Analytics Branch Comparison Frontend (M10, Students Product Sequence)
 
 Organization Overview now contains one primary Program-scoped Branch comparison
