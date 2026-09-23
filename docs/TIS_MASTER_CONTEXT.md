@@ -1,7 +1,7 @@
 ---
 title: TIS Master Context
-documentation_version: 4.3
-last_updated: 2026-09-19
+documentation_version: 4.4
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
@@ -37,7 +37,8 @@ Verbal, Non-verbal, Quantitative, and Spatial are independent nullable 0-100
 integer values. Blank and zero are distinct, no sum is enforced, and deprecated
 categorical Learning Style data is neither displayed as the current profile nor
 auto-converted. Student Placement identity/history and M5 Section presentation
-remain unchanged. Roster import/export UI remains deferred to M11.
+remain unchanged. Roster import/export UI was out of scope for M7 and was
+implemented in M11 (see "Student Roster Frontend (M11)" above).
 
 ## Current Permission Resolution Ownership Boundary
 

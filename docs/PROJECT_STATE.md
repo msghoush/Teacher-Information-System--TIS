@@ -1,11 +1,74 @@
 ---
 title: TIS Project State
-documentation_version: 5.12
+documentation_version: 5.13
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M13 Students + Talent & Potential Release Readiness Closeout (2026-09-23)
+
+Final release-readiness verification for the bounded Students + Talent &
+Potential update package (Student ID, Learning Style, Al-Andalus Section
+display, Student roster, Talent frontend cleanup, Evaluation Progress,
+Results & Analytics Branch comparison, M1-M12.1). This is documentation-only
+verification/closeout, not new development and not a deployment.
+
+Spot-checked each feature area against current code (not only KMS prose) and
+found the implementation matches documented behavior: `models.py` Learning
+Style columns/CHECK constraints and the canonical <=63-character managed
+active-per-Student index name; `db_migrations.py` ledger ordering
+(`20260922_001` -> `20260922_002` -> `20260923_001`); the Al-Andalus
+workspace UUID gate; `routers/students.py` permission checks for
+`students.import`/`students.export`; `static/js/talent-operations.js`'s
+`button('reload', ...)` no-op and `talent_educator_inputs.*` permission
+short-circuit removing Reload Saved Rubric and Educator Input from the normal
+Talent UI; and the backend-authoritative Overall Result/framework-mismatch
+handling in `static/js/student-evaluation-progress.js`/`static/js/talent.js`.
+
+Corrected three stale current-state wording instances left over from before
+M11 shipped, found by a repository-wide sweep for "deferred"/"assigned to
+M11"/"remains absent" phrasing scoped to this package - `docs/AI_PROJECT_CONTEXT.md`'s
+M7 section, `docs/TIS_MASTER_CONTEXT.md`'s M7 section, and
+`docs/engineering/TIS_MODULE_MAP.md`'s Students module section each still
+said roster import/export was "deferred"/"assigned"/"absent" pending M11,
+even though M11 (documented immediately above each of those sections in the
+same files) has since implemented it. Each was reworded to state the
+now-accurate current fact (M7 was out of scope; M11 implemented it) without
+altering the historical description of what M7 itself added. No other stale
+"deferred"/"not implemented"/"planned"/"dormant"/"backend only"/"frontend
+pending" wording scoped to this package was found; dated
+`docs/CHANGE_HISTORY.md` entries and other dated `docs/PROJECT_STATE.md`
+section headers describing what was true at the time they were written were
+left unchanged, matching the historical-log convention.
+
+Reconfirmed the M12.1 PostgreSQL remediation entry below is complete and
+internally consistent (canonical index name, forward migration, no Student
+row mutation, `tis.db` SHA-256 unchanged) and that the M12 entry's forward
+reference to M12.1 is accurate. Re-ran, on real PostgreSQL
+(`TIS_TEST_POSTGRESQL_URL`), `tests/test_postgresql_migration_transactions.py`:
+11 passed, 5 failed - the same five pre-existing, unrelated Talent
+baseline-metadata foreign-key-ordering failures M12.1 already documented
+(`UndefinedTable` for `talent_framework_competencies`), unchanged and not
+introduced by this package. `tests/test_permission_registry_matrix.py` (13
+passed) and `tests/test_student_managed_number_service.py` (46 passed) were
+also re-run and pass.
+
+Added a new durable release-handoff document,
+`docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md`
+(indexed in `docs/README.md`), covering user-visible changes, permission
+scope, the three required migrations and the PostgreSQL remediation
+requirement, compatibility notes, privacy/tenant-isolation invariants, known
+pre-existing issues, deployment surfaces (Web Service only - this package
+does not require a coordinated `tis-timetable-workflow` deploy), a
+migration/deployment sequence plan, rollback considerations, and a
+post-deploy smoke-test matrix. No schema, migration, permission, or product
+behavior change was made in this closeout task; `tis.db` is verified
+byte-identical (SHA-256
+`01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136`) before and
+after. Closing M13 closes only this bounded package, not the entire Talent
+product roadmap.
 
 ## M12.1 PostgreSQL Managed Student Number Index Identifier Remediation (2026-09-23)
 

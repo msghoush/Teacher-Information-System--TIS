@@ -1,7 +1,7 @@
 ---
 title: TIS Module Map
-documentation_version: 4.1
-last_updated: 2026-09-11
+documentation_version: 4.2
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
@@ -88,7 +88,9 @@ source_of_truth: true
   bars and responsive fixed-prefix behavior.
 - `routers/students.py`, `student_academic_service.py`, models, migrations, and
   the M5 Section formatter remain the backend authorities and are not redesigned.
-- Roster import/export frontend remains absent and assigned to M11.
+- Roster import/export frontend was out of scope here and was implemented in
+  M11 (`students.import`/`students.export` actions on `templates/students.html`
+  over the existing M6 roster API).
 
 ## Talent Rubric Visuals And Analytics Ownership
 

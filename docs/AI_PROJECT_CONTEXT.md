@@ -1,7 +1,7 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.0
-last_updated: 2026-09-22
+documentation_version: 4.1
+last_updated: 2026-09-23
 recommended_first_read: true
 ---
 
@@ -110,7 +110,8 @@ semantics, including an explicit unavailable state. Existing current Placement,
 historical Placement, tenant/Branch/RBAC boundaries, and the M5 server-derived
 Al-Andalus `section_display` projection remain unchanged. M7 adds no schema,
 migration, API redesign, backend business rule, or roster import/export UI; the
-latter remains assigned to M11.
+latter was out of scope for M7 and was implemented in M11 (see "Student Roster
+Import / Export Frontend (M11)" above).
 
 ## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (Backend)
 

@@ -1,11 +1,39 @@
 ---
 title: TIS Change History
-documentation_version: 5.3
+documentation_version: 5.4
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-23 - M13 Students + Talent & Potential Release Readiness Closeout
+
+Final documentation-only release-readiness verification for the bounded
+Students + Talent & Potential update package (M1-M12.1: Student ID, Learning
+Style, Al-Andalus Section display, Student roster, Talent frontend cleanup,
+Evaluation Progress, Results & Analytics). Spot-checked each feature area
+against current code and found implementation matches documented behavior;
+re-ran `tests/test_permission_registry_matrix.py` (13 passed),
+`tests/test_student_managed_number_service.py` (46 passed), and, on real
+PostgreSQL, `tests/test_postgresql_migration_transactions.py` (11 passed, 5
+failed - the same pre-existing, unrelated Talent baseline-metadata
+foreign-key-ordering failures M12.1 already documented, unchanged). Corrected
+three stale pre-M11 "deferred"/"assigned to M11"/"remains absent" roster
+wording instances in `docs/AI_PROJECT_CONTEXT.md`, `docs/TIS_MASTER_CONTEXT.md`,
+and `docs/engineering/TIS_MODULE_MAP.md` to reflect that M11 has since
+implemented roster import/export; no other stale wording scoped to this
+package was found and dated historical entries were left unchanged. Added
+`docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md`
+(indexed in `docs/README.md`) as the durable release-handoff record covering
+user-visible changes, permissions, required migrations and the PostgreSQL
+remediation requirement, compatibility/privacy/tenant-isolation notes, known
+pre-existing issues, deployment surfaces, migration/deployment sequence,
+rollback considerations, and a post-deploy smoke matrix. No schema,
+migration, permission, or product behavior change; `tis.db` verified
+byte-identical before and after. See `docs/PROJECT_STATE.md` for the full
+record. Closes M13 verification for this bounded package only, not the
+entire Talent product roadmap.
 
 ## 2026-09-23 - M12.1 PostgreSQL Managed Student Number Index Identifier Remediation
 
