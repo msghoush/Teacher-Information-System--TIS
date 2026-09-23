@@ -381,7 +381,8 @@ def test_students_api_create_is_refused_before_mutation_and_succeeds_when_grante
         db, request, user = world.fresh("admin", "/api/students", "POST")
         try:
             response = students_api.student_create(
-                request, {"first_name": "Ada", "father_name": "F", "last_name": "L", "gender": "F"},
+                request, {"first_name": "Ada", "father_name": "F", "last_name": "L", "gender": "F",
+                          "student_number": "0000000901"},
                 db, user,
             )
             count = db.query(models.Student).count()

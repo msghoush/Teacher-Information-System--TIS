@@ -7,6 +7,118 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Student Roster Import / Export Frontend Flow (M11)
+
+1. The Students list shows Import and Export independently according to
+   `students.import` and `students.export`; the API repeats authorization.
+2. Export requests the M6 export route and downloads its `.xlsx` response using
+   the server filename without reconstructing Student rows in JavaScript.
+3. Import opens a transient dialog. The user selects one `.xlsx`; unsupported
+   extensions are rejected for usability while backend validation remains final.
+4. Preview sends the actual file as multipart `roster_file`. M6 parses and
+   validates without mutation and returns summary, row data, and safe issues.
+5. The browser renders only supplied values/messages. Student IDs remain text;
+   optional same-tenant identity is shown only when supplied, while cross-tenant
+   conflicts remain generic. Canonical Section remains identity.
+6. Apply becomes available only after a non-empty, error-free preview and still
+   requires explicit confirmation. The same actual file is uploaded again; no
+   client-generated approved-row payload is accepted.
+7. M6 independently revalidates and either creates every Student plus initial
+   Placement in one transaction or creates none. Success clears stale state and
+   reloads Students; rejection retains useful context for correction and retry.
+
+The browser never parses workbook cells/formulas, determines uniqueness or
+ownership, authorizes itself, performs partial apply, or transforms M5
+`section_display` into canonical input. The first release is create-only and
+`.xlsx` only, with no persistent batch or background job.
+
+## Results & Analytics Branch Comparison Flow (M10)
+
+1. An authorized user opens Organization Overview and selects an Academic Year
+   and one Program.
+2. The metric selector offers the exact backend allowlist, omitting Meets
+   Program Criteria or Officially Confirmed when their independent permissions
+   are absent.
+3. Selecting Learning Style reveals only Verbal, Non-verbal, Quantitative, and
+   Spatial; the selected dimension is sent as `learning_style_dimension`.
+4. A selector change requests the existing M4 Branch comparison endpoint. The
+   backend performs frozen historical Branch attribution, metric calculation,
+   privacy closure, and Framework comparability.
+5. The browser walks returned Branch rows and Evaluation Period entries in
+   response order and resolves their names from the already-authorized Talent
+   Map Branch columns.
+6. Only `visible` rows render supplied percentages as bars and text, including
+   valid zero. Suppressed, restricted, coarsened, and no-data rows render their
+   categorical meaning without inspecting any numeric/count fields.
+7. A framework-changed Overall Result remains non-numeric and receives a concise
+   explanation.
+
+The browser does not calculate or average Branch/Organization values, derive a
+metric, normalize Learning Style, evaluate thresholds, reconstruct hidden
+values, regroup by current Placement, or calculate across Framework versions.
+The comparison contract has no uniform Organization summary across all seven
+metrics, so this M10 surface adds none.
+
+## Student Evaluation Progress Frontend Flow (M9)
+
+1. An authorized user opens a Student Profile's existing Talent tab.
+2. The server-rendered Learner Profile supplies only authorized Program and
+   Academic Year contexts plus the unchanged frozen historical evidence.
+3. For each context, the browser requests the existing M4 Student Evaluation
+   Progress endpoint using the same Student identity.
+4. The endpoint enforces `talent_learner_profiles.view`, SchoolGroup scope, and
+   frozen historical Branch access, then returns backend-selected and
+   backend-ordered active/opened Periods.
+5. The browser renders each configured Period label and its explicit result
+   state. `available` renders the supplied percentage, including real `0%`;
+   Pending and unavailable states render text without numeric progress
+   semantics.
+6. A comparable supplied `current_overall_result` renders as Overall Result.
+   For `framework_changed`, individual Period results remain visible, the
+   combined number stays absent, and a concise explanation is shown.
+7. Existing historical assessment details continue to render their frozen
+   Grade/Section and server-derived M5 `section_display` independently.
+
+The browser never selects active Periods, reads weights, reorders Periods,
+averages results, decides Framework comparability, reconstructs suppressed
+aggregates, or substitutes current Placement. Branch/Organization progress,
+M10 comparison charts, and M11 roster UI are not part of this flow.
+
+## Talent Frontend Cleanup M8 Flow
+
+1. Opening a Student Assessment loads its exact persisted Framework,
+   competencies, rubric levels, results, and frozen historical context as before.
+2. The normal assessment editor no longer offers Reload Saved Rubric; a stale
+   response directs the user to refresh the page through normal browser behavior.
+3. Normal assessment and Student Talent-profile presentation no longer fetch,
+   display, create, or amend Educator Input.
+4. These presentation removals perform no deletion or mutation. Existing
+   Educator Input lineage, rubric/assessment evidence, audit, results, Candidate,
+   Identification, frozen attribution, and Framework references remain stored
+   under their existing backend contracts.
+5. M5 server-derived Section display and canonical/frozen Section identity remain
+   unchanged. No Learning Style, Evaluation Progress, analytics-chart, or roster
+   frontend work is introduced by this flow.
+
+## Students M7 Create/Edit/Profile Flow
+
+1. New Student entry shows a fixed `STD` prefix and accepts exactly ten text
+   digits, plus optional independent Verbal, Non-verbal, Quantitative, and
+   Spatial whole percentages from 0 through 100.
+2. The server validates and atomically creates the Student plus managed number;
+   the browser never authorizes, canonicalizes the prefix, or resolves conflicts.
+3. A duplicate response uses the shared privacy-safe conflict projection: an
+   independently authorized same-tenant actor may see minimal Student identity,
+   while cross-tenant and unauthorized cases remain generic.
+4. Legacy Students without a managed number display a neutral missing state and
+   may edit other Student fields. Number assignment/replacement is a separate
+   `students.manage_identifiers` action.
+5. Blank Learning Style dimensions remain null, zero remains `0%`, dimensions
+   are not normalized, and deprecated categorical data is not auto-converted.
+6. Profile/current Placement/history continue to consume server-projected M5
+   `section_display`; canonical Placement and Planning Section identity remain
+   unchanged and are still used for requests.
+
 ## Owner Video Acceptance Flow Corrections
 
 1. Student Assessments groups configured Programs beneath each user-defined Evaluation Period whether or not an internal Cycle already exists.

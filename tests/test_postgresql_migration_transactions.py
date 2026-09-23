@@ -378,6 +378,443 @@ def test_postgresql_failed_preledger_create_all_rolls_back_partial_student_table
         admin_engine.dispose()
 
 
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_student_learning_style_profile_and_tis_number_migrations_apply_and_are_idempotent_under_postgresql():
+    schema_name = f"tis_student_m1_foundation_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=60s",
+    })
+    try:
+        models.Base.metadata.create_all(
+            engine, tables=run_migrations._baseline_metadata_tables(),
+        )
+        applied = db_migrations.run_pending_migrations(engine)
+        assert "20260922_001_student_learning_style_four_dimension_profile" in applied
+        assert "20260922_002_student_tis_number_identifier_integrity" in applied
+        assert "20260923_001_student_tis_number_index_identifier_length_remediation" in applied
+        # Idempotent: nothing left to apply on a second run.
+        assert db_migrations.run_pending_migrations(engine) == []
+
+        inspector = inspect(engine)
+        student_columns = {column["name"] for column in inspector.get_columns("students")}
+        assert {
+            "learning_style_verbal_percentage",
+            "learning_style_non_verbal_percentage",
+            "learning_style_quantitative_percentage",
+            "learning_style_spatial_percentage",
+        } <= student_columns
+        identifier_indexes = {
+            index["name"] for index in inspector.get_indexes("student_external_identifiers")
+        }
+        assert "uq_student_external_identifiers_tis_student_number_value" in identifier_indexes
+        assert "uq_student_external_identifiers_tis_number_active_student" in identifier_indexes
+
+        # Transaction/rollback proof for the upgrade path itself: valid data
+        # for both new invariants actually persists and enforces.
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO school_groups (id, name, status, created_at, updated_at) "
+                "VALUES (1, 'PG Test Group', TRUE, NOW(), NOW())"
+            ))
+            connection.execute(text(
+                "INSERT INTO students (id, school_group_id, first_name, last_name, status, "
+                "created_at, updated_at) VALUES (1, 1, 'A', 'One', 'active', NOW(), NOW())"
+            ))
+            connection.execute(text(
+                "INSERT INTO student_external_identifiers "
+                "(school_group_id, student_id, namespace, value, status, created_at, updated_at) "
+                "VALUES (1, 1, 'tis_student_number', 'STD0000000009', 'active', NOW(), NOW())"
+            ))
+        with engine.connect() as connection, pytest.raises(Exception):
+            with connection.begin():
+                connection.execute(text(
+                    "INSERT INTO student_external_identifiers "
+                    "(school_group_id, student_id, namespace, value, status, created_at, updated_at) "
+                    "VALUES (1, 1, 'tis_student_number', 'STD0000000010', 'active', NOW(), NOW())"
+                ))
+        with engine.connect() as connection:
+            count = connection.execute(text(
+                "SELECT COUNT(*) FROM student_external_identifiers WHERE student_id = 1"
+            )).scalar()
+        assert count == 1
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_tis_number_identifier_integrity_preflight_conflict_rolls_back_under_postgresql():
+    schema_name = f"tis_student_number_conflict_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE TABLE students (id INTEGER PRIMARY KEY, school_group_id INTEGER NOT NULL)"
+            ))
+            connection.execute(text(
+                "CREATE TABLE student_external_identifiers ("
+                "id SERIAL PRIMARY KEY, school_group_id INTEGER NOT NULL, student_id INTEGER NOT NULL, "
+                "namespace VARCHAR(80) NOT NULL, value VARCHAR(180) NOT NULL, "
+                "status VARCHAR(16) NOT NULL DEFAULT 'active')"
+            ))
+            # Pre-existing conflicting data: the same canonical value already
+            # duplicated across two SchoolGroups.
+            connection.execute(text(
+                "INSERT INTO student_external_identifiers "
+                "(school_group_id, student_id, namespace, value, status) VALUES "
+                "(1, 1, 'tis_student_number', 'STD0000000099', 'active'), "
+                "(2, 2, 'tis_student_number', 'STD0000000099', 'active')"
+            ))
+        db_migrations._ensure_schema_migrations_table(engine)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO schema_migrations (migration_id, description) "
+                "VALUES (:migration_id, :description)"
+            ), [
+                {"migration_id": migration.migration_id, "description": migration.description}
+                for migration in db_migrations.MIGRATIONS
+                if migration.migration_id != "20260922_002_student_tis_number_identifier_integrity"
+            ])
+
+        with pytest.raises(RuntimeError, match="duplicated across SchoolGroups"):
+            db_migrations.run_pending_migrations(engine)
+
+        with engine.connect() as connection:
+            # No delete/merge/rename of the conflicting rows.
+            assert connection.execute(text(
+                "SELECT COUNT(*) FROM student_external_identifiers WHERE value = 'STD0000000099'"
+            )).scalar() == 2
+            # Transaction rolled back: no marker recorded for the failed migration.
+            assert connection.execute(text(
+                "SELECT COUNT(*) FROM schema_migrations "
+                "WHERE migration_id = '20260922_002_student_tis_number_identifier_integrity'"
+            )).scalar() == 0
+        inspector = inspect(engine)
+        index_names = {index["name"] for index in inspector.get_indexes("student_external_identifiers")}
+        assert "uq_student_external_identifiers_tis_student_number_value" not in index_names
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# M12.1: PostgreSQL managed Student-number index identifier remediation.
+# ---------------------------------------------------------------------------
+
+def test_tis_number_index_names_are_within_the_postgresql_63_character_limit():
+    # No PostgreSQL connection required - a literal length check that never
+    # trusts the claimed names without counting them.
+    assert len(db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME) == 65
+    assert len(db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME) == 63
+    assert len(db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME) == 57
+    assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME != db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME
+    assert (
+        db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME[:63]
+        == db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME
+    )
+
+
+def _create_student_number_schema(engine):
+    with engine.begin() as connection:
+        connection.execute(text(
+            "CREATE TABLE students (id INTEGER PRIMARY KEY, school_group_id INTEGER NOT NULL)"
+        ))
+        connection.execute(text(
+            "CREATE TABLE student_external_identifiers ("
+            "id SERIAL PRIMARY KEY, school_group_id INTEGER NOT NULL, student_id INTEGER NOT NULL, "
+            "namespace VARCHAR(80) NOT NULL, value VARCHAR(180) NOT NULL, "
+            "status VARCHAR(16) NOT NULL DEFAULT 'active')"
+        ))
+
+
+def _index_names(engine, table_name="student_external_identifiers"):
+    return {index["name"] for index in inspect(engine).get_indexes(table_name)}
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_fresh_postgresql_database_creates_canonical_index_name_directly():
+    schema_name = f"tis_m121_fresh_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        _create_student_number_schema(engine)
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_identifier_integrity(engine, connection)
+        names = _index_names(engine)
+        assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME in names
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME not in names
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME not in names
+        # The remediation migration is then a clean no-op on a fresh database.
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_index_identifier_length_remediation(engine, connection)
+        assert _index_names(engine) == names
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_remediation_renames_truncated_legacy_physical_index_under_postgresql():
+    schema_name = f"tis_m121_rename_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        _create_student_number_schema(engine)
+        # Simulate an already-migrated PostgreSQL database: create the OLD
+        # 65-character intended name verbatim via raw DDL so PostgreSQL
+        # truncates it exactly as it did under the pre-fix migration, then
+        # seed a row to prove remediation never touches row data.
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE UNIQUE INDEX "
+                f"{db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME} "
+                "ON student_external_identifiers (student_id) "
+                "WHERE namespace = 'tis_student_number' AND status = 'active'"
+            ))
+            connection.execute(text(
+                "INSERT INTO student_external_identifiers "
+                "(school_group_id, student_id, namespace, value, status) VALUES "
+                "(1, 1, 'tis_student_number', 'STD0000000042', 'active')"
+            ))
+        names_before = _index_names(engine)
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME in names_before
+        assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME not in names_before
+
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_index_identifier_length_remediation(engine, connection)
+
+        names_after = _index_names(engine)
+        assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME in names_after
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME not in names_after
+
+        # Row data is completely untouched.
+        with engine.connect() as connection:
+            row = connection.execute(text(
+                "SELECT school_group_id, student_id, namespace, value, status "
+                "FROM student_external_identifiers"
+            )).one()
+        assert tuple(row) == (1, 1, "tis_student_number", "STD0000000042", "active")
+
+        # Uniqueness/predicate semantics still enforce after the rename: a
+        # second active row for the same Student must still be rejected.
+        with engine.connect() as connection, pytest.raises(Exception):
+            with connection.begin():
+                connection.execute(text(
+                    "INSERT INTO student_external_identifiers "
+                    "(school_group_id, student_id, namespace, value, status) VALUES "
+                    "(1, 1, 'tis_student_number', 'STD0000000043', 'active')"
+                ))
+        with engine.connect() as connection:
+            count = connection.execute(text(
+                "SELECT COUNT(*) FROM student_external_identifiers"
+            )).scalar()
+        assert count == 1
+
+        # Idempotent: rerunning the remediation is a safe no-op.
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_index_identifier_length_remediation(engine, connection)
+        assert _index_names(engine) == names_after
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_remediation_is_a_noop_when_canonical_index_already_present():
+    schema_name = f"tis_m121_noop_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        _create_student_number_schema(engine)
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_identifier_integrity(engine, connection)
+        names_before = _index_names(engine)
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_index_identifier_length_remediation(engine, connection)
+        assert _index_names(engine) == names_before
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_remediation_fails_safely_when_both_old_and_new_names_exist():
+    schema_name = f"tis_m121_conflict_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        _create_student_number_schema(engine)
+        with engine.begin() as connection:
+            db_migrations._student_tis_number_identifier_integrity(engine, connection)
+            connection.execute(text(
+                "CREATE UNIQUE INDEX "
+                f"{db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME} "
+                "ON student_external_identifiers (school_group_id) "
+                "WHERE namespace = 'tis_student_number'"
+            ))
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME in _index_names(engine)
+        assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME in _index_names(engine)
+
+        with engine.begin() as connection:
+            with pytest.raises(RuntimeError, match="refusing to guess"):
+                db_migrations._student_tis_number_index_identifier_length_remediation(engine, connection)
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_remediation_fails_safely_on_unexpected_index_at_legacy_truncated_name():
+    schema_name = f"tis_m121_unexpected_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        _create_student_number_schema(engine)
+        with engine.begin() as connection:
+            # An unrelated, non-partial, non-matching index that happens to
+            # occupy the truncated legacy name - must never be renamed.
+            connection.execute(text(
+                "CREATE UNIQUE INDEX "
+                f"{db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME} "
+                "ON student_external_identifiers (school_group_id, value)"
+            ))
+        with engine.begin() as connection:
+            with pytest.raises(RuntimeError, match="does not match the expected"):
+                db_migrations._student_tis_number_index_identifier_length_remediation(engine, connection)
+        # Refused, not renamed or dropped.
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME in _index_names(engine)
+        assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME not in _index_names(engine)
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not POSTGRESQL_URL.startswith("postgresql"),
+    reason="TIS_TEST_POSTGRESQL_URL is required for PostgreSQL migration tests",
+)
+def test_remediation_via_migration_ledger_when_m1_migration_already_recorded_applied():
+    # Simulates a real already-migrated deployment: the original M1 migration
+    # is recorded in schema_migrations (as it would be after a real prior
+    # deploy), with the old-intended-name index actually created and
+    # PostgreSQL-truncated - then the ledger runner is asked for pending
+    # migrations, which must apply exactly the new remediation migration.
+    schema_name = f"tis_m121_ledger_{uuid.uuid4().hex}"
+    admin_engine = create_engine(POSTGRESQL_URL)
+    with admin_engine.begin() as connection:
+        connection.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+    engine = create_engine(POSTGRESQL_URL, connect_args={
+        "connect_timeout": 10,
+        "options": f"-c search_path={schema_name} -c lock_timeout=5s -c statement_timeout=30s",
+    })
+    try:
+        _create_student_number_schema(engine)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "CREATE UNIQUE INDEX "
+                f"{db_migrations._TIS_NUMBER_INDEX_LEGACY_INTENDED_NAME} "
+                "ON student_external_identifiers (student_id) "
+                "WHERE namespace = 'tis_student_number' AND status = 'active'"
+            ))
+            connection.execute(text(
+                "CREATE UNIQUE INDEX uq_student_external_identifiers_tis_student_number_value "
+                "ON student_external_identifiers (value) WHERE namespace = 'tis_student_number'"
+            ))
+        db_migrations._ensure_schema_migrations_table(engine)
+        with engine.begin() as connection:
+            connection.execute(text(
+                "INSERT INTO schema_migrations (migration_id, description) "
+                "VALUES (:migration_id, :description)"
+            ), [
+                {"migration_id": migration.migration_id, "description": migration.description}
+                for migration in db_migrations.MIGRATIONS
+                if migration.migration_id != "20260923_001_student_tis_number_index_identifier_length_remediation"
+            ])
+
+        applied = db_migrations.run_pending_migrations(engine)
+        assert applied == ["20260923_001_student_tis_number_index_identifier_length_remediation"]
+        assert db_migrations.run_pending_migrations(engine) == []
+
+        names = _index_names(engine)
+        assert db_migrations._TIS_NUMBER_INDEX_CANONICAL_NAME in names
+        assert db_migrations._TIS_NUMBER_INDEX_LEGACY_TRUNCATED_NAME not in names
+    finally:
+        engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(text(f'DROP SCHEMA "{schema_name}" CASCADE'))
+        admin_engine.dispose()
+
+
 def test_talent_reassessment_migration_uses_postgresql_boolean_default(monkeypatch):
     added_columns = []
     monkeypatch.setattr(db_migrations, "_table_exists", lambda connection, table: True)

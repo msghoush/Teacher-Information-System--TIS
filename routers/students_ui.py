@@ -15,23 +15,25 @@ from urllib.parse import quote
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
 import authorization
 import models
 from academic_grade import GRADE_LEVELS as ALL_GRADE_LEVELS
-from academic_grade import normalize_grade_level
+from academic_grade import format_section_display, normalize_grade_level
 from auth import get_current_user
 from dependencies import get_db
 from homeroom_defaults import normalize_grade_label
 from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
 from student_academic_service import (
-    LEARNING_STYLES,
     StudentAcademicError,
     audit_event_payload,
+    canonical_student_number,
     create_placement,
-    create_student,
+    create_student_with_number,
+    current_student_number,
     delete_student,
     delete_students,
     force_delete_student_history,
@@ -42,7 +44,9 @@ from student_academic_service import (
     list_placements,
     list_students,
     placement_payload,
+    describe_student_number_conflict,
     resolve_placement,
+    set_student_number,
     transition_placement,
     update_student,
 )
@@ -66,11 +70,13 @@ templates = Jinja2Templates(directory="templates")
 # parallel Grade list - this restriction applies only at this point of use.
 GRADE_LEVELS = list(ALL_GRADE_LEVELS[1:])
 GENDER_OPTIONS = ["", "Male", "Female"]
-# Learning Style V1 (ADR 0031): "" renders as "Not specified" (neutral, not
-# an error state) and clears the field on submit; the four values mirror the
-# exact canonical set enforced server-side in student_academic_service.py.
-LEARNING_STYLE_OPTIONS = ["", *LEARNING_STYLES]
 PROFILE_SECTIONS = ("overview", "placement", "talent", "history")
+LEARNING_STYLE_DIMENSIONS = (
+    ("verbal", "Verbal", "learning_style_verbal_percentage"),
+    ("non_verbal", "Non-verbal", "learning_style_non_verbal_percentage"),
+    ("quantitative", "Quantitative", "learning_style_quantitative_percentage"),
+    ("spatial", "Spatial", "learning_style_spatial_percentage"),
+)
 
 
 def _scope(db, user):
@@ -112,7 +118,7 @@ def _can_view_branch(db, user, branch_id):
     return auth.can_access_all_branches(user) or auth.can_access_branch(db, user, branch_id)
 
 
-def _student_view(row):
+def _student_view(db, row):
     return {
         "id": row.id,
         "school_group_id": row.school_group_id,
@@ -122,8 +128,58 @@ def _student_view(row):
         "gender": row.gender,
         "status": row.status,
         "learning_style": row.learning_style,
+        "learning_style_verbal_percentage": row.learning_style_verbal_percentage,
+        "learning_style_non_verbal_percentage": row.learning_style_non_verbal_percentage,
+        "learning_style_quantitative_percentage": row.learning_style_quantitative_percentage,
+        "learning_style_spatial_percentage": row.learning_style_spatial_percentage,
+        "student_number": current_student_number(
+            db, school_group_id=row.school_group_id, student_id=row.id
+        ),
         "created_at": row.created_at,
         "updated_at": row.updated_at,
+    }
+
+
+def _learning_style_percentage(value, field):
+    """Translate an HTML blank to null without conflating it with zero."""
+    text = str(value or "").strip()
+    if text == "":
+        return None
+    try:
+        parsed = int(text)
+    except ValueError:
+        raise StudentAcademicError(
+            "invalid_learning_style_percentage",
+            f"{field} must be a whole number between 0 and 100, or left blank.",
+        )
+    if str(parsed) != text:
+        raise StudentAcademicError(
+            "invalid_learning_style_percentage",
+            f"{field} must be a whole number between 0 and 100, or left blank.",
+        )
+    return parsed
+
+
+def _learning_style_values(verbal, non_verbal, quantitative, spatial):
+    return {
+        "learning_style_verbal_percentage": _learning_style_percentage(verbal, "Verbal"),
+        "learning_style_non_verbal_percentage": _learning_style_percentage(non_verbal, "Non-verbal"),
+        "learning_style_quantitative_percentage": _learning_style_percentage(quantitative, "Quantitative"),
+        "learning_style_spatial_percentage": _learning_style_percentage(spatial, "Spatial"),
+    }
+
+
+def _student_number_conflict(db, group_id, user, digits):
+    conflict = describe_student_number_conflict(
+        db,
+        requester_school_group_id=group_id,
+        actor=user,
+        canonical_value=canonical_student_number(digits),
+    )
+    return {
+        "message": "That TIS Student ID is unavailable.",
+        "student_id": conflict.get("student_id"),
+        "display_name": conflict.get("display_name"),
     }
 
 
@@ -150,7 +206,19 @@ def _branches(db, user, group_id):
     ).order_by(models.Branch.name).all()
 
 
-def _sections_for(db, branch_id, academic_year_id, grade_level):
+def _workspace_uuid(db, school_group_id):
+    """Canonical tenant identity lookup for presentation formatting (ADR 0045).
+
+    Returns the exact ``SchoolGroup.workspace_uuid`` (never a name/label) so
+    callers can key Al-Andalus Section display activation off it.
+    """
+    if not school_group_id:
+        return None
+    group = db.get(models.SchoolGroup, int(school_group_id))
+    return group.workspace_uuid if group else None
+
+
+def _sections_for(db, branch_id, academic_year_id, grade_level, workspace_uuid=None):
     """Real Sections for one Branch+Academic-Year+Grade combination.
 
     Reuses Planning's own canonical ``list_operational_planning_sections``
@@ -159,13 +227,23 @@ def _sections_for(db, branch_id, academic_year_id, grade_level):
     selector pattern) rather than a parallel PlanningSection query, then
     narrows to the one requested Grade the same way
     ``routers/planning.py``'s ``list_sections_for_grade`` already does.
+
+    Adds a bounded ``section_display`` presentation projection (ADR 0045) for
+    the selector's option label - the canonical ``section_name`` (used as the
+    real filter/match value) is always returned unchanged alongside it.
     """
     if not branch_id or not academic_year_id or not grade_level:
         return []
     grade = normalize_grade_label(grade_level)
     sections = list_operational_planning_sections(db, int(branch_id), int(academic_year_id))
     return [
-        {"id": int(section.id), "section_name": str(section.section_name or "").strip()}
+        {
+            "id": int(section.id),
+            "section_name": str(section.section_name or "").strip(),
+            "section_display": format_section_display(
+                workspace_uuid, grade_level, str(section.section_name or "").strip()
+            ),
+        }
         for section in sections
         if normalize_grade_label(section.grade_level) == grade
     ]
@@ -206,6 +284,11 @@ def _placement_view(db, row):
         payload["year_name"] = year.year_name
     payload["effective_from_display"] = row.effective_from.strftime("%d %b %Y") if row.effective_from else None
     payload["effective_to_display"] = row.effective_to.strftime("%d %b %Y") if row.effective_to else None
+    # ADR 0045: bounded presentation projection alongside the unchanged
+    # canonical grade_level/section_name above - never a replacement.
+    payload["section_display"] = format_section_display(
+        _workspace_uuid(db, row.school_group_id), payload["grade_level"], payload["section_name"]
+    )
     return payload
 
 
@@ -281,6 +364,14 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
             if section.section_name
         }) if scoped_year_id else []
     section_name = section_filter if section_filter in allowed_section_options else None
+    # ADR 0045: bounded presentation projection for the filter dropdown label
+    # only - the canonical section_name string above remains the real
+    # filter/query value in every case.
+    workspace_uuid = _workspace_uuid(db, group_id)
+    section_option_views = [
+        {"value": s, "label": format_section_display(workspace_uuid, grade_level, s)}
+        for s in section_options
+    ]
 
     # Grade/Branch/Section reuse the same real current-effective-placement
     # query capability shared with GET /api/students (student_academic_service.
@@ -293,7 +384,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
     now = datetime.utcnow()
     students = []
     for row in rows:
-        student = _student_view(row)
+        student = _student_view(db, row)
         current = None
         placement = resolve_placement(db, school_group_id=group_id, student_id=row.id, at=now)
         if placement is not None and (visible_ids is None or placement.branch_id in visible_ids):
@@ -304,6 +395,8 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         students.append(student)
 
     can_create = auth.has_permission(db, user, "students.create", school_group_id=group_id)
+    can_import = auth.has_permission(db, user, "students.import", school_group_id=group_id)
+    can_export = auth.has_permission(db, user, "students.export", school_group_id=group_id)
     can_delete = organization_scope and auth.has_permission(db, user, "students.delete", school_group_id=group_id)
     can_bulk_delete = organization_scope and auth.has_permission(db, user, "students.bulk_delete", school_group_id=group_id)
     can_force_delete_history = organization_scope and auth.has_permission(db, user, "students.force_delete_history", school_group_id=group_id)
@@ -339,7 +432,7 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "selected_branch_name": next((b.name for b in branches if b.id == branch_id), None),
         "grade_levels": grade_options,
         "selected_grade": grade_level or "",
-        "section_options": section_options,
+        "section_options": section_option_views,
         "selected_section": section_name or "",
         "search": search,
         "status": status or "",
@@ -347,6 +440,8 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
         "learning_style_distribution": learning_style_distribution,
         "scoped_year_id": scoped_year_id,
         "can_create": can_create,
+        "can_import": can_import,
+        "can_export": can_export,
         "can_delete": can_delete,
         "can_bulk_delete": can_bulk_delete,
         "can_force_delete_history": can_force_delete_history,
@@ -438,7 +533,7 @@ def students_new(request: Request, db: Session = Depends(get_db), current_user=D
         "request": request,
         "student": None,
         "gender_options": GENDER_OPTIONS,
-        "learning_style_options": LEARNING_STYLE_OPTIONS,
+        "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
         "error": request.query_params.get("error") or "",
         "mode": "new",
     })
@@ -451,7 +546,11 @@ def students_new_post(
     last_name: str = Form(...),
     father_name: str = Form(""),
     gender: str = Form(""),
-    learning_style: str = Form(""),
+    student_number: str = Form(""),
+    learning_style_verbal_percentage: str = Form(""),
+    learning_style_non_verbal_percentage: str = Form(""),
+    learning_style_quantitative_percentage: str = Form(""),
+    learning_style_spatial_percentage: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -459,14 +558,19 @@ def students_new_post(
     if denied:
         return denied
     try:
-        row = create_student(
+        percentages = _learning_style_values(
+            learning_style_verbal_percentage, learning_style_non_verbal_percentage,
+            learning_style_quantitative_percentage, learning_style_spatial_percentage,
+        )
+        row = create_student_with_number(
             db,
             school_group_id=group_id,
+            student_number=student_number,
             first_name=first_name,
             last_name=last_name,
             father_name=father_name or None,
             gender=gender or None,
-            learning_style=learning_style or None,
+            **percentages,
             actor=user,
         )
         db.commit()
@@ -477,9 +581,34 @@ def students_new_post(
             "request": request,
             "student": None,
             "gender_options": GENDER_OPTIONS,
-            "learning_style_options": LEARNING_STYLE_OPTIONS,
+            "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
             "error": exc.message,
-            "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender, "learning_style": learning_style},
+            "error_code": exc.code,
+            "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender,
+                     "student_number": student_number,
+                     "learning_style_verbal_percentage": learning_style_verbal_percentage,
+                     "learning_style_non_verbal_percentage": learning_style_non_verbal_percentage,
+                     "learning_style_quantitative_percentage": learning_style_quantitative_percentage,
+                     "learning_style_spatial_percentage": learning_style_spatial_percentage},
+            "mode": "new",
+        })
+    except IntegrityError:
+        db.rollback()
+        try:
+            conflict = _student_number_conflict(db, group_id, user, student_number)
+        except StudentAcademicError as exc:
+            conflict = {"message": exc.message, "student_id": None, "display_name": None}
+        return _render(request, db, current_user, "student_form.html", {
+            "request": request, "student": None, "gender_options": GENDER_OPTIONS,
+            "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
+            "error": conflict["message"], "error_code": "student_number_unavailable",
+            "conflict": conflict,
+            "form": {"first_name": first_name, "last_name": last_name, "father_name": father_name, "gender": gender,
+                     "student_number": student_number,
+                     "learning_style_verbal_percentage": learning_style_verbal_percentage,
+                     "learning_style_non_verbal_percentage": learning_style_non_verbal_percentage,
+                     "learning_style_quantitative_percentage": learning_style_quantitative_percentage,
+                     "learning_style_spatial_percentage": learning_style_spatial_percentage},
             "mode": "new",
         })
 
@@ -515,7 +644,7 @@ def students_sections_for_grade(
         return JSONResponse({"detail": "Branch or academic year is outside the organization."}, status_code=400)
     if not grade_level:
         return {"grades": list_operational_planning_grades(db, branch_id, academic_year_id)}
-    return {"items": _sections_for(db, branch_id, academic_year_id, grade_level)}
+    return {"items": _sections_for(db, branch_id, academic_year_id, grade_level, _workspace_uuid(db, group_id))}
 
 
 @router.get("/placement-open-cycle-preview")
@@ -567,7 +696,7 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
     if section not in PROFILE_SECTIONS:
         section = "overview"
 
-    student = _student_view(row)
+    student = _student_view(db, row)
     student["display_name"] = _display_name(student)
     student["initials"] = _initials(student)
 
@@ -600,7 +729,7 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
                 include_timeline=True,
                 include_review_candidates=auth.has_permission(db, user, "talent_review_candidates.view", school_group_id=group_id),
                 include_identifications=auth.has_permission(db, user, "talent_official_identifications.view", school_group_id=group_id),
-                include_educator_inputs=auth.has_permission(db, user, "talent_educator_inputs.view", school_group_id=group_id),
+                include_educator_inputs=False,
             )
         except TalentLearnerProfileError:
             talent_profile = None
@@ -655,8 +784,11 @@ def student_profile(request: Request, student_id: int, db: Session = Depends(get
         "placement_branch_id": placement_branch_id,
         "grades": GRADE_LEVELS,
         "gender_options": GENDER_OPTIONS,
-        "learning_style_options": LEARNING_STYLE_OPTIONS,
+        "learning_style_dimensions": LEARNING_STYLE_DIMENSIONS,
         "can_edit": can_edit,
+        "can_manage_identifiers": auth.has_permission(
+            db, user, "students.manage_identifiers", school_group_id=group_id
+        ),
         "can_activate_deactivate": can_activate_deactivate,
         "can_manage_placements": can_manage_placements,
         "sections_api_url": "/students/sections",
@@ -674,7 +806,10 @@ def student_edit_post(
     last_name: str = Form(...),
     father_name: str = Form(""),
     gender: str = Form(""),
-    learning_style: str = Form(""),
+    learning_style_verbal_percentage: str = Form(""),
+    learning_style_non_verbal_percentage: str = Form(""),
+    learning_style_quantitative_percentage: str = Form(""),
+    learning_style_spatial_percentage: str = Form(""),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
@@ -682,6 +817,10 @@ def student_edit_post(
     if denied:
         return denied
     try:
+        percentages = _learning_style_values(
+            learning_style_verbal_percentage, learning_style_non_verbal_percentage,
+            learning_style_quantitative_percentage, learning_style_spatial_percentage,
+        )
         update_student(
             db,
             school_group_id=group_id,
@@ -690,14 +829,47 @@ def student_edit_post(
             last_name=last_name,
             father_name=father_name or None,
             gender=gender or None,
-            learning_style=learning_style,
+            **percentages,
             actor=user,
         )
         db.commit()
         return _redirect(student_id, "overview", "saved")
-    except StudentAcademicError:
+    except StudentAcademicError as exc:
         db.rollback()
-        return _redirect(student_id, "overview")
+        return _redirect(student_id, "overview", error=exc.message)
+
+
+@router.post("/{student_id}/student-number")
+def student_number_post(
+    request: Request,
+    student_id: int,
+    student_number: str = Form(""),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    user, group_id, denied = _authorize(request, db, current_user, "students.manage_identifiers")
+    if denied:
+        return denied
+    try:
+        set_student_number(
+            db, school_group_id=group_id, student_id=student_id,
+            student_number=student_number, actor=user,
+        )
+        db.commit()
+        return _redirect(student_id, "overview", "student-number-saved")
+    except StudentAcademicError as exc:
+        db.rollback()
+        return _redirect(student_id, "overview", error=exc.message)
+    except IntegrityError:
+        db.rollback()
+        try:
+            conflict = _student_number_conflict(db, group_id, user, student_number)
+        except StudentAcademicError as exc:
+            return _redirect(student_id, "overview", error=exc.message)
+        message = conflict["message"]
+        if conflict.get("student_id") is not None:
+            message += f" It is already assigned to {conflict['display_name']}."
+        return _redirect(student_id, "overview", error=message)
 
 
 @router.post("/{student_id}/status")

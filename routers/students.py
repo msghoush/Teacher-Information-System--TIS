@@ -1,8 +1,9 @@
 from datetime import datetime, timezone
+from io import BytesIO
 
-from fastapi import APIRouter, Body, Depends, Query, Request
+from fastapi import APIRouter, Body, Depends, File, Query, Request, UploadFile
 from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -12,12 +13,14 @@ import models
 from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import (
-    StudentAcademicError, add_external_identifier, audit_event_payload, correct_placement, create_placement,
-    create_student, deactivate_external_identifier, delete_student, delete_students, force_delete_student_history,
-    student_delete_blockers, end_placement, get_student,
-    list_audit_events, list_placements, list_students, placement_payload, resolve_placement, transition_placement,
-    update_student,
+    StudentAcademicError, add_external_identifier, audit_event_payload, canonical_student_number,
+    correct_placement, create_placement, create_student_with_number, current_student_number,
+    deactivate_external_identifier, delete_student, delete_students, describe_student_number_conflict,
+    force_delete_student_history, student_delete_blockers, end_placement, get_student,
+    list_audit_events, list_placements, list_students, placement_payload, resolve_placement, set_student_number,
+    transition_placement, update_student,
 )
+import student_roster_service
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
 from talent_analytics_privacy import resolve_privacy_policy_provider
@@ -51,11 +54,47 @@ def _parse_datetime(value, field):
         raise StudentAcademicError("invalid_datetime", f"{field} must be an ISO-8601 date or date-time.")
 
 
-def _student_json(row):
+def _student_json(db, row):
     return {"id": row.id, "school_group_id": row.school_group_id, "first_name": row.first_name,
             "father_name": row.father_name, "last_name": row.last_name, "gender": row.gender,
             "status": row.status, "learning_style": row.learning_style,
+            "learning_style_verbal_percentage": row.learning_style_verbal_percentage,
+            "learning_style_non_verbal_percentage": row.learning_style_non_verbal_percentage,
+            "learning_style_quantitative_percentage": row.learning_style_quantitative_percentage,
+            "learning_style_spatial_percentage": row.learning_style_spatial_percentage,
+            "student_number": current_student_number(db, school_group_id=row.school_group_id, student_id=row.id),
             "created_at": row.created_at, "updated_at": row.updated_at}
+
+
+def _student_number_conflict_response(db, group_id, user, canonical_value):
+    """Build the one generic ``student_number_unavailable`` 409, or the approved
+    minimal-identity variant, per ADR 0043/M2 privacy rules.
+
+    Must run AFTER the failed insert's transaction has already been rolled
+    back. Reveals ``student_id``/``display_name`` if and only if the
+    conflicting identifier belongs to the SAME SchoolGroup as the requester
+    AND the actor independently holds ``students.view`` for that scope -
+    every other case (cross-tenant, unauthorized same-tenant, or a retired/
+    inactive value reserved by nobody currently visible) returns the exact
+    same generic body, so no enumeration oracle is introduced.
+    """
+    conflict = describe_student_number_conflict(
+        db, requester_school_group_id=group_id, actor=user, canonical_value=canonical_value
+    )
+    if not conflict.get("available", True) and conflict.get("student_id") is not None:
+        return JSONResponse(
+            {
+                "detail": "That Student number is unavailable.",
+                "code": "student_number_unavailable",
+                "student_id": conflict["student_id"],
+                "display_name": conflict["display_name"],
+            },
+            status_code=409,
+        )
+    return JSONResponse(
+        {"detail": "That Student number is unavailable.", "code": "student_number_unavailable"},
+        status_code=409,
+    )
 
 
 @router.post("")
@@ -63,11 +102,25 @@ def student_create(request: Request, payload: dict = Body(...), db: Session = De
     user, group_id, denied = _authorize(request, db, current_user, "students.create")
     if denied: return denied
     try:
-        row = create_student(db, school_group_id=group_id, actor=user, **{key: payload.get(key) for key in ("first_name", "father_name", "last_name", "gender", "learning_style")})
+        row = create_student_with_number(
+            db, school_group_id=group_id, actor=user, student_number=payload.get("student_number"),
+            **{key: payload.get(key) for key in (
+                "first_name", "father_name", "last_name", "gender", "learning_style",
+                "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+                "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+            )},
+        )
         db.commit(); db.refresh(row)
-        return JSONResponse(jsonable_encoder(_student_json(row)), status_code=201)
+        return JSONResponse(jsonable_encoder(_student_json(db, row)), status_code=201)
     except StudentAcademicError as exc:
         db.rollback(); return _error(exc)
+    except IntegrityError:
+        db.rollback()
+        # The service validates/canonicalizes student_number before either
+        # write, so reaching this point means the race is exactly the M1
+        # global-uniqueness/one-active-per-Student conflict, not a format error.
+        canonical_value = canonical_student_number(payload.get("student_number"))
+        return _student_number_conflict_response(db, group_id, user, canonical_value)
 
 
 @router.get("")
@@ -76,7 +129,7 @@ def student_list(request: Request, search: str = Query(""), status: str | None =
                   section_name: str | None = Query(None), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     _, group_id, denied = _authorize(request, db, current_user, "students.view")
     if denied: return denied
-    return [_student_json(row) for row in list_students(
+    return [_student_json(db, row) for row in list_students(
         db, school_group_id=group_id, search=search, status=status,
         branch_id=branch_id, grade_level=grade_level, section_name=section_name,
     )]
@@ -117,7 +170,7 @@ def student_read(student_id: int, request: Request, db: Session = Depends(get_db
     _, group_id, denied = _authorize(request, db, current_user, "students.view")
     if denied: return denied
     row = get_student(db, group_id, student_id)
-    return _student_json(row) if row else JSONResponse({"detail": "Student was not found.", "code": "not_found"}, status_code=404)
+    return _student_json(db, row) if row else JSONResponse({"detail": "Student was not found.", "code": "not_found"}, status_code=404)
 
 
 @router.patch("/{student_id}")
@@ -125,12 +178,47 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
     keys = ("students.activate_deactivate",) if set(payload) == {"status"} else ("students.edit",)
     user, group_id, denied = _authorize(request, db, current_user, *keys)
     if denied: return denied
-    allowed = {key: payload[key] for key in ("first_name", "father_name", "last_name", "gender", "learning_style", "status") if key in payload}
+    allowed = {key: payload[key] for key in (
+        "first_name", "father_name", "last_name", "gender", "learning_style", "status",
+        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+    ) if key in payload}
     try:
         row = update_student(db, school_group_id=group_id, student_id=student_id, actor=user, **allowed)
-        db.commit(); db.refresh(row); return _student_json(row)
+        db.commit(); db.refresh(row); return _student_json(db, row)
     except StudentAcademicError as exc:
         db.rollback(); return _error(exc)
+
+
+@router.put("/{student_id}/student-number")
+def student_number_set(student_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    """Assign a managed TIS Student number to a legacy Student, or replace the current one.
+
+    ADR 0043/M2. Gated by the existing, already-governed
+    ``students.manage_identifiers`` permission (no new permission key).
+    Tenant isolation reuses ``get_student``'s existing school_group_id scope,
+    so a cross-tenant ``student_id`` is a uniform ``not_found`` (404), never a
+    distinct "exists but forbidden" signal. Global uniqueness is enforced by
+    the M1 database indexes, not a pre-check, to avoid a race window; a
+    uniqueness conflict/race is classified into the approved privacy-safe
+    response only after the failed transaction is rolled back.
+    """
+    user, group_id, denied = _authorize(request, db, current_user, "students.manage_identifiers")
+    if denied: return denied
+    try:
+        row = set_student_number(
+            db, school_group_id=group_id, student_id=student_id,
+            student_number=payload.get("student_number"), actor=user,
+        )
+        db.commit(); db.refresh(row)
+        return {"student_id": student_id, "student_number": row.value}
+    except StudentAcademicError as exc:
+        db.rollback()
+        return _error(exc, status=409 if exc.code == "student_number_unavailable" else 400)
+    except IntegrityError:
+        db.rollback()
+        canonical_value = canonical_student_number(payload.get("student_number"))
+        return _student_number_conflict_response(db, group_id, user, canonical_value)
 
 
 @router.get("/{student_id}/delete-preview")
@@ -336,6 +424,43 @@ def placement_transition(student_id: int, placement_id: int, request: Request, p
         db.commit(); db.refresh(row); return JSONResponse(jsonable_encoder(placement_payload(row)), status_code=201)
     except (StudentAcademicError, TypeError, ValueError) as exc:
         db.rollback(); return _error(exc) if isinstance(exc, StudentAcademicError) else JSONResponse({"detail": "Invalid placement payload."}, status_code=400)
+
+
+# ---------------------------------------------------------------------------
+# Roster import/export (M6). Bounded, stateless-preview, revalidated-atomic-
+# apply backend; see student_roster_service.py for the full scope contract.
+# ---------------------------------------------------------------------------
+
+@router.get("/roster/export")
+def roster_export(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.export")
+    if denied: return denied
+    workbook = student_roster_service.export_roster(db, school_group_id=group_id, actor=user)
+    output = BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    stamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+    return StreamingResponse(
+        output,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=student_roster_export_{stamp}.xlsx"},
+    )
+
+
+@router.post("/roster/import/preview")
+def roster_import_preview(request: Request, roster_file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.import")
+    if denied: return denied
+    result = student_roster_service.preview_roster(db, school_group_id=group_id, actor=user, upload=roster_file)
+    return JSONResponse(jsonable_encoder(result), status_code=200 if result["status"] == "ok" else 422)
+
+
+@router.post("/roster/import/apply")
+def roster_import_apply(request: Request, roster_file: UploadFile = File(...), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    user, group_id, denied = _authorize(request, db, current_user, "students.import")
+    if denied: return denied
+    result = student_roster_service.apply_roster(db, school_group_id=group_id, actor=user, upload=roster_file)
+    return JSONResponse(jsonable_encoder(result), status_code=201 if result["status"] == "ok" else 422)
 
 
 @router.patch("/{student_id}/placements/{placement_id}")

@@ -107,6 +107,7 @@ SUPPORTING_DOCS = [
     ROOT / "docs" / "marketing" / "landing_page_source_of_truth.md",
     ROOT / "docs" / "marketing" / "tis_landing_page_master_content.md",
     ROOT / "docs" / "location-data-roadmap.md",
+    ROOT / "docs" / "releases" / "2026-09-23-students-talent-m1-m13-release-handoff.md",
 ]
 
 SOURCE_DOCS = []

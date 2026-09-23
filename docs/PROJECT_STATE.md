@@ -1,11 +1,626 @@
 ---
 title: TIS Project State
-documentation_version: 5.7
-last_updated: 2026-09-21
+documentation_version: 5.13
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M13 Students + Talent & Potential Release Readiness Closeout (2026-09-23)
+
+Final release-readiness verification for the bounded Students + Talent &
+Potential update package (Student ID, Learning Style, Al-Andalus Section
+display, Student roster, Talent frontend cleanup, Evaluation Progress,
+Results & Analytics Branch comparison, M1-M12.1). This is documentation-only
+verification/closeout, not new development and not a deployment.
+
+Spot-checked each feature area against current code (not only KMS prose) and
+found the implementation matches documented behavior: `models.py` Learning
+Style columns/CHECK constraints and the canonical <=63-character managed
+active-per-Student index name; `db_migrations.py` ledger ordering
+(`20260922_001` -> `20260922_002` -> `20260923_001`); the Al-Andalus
+workspace UUID gate; `routers/students.py` permission checks for
+`students.import`/`students.export`; `static/js/talent-operations.js`'s
+`button('reload', ...)` no-op and `talent_educator_inputs.*` permission
+short-circuit removing Reload Saved Rubric and Educator Input from the normal
+Talent UI; and the backend-authoritative Overall Result/framework-mismatch
+handling in `static/js/student-evaluation-progress.js`/`static/js/talent.js`.
+
+Corrected three stale current-state wording instances left over from before
+M11 shipped, found by a repository-wide sweep for "deferred"/"assigned to
+M11"/"remains absent" phrasing scoped to this package - `docs/AI_PROJECT_CONTEXT.md`'s
+M7 section, `docs/TIS_MASTER_CONTEXT.md`'s M7 section, and
+`docs/engineering/TIS_MODULE_MAP.md`'s Students module section each still
+said roster import/export was "deferred"/"assigned"/"absent" pending M11,
+even though M11 (documented immediately above each of those sections in the
+same files) has since implemented it. Each was reworded to state the
+now-accurate current fact (M7 was out of scope; M11 implemented it) without
+altering the historical description of what M7 itself added. No other stale
+"deferred"/"not implemented"/"planned"/"dormant"/"backend only"/"frontend
+pending" wording scoped to this package was found; dated
+`docs/CHANGE_HISTORY.md` entries and other dated `docs/PROJECT_STATE.md`
+section headers describing what was true at the time they were written were
+left unchanged, matching the historical-log convention.
+
+Reconfirmed the M12.1 PostgreSQL remediation entry below is complete and
+internally consistent (canonical index name, forward migration, no Student
+row mutation, `tis.db` SHA-256 unchanged) and that the M12 entry's forward
+reference to M12.1 is accurate. Re-ran, on real PostgreSQL
+(`TIS_TEST_POSTGRESQL_URL`), `tests/test_postgresql_migration_transactions.py`:
+11 passed, 5 failed - the same five pre-existing, unrelated Talent
+baseline-metadata foreign-key-ordering failures M12.1 already documented
+(`UndefinedTable` for `talent_framework_competencies`), unchanged and not
+introduced by this package. `tests/test_permission_registry_matrix.py` (13
+passed) and `tests/test_student_managed_number_service.py` (46 passed) were
+also re-run and pass.
+
+Added a new durable release-handoff document,
+`docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md`
+(indexed in `docs/README.md`), covering user-visible changes, permission
+scope, the three required migrations and the PostgreSQL remediation
+requirement, compatibility notes, privacy/tenant-isolation invariants, known
+pre-existing issues, deployment surfaces (Web Service only - this package
+does not require a coordinated `tis-timetable-workflow` deploy), a
+migration/deployment sequence plan, rollback considerations, and a
+post-deploy smoke-test matrix. No schema, migration, permission, or product
+behavior change was made in this closeout task; `tis.db` is verified
+byte-identical (SHA-256
+`01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136`) before and
+after. Closing M13 closes only this bounded package, not the entire Talent
+product roadmap.
+
+## M12.1 PostgreSQL Managed Student Number Index Identifier Remediation (2026-09-23)
+
+Fixes the PostgreSQL identifier-length risk M12 (below) documented but
+deliberately did not fix. The M1 active-per-Student partial unique index was
+declared as `uq_student_external_identifiers_tis_student_number_active_student`
+(65 characters), exceeding PostgreSQL's 63-character `NAMEDATALEN` limit.
+Live verification against a real PostgreSQL test database (`TIS_TEST_POSTGRESQL_URL`)
+in this task confirmed PostgreSQL silently truncates it on `CREATE UNIQUE
+INDEX` to the 63-character physical name
+`uq_student_external_identifiers_tis_student_number_active_stude`, and
+confirmed re-running the original migration function a second time against
+that truncated physical index fails with `psycopg2.errors.DuplicateTable`,
+exactly as M12 predicted.
+
+The canonical replacement name is
+`uq_student_external_identifiers_tis_number_active_student` (57 characters).
+`models.py`'s `Index` declaration and the original
+`20260922_002_student_tis_number_identifier_integrity` migration
+(`db_migrations.py`) now create this canonical name directly on any FRESH
+database (SQLite or PostgreSQL) - the old 65-character name is never created
+anywhere anymore. A new forward migration,
+`20260923_001_student_tis_number_index_identifier_length_remediation`,
+handles an already-migrated PostgreSQL database: using SQLAlchemy's
+PostgreSQL catalog inspection (`inspect(...).get_indexes(...)`, including
+the reflected `postgresql_where` partial predicate), it verifies the actual
+definition of any index at the old truncated name (columns, uniqueness,
+predicate) before renaming it with `ALTER INDEX ... RENAME TO` - never a
+drop/recreate, never a row rewrite. It is a no-op if the canonical index is
+already present, reuses the original migration's existing
+preflight-conflict checks (non-canonical values, cross-SchoolGroup
+duplicates, multiple active rows) to create the canonical index directly if
+neither name exists, and fails closed with a descriptive `RuntimeError` -
+never a silent guess - if both names exist simultaneously or if an
+unexpected index occupies either name.
+
+The partial-unique-index semantic invariant (ADR 0043: `UNIQUE (student_id)
+WHERE namespace = 'tis_student_number' AND status = 'active'`) is completely
+unchanged, and the separate global Student-number value-uniqueness index
+(`uq_student_external_identifiers_tis_student_number_value`, 56 characters)
+was inspected and confirmed to have no length problem - it was not touched.
+No `Student` or `StudentExternalIdentifier` row was read, rewritten, merged,
+or deleted. The checked-in `tis.db` is verified byte-identical
+(SHA-256 `01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136`)
+before and after this task; SQLite is unaffected by this fix because it
+never truncated the name. This is a PostgreSQL-only physical
+schema-identifier correction - no product, API, or frontend change, and it
+does not itself require a coordinated Web + Timetable Workflow deploy
+(Students/Talent schema only, unrelated to the timetable solver/worker
+contract). Tested live against a real PostgreSQL database
+(`tests/test_postgresql_migration_transactions.py`): fresh-database
+canonical-name creation, truncated-legacy-index rename, idempotent no-op on
+rerun, no-op when canonical already present, fail-closed on an unexpected
+index at either name, fail-closed when both names exist, row-data and
+uniqueness-semantics preservation across the rename, and the migration-ledger
+path for a database where the original M1 migration is already recorded as
+applied - all passed. `docs/adr/0043-tis-student-number-managed-identifier-invariant.md`
+records this as an implementation-detail amendment (physical index name
+only; the ADR's governance decision is unchanged).
+
+## M12 Integrated QA / Regression Verification (2026-09-23)
+
+Students + Talent & Potential M1-M11 were re-verified end to end (Student ID,
+Learning Style, Al-Andalus Section display, Evaluation Progress, Student
+roster backend/frontend, Talent frontend cleanup, Results & Analytics,
+permissions, tenant isolation, historical/frozen attribution, privacy/
+suppression). No new functional/UX regression was found. One stale test
+fixture was corrected: `tests/test_permission_registry_matrix.py` still
+listed `routers/students_ui.py` as a live consumer of
+`talent_educator_inputs.view` after M8 (commit `b7c4791`) intentionally made
+that route pass `include_educator_inputs=False` unconditionally instead of
+gating on the permission; the permission itself remains active-enforced via
+its two real consumers (`routers/talent_educator_inputs.py`,
+`routers/talent_learner_profiles.py`). This is a test-fixture correction
+only, matching already-shipped M8 behavior - no product, permission, or
+architecture change.
+
+**Deployment risk identified here - remediated the same day by M12.1
+above:** the PostgreSQL index name
+`uq_student_external_identifiers_tis_student_number_active_student`
+(`models.py`; re-declared as raw DDL in `db_migrations.py`, migration
+`20260922_002_student_tis_number_identifier_integrity`; introduced in
+Student M1 commit `e98214f`) is 65 characters, exceeding PostgreSQL's
+63-character `NAMEDATALEN` identifier limit. PostgreSQL silently truncates
+the name on `CREATE UNIQUE INDEX` rather than erroring, which breaks this
+migration's own idempotency check (`_index_exists()` compares against the
+full untruncated 65-character name and will never match the truncated
+63-character name PostgreSQL actually stores) - a redeploy that re-applies
+the full migration ledger against a real PostgreSQL database would attempt
+`CREATE UNIQUE INDEX` a second time and fail with a `DuplicateTable`/
+"relation already exists" error, aborting that migration. SQLite (`tis.db`)
+has no such identifier-length limit and is unaffected, which is why this was
+invisible to all SQLite-backed test runs; it was found and reproduced this
+session against a live PostgreSQL test database. Fixing it requires
+renaming the index in schema-defining code (`models.py`/`db_migrations.py`)
+plus an Owner/architecture decision on rename-and-release coordination for
+any environment where this migration may already have run - both explicitly
+outside M12's verification-only scope. This must be triaged before any
+future PostgreSQL deployment re-applies the migration ledger; it does not
+block SQLite-based development/M13 frontend work.
+
+## Student Roster Import / Export Frontend M11 Implemented (2026-09-23)
+
+The existing Students list now presents **Import Students** only with
+`students.import` and **Export Students** only with `students.export`; M6 still
+authorizes every API request. Export consumes `GET /api/students/roster/export`
+as an opaque workbook download and preserves the server filename.
+
+Import uses a transient accessible dialog rather than a persistent page panel.
+It accepts `.xlsx` only, shows the selected filename, uploads multipart field
+`roster_file` to the M6 preview endpoint, and renders backend-provided totals,
+valid rows, row numbers, fields, safe messages, canonical Student/Placement
+display fields, and privacy-safe duplicate identity where supplied. The UI uses
+text nodes for backend content and does not expose raw exceptions.
+
+Apply requires an explicit confirmation and uploads the original workbook again
+to the M6 apply endpoint. It never submits client-generated valid rows or offers
+partial import. Successful atomic apply clears stale state and reloads the
+Students roster; rejection retains useful preview/file state and explains that
+no Students were created. Copy is create-only and does not imply update, merge,
+sync, overwrite, or upsert.
+
+Student IDs remain strings with canonical `STD` presentation and leading zeroes.
+The browser performs no workbook parsing, uniqueness check, tenant inference,
+Branch/Academic-Year/Section authorization, or `section_display` conversion.
+No CSV/`.xls`, persistent batch, background job, backend change, schema, or
+migration is included.
+
+## Results & Analytics Branch Comparison Frontend M10 Implemented (2026-09-23)
+
+Organization Overview's prior fixed Branch summary is replaced by one primary,
+Program-scoped Branch comparison chart consuming the existing M4
+`GET /api/talent/evaluation-progress/programs/{program_id}/academic-years/
+{academic_year_id}/branch-comparison` contract. The metric selector exposes
+only Evaluation Period Result, Overall Result, Assessment Completion,
+Assessments Started, permission-projected Meets Program Criteria and Officially
+Confirmed, and Learning Style. Learning Style conditionally exposes only
+Verbal, Non-verbal, Quantitative, and Spatial and sends the selected dimension
+to the backend.
+
+Backend Branch and Evaluation Period ordering is preserved. Existing Talent Map
+Branch columns provide the already-authorized display names for returned Branch
+IDs. A numeric bar is rendered only for `state="visible"`; zero is valid, while
+suppressed/complementary-suppressed, restricted, coarsened, and no-data states
+remain distinct textual categories. Numeric/count fields are ignored for every
+non-visible state. Framework-changed Overall Result remains non-numeric and is
+explained without cross-version calculation.
+
+The frontend does not calculate Branch or Organization means, derive one metric
+from another, normalize Learning Style, inspect privacy thresholds, reconstruct
+suppressed values, or group by current Placement. No Organization summary is
+added because it is not a uniform field of the seven-metric comparison
+contract. Frozen historical Branch attribution remains backend-authoritative.
+No second chart, M11 roster frontend, backend semantic change, privacy redesign,
+schema, or migration is introduced.
+
+## Student Evaluation Progress Frontend M9 Implemented (2026-09-23)
+
+The existing Student Profile Talent tab now consumes the M4
+`GET /api/talent/evaluation-progress/programs/{program_id}/academic-years/
+{academic_year_id}/students/{student_id}` contract for every authorized
+Program/Academic-Year section already present in the Learner Profile. It shows
+the backend-ordered active/opened Evaluation Periods using their configured
+labels and explicit result states. Available percentages, including real zero,
+are displayed exactly; Pending and other unavailable states are textual and
+never rendered as `0%` or as a zero-valued progress bar.
+
+The page renders **Overall Result** only from a backend-provided comparable
+`current_overall_result`. A backend `framework_changed` response preserves all
+individual Period results, omits the combined number, and explains that the
+frameworks are not comparable. The dedicated frontend renderer does not read
+`nominal_weight`, sort Periods, calculate averages, select active Periods, or
+decide comparability. The endpoint retains existing Student/Talent permission,
+tenant, and frozen historical Branch authorization; aggregate suppression is
+not applicable to this single-Student contract.
+
+Existing frozen Grade/Section presentation and M5 server-derived
+`section_display` remain unchanged. No Branch/Organization Evaluation Progress
+UI, M10 Branch comparison chart, M11 roster frontend, backend calculation,
+privacy redesign, schema, or migration is introduced.
+
+## Talent Frontend Cleanup M8 Implemented (2026-09-23)
+
+The normal Talent assessment workspace no longer presents the Reload Saved
+Rubric action or Educator Input read/create/amend/history controls. Their
+obsolete frontend fetch/state/handlers are no longer active. Student Profile's
+Talent tab likewise no longer requests or renders Educator Input as a normal
+product concept.
+
+This is presentation cleanup only. Historical rubric responses, competency
+results, persisted Educator Input rows and amendment lineage, Official Results,
+Candidate/Identification evidence, audit history, frozen population context,
+and Framework references remain unchanged. Backend APIs/services and permissions
+remain available for historical compatibility. Deterministic scoring and M5
+server-derived Section presentation are unchanged.
+
+Current four-dimension Learning Style display inside Talent is not assigned to
+this cleanup by the authoritative roadmap and was not added. M9 Evaluation
+Progress frontend, M10 Branch analytics charts, M11 roster frontend, migrations,
+schema changes, new privacy logic, and new Student/Talent business rules remain
+out of scope.
+
+## Students M7 Frontend Implemented (2026-09-23)
+
+The existing Students Jinja UI now uses the M2/M3 backend contracts for managed
+TIS Student IDs and the current four-dimension Learning Style profile. New
+Student creation renders a fixed `STD` prefix and submits exactly ten text
+digits through `create_student_with_number`; list/profile render the canonical
+value, and a legacy missing value is neutral rather than fabricated. Authorized
+assignment/replacement is a separate `students.manage_identifiers` UI action.
+Duplicate handling uses `describe_student_number_conflict`, exposing only the
+approved minimal same-tenant identity when independently authorized and staying
+generic for cross-tenant/unavailable values.
+
+Create/edit expose optional Verbal, Non-verbal, Quantitative, and Spatial
+whole-number inputs bounded 0-100. Profile display distinguishes unavailable
+from 0%, provides visible text and progress ARIA, and never normalizes the four
+values. The deprecated categorical value is preserved as historical data but is
+not auto-converted or used as the normal Student profile/list/edit presentation.
+Existing Placement and M5 server-produced `section_display` presentation are
+consumed unchanged, including historical Placement context.
+
+Implementation is bounded to `routers/students_ui.py`, existing Student
+templates/JS/CSS, and focused tests. No schema/migration, backend API contract,
+canonical Section identity, Student architecture, Learning Style architecture,
+roster import/export frontend, Talent cleanup, Evaluation Progress UI, or
+Results/Analytics chart work was introduced.
+
+## Student Roster Import/Export Backend Implemented (M6) (2026-09-23)
+
+Following the M6 governance prerequisite below (permission registration,
+2026-09-22), the `students.import`/`students.export` roster import/export
+backend is now implemented. First release, .xlsx-only, no frontend (M11,
+later), no persistent import-job/batch table, no schema/migration.
+
+**Service**: `student_roster_service.py` is a bounded roster service reusing
+`student_academic_service.py`'s canonical Student/TIS Student number/Academic
+Placement invariants (`create_student_with_number`,
+`create_placement`, `describe_student_number_conflict`) - it never
+duplicates canonicalization, uniqueness, or privacy-disclosure logic.
+`student_academic_service.py` gained one new shared helper,
+`describe_student_number_conflict`, extracted from the existing single-Student
+create/replace 409 conflict handler in `routers/students.py` so that the
+direct API, roster preview, and roster apply all share exactly one
+implementation of the ADR 0043/M2 privacy-safe conflict-disclosure contract
+(same-tenant + `students.view` reveals `student_id`/`display_name`;
+cross-tenant or unauthorized same-tenant is fully generic) - never a richer or
+different disclosure path for either surface.
+
+**Scope decision (judgment call, not previously documented)**: M6 import is
+CREATE-ONLY for this first release - every workbook row enrolls a NEW Student
+with an initial Academic Placement. Updating an existing Student's identity or
+placement through the roster file is out of scope for M6 and was not
+attempted, avoiding invented merge/overwrite semantics the KMS does not
+authorize.
+
+**Routes** (`routers/students.py`, existing `students.*` permission-check
+pattern via `_authorize`/`auth.has_permission`, tenant/Branch scope reused
+from existing Student routes):
+- `GET /api/students/roster/export` (`students.export`) - streams an `.xlsx`
+  workbook (`openpyxl`, matching `routers/subjects.py`'s existing
+  `StreamingResponse` convention). Columns: `student_id, first_name,
+  father_name, last_name, gender, status, branch, academic_year, grade,
+  section, section_display`. Tenant-isolated; a Branch-restricted actor only
+  sees Students whose CURRENT effective Academic Placement Branch is in their
+  accessible-Branch set (mirrors the existing granular Branch-gating already
+  applied to placement data in `routers/students_ui.py`). Student ID is
+  written as a canonical `STD`+10-digit TEXT cell (`number_format="@"`,
+  Python `str`) so Excel never strips leading zeros or applies scientific
+  notation; a legacy Student with no managed Student number gets a blank
+  cell, never a fabricated one. `section_display` reuses
+  `academic_grade.format_section_display` unchanged (ADR 0045): additive only,
+  activates exclusively on the exact Al-Andalus `workspace_uuid`, and the
+  canonical `section` column is never replaced by it.
+- `POST /api/students/roster/import/preview` (`students.import`) - stateless,
+  zero-DB-mutation: parses the uploaded `.xlsx` (`load_workbook(...,
+  data_only=True, keep_links=False)`, so a formula cell is read as its cached
+  value and never evaluated, and external links are dropped), validates
+  workbook structure/headers/every row, normalizes values, resolves Branch/
+  Academic Year/Grade/`PlanningSection` by canonical identity only (never the
+  ADR 0045 `section_display` label, even for the Al-Andalus workspace), and
+  runs the same privacy-safe TIS Student ID conflict check as the direct
+  create API. Returns a bounded per-row result:
+  `{row, status, data|errors}` with `errors` as
+  `{row, field, error_code, safe_message}` - never a raw exception, SQL
+  error, or sensitive tenant detail.
+- `POST /api/students/roster/import/apply` (`students.import`) - never trusts
+  a client-submitted preview payload: it independently re-parses and
+  revalidates the freshly uploaded workbook using the identical validation
+  core preview uses, then applies atomically inside the existing DB
+  transaction pattern. Any row failure - including a `IntegrityError` race
+  discovered only at apply time (classified as `student_id_conflict`, never
+  the raw database error text) - rolls back the entire apply; there is no
+  partial Student/Placement write.
+
+**File safety**: `.xlsx` extension only; 5 MB upload-size and 2000-data-row
+bounds (this feature's own explicit judgment call - no existing
+repository-wide upload convention was found); malformed/empty/oversized
+workbooks are rejected with a bounded file-level error
+(`{row: null, field: null, error_code, safe_message}`), never a stack trace.
+
+**Permission status**: `students.import`/`students.export` are reclassified
+from dormant/reserved (`D`) to active-enforced (`A`) in
+`tests/test_permission_registry_matrix.py`, matching the `subjects.import`/
+`subjects.export` precedent (discovered consumer: `routers/students.py`, via
+the same `_authorize` guard-call pattern already used by every other
+`students.*` key). Dormant count 15→13, active count 143→145; total
+registered keys unchanged at 177. No new role grant, no `DEVELOPER_ONLY`/
+`OWNER_ONLY`/`ADMINISTRATOR_ONLY`/`LIMITED_READ_ONLY` membership change - the
+governance decision recorded below is unchanged, only the enforcement status
+now reflects that real routes exist.
+
+**Tests**: `tests/test_student_roster_import_export.py` (40 focused tests
+covering export tenant/Branch isolation, deterministic columns, Student-ID
+text-cell/leading-zero preservation, legacy-no-ID handling; preview
+statelessness, file/structural/row-level error classification, same-tenant
+and cross-tenant privacy-safe conflict disclosure, Branch/Grade/Section/
+Academic-Year reference validation, formula-cell and oversized-workbook
+safety; apply atomicity, independent revalidation, race-conflict rollback,
+permission/scope re-checking, and historical-placement non-corruption; and
+M5/ADR 0045 regression proving `section_display` is never import matching
+identity and stays additive-only on export). `tests/test_permission_registry_
+matrix.py`'s classification update keeps all of its own tests passing.
+
+## Student Roster Import/Export — Permission Registration (Governance Prerequisite, M6) (2026-09-22)
+
+The Owner reviewed and approved registering exactly two new semantic
+permission keys in the canonical `permission_registry.py` `students` group:
+`students.import` ("Import student roster data") and `students.export`
+("Export student roster data"). Both follow the exact existing
+`students.*` naming/grouping/description/ordering convention and are
+classified dormant/reserved (status `D` in
+`tests/test_permission_registry_matrix.py`, matching the established
+`teachers.import`/`teachers.export` precedent documented under "22-Key
+Permission Registry Closure" below): no roster import/export route,
+service, or frontend consumes them yet, so no template/nav/guard is wired
+to either key. Neither key is added to `DEVELOPER_ONLY_PERMISSION_KEYS`,
+`OWNER_ONLY_PERMISSION_KEYS`, `ADMINISTRATOR_ONLY_PERMISSION_KEYS`,
+`LIMITED_READ_ONLY_PERMISSION_KEYS`, or `_EDITOR_LIKE_PERMISSIONS` - no new
+default-role grant was introduced by this task; each key is assignable to
+Administrator/Editor/User (the same class as the rest of the `students`
+group) and, like every other `students.*` key, is included in the
+Administrator role's default set only because `DEFAULT_ROLE_PERMISSIONS`
+already computes Administrator's defaults as "all registered keys except
+platform-only" - a pre-existing structural formula unchanged by this task,
+not a new grant decision.
+
+`students.import` permits Student roster import operations only within the
+caller's already-authorized tenant/Branch/Student-management scope; it does
+not expand tenant scope, bypass existing Student create/update
+authorization, TIS Student ID rules, or Academic Placement validation,
+grant cross-tenant access, or override backend invariant enforcement.
+`students.export` permits Student roster export only for Students the
+caller is otherwise authorized to access within the existing
+tenant/Branch/Student scope; it does not expand Student visibility, grant
+cross-tenant access, bypass existing scope restrictions, or authorize
+unrelated Student operations. Permission and scope remain separate checks,
+per the existing pattern used throughout this codebase.
+
+This task registers only the two permission keys and this KMS record. It
+implements no roster import/export service logic, API route, or frontend,
+and changes no Student data, schema, or migration. The .xlsx-only,
+stateless-preview, atomic-apply M6 roster import/export backend referenced
+below (and in "Students + Talent & Potential M1" and "Student & Academic
+Placement Foundation And Talent Program & Framework Foundation
+Implemented") remains subsequent, separate, not-yet-implemented work; the
+prior "deferred to later milestones" wording in those entries described the
+pre-registration state and is superseded only insofar as the permission
+governance prerequisite is now approved - roster import/export
+functionality itself is still not implemented.
+
+## Al-Andalus Section Display - Governance Authorization (2026-09-22)
+
+Per new ADR 0045, the Owner has authorized the previously-deferred
+Al-Andalus Section-display presentation convention for the exact verified
+production `SchoolGroup.workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`
+(identified using the repository's existing read-only production audit,
+`scripts/audit_al_andalus_readonly.py`, run by the Owner against the
+deployed Render PostgreSQL environment). Runtime implementation keys
+exclusively off the exact `workspace_uuid` above (never
+`SchoolGroup.name`/domain/email/Branch label), remains presentation-only,
+and leaves canonical `PlanningSection`/Student Academic Placement/frozen
+historical Talent Grade-Section identity, analytics grouping, and
+query/filter/import-export identity completely unchanged - see ADR 0045
+for the full authorized convention and fallback rule.
+
+## Al-Andalus Section Display M5 - Shared Presentation Implementation (2026-09-22)
+
+Implements the ADR 0045-authorized presentation convention. One shared,
+authoritative helper, `academic_grade.format_section_display(workspace_uuid,
+grade_level, section_name) -> str`, activates the numeric
+`{grade_number}.{section_ordinal}` mapping only on exact
+`SchoolGroup.workspace_uuid` equality to the authorized UUID above; every
+other workspace, and any Grade/Section that does not deterministically map
+(custom Section name, non-alphabetic/multi-character Section,
+missing/malformed Grade, missing Section), returns the existing canonical
+`section_name` unchanged. The helper never mutates or replaces canonical
+`grade_level`/`section_name` - it is wired in as a bounded, additive
+`section_display` projection alongside the unchanged canonical fields.
+
+Wired surfaces (M5 boundary): Students UI current placement and placement
+history (`routers/students_ui.py::_placement_view`, `templates/students.html`,
+`templates/student_profile.html`), the Academic Placement Section selector
+(`GET /students/sections`, `static/js/students.js`), the Students list
+Grade/Section filter dropdown, the Talent frozen historical Learner Profile
+context (`talent_learner_profile_service.py::build_learner_profile`'s
+`frozen_context`, used by both `templates/student_profile.html`'s Talent tab
+and the Talent workspace's own `learner-profile` view in
+`static/js/talent.js`) - using the frozen `TalentAssessmentCyclePopulationMember`
+Grade/Section, never the Student's current placement - the Talent Student
+Assessment eligible-students roster (`GET
+/api/talent/assessment-cycles/{id}/eligible-students`,
+`static/js/talent-operations.js`), and the Talent Results/Analytics
+Grade/Section filter (`GET /api/talent/programs/planning-sections`,
+`static/js/talent.js`). Organization-analytics Grade/Section grouping
+identity (e.g. `organization-analytics` grade-map column totals) is
+unchanged and out of scope - ADR 0045 requires analytics grouping identity
+to remain canonical.
+
+Focused tests: `tests/test_academic_grade_section_display.py` (pure
+formatter edge cases, exact UUID activation, A-Z ordinal spot-checks,
+fallback cases) and `tests/test_al_andalus_section_display.py`
+(cross-surface wiring: exact-UUID activation, a different-UUID row sharing
+the exact organization name, workspace rename stability, other-tenant
+isolation, canonical-value-unchanged/no-mutation checks, and frozen Talent
+context proven to diverge from a later current-placement change). No
+schema, migration, or new permission. No application behavior changed for
+any workspace other than the one exact authorized `workspace_uuid`.
+
+## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (2026-09-22)
+
+Implements the complete backend Evaluation Progress contract per ADR 0044,
+building on M8 (Evaluation Plans/Periods), M9 (Deterministic Talent
+Analytics privacy primitives), ADR 0037 (Overall Program Result), ADR 0031
+/ ADR 0042 (Learning Style). New files: `talent_evaluation_progress_service.py`
+(core logic) and `routers/talent_evaluation_progress.py` (four routes under
+`/api/talent/evaluation-progress`), registered in `main.py` alongside the
+other Talent routers. No schema, migration, or new permission.
+
+**Active/opened predicate** (verified, not invented):
+`TalentPlannedEvaluationPeriod.status == 'planned'` AND its linked
+`TalentAssessmentCycle.status IN ('open', 'closed')`
+(`resolve_active_periods`). Nominal weight `1/A` for A active Periods is
+derived only, never persisted. Configured label/short_code never affect
+order; only `sequence` does.
+
+**Student Progress** (`GET .../students/{student_id}`, permission
+`talent_learner_profiles.view`): per-active-Period result state
+(`available`/`pending`/`incomplete`/`insufficient_evidence`/`unassessed`/
+`not_applicable`), `normalized_percent` only when `available`, `Current
+Overall Result` = mean of only the available results (Pending/unavailable
+excluded, never zero), plus authoritative
+`active_period_count`/`available_result_count`/
+`pending_or_unavailable_count` counts. Owner-ratified Decision 2: this
+route has NO privacy-policy dependency at all - authorization is frozen-
+historical-Branch scope (mirroring `talent_learner_profile_service`)
+exactly, never aggregate cohort-size suppression. An out-of-scope Student
+is a non-enumerating 404.
+
+**Branch/Organization Progress** (`GET .../branches/{branch_id}` and
+`.../organization`, permission `talent_analytics.view`):
+`BranchPeriodResult`/`OrganizationPeriodResult` are the direct mean of
+valid governed Student `normalized_percent` results via frozen
+`TalentAssessmentCyclePopulationMember.branch_id` attribution;
+`OrganizationPeriodResult` is computed directly from every Student in the
+authorized scope, never as `average(BranchPeriodResult)` (proven by a
+dedicated unequal-Branch-size test: Branch A mean 85.0, Branch B mean
+60.0, but the direct Organization mean is 76.67, not the naive 72.5
+average-of-averages). Every result is gated by one `Cell`/`Group`
+(`_privacy_safe_branch_mean_group`): a contributing-count `Cell` per
+Branch plus an org-total `Cell`, `apply_primary_privacy` then
+`run_complementary_suppression`; a derived mean is serialized only when
+its own count `Cell` is `visible` (never for `suppressed`/`restricted`/
+`coarsened`/`no_data`). Overall Results across active Periods use only
+the `visible` per-Period means (Pending/suppressed excluded, never zero,
+never reconstructable from the combined value).
+
+**Framework comparability** (owner-ratified Decision 1): every
+Student/Branch/Organization progress payload carries
+`comparability_state`/`comparability_reason_code`; when active Periods
+span more than one `framework_version_id`, every Period is still returned
+individually but the combined Overall Result is `null`
+(`{"state": "no_data", "value": None}` for Branch/Organization) with
+`reason_code="framework_changed"`.
+
+**Branch comparison metrics** (`GET .../branch-comparison?metric=...`):
+`talent_evaluation_progress_service.branch_comparison_metric` is a bounded
+local dispatcher for exactly the seven approved metrics -
+`evaluation_period_result`, `current_overall_progress` (both new, above),
+`assessment_completion`, `assessments_started` (reusing
+`svc.raw_coverage_by_dimension` unchanged), `meets_program_criteria`
+(reusing `svc.raw_candidate_by_dimension`, requires
+`talent_review_candidates.view` or 403 - query-skipped, not merely
+filtered), `officially_confirmed` (reusing
+`svc.raw_identification_by_dimension`, requires
+`talent_official_identifications.view` or 403), and `learning_style`
+(new). This dispatcher does not add to, or modify, the frozen 14-value M10
+`MetricCode` enum in `talent_org_intelligence_contract.py`.
+
+**Learning Style Branch aggregate** (ADR 0031/ADR 0042 privacy contract):
+arithmetic mean of valid (non-null) `learning_style_{verbal,non_verbal,
+quantitative,spatial}_percentage` values in the Program's authorized
+population cohort; `null` excluded, `0` is a real included value, no sum
+rule, no dominant-style derivation, protected by the identical `Cell`/
+`Group` mechanism. A Student frozen into more than one Cycle within the
+same Program+Year is de-duplicated to one contribution per Branch context
+(`DISTINCT` on `branch_id, student_id, value`) since Learning Style is a
+per-Student attribute, not a per-membership fact - unlike the reused M9
+`frozen_membership`-grain metrics, which intentionally count once per
+Cycle a Student was frozen into.
+
+**Known, disclosed, non-blocking characteristic** (inherited from reused
+M9 code, not a new M4 defect): `assessment_completion`/
+`assessments_started`/`meets_program_criteria`/`officially_confirmed`
+reuse `svc.build_breakdown_group` exactly as `/breakdowns/branch` already
+does, which does not convert an all-zero cohort's `total_raw=0` to `None`
+- a policy may therefore label a genuinely empty cohort `suppressed`
+rather than `no_data` for those four metrics only. No raw value is ever
+leaked either way (a suppressed cell's `value` is always `None`); the two
+NEW aggregates this milestone adds (Branch/Organization Period Result and
+Learning Style) explicitly avoid this by converting a falsy total to
+`None` before privacy evaluation.
+
+Second-pass adversarial review (required by this milestone, given its
+privacy sensitivity) traced all 16 specified risk categories - suppressed-
+Period reconstruction through Overall Result, complementary-suppression
+failures, sparse-matrix/cell omission, privacy call ordering, hidden raw
+values, numerator/denominator leakage, average-of-Branch-averages,
+current-placement vs. frozen attribution, cross-tenant contamination,
+Framework-version mixing, Pending-as-zero, null-Learning-Style-as-zero,
+privacy-provider fail-open, unauthorized single-Student access, M10
+registry modification, and client arithmetic becoming authoritative - and
+found the implementation clean; no remediation was required beyond the
+Learning Style de-duplication fix made during initial test-writing (fixed
+before any review pass, not a post-review defect). See ADR 0044 for the
+complete governance record and `tests/test_talent_evaluation_progress.py`
+(25 tests: active-period predicate, pure worked-example arithmetic,
+Student progress including authorization/tenant isolation, Branch/
+Organization Period and Overall Result including the unequal-Branch-size
+proof, cross-framework comparability blocking combined Overall while
+preserving individual Periods, missing-privacy-provider fail-closed,
+primary and complementary suppression, Learning Style null/zero handling
+and suppression, and all seven Branch comparison metrics including
+permission query-skip) for the full test matrix. Regression: the existing
+M9/M10 Talent analytics suites, M2 Student number, and M3 Learning Style
+CRUD suites all pass unchanged (three pre-existing, unrelated failures -
+one query-count assertion in
+`tests/test_talent_organization_student_drill.py` and two in
+`tests/test_student_learning_style_v1.py`/
+`tests/test_talent_rubric_kpi_candidate_policy.py` - were directly
+reconfirmed present and unchanged on unmodified `dev` HEAD `96dd454`
+before this task).
 
 ## Promo Grant Replacement — "Replace / Extend Promotional Access" (2026-09-21)
 
@@ -978,6 +1593,228 @@ uncommitted in-flight changes from separate concurrent work at the time of
 this change, and extending it was judged unsafe to combine with that
 in-flight work rather than a scope decision about the feature itself.
 
+## Students + Talent & Potential M1 — Governance Reconciliation And Additive Schema Foundation (2026-09-22)
+
+Per ADR 0042 (amends ADR 0031) and ADR 0043, this milestone adds only the
+persistence/schema foundation for two later capabilities: a four-dimension
+Student Learning Style profile and the globally unique managed TIS Student
+ID namespace. No API, service-layer write path, or frontend was added in
+this task; both are explicitly out of scope for M1.
+
+`Student` gains four independent, nullable `INTEGER` columns -
+`learning_style_verbal_percentage`, `learning_style_non_verbal_percentage`,
+`learning_style_quantitative_percentage`, `learning_style_spatial_percentage`
+- each constrained to NULL or 0-100 with no sum rule and no relationship to
+any other field. Migration
+`20260922_001_student_learning_style_four_dimension_profile` adds the
+columns via `ALTER TABLE ... ADD COLUMN` and, on PostgreSQL only, a
+non-locking `NOT VALID` + `VALIDATE CONSTRAINT` CHECK per column (SQLite
+relies on the fresh-schema SQLAlchemy `CheckConstraint`, matching the
+existing `20260910_002_student_learning_style_v1` precedent's documented
+dialect asymmetry). The legacy categorical `learning_style` column, its
+CHECK constraint, and every existing row are completely unchanged - no
+rewrite, no mapping, no automatic conversion in either direction.
+
+The existing `StudentExternalIdentifier` model/table gains no new column.
+Migration `20260922_002_student_tis_number_identifier_integrity` adds two
+partial unique indexes scoped to `namespace = 'tis_student_number'`:
+`uq_student_external_identifiers_tis_student_number_value` (global
+uniqueness of `value` across every SchoolGroup, covering active AND
+inactive rows, so a retired value can never be reissued) and
+`uq_student_external_identifiers_tis_student_number_active_student` (at
+most one `active` row per `student_id`, correct organization-wide because
+`Student.id` is already a single global primary key). Every other
+namespace's existing tenant-scoped uniqueness
+(`uq_student_external_identifiers_scope_namespace_value`) is unchanged.
+Before installing either index, the migration inspects any existing
+`tis_student_number` rows and fails safely with a descriptive
+`RuntimeError` (no delete/merge/rename) if it finds a non-canonical value
+(not `STD` + exactly 10 digits), a value duplicated across SchoolGroups, or
+a Student with more than one active row; the current `tis.db` and every
+exercised test/local database had zero pre-existing `tis_student_number`
+rows, so this preflight path was exercised only via seeded-conflict tests,
+not a real historical blocker.
+
+`Student.id` remains the sole internal relational identity; no new Student
+identity table or column was added, and no existing legacy Student was
+backfilled with a fabricated `tis_student_number` value - a legacy Student
+with zero managed-identifier rows remains valid.
+
+Not implemented: TIS Student ID create/edit API/UI and its duplicate-value
+messaging, database-level canonical-format enforcement, Learning Style
+percentage API/frontend, Evaluation Progress, and roster import/export -
+all explicitly deferred to later milestones at this point in time. (The
+`students.import`/`students.export` permission keys were later registered
+as a governance prerequisite - see "Student Roster Import/Export —
+Permission Registration (Governance Prerequisite, M6)" above - but the
+roster import/export feature itself remained, and remains, unimplemented.)
+Al-Andalus Section display was
+also deferred at M1; per ADR 0045 it was Owner-authorized for the exact
+verified `workspace_uuid` `72e52eb2-3844-447b-92a8-c55015f73257`, and its
+M5 implementation is now done - see "Al-Andalus Section Display -
+Governance Authorization" and "Al-Andalus Section Display M5 - Shared
+Presentation Implementation" above.
+Focused coverage is in `tests/test_student_learning_style_profile_foundation.py`
+and `tests/test_student_tis_number_identifier_foundation.py`; PostgreSQL
+migration coverage (upgrade path and preflight-conflict rollback) is added
+to `tests/test_postgresql_migration_transactions.py` following its existing
+`TIS_TEST_POSTGRESQL_URL` skip-marked convention and auto-skips in this
+environment (no local PostgreSQL listener).
+
+## Students + Talent & Potential M3 — Four-Dimensional Learning Style Backend/Service/API (2026-09-22)
+
+Per ADR 0042, this milestone implements the previously-deferred server-side
+service/API for the four-dimension Learning Style percentage profile on top
+of the M1 schema foundation (no new migration - the four nullable, 0-100
+CHECK-constrained `Student` columns already exist). All logic lives in
+`student_academic_service.py` and `routers/students.py`; no new table, no
+new permission, and no frontend.
+
+`student_academic_service.py` gained `LEARNING_STYLE_PERCENTAGE_FIELDS` (the
+four column names) and `_clean_learning_style_percentage`, which validates
+each dimension strictly and independently: `None` is valid ("not
+assessed"), and an `int` 0-100 inclusive is valid, explicitly including both
+boundary values; `bool` is rejected even though it is a Python `int`
+subclass, and any other non-`int` type - a float/decimal or a numeric
+string such as `"75"` - is rejected rather than coerced, matching this
+dict-based JSON body's existing no-schema-coercion convention (there is no
+Pydantic model on this route). There is no sum-to-100 rule and no
+derivation to or from the legacy categorical `learning_style` column, which
+remains completely untouched. `create_student`/`create_student_with_number`
+gained the four optional keyword parameters (default `None`, all four may
+be omitted); an invalid value raises before any row is added, so an invalid
+dimension never leaves a partial/orphan Student, matching the existing M2
+atomicity guarantee for `student_number`. `update_student` applies each of
+the four fields only when its key is present in the caller's `**changes`
+(the same partial-update convention the function already uses for
+`learning_style`/`first_name`/etc.), so PATCH's existing partial-payload
+semantics (`routers/students.py` only forwards keys actually present in the
+request body) mean an unspecified dimension is never cleared and an
+explicit `null` does clear it. `_student_payload` (used for the existing
+`StudentAudit` before/after snapshots) now includes all four fields, so a
+Learning Style percentage update participates in the existing append-only
+Student audit trail exactly like every other Student field - no new audit
+subsystem, no history/version table, and no Talent snapshot were added,
+matching ADR 0042's explicit prohibition.
+
+`routers/students.py`: `POST /api/students` and `PATCH
+/api/students/{student_id}` now accept the four fields under the existing
+`students.create`/`students.edit` permission gates (no new permission); the
+M2 mandatory `student_number`-on-create contract is unchanged and
+re-verified by regression. Every Student JSON response
+(`GET`/`POST`/`PATCH /api/students...`) now exposes all four fields
+alongside the unchanged legacy `learning_style` field, with no derived
+dominant-style, total, or normalized field ever added.
+
+Confirmed by source-scan regression (extending the existing M1 pattern) that
+no Talent scoring/eligibility module (`talent_program_service.py`,
+`talent_analytics_service.py`, `talent_org_intelligence_service.py`,
+`talent_analytics_privacy.py`, `talent_student_assessment_service.py`,
+`routers/talent_assessments.py`, `routers/talent_review_candidates.py`,
+`routers/talent_assessment_cycles.py`, `routers/talent_programs.py`) reads
+any of the four percentage fields or the new validator. Focused coverage is
+in `tests/test_student_learning_style_four_dimension_api.py` (73 tests:
+independent service-level validation of null/partial/0/100/no-sum-rule
+profiles, out-of-range and wrong-type rejection per field, create-time
+atomicity, partial-update semantics proving sibling/unspecified-field
+isolation, legacy-field preservation on create and update, Student-create
+API acceptance/omission of all four dimensions with the M2 `student_number`
+requirement re-verified intact, Student-update API permission reuse and
+cross-tenant denial, response serialization, audit participation, and the
+Talent source-scan regression). The full relevant regression sweep
+(`tests/` filtered to `student or talent or permission`, excluding the two
+`ortools`-dependent Timetable-Workflow-only solver test modules that fail to
+import in this environment) passes with exactly the same 13 pre-existing
+failures directly confirmed present and unchanged via an explicit
+before/after comparison run against unmodified `dev` HEAD `24bdb06` in this
+task (not merely cited from the prior M2 note); none are newly introduced
+or newly fixed by M3.
+
+## Students + Talent & Potential M2 — Managed Student ID Backend/Service/API (2026-09-22)
+
+Per ADR 0043, this milestone implements the previously-deferred TIS Student
+number create/edit service/API and canonical-format validation on top of the
+M1 schema foundation (no new migration - the two M1 partial unique indexes on
+`student_external_identifiers` remain the sole concurrency authority). All
+logic lives in `student_academic_service.py` and `routers/students.py`; no
+new table, no new permission, and no frontend.
+
+Business input is exactly ten ASCII digits (leading zeros preserved as a
+string, never parsed as an integer); the service alone controls the
+canonical `STD` + 10-digit stored format
+(`validate_student_number_digits`/`canonical_student_number`). New Students
+created through `POST /api/students` now require `student_number` and the
+new `create_student_with_number` atomically creates the `Student` row and its
+`tis_student_number` `StudentExternalIdentifier` row in one uncommitted
+transaction - an `IntegrityError` on the identifier insert (duplicate/race)
+is caught by the router, which rolls back the whole transaction first, so no
+orphan/partial `Student` row is ever left behind. Existing legacy Students
+(and the existing HTML `/students/new` UI creation path, which is
+intentionally unmodified and continues to call the original `create_student`
+directly) are unaffected and may continue without a number; a legacy Student
+may receive or replace its number later via the new
+`PUT /api/students/{student_id}/student-number` route, backed by
+`set_student_number`, gated by the existing, already-governed
+`students.manage_identifiers` permission (no new permission key was needed
+or added). Replacing a number never mutates the old row: the old active row
+is marked `inactive` (audited as `replace_retire`) and a new row is inserted
+active (audited as `replace`) in the same transaction, so `Student.id` is
+unchanged and the M1 global-uniqueness index keeps the old value permanently
+reserved. The generic `add_external_identifier`/`deactivate_external_identifier`
+functions now explicitly reject the `tis_student_number` namespace
+(`managed_namespace` error) so the generic external-identifier API cannot
+bypass the managed contract in either direction.
+
+Duplicate-value disclosure follows an explicit privacy rule enforced at the
+router layer (`routers/students.py::_student_number_conflict_response`),
+executed only AFTER the failed insert's transaction is rolled back: a
+read-only, unauthenticated lookup
+(`student_academic_service.find_student_number_holder`) identifies the
+conflicting `school_group_id`/`student_id`, and the router discloses
+`student_id`/`display_name` if and only if that identifier belongs to the
+requester's own SchoolGroup AND the actor independently holds
+`students.view` for that scope; every other case (cross-tenant, unauthorized
+same-tenant, or a value retired by a Student the actor cannot/does not
+independently view) returns the exact same generic
+`{"detail": ..., "code": "student_number_unavailable"}` body, so there is no
+enumeration oracle and no cross-tenant/retired-vs-foreign distinction leak.
+The raw lookup itself never grants a general Student-lookup capability - it
+returns only a bare `school_group_id`/`student_id` pair with no name or
+other metadata, and the router's authorization check is applied before any
+identity is ever returned.
+
+A canonical `student_number` field (e.g. `"STD0012345678"`, or `null` for a
+legacy Student) is now exposed on every Student JSON response
+(`GET`/`POST`/`PATCH /api/students...`) via `current_student_number`, without
+renaming any existing field or changing unrelated response shape.
+
+Three pre-existing tests that posted to `POST /api/students` without a
+`student_number` were updated to supply one, since this endpoint's required-
+field contract is the intended M2 behavior change, not a regression:
+`tests/test_student_academic_foundation.py` (two call sites, one with an
+updated audit-event-count assertion reflecting the one additional
+`external_identifier`/`create` audit row every managed-number creation now
+also writes), `tests/test_student_learning_style_v1.py` (two call sites), and
+`tests/test_permission_surface_consistency.py` (one call site, a permission-
+gating test unrelated to the identity field itself). Focused coverage is in
+the new `tests/test_student_managed_number_service.py` (46 tests: format
+validation, atomicity/no-orphan-Student, legacy assignment, replacement
+mechanics, M1 global/same-tenant/cross-tenant/retired-reuse uniqueness, the
+IntegrityError race path, privacy-safe duplicate classification for all four
+combinations, `students.create`/`students.manage_identifiers` permission
+gating, cross-tenant denial, the managed-namespace boundary on the generic
+identifier API, audit events for create/assign/replace, and regression for
+an unrelated namespace and an existing Academic Placement workflow). The
+full relevant regression sweep (`tests/` filtered to
+`student or talent or permission`, excluding the two `ortools`-dependent
+Timetable-Workflow-only solver test modules that fail to import in this
+environment) passes except the same 13 pre-existing failures already present
+on unmodified `dev` HEAD `e98214f` before this task (11 unrelated
+Talent/permission/SaaS failures plus the two Students failures already
+recorded as pre-existing in the M1 entry above); none are newly introduced by
+M2, and both this environment's `ortools` absence and those 13 pre-existing
+failures are unrelated to this task and unresolved by it.
+
 ## Evaluation Plan Scope Regression Correction
 
 Evaluation Plan capability projection now has explicit regression coverage for both sides of the authority boundary: an organization-scoped manager retains manage/govern actions while working in a selected Branch, while a truly Branch-scoped identity receives no mutation capability even if its role grants the permission key. The Evaluation Plan workspace explains that read-only state before submission.
@@ -1883,7 +2720,11 @@ PostgreSQL validation (constraints, concurrent placement/framework writes)
 has not been executed against live PostgreSQL for these foundations; only
 SQLite-backed pytest coverage exists. No Student UI, import/merge,
 Assessment, Review/Identification, Learner Profile, analytics/Talent
-Map, or AI code exists yet.
+Map, or AI code exists yet at this point in time. (The `students.import`/
+`students.export` permission keys were later registered as a governance
+prerequisite only - see "Student Roster Import/Export — Permission
+Registration (Governance Prerequisite, M6)" above - roster import/merge
+functionality itself remained, and remains, unimplemented.)
 
 ## Planning Subject Requirement Removal (Single And Bulk) Implemented
 

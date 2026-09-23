@@ -1,11 +1,96 @@
 ---
 title: TIS Module Map
-documentation_version: 4.1
-last_updated: 2026-09-11
+documentation_version: 4.2
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Students M11 Roster Frontend Ownership
+
+- `routers/students_ui.py` projects the existing `students.import` and
+  `students.export` capabilities into the Students list; it does not authorize
+  M6 API requests.
+- `templates/students.html` owns compact actions and the transient accessible
+  `.xlsx` import dialog.
+- `static/js/students-roster.js` owns opaque workbook download, file-extension
+  usability checks, multipart preview/apply submission, safe DOM rendering,
+  duplicate-submit guards, explicit apply confirmation, and roster refresh.
+- `static/css/students.css` owns the bounded dialog/table responsive treatment.
+- `routers/students.py` and `student_roster_service.py` remain the authorities
+  for workbook parsing, Student-ID/tenant/Placement validation, privacy-safe
+  conflicts, permission enforcement, create-only semantics, and atomic apply.
+- No spreadsheet parser, CSV/`.xls`, persistent import batch, background job,
+  schema, migration, or backend semantic change belongs to M11.
+
+## Results & Analytics Branch Comparison Frontend (M10)
+
+- `templates/talent/workspace.html`: adds the labeled Learning Style dimension
+  selector beside the existing Program/Academic-Year/Metric context controls.
+- `static/js/talent.js`: Organization Overview requests the existing M4 Branch
+  comparison route for the selected Program, metric, and optional Learning
+  Style dimension; one chart renders backend rows without reordering or
+  analytics calculation. Existing Talent Map columns supply authorized Branch
+  display labels.
+- `static/css/talent.css`: owns the responsive horizontal bar, grouped Period,
+  and categorical protected/no-data treatments.
+- `routers/talent_evaluation_progress.py` and
+  `talent_evaluation_progress_service.py` remain unchanged authorities for the
+  seven-metric allowlist, permissions, frozen Branch grouping, privacy closure,
+  Learning Style means, Framework comparability, and serialized values.
+- The frontend never renders a numeric bar for a non-visible state and never
+  calculates Branch/Organization results or privacy decisions. No second chart,
+  backend route, permission, schema, migration, or M11 roster surface is added.
+
+## Student Evaluation Progress Frontend (M9)
+
+- `templates/student_profile.html`: owns the existing authorized Student Talent
+  profile location and declares one Evaluation Progress mount per Program and
+  Academic Year already returned by the Learner Profile.
+- `static/js/student-evaluation-progress.js`: fetches only the M4 Student
+  Evaluation Progress endpoint and renders its ordered Period labels, explicit
+  result states, comparable Overall Result, and framework-change explanation.
+  It performs no active-Period selection, weighting, sorting, averaging,
+  comparability decision, aggregate reconstruction, or placement substitution.
+- `static/css/students.css`: supplies compact responsive period cards and a
+  distinct Overall Result treatment using existing Student design tokens.
+- `routers/talent_evaluation_progress.py` and
+  `talent_evaluation_progress_service.py` remain the unchanged authority for
+  authorization, active/open Period selection, state, order, Framework
+  comparability, and results.
+- M9 exposes no Branch/Organization progress surface or comparison chart and
+  adds no route, permission, schema, or migration.
+
+## Talent Frontend Cleanup M8 Ownership
+
+- `static/js/talent-operations.js`: omits Reload Saved Rubric and Educator Input
+  from normal Student Assessment rendering and no longer fetches or binds the
+  retired Educator Input controls.
+- `routers/students_ui.py` and `templates/student_profile.html`: omit Educator
+  Input from the normal Student Talent-profile projection/presentation.
+- `routers/talent_educator_inputs.py`, its service/model, assessment/rubric
+  persistence, audit, and permissions remain unchanged compatibility/history
+  authorities. No historical evidence is deleted.
+- Talent scoring, analytics, Evaluation Progress, Student Learning Style,
+  Section formatting, schema, and migrations are unchanged.
+
+## Students M7 Frontend Ownership
+
+- `routers/students_ui.py` projects canonical managed Student IDs, delegates new
+  creation/authorized replacement to existing Student services, parses HTML
+  blanks as nullable Learning Style dimensions, and reuses the shared duplicate
+  conflict projection.
+- `templates/student_form.html`, `templates/student_profile.html`, and
+  `templates/students.html` own the bounded create/list/profile/edit presentation.
+- `templates/_learning_style.html`, `static/js/students.js`, and
+  `static/css/students.css` own reusable accessible dimension controls/profile
+  bars and responsive fixed-prefix behavior.
+- `routers/students.py`, `student_academic_service.py`, models, migrations, and
+  the M5 Section formatter remain the backend authorities and are not redesigned.
+- Roster import/export frontend was out of scope here and was implemented in
+  M11 (`students.import`/`students.export` actions on `templates/students.html`
+  over the existing M6 roster API).
 
 ## Talent Rubric Visuals And Analytics Ownership
 

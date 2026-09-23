@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 import auth
 import authorization
 import models
+from academic_grade import format_section_display
 from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
@@ -174,7 +175,19 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         population = [row for row in population if row["branch_id"] in visible]
     names = _student_names(db, group_id, [row["student_id"] for row in population])
     branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
-    members = [{**row, **names.get(row["student_id"], {}), "branch_name": branches.get(row["branch_id"])} for row in population]
+    school_group = db.get(models.SchoolGroup, group_id)
+    workspace_uuid = school_group.workspace_uuid if school_group else None
+    members = [
+        {
+            **row,
+            **names.get(row["student_id"], {}),
+            "branch_name": branches.get(row["branch_id"]),
+            # ADR 0045: bounded presentation projection - the canonical
+            # grade_level/section_name above remain unchanged.
+            "section_display": format_section_display(workspace_uuid, row.get("grade_level"), row.get("section_name")),
+        }
+        for row in population
+    ]
     return jsonable_encoder({
         "cycle_id": cycle.id,
         "eligibility_state": "live_academic_placement",

@@ -1,11 +1,175 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.0
-last_updated: 2026-09-19
+documentation_version: 4.1
+last_updated: 2026-09-23
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Student Roster Import / Export Frontend (M11)
+
+The Students list now exposes compact, independently permission-projected
+**Import Students** and **Export Students** actions backed exclusively by the
+existing M6 roster API. Export downloads the backend-produced `.xlsx` bytes and
+preserves its response filename; the browser never rebuilds roster data.
+
+Import is a transient `.xlsx`-only dialog. It uploads the selected workbook to
+the stateless preview route, renders backend summary/row results and safe
+messages, then requires explicit confirmation before uploading the same file to
+the apply route. Apply re-parses and independently revalidates the workbook and
+remains create-only and atomic. The browser never parses Excel, submits a
+trusted valid-row list, performs partial apply, decides Student-ID uniqueness,
+resolves tenant/Placement identity, or infers conflict ownership.
+
+Canonical `STD` plus ten-digit Student IDs remain textual with leading zeroes.
+Same-tenant identity appears only when supplied by the privacy-safe backend;
+cross-tenant conflicts stay generic. Canonical Section name remains import
+identity, and no client `section_display` formatter exists. There is no CSV or
+`.xls` support, persistent batch, background job, backend semantic change,
+schema change, or migration.
+
+## Results & Analytics Branch Comparison Frontend (M10, Students Product Sequence)
+
+Organization Overview now contains one primary Program-scoped Branch comparison
+chart backed by the existing M4 `branch-comparison` endpoint. Its selector is
+limited to the seven governed metric families: Evaluation Period Result,
+Overall Result, Assessment Completion, Assessments Started, permission-projected
+Meets Program Criteria and Officially Confirmed, and Learning Style. Learning
+Style uses only the current Verbal, Non-verbal, Quantitative, and Spatial
+dimension parameter defined by the backend.
+
+The chart preserves backend row and Period order and uses the existing
+privacy-safe Branch-label projection. Only a `visible` backend state may create
+a numeric bar; zero remains a real `0%`, while suppressed, restricted,
+coarsened, and no-data states stay categorical and disclose no hidden count or
+value. Framework mismatch produces an explanation rather than an Overall Result
+bar. The browser performs no Branch/Organization mean, metric conversion,
+Learning Style aggregation/normalization, privacy-threshold decision,
+suppression reconstruction, current-Placement regrouping, or cross-framework
+calculation. No Organization summary is added because the comparison contract
+does not expose one consistently across all seven metrics. M11 roster UI,
+analytics/backend semantics, schema, and migrations remain unchanged.
+
+## Student Evaluation Progress Frontend (M9, Students Product Sequence)
+
+Student Profile's Talent tab now renders compact Evaluation Progress for each
+authorized Program and Academic Year from the existing M4 Student endpoint.
+The browser preserves the backend period order and configured labels, displays
+an explicit backend result percentage or textual unavailable state for every
+active/opened Evaluation Period, and distinguishes Pending from a real `0%`.
+It displays **Overall Result** only when the backend supplies a comparable
+numeric `current_overall_result`.
+
+When the backend reports `framework_changed`, individual Evaluation Period
+results remain visible, the combined numeric Overall Result is absent, and the
+page explains the comparability boundary without treating historical evidence
+as corrupt. Frontend code does not select active Periods, read nominal weights,
+sort Periods, average results, decide framework compatibility, or reconstruct
+aggregate values. Existing frozen historical Grade/Section context and M5
+`section_display` remain unchanged. This milestone adds no Branch/Organization
+progress UI, M10 comparison chart, M11 roster UI, backend semantic change,
+schema, or migration.
+
+## Talent Frontend Cleanup (M8, Students Product Sequence)
+
+The normal Talent assessment frontend no longer exposes **Reload Saved Rubric**
+or **Educator Input**. The obsolete reload click flow and Educator Input
+fetch/create/amend/history handlers were removed from normal UI orchestration,
+and the Student Talent-profile presentation no longer requests or renders
+Educator Input. Existing assessment/rubric evidence and persisted Educator Input
+records, lineage, permissions, audit, services, and API compatibility remain
+unchanged and are not deleted or rewritten.
+
+This bounded cleanup does not change deterministic result/KPI semantics,
+Review Candidate or Official Identification behavior, reassessment rules,
+privacy, frozen historical attribution, or M5 `section_display`. Although the
+four-dimension Student Learning Style profile may be informational context in a
+future Talent presentation, current authoritative roadmap material does not
+assign that presentation to this M8 cleanup, so it is not implemented here.
+M9 Evaluation Progress UI, M10 Branch analytics charts, and M11 roster UI remain
+out of scope. No schema or migration is introduced.
+
+## Students M7 Frontend
+
+The existing FastAPI/Jinja and vanilla JS/CSS Students surfaces now consume the
+authoritative M2 managed Student-number and M3 four-dimension Learning Style
+contracts. New Student creation requires the ten business-facing digits while
+the UI presents a fixed, non-editable `STD` prefix; leading zeroes remain text.
+The Students list and profile show the canonical managed value, while legacy
+Students without one show a neutral unavailable state and remain editable.
+Authorized number assignment/replacement continues through
+`students.manage_identifiers`, and duplicate disclosure reuses the one
+privacy-safe backend conflict projection.
+
+Create/edit/profile now present independent nullable Verbal, Non-verbal,
+Quantitative, and Spatial integer percentages. Blank remains null and `0`
+remains an assessed zero; values are never normalized or converted from the
+deprecated categorical field. Profile bars include visible values and ARIA
+semantics, including an explicit unavailable state. Existing current Placement,
+historical Placement, tenant/Branch/RBAC boundaries, and the M5 server-derived
+Al-Andalus `section_display` projection remain unchanged. M7 adds no schema,
+migration, API redesign, backend business rule, or roster import/export UI; the
+latter was out of scope for M7 and was implemented in M11 (see "Student Roster
+Import / Export Frontend (M11)" above).
+
+## Talent & Potential M4 — Authoritative Evaluation Progress Analytics (Backend)
+
+Per ADR 0044, M4 adds the backend-authoritative Evaluation Progress
+contract for Student, Branch, and Organization scope, plus the seven
+approved Branch comparison metrics and the Learning Style Branch
+aggregate, in `talent_evaluation_progress_service.py` and one new router,
+`routers/talent_evaluation_progress.py`
+(`/api/talent/evaluation-progress/...`), strictly inside one Talent
+Program + one Academic Year exactly like every M9/M10 module. The
+canonical Evaluation Period numerical input is ADR 0037's Overall Program
+Result `normalized_percent`; the active/opened predicate is confirmed
+(not new) as `TalentPlannedEvaluationPeriod.status == 'planned'` AND its
+linked `TalentAssessmentCycle.status IN ('open', 'closed')`, with nominal
+weight `1/A` for A active Periods, derived only and never persisted.
+
+Two previously open design questions are now owner-ratified and recorded
+in ADR 0044: (1) Evaluation Periods combine into one Overall Result only
+when every contributing active Period shares one identical governed
+`framework_version_id` - a mixed-framework active set returns every Period
+individually with `comparability_state="not_comparable"` /
+`"framework_changed"` and a `null` combined Overall, never a
+cross-framework delta or equivalence inference; (2) an individually
+authorized Student's own Evaluation Progress
+(`GET /api/talent/evaluation-progress/programs/{id}/academic-years/{id}
+/students/{id}`, gated by the existing `talent_learner_profiles.view`
+permission plus frozen-historical-Branch scope) is governed by normal
+Student/Talent authorization, never aggregate cohort-size privacy
+suppression - it has no `policy` dependency at all, by construction.
+
+`BranchPeriodResult`/`OrganizationPeriodResult` are the direct mean of
+valid governed Student `normalized_percent` results attributed to that
+scope via frozen `TalentAssessmentCyclePopulationMember.branch_id`
+attribution; `OrganizationPeriodResult` is computed directly from every
+Student in scope, never as an average of `BranchPeriodResult` values
+(proven by a dedicated unequal-Branch-size regression test). Pending/
+unavailable results are excluded, never zero. Every Branch/Organization
+aggregate (and the Learning Style Branch aggregate) reuses only the M9
+generic `Cell`/`Group`/`apply_primary_privacy`/
+`run_complementary_suppression` primitives - never the M10
+`talent_org_intelligence_contract.py` `MetricCode`/`CellIdentity`
+vocabulary, which remains frozen and unmodified. The bounded Branch
+comparison dispatcher (`branch_comparison_metric`) supports exactly seven
+metrics - Evaluation Period Result, Current/Overall Progress, Assessment
+Completion, Assessments Started, Meets Program Criteria, Officially
+Confirmed (the last four reusing the existing M9 breakdown-by-dimension
+providers unchanged), and Learning Style - and adds no `MetricCode` value.
+
+No schema, migration, new permission, or frontend change. The existing
+client-side Review-Candidate average in `talent-operations.js` is
+unrelated to this new backend contract and is untouched; a future
+frontend milestone may adopt these new endpoints. Focused coverage is
+`tests/test_talent_evaluation_progress.py`; see `docs/PROJECT_STATE.md`
+for the full implementation-truth summary and ADR 0044 for the complete
+governance record, including both owner-ratified decisions and a disclosed
+non-blocking characteristic inherited from the reused M9 breakdown
+providers (an all-zero-cohort total may label as `suppressed` rather than
+`no_data` - no raw value is ever leaked either way).
 
 ## Owner Video Acceptance Correction
 

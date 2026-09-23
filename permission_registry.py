@@ -116,6 +116,8 @@ PERMISSION_GROUPS = (
             ("students.force_delete_history", "Permanently delete a Student together with Academic Placement and Talent history"),
             ("students.manage_identifiers", "Manage student external identifiers"),
             ("students.manage_placements", "Manage student academic placements"),
+            ("students.import", "Import student roster data"),
+            ("students.export", "Export student roster data"),
         ),
     },
     {

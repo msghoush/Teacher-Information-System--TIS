@@ -304,7 +304,7 @@ def test_api_is_tenant_scoped_and_branch_actor_cannot_forge_branch(database):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
     with TestClient(app) as client:
-        created = client.post("/api/students", json={"first_name": "Lina", "last_name": "Saleh"})
+        created = client.post("/api/students", json={"first_name": "Lina", "last_name": "Saleh", "student_number": "0000000301"})
         assert created.status_code == 201
         student_id = created.json()["id"]
         assert client.get(f"/api/students/{student_id}").status_code == 200
@@ -425,7 +425,7 @@ def test_audit_endpoint_reuses_existing_append_only_trail_and_resolves_actor_nam
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: actor
     with TestClient(app) as client:
-        created = client.post("/api/students", json={"first_name": "Amal", "last_name": "Nassar"})
+        created = client.post("/api/students", json={"first_name": "Amal", "last_name": "Nassar", "student_number": "0000000302"})
         assert created.status_code == 201
         student_id = created.json()["id"]
         patched = client.patch(f"/api/students/{student_id}", json={"status": "inactive"})
@@ -433,9 +433,12 @@ def test_audit_endpoint_reuses_existing_append_only_trail_and_resolves_actor_nam
         events = client.get(f"/api/students/{student_id}/audit")
         assert events.status_code == 200
         payload = events.json()
-        # Newest first.
-        assert [row["action"] for row in payload] == ["status_change", "create"]
-        assert all(row["resource_type"] == "student" for row in payload)
+        # Newest first. Student creation now atomically also writes one
+        # "external_identifier"/"create" audit row for the mandatory managed
+        # Student number (ADR 0043/M2).
+        assert [(row["action"], row["resource_type"]) for row in payload] == [
+            ("status_change", "student"), ("create", "external_identifier"), ("create", "student"),
+        ]
         assert all(row["actor_name"] == "Nour Fares" for row in payload)
         assert all(row["created_at"] for row in payload)
         # Cross-tenant Student id stays a uniform non-enumerating 404, matching every

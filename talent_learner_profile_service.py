@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 import models
+from academic_grade import format_section_display
 from student_academic_service import placement_payload
 from talent_educator_input_service import input_payload
 from talent_official_identification_service import identification_payload
@@ -43,6 +44,8 @@ def build_learner_profile(db, *, school_group_id, student_id, visible_branch_ids
     student = db.query(models.Student).filter_by(id=student_id, school_group_id=school_group_id).one_or_none()
     if student is None:
         raise TalentLearnerProfileError("not_found", "Student was not found.")
+    school_group = db.get(models.SchoolGroup, school_group_id)
+    workspace_uuid = school_group.workspace_uuid if school_group else None
     placements = _branch_filter(
         db.query(models.StudentAcademicPlacement).filter_by(school_group_id=school_group_id, student_id=student.id)
         .order_by(models.StudentAcademicPlacement.effective_from, models.StudentAcademicPlacement.id).all(),
@@ -154,8 +157,14 @@ def build_learner_profile(db, *, school_group_id, student_id, visible_branch_ids
         item = {
             "cycle": {"id": assessment.cycle_id, "title": cycle.title if cycle else None, "status": cycle.status if cycle else None,
                       "population_effective_at": cycle.population_effective_at.isoformat() if cycle and cycle.population_effective_at else None},
-            "frozen_context": None if member is None else {"branch_id": member.branch_id, "grade_level": member.grade_level,
-                                                             "section_name": member.section_name, "academic_placement_id": member.academic_placement_id},
+            "frozen_context": None if member is None else {
+                "branch_id": member.branch_id, "grade_level": member.grade_level,
+                "section_name": member.section_name, "academic_placement_id": member.academic_placement_id,
+                # ADR 0045: bounded presentation projection over the frozen
+                # historical Grade/Section attribution above (never the
+                # Student's current placement) - canonical values unchanged.
+                "section_display": format_section_display(workspace_uuid, member.grade_level, member.section_name),
+            },
             "framework_version": {"id": assessment.framework_version_id, "version_number": framework.version_number if framework else None,
                                   "title": framework.title if framework else None},
             "assessment": assessment_payload(assessment),

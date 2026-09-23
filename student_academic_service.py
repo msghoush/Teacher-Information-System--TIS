@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import datetime
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
+import auth
 import models
 from academic_grade import normalize_grade_level
 
@@ -29,6 +31,55 @@ class StudentAcademicError(ValueError):
 LEARNING_STYLES = ("Visual", "Auditory", "Read/Write", "Kinesthetic")
 
 
+# Learning Style four-dimension profile (ADR 0042, amends ADR 0031; M3 service/
+# API implementation). Four independent, optional 0-100 integer percentages -
+# each validated only against its own range, with no sum-to-100 rule and no
+# automatic derivation from, or to, the legacy categorical ``learning_style``
+# field above, which remains preserved unchanged.
+LEARNING_STYLE_PERCENTAGE_FIELDS = (
+    "learning_style_verbal_percentage",
+    "learning_style_non_verbal_percentage",
+    "learning_style_quantitative_percentage",
+    "learning_style_spatial_percentage",
+)
+
+
+# TIS Student Number (ADR 0043/M2): the one globally unique, system-managed
+# StudentExternalIdentifier namespace. Business/API input is exactly ten ASCII
+# digits (leading zeros preserved as a string, never parsed as an integer);
+# the service alone controls the canonical "STD" + 10-digit stored format.
+# This namespace is blocked from the generic external-identifier create/
+# deactivate paths below - it may only be created/replaced through the
+# dedicated functions in this section.
+STUDENT_NUMBER_NAMESPACE = "tis_student_number"
+STUDENT_NUMBER_PREFIX = "STD"
+MANAGED_EXTERNAL_IDENTIFIER_NAMESPACES = frozenset({STUDENT_NUMBER_NAMESPACE})
+_STUDENT_NUMBER_DIGITS_RE = re.compile(r"^[0-9]{10}$")
+
+
+def validate_student_number_digits(value):
+    """Validate the business-facing Student number input: exactly 10 ASCII digits.
+
+    Leading zeros are preserved because this never parses the value as an
+    integer. Rejects short/long/non-digit/whitespace/None/empty input; never
+    silently normalizes an arbitrary mixed string.
+    """
+    if not isinstance(value, str) or not _STUDENT_NUMBER_DIGITS_RE.fullmatch(value):
+        raise StudentAcademicError(
+            "invalid_student_number",
+            "Student number must be exactly 10 digits (0-9 only, leading zeros preserved).",
+        )
+    return value
+
+
+def canonical_student_number(value):
+    """Server-controlled canonicalization: STD + the validated 10-digit value.
+
+    The client never supplies or controls the ``STD`` prefix.
+    """
+    return f"{STUDENT_NUMBER_PREFIX}{validate_student_number_digits(value)}"
+
+
 def _clean_learning_style(value):
     cleaned = " ".join(str(value or "").split())
     if not cleaned:
@@ -39,6 +90,34 @@ def _clean_learning_style(value):
             "Learning Style must be one of Visual, Auditory, Read/Write, or Kinesthetic.",
         )
     return cleaned
+
+
+def _clean_learning_style_percentage(value, field: str):
+    """Validate one Learning Style four-dimension percentage (ADR 0042/M3).
+
+    Each dimension is independent: ``None`` is valid ("not assessed"), and an
+    integer 0-100 inclusive is valid, including the boundary values 0 and 100
+    (0 is a real assessed value, never conflated with "unset"). There is no
+    sum-to-100 rule and no derivation from any other field. ``bool`` is
+    explicitly rejected even though Python's ``bool`` is an ``int`` subclass;
+    a float/decimal or any other non-``int`` type (including a numeric
+    string such as ``"75"``) is rejected rather than silently coerced, since
+    this dict-based JSON request body performs no schema-level type
+    coercion anywhere else in this module.
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise StudentAcademicError(
+            "invalid_learning_style_percentage",
+            f"{field} must be an integer between 0 and 100, or null.",
+        )
+    if value < 0 or value > 100:
+        raise StudentAcademicError(
+            "invalid_learning_style_percentage",
+            f"{field} must be between 0 and 100 inclusive.",
+        )
+    return value
 
 
 def _clean(value, field: str, *, required: bool = False, maximum: int = 100):
@@ -56,6 +135,7 @@ def _student_payload(student):
         "first_name": student.first_name, "father_name": student.father_name,
         "last_name": student.last_name, "gender": student.gender, "status": student.status,
         "learning_style": student.learning_style,
+        **{field: getattr(student, field) for field in LEARNING_STYLE_PERCENTAGE_FIELDS},
     }
 
 
@@ -92,7 +172,10 @@ def get_student(db: Session, school_group_id: int, student_id: int):
 
 
 def create_student(db: Session, *, school_group_id: int, first_name, last_name,
-                   father_name=None, gender=None, learning_style=None, actor=None):
+                   father_name=None, gender=None, learning_style=None,
+                   learning_style_verbal_percentage=None, learning_style_non_verbal_percentage=None,
+                   learning_style_quantitative_percentage=None, learning_style_spatial_percentage=None,
+                   actor=None):
     if db.get(models.SchoolGroup, school_group_id) is None:
         raise StudentAcademicError("invalid_scope", "The selected organization is unavailable.")
     student = models.Student(
@@ -102,12 +185,62 @@ def create_student(db: Session, *, school_group_id: int, first_name, last_name,
         last_name=_clean(last_name, "last_name", required=True),
         gender=_clean(gender, "gender", maximum=24), status="active",
         learning_style=_clean_learning_style(learning_style),
+        learning_style_verbal_percentage=_clean_learning_style_percentage(
+            learning_style_verbal_percentage, "learning_style_verbal_percentage"),
+        learning_style_non_verbal_percentage=_clean_learning_style_percentage(
+            learning_style_non_verbal_percentage, "learning_style_non_verbal_percentage"),
+        learning_style_quantitative_percentage=_clean_learning_style_percentage(
+            learning_style_quantitative_percentage, "learning_style_quantitative_percentage"),
+        learning_style_spatial_percentage=_clean_learning_style_percentage(
+            learning_style_spatial_percentage, "learning_style_spatial_percentage"),
         created_by_user_id=getattr(actor, "user_id", None),
         updated_by_user_id=getattr(actor, "user_id", None),
     )
     db.add(student); db.flush()
     _audit(db, school_group_id=school_group_id, student_id=student.id, actor=actor,
            resource_type="student", resource_id=student.id, action="create", after=_student_payload(student))
+    return student
+
+
+def create_student_with_number(db: Session, *, school_group_id: int, student_number, first_name, last_name,
+                               father_name=None, gender=None, learning_style=None,
+                               learning_style_verbal_percentage=None, learning_style_non_verbal_percentage=None,
+                               learning_style_quantitative_percentage=None, learning_style_spatial_percentage=None,
+                               actor=None):
+    """Create a new Student together with its mandatory managed Student number, atomically.
+
+    ADR 0043/M2: new Students require a Student number (existing legacy
+    Students are unaffected and may continue without one - see
+    ``create_student`` above, still used unchanged by legacy/UI callers).
+    ``student_number`` is exactly 10 business-facing digits; the canonical
+    ``STD``-prefixed value is stored via a normal managed
+    ``StudentExternalIdentifier`` row. Both writes happen in the same
+    uncommitted database transaction: if the identifier insert fails (format
+    error surfaces before either write; a uniqueness conflict/race surfaces
+    as ``IntegrityError`` from the flush below), the caller must roll back
+    the whole transaction so no orphan/partial Student row is left behind -
+    this function never commits.
+
+    ``learning_style_*_percentage`` (ADR 0042/M3) are optional and may all be
+    omitted/``None``; an invalid dimension raises before either write, so no
+    partial Student row is created.
+    """
+    if student_number is None or str(student_number).strip() == "":
+        raise StudentAcademicError("invalid_student_number", "Student number is required.")
+    canonical_value = canonical_student_number(student_number)
+    student = create_student(
+        db, school_group_id=school_group_id, first_name=first_name, last_name=last_name,
+        father_name=father_name, gender=gender, learning_style=learning_style,
+        learning_style_verbal_percentage=learning_style_verbal_percentage,
+        learning_style_non_verbal_percentage=learning_style_non_verbal_percentage,
+        learning_style_quantitative_percentage=learning_style_quantitative_percentage,
+        learning_style_spatial_percentage=learning_style_spatial_percentage,
+        actor=actor,
+    )
+    _insert_active_student_number(
+        db, school_group_id=school_group_id, student_id=student.id,
+        canonical_value=canonical_value, actor=actor, action="create",
+    )
     return student
 
 
@@ -121,6 +254,9 @@ def update_student(db: Session, *, school_group_id: int, student_id: int, actor=
             setattr(student, field, _clean(changes[field], field, required=field in {"first_name", "last_name"}, maximum=24 if field == "gender" else 100))
     if "learning_style" in changes:
         student.learning_style = _clean_learning_style(changes["learning_style"])
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        if field in changes:
+            setattr(student, field, _clean_learning_style_percentage(changes[field], field))
     if "status" in changes:
         status = str(changes["status"] or "").strip().lower()
         if status not in {"active", "inactive"}:
@@ -325,6 +461,16 @@ def add_external_identifier(db: Session, *, school_group_id: int, student_id: in
     if get_student(db, school_group_id, student_id) is None:
         raise StudentAcademicError("not_found", "Student was not found.")
     namespace = _clean(namespace, "namespace", required=True, maximum=80)
+    # TIS Student Number (ADR 0043/M2) is system-managed: block the generic
+    # create path from touching it so callers cannot bypass the mandatory
+    # ten-digit format validation, canonical STD-prefix, or global-uniqueness
+    # conflict handling that only create_student_with_number/set_student_number
+    # implement. Every other namespace is unaffected.
+    if namespace in MANAGED_EXTERNAL_IDENTIFIER_NAMESPACES:
+        raise StudentAcademicError(
+            "managed_namespace",
+            "This identifier namespace is system-managed and cannot be created directly.",
+        )
     value = _clean(value, "value", required=True, maximum=180)
     if db.query(models.StudentExternalIdentifier).filter_by(school_group_id=school_group_id, namespace=namespace, value=value).first():
         raise StudentAcademicError("duplicate_identifier", "That identifier already exists in this organization and namespace.")
@@ -344,12 +490,147 @@ def deactivate_external_identifier(db: Session, *, school_group_id: int, student
     ).one_or_none()
     if row is None:
         raise StudentAcademicError("not_found", "Student identifier was not found.")
+    # Same managed-namespace boundary as add_external_identifier above: the
+    # canonical Student number's active/inactive lifecycle is owned exclusively
+    # by set_student_number, so a caller cannot silently retire a Student's
+    # current managed number through the generic identifier path.
+    if row.namespace in MANAGED_EXTERNAL_IDENTIFIER_NAMESPACES:
+        raise StudentAcademicError(
+            "managed_namespace",
+            "This identifier namespace is system-managed and cannot be deactivated directly.",
+        )
     before = {"namespace": row.namespace, "value": row.value, "source": row.source, "status": row.status}
     row.status = "inactive"; row.updated_at = datetime.utcnow(); db.flush()
     after = {**before, "status": "inactive"}
     _audit(db, school_group_id=school_group_id, student_id=student_id, actor=actor,
            resource_type="external_identifier", resource_id=row.id, action="deactivate", before=before, after=after)
     return row
+
+
+# ---------------------------------------------------------------------------
+# TIS Student Number managed service (ADR 0043/M2)
+# ---------------------------------------------------------------------------
+
+def _insert_active_student_number(db: Session, *, school_group_id: int, student_id: int,
+                                  canonical_value: str, actor=None, action: str):
+    """Insert one active managed Student-number row and its audit event.
+
+    Deliberately does not catch ``IntegrityError``: the M1 partial unique
+    indexes on ``student_external_identifiers`` remain the final concurrency
+    authority for both the global-uniqueness and one-active-per-Student
+    invariants, and callers (the API routes) are responsible for rolling
+    back the transaction and safely classifying the conflict after a race.
+    """
+    row = models.StudentExternalIdentifier(
+        school_group_id=school_group_id, student_id=student_id,
+        namespace=STUDENT_NUMBER_NAMESPACE, value=canonical_value,
+        source="managed", status="active",
+    )
+    db.add(row)
+    db.flush()
+    _audit(db, school_group_id=school_group_id, student_id=student_id, actor=actor,
+           resource_type="external_identifier", resource_id=row.id, action=action,
+           after={"namespace": row.namespace, "value": row.value, "status": row.status})
+    return row
+
+
+def current_student_number(db: Session, *, school_group_id: int, student_id: int):
+    """Return the current active canonical ``STD``-prefixed value, or ``None``.
+
+    A legacy Student with no managed identifier row is valid and returns
+    ``None`` - this never fabricates or backfills a value.
+    """
+    row = db.query(models.StudentExternalIdentifier).filter_by(
+        school_group_id=school_group_id, student_id=student_id,
+        namespace=STUDENT_NUMBER_NAMESPACE, status="active",
+    ).one_or_none()
+    return row.value if row else None
+
+
+def set_student_number(db: Session, *, school_group_id: int, student_id: int, student_number, actor=None):
+    """Assign a Student number to a legacy Student, or replace its current one.
+
+    Validates and canonicalizes ``student_number`` first (format errors never
+    touch the database). If the Student already has an active managed number
+    with a different value, that row is marked ``inactive`` (never mutated
+    into the new value, preserving history/reservation per ADR 0043) and a
+    new active row is inserted for the new canonical value in the same
+    uncommitted transaction. ``Student.id`` is never changed. Does not catch
+    ``IntegrityError``; the caller rolls back and classifies the conflict.
+    """
+    student = get_student(db, school_group_id, student_id)
+    if student is None:
+        raise StudentAcademicError("not_found", "Student was not found.")
+    canonical_value = canonical_student_number(student_number)
+    existing_active = db.query(models.StudentExternalIdentifier).filter_by(
+        school_group_id=school_group_id, student_id=student_id,
+        namespace=STUDENT_NUMBER_NAMESPACE, status="active",
+    ).one_or_none()
+    if existing_active is not None and existing_active.value == canonical_value:
+        return existing_active
+    if existing_active is not None:
+        before = {"namespace": existing_active.namespace, "value": existing_active.value, "status": "active"}
+        existing_active.status = "inactive"
+        existing_active.updated_at = datetime.utcnow()
+        db.flush()
+        _audit(db, school_group_id=school_group_id, student_id=student_id, actor=actor,
+               resource_type="external_identifier", resource_id=existing_active.id, action="replace_retire",
+               before=before, after={**before, "status": "inactive"})
+    action = "replace" if existing_active is not None else "assign"
+    return _insert_active_student_number(
+        db, school_group_id=school_group_id, student_id=student_id,
+        canonical_value=canonical_value, actor=actor, action=action,
+    )
+
+
+def find_student_number_holder(db: Session, *, canonical_value: str):
+    """Read-only, unauthenticated lookup of who (if anyone) holds a canonical value.
+
+    This must only be called AFTER rolling back a failed insert triggered by
+    the M1 global-uniqueness index, and its raw result must never be returned
+    to a caller without an explicit authorization decision layered on top
+    (see ``routers/students.py``): it deliberately reveals nothing about
+    organization/Student identity by itself and does not grant any lookup
+    capability beyond a bare ``school_group_id``/``student_id`` pair.
+    """
+    row = db.query(models.StudentExternalIdentifier).filter_by(
+        namespace=STUDENT_NUMBER_NAMESPACE, value=canonical_value,
+    ).one_or_none()
+    if row is None:
+        return None
+    return {"school_group_id": row.school_group_id, "student_id": row.student_id}
+
+
+def describe_student_number_conflict(db: Session, *, requester_school_group_id, actor, canonical_value):
+    """Single source of truth for the ADR 0043/M2 privacy-safe Student-number
+    conflict disclosure contract.
+
+    Reused by both the direct create/replace API 409 response
+    (``routers/students.py``) and the M6 roster import preview/apply conflict
+    checks (``student_roster_service.py``), so preview and apply never grow a
+    richer or different disclosure path than the one already approved for the
+    single-Student API. Returns ``{"available": True}`` when the canonical
+    value is free, or ``{"available": False, "student_id": int|None,
+    "display_name": str|None}``. ``student_id``/``display_name`` are
+    populated only when the conflicting identifier belongs to the SAME
+    ``school_group_id`` as the requester AND the actor independently holds
+    ``students.view`` for that scope; every other case (cross-tenant,
+    unauthorized same-tenant, or a retired/reserved value with no currently
+    visible holder) returns the fully generic unavailable signal.
+    """
+    holder = find_student_number_holder(db, canonical_value=canonical_value)
+    if holder is None:
+        return {"available": True}
+    if holder["school_group_id"] == requester_school_group_id and auth.has_permission(
+        db, actor, "students.view", school_group_id=requester_school_group_id
+    ):
+        student = get_student(db, requester_school_group_id, holder["student_id"])
+        if student is not None:
+            display_name = " ".join(
+                part for part in (student.first_name, student.father_name, student.last_name) if part
+            )
+            return {"available": False, "student_id": student.id, "display_name": display_name}
+    return {"available": False, "student_id": None, "display_name": None}
 
 
 def _lock_student(db, *, school_group_id, student_id):

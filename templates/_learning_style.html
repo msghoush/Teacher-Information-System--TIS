@@ -38,3 +38,41 @@
   {{ value or 'Not specified' }}
 </span>
 {% endmacro %}
+
+{% macro learning_style_percentage_fields(dimensions, values, error_code='') %}
+<fieldset class="stu-ls-dimensions"{% if error_code == 'invalid_learning_style_percentage' %} aria-describedby="learning-style-error"{% endif %}>
+  <legend>Learning Style profile <span class="stu-hint">(optional)</span></legend>
+  <p class="stu-hint" id="learning-style-help">Each dimension is independent. Enter a whole percentage from 0 to 100, or leave it blank if unavailable.</p>
+  <div class="stu-form-grid">
+    {% for key, label, field in dimensions %}
+    <div class="stu-field">
+      <label for="{{ field }}">{{ label }}</label>
+      <div class="stu-percent-input">
+        <input id="{{ field }}" name="{{ field }}" type="text" inputmode="numeric" pattern="(?:100|[0-9]{1,2})" maxlength="3" autocomplete="off"
+               aria-describedby="learning-style-help{% if error_code == 'invalid_learning_style_percentage' %} learning-style-error{% endif %}"
+               value="{{ values[field] if values and values[field] is not none else '' }}">
+        <span aria-hidden="true">%</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</fieldset>
+{% endmacro %}
+
+{% macro learning_style_profile(dimensions, student) %}
+<div class="stu-ls-profile" aria-label="Learning Style profile">
+  {% for key, label, field in dimensions %}
+  {% set value = student[field] %}
+  <div class="stu-ls-dimension">
+    <div class="stu-ls-dimension-label"><span>{{ label }}</span><strong>{{ value ~ '%' if value is not none else 'Not available' }}</strong></div>
+    {% if value is not none %}
+    <div class="stu-ls-profile-track" role="progressbar" aria-label="{{ label }}: {{ value }} percent" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ value }}">
+      <span style="width: {{ value }}%"></span>
+    </div>
+    {% else %}
+    <div class="stu-ls-profile-track is-unavailable" role="img" aria-label="{{ label }}: not available"></div>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endmacro %}

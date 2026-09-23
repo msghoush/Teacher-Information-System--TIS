@@ -1,15 +1,27 @@
 knowledge_impact: yes
-summary: "Implemented the previously-deferred ADR 0020 promo-to-promo transfer capability: a new Platform Console-only 'Replace / Extend Promotional Access' workflow (ADR 0041) atomically supersedes an organization's active PromoGrant with a fresh grant redeemed against a different, currently valid PromoCode. saas/promo_redemption_service.py gained preview_grant_replacement/replace_promo_grant, reusing the existing _validate_promo_definition gate and the same 'end old evidence, create new evidence, repoint the tenant link, one nested transaction' shape ADR 0024 already established for promo-to-paid conversion. The old PromoGrant becomes status=superseded (retained) and the new grant's supersedes_grant_id points back at it, matching the existing PromoCode.supersedes_promo_code_id convention. Existing branches/users/teachers are never touched (no Branch/User/Teacher row is created, modified, or deleted) - only PromoGrant/WorkspaceEntitlement/TenantProvisioningLink/PromoGrantBranchAssignment commercial evidence changes. No schema or migration change was needed (supersedes_grant_id and the 'superseded' status already existed unused). Two new saas/router.py admin routes and one new confirm template add a server-rendered old-vs-new-limits confirmation step, reusing the existing platform-only promo_codes.manage authorization. Regression coverage: tests/test_promo_redemption.py::PromoGrantReplacementTests (6 tests) and tests/test_promo_code_management.py::PromoGrantReplacementRouteTests (2 route tests). Continuation task added tests/test_promo_redemption.py::PromoRedemptionPostgreSQLTests::test_replace_promo_grant_is_atomic_under_postgresql and ::test_replace_promo_grant_rollback_preserves_original_state_under_postgresql, following this file's existing TIS_TEST_POSTGRESQL_URL skip-marked class convention exactly (no new DB-testing framework); both auto-skip in this environment (no TIS_TEST_POSTGRESQL_URL, no local PostgreSQL listener). It also corrected an ADR-governance defect from the prior uncommitted pass: ADR 0020's historical Consequences bullet ('Promo renewal, transfer, communication, automated expiry jobs, and active-promo early conversion remain deferred') had been reworded in place to delete 'transfer', erasing the historical decision record. Restored the original bullet verbatim and added a new, separate 'Amended by ADR 0041' bullet immediately after it (plus an amends: frontmatter note on ADR 0041) so the historical record is preserved and the forward pointer is additive only. No code behavior changed in this continuation task."
+summary: "Cumulative origin/master-to-dev Students/Talent delivery through M12.1 remains preserved (see prior entries' history in docs/CHANGE_HISTORY.md for the full M1-M12.1 record, including the M12.1 PostgreSQL managed Student-number index identifier remediation). M13 (this task) is a documentation-only release-readiness closeout of the bounded Students + Talent & Potential update package (Student ID, Learning Style, Al-Andalus Section display, Student roster, Talent frontend cleanup, Evaluation Progress, Results & Analytics). No product, permission, schema, or migration behavior changed. Spot-checked each feature area against current code (models.py, db_migrations.py ledger ordering, routers/students.py permission checks, static/js/talent-operations.js's reload/Educator-Input removal, static/js/student-evaluation-progress.js and static/js/talent.js Overall Result/framework-mismatch handling) and confirmed the implementation matches documented KMS behavior. Corrected three stale pre-M11 'deferred'/'assigned to M11'/'remains absent' roster-import/export wording instances (docs/AI_PROJECT_CONTEXT.md M7 section, docs/TIS_MASTER_CONTEXT.md M7 section, docs/engineering/TIS_MODULE_MAP.md Students module section) that were left over from before M11 shipped, even though M11 (documented earlier in the same files) has since implemented roster import/export; reworded each to state the now-accurate fact without altering the historical description of what M7 itself added. No other stale current-state wording scoped to this package was found; dated docs/CHANGE_HISTORY.md entries and dated docs/PROJECT_STATE.md section headers describing what was true when written were left unchanged, matching the historical-log convention. Re-ran tests/test_permission_registry_matrix.py (13 passed), tests/test_student_managed_number_service.py (46 passed), and, on real PostgreSQL via TIS_TEST_POSTGRESQL_URL, tests/test_postgresql_migration_transactions.py (11 passed, 5 failed - the same five pre-existing, unrelated Talent baseline-metadata foreign-key-ordering failures M12.1 already documented and reproduced, root cause UndefinedTable for talent_framework_competencies, unchanged and not introduced by this package). Added a new durable release-handoff document, docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md (indexed in docs/README.md), covering user-visible changes, permission scope, the three required migrations and the PostgreSQL remediation requirement, compatibility notes, privacy/tenant-isolation invariants, known pre-existing issues, deployment surfaces (Web Service only - confirmed this package does not require a coordinated tis-timetable-workflow deploy), a migration/deployment sequence plan, rollback considerations, and a post-deploy smoke-test matrix. tis.db is verified byte-identical via SHA-256 before and after this task. This closeout closes M13 verification for this bounded package only, not the entire Talent product roadmap, and does not itself authorize, perform, or claim any deployment."
 affected_areas:
   - architecture
   - business_rules
-  - user_system_workflows
+  - permissions
   - apis
-  - platform_console
-kms_files_updated:
-  - docs/adr/0020-promo-redemption-and-commercial-grants.md
-  - docs/adr/0041-promo-grant-replacement.md
-  - docs/adr/README.md
-  - docs/PROJECT_STATE.md
-no_impact_reason: ""
+  - user_workflows
+  - frontend
+  - tests
 major_change_override: no
+kms_files_updated:
+  - docs/README.md
+  - docs/AI_PROJECT_CONTEXT.md
+  - docs/TIS_MASTER_CONTEXT.md
+  - docs/PROJECT_STATE.md
+  - docs/CHANGE_HISTORY.md
+  - docs/engineering/TIS_MODULE_MAP.md
+  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
+  - docs/adr/0031-student-learning-style-v1.md
+  - docs/adr/0042-student-learning-style-four-dimension-profile.md
+  - docs/adr/0043-tis-student-number-managed-identifier-invariant.md
+  - docs/adr/0044-talent-evaluation-progress-analytics.md
+  - docs/adr/0045-al-andalus-section-display-workspace-authorization.md
+  - docs/adr/README.md
+  - docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md
+no_impact_reason: ""

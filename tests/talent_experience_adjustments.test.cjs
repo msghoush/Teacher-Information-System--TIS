@@ -113,7 +113,9 @@ test('phase-2 owner package wires roster and identification filters plus ordered
 test('phase-2 assessment editor never falls back across Grade and has professional KPI hierarchy',()=>{
   const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent-operations.js'),'utf8');
   assert.doesNotMatch(source,/gradeScoped\.length\?gradeScoped:allCompetencies/);
-  assert.match(source,/No assessment criteria for Grade/);assert.match(source,/Reload Saved Rubric/);
+  assert.match(source,/No assessment criteria for Grade/);
+  assert.match(source,/action==='reload' \? ''/);
+  assert.doesNotMatch(source,/^\s*on\('reload'/m);
   assert.match(source,/tp-assessment-grid/);assert.match(source,/tp-assessment-kpi-label/);
 });
 test('phase-2 Students keeps protected style categories and removes nested vertical table scrolling',()=>{

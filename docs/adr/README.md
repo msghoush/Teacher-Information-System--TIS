@@ -1,7 +1,7 @@
 ---
 title: TIS Architecture Decision Records
-documentation_version: 3.8
-last_updated: 2026-09-21
+documentation_version: 3.9
+last_updated: 2026-09-22
 ---
 
 # Architecture Decision Records
@@ -65,3 +65,6 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0039-talent-competency-kpi-level-simplification.md`
 - `0040-per-user-permission-override-precedence-and-scope.md`
 - `0041-promo-grant-replacement.md`
+- `0042-student-learning-style-four-dimension-profile.md`
+- `0043-tis-student-number-managed-identifier-invariant.md`
+- `0045-al-andalus-section-display-workspace-authorization.md`

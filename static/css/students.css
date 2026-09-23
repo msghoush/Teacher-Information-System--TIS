@@ -40,6 +40,17 @@
 
 .stu-count { color: var(--app-muted, #5d6b82); font-size: 13px; }
 
+/* Transient M11 roster workflow; the Students page stays compact until opened. */
+.stu-roster-dialog{width:min(1040px,calc(100vw - 32px));max-height:calc(100vh - 32px);padding:24px;border:1px solid var(--app-line);border-radius:16px;color:var(--app-ink);background:var(--app-surface);overflow:auto}
+.stu-roster-dialog::backdrop{background:rgba(15,23,42,.55)}
+.stu-roster-dialog-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}.stu-roster-dialog-head h2{margin:4px 0 0}
+.stu-roster-picker{display:grid;gap:10px;margin:18px 0;padding:16px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface-strong)}
+.stu-roster-picker label{font-weight:700}.stu-roster-picker input[type=file]{max-width:100%;font:inherit}.stu-roster-picker [data-roster-filename]{overflow-wrap:anywhere}
+.stu-roster-summary{font-weight:700}.stu-roster-table{min-width:860px}.stu-roster-table td:last-child{min-width:240px;white-space:normal}
+.stu-roster-row-error{background:#fff7f6}.stu-roster-row-error th,.stu-roster-row-error td:last-child{color:#8f2118;font-weight:700}
+.stu-roster-apply{margin-top:16px;padding:16px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-brand-soft)}
+@media(max-width:680px){.stu-roster-dialog{width:calc(100vw - 16px);max-height:calc(100vh - 16px);padding:16px}.stu-roster-dialog-head{align-items:stretch;flex-direction:column}.stu-roster-dialog-head .stu-btn{align-self:flex-start}.stu-roster-picker .stu-actions,.stu-roster-apply .stu-btn{width:100%}.stu-roster-picker .stu-actions .stu-btn{flex:1 1 100%;justify-content:center}}
+
 .stu-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 /* List: desktop/tablet compact table vs. mobile-only cards.
@@ -136,6 +147,24 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-field select:disabled { opacity: .6; cursor: not-allowed; }
 .stu-field .stu-hint { font-size: 12px; color: var(--app-muted, #5d6b82); }
 .stu-form-actions { display: flex; gap: var(--stu-space-2); flex-wrap: wrap; }
+.stu-field-full { grid-column: 1 / -1; }
+.stu-field-error { color: var(--app-danger, #b42318); font-size: 13px; font-weight: 700; margin: 0; }
+.stu-id-input { display: flex; width: min(100%, 360px); }
+.stu-id-prefix { display: inline-flex; align-items: center; flex: 0 0 auto; height: 44px; padding: 0 12px; border: 1px solid var(--app-line); border-right: 0; border-radius: 10px 0 0 10px; background: var(--app-surface-muted); color: var(--app-muted, #5d6b82); font-weight: 800; letter-spacing: .04em; }
+.stu-field .stu-id-input input { min-width: 0; width: 100%; border-radius: 0 10px 10px 0; }
+.stu-percent-input { display: flex; align-items: center; position: relative; }
+.stu-percent-input input { width: 100%; padding-right: 38px; }
+.stu-percent-input span { position: absolute; right: 13px; color: var(--app-muted, #5d6b82); font-weight: 700; pointer-events: none; }
+.stu-ls-dimensions { border: 0; padding: 0; margin: 0; min-width: 0; display: grid; gap: var(--stu-space-3); }
+.stu-ls-dimensions legend { padding: 0; font-weight: 800; color: var(--app-ink); }
+.stu-ls-profile-section { margin-top: var(--stu-space-4); }
+.stu-ls-profile { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--stu-space-3) var(--stu-space-4); width: min(100%, 760px); }
+.stu-ls-dimension { display: grid; gap: 6px; min-width: 0; }
+.stu-ls-dimension-label { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.stu-ls-dimension-label strong { white-space: nowrap; }
+.stu-ls-profile-track { height: 10px; overflow: hidden; border-radius: 999px; background: var(--app-surface-muted); border: 1px solid var(--app-line); }
+.stu-ls-profile-track > span { display: block; height: 100%; background: var(--app-brand); border-radius: inherit; }
+.stu-ls-profile-track.is-unavailable { background: repeating-linear-gradient(135deg, var(--app-surface-muted), var(--app-surface-muted) 5px, var(--app-line) 5px, var(--app-line) 6px); }
 
 /* Learning Style V1 (ADR 0031): compact visual selector + display badge.
    Reuses existing design tokens (--app-brand/--app-accent/--app-success/
@@ -201,7 +230,20 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
     .stu-search { flex-wrap: wrap; }
     .stu-tabs a { flex: 1 1 42%; justify-content: center; }
     .stu-profile { padding: var(--stu-space-4); }
+    .stu-ls-profile { grid-template-columns: 1fr; }
+    .stu-id-input { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
     .stu * { transition: none !important; animation: none !important; }
 }
+.stu-evaluation-progress{margin:12px 0 16px;padding:14px;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface-muted)}
+.stu-evaluation-progress h5{margin:0 0 10px;font-size:1rem;color:var(--app-brand-deep)}
+.stu-evaluation-periods{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,210px),1fr));gap:10px;margin:0;padding:0;list-style:none}
+.stu-evaluation-period{display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:12px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface-strong)}
+.stu-evaluation-period>div{display:flex;align-items:center;gap:8px;min-width:0}.stu-evaluation-period strong{overflow-wrap:anywhere}
+.stu-evaluation-sequence{display:inline-grid;place-items:center;flex:0 0 28px;width:28px;height:28px;border-radius:50%;background:var(--app-brand-soft);color:var(--app-brand-deep);font-weight:800}
+.stu-evaluation-value{flex:0 0 auto;color:var(--app-brand-deep);font-size:1.1rem;font-variant-numeric:tabular-nums}
+.stu-evaluation-state{flex:0 0 auto;padding:4px 8px;border-radius:999px;background:var(--app-surface);color:var(--app-muted);font-size:.875rem;font-weight:700}
+.stu-evaluation-overall{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-top:12px;padding:12px 14px;border-radius:12px;background:var(--app-brand-soft);color:var(--app-brand-deep)}
+.stu-evaluation-overall strong{font-size:1.35rem;font-variant-numeric:tabular-nums}.stu-evaluation-explanation{margin:12px 0 0;padding:10px 12px;border-left:3px solid var(--app-brand);background:var(--app-surface-strong)}
+@media(max-width:680px){.stu-evaluation-period{align-items:flex-start;flex-direction:column}.stu-evaluation-overall{align-items:flex-start;flex-direction:column}}

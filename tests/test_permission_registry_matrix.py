@@ -93,6 +93,8 @@ CLASSIFICATION = {
     "students.force_delete_history": ("A", ('routers/students.py', 'routers/students_ui.py')),
     "students.manage_identifiers": ("A", ('routers/students.py',)),
     "students.manage_placements": ("A", ('routers/students.py', 'routers/students_ui.py')),
+    "students.import": ("A", ('routers/students.py',)),
+    "students.export": ("A", ('routers/students.py',)),
     # --- talent_programs
     "talent_programs.view": ("A", ('routers/talent_programs.py', 'ui_shell.py')),
     "talent_programs.manage": ("A", ('routers/talent_programs.py',)),
@@ -125,7 +127,14 @@ CLASSIFICATION = {
     "talent_official_identifications.view": ("A", ('routers/students_ui.py', 'routers/talent_analytics.py', 'routers/talent_learner_profiles.py', 'routers/talent_official_identifications.py')),
     "talent_official_identifications.record": ("A", ('routers/talent_official_identifications.py',)),
     # --- talent_educator_inputs
-    "talent_educator_inputs.view": ("A", ('routers/students_ui.py', 'routers/talent_educator_inputs.py', 'routers/talent_learner_profiles.py')),
+    # M8 Talent frontend cleanup (b7c4791) made the Student Talent-profile
+    # presentation stop requesting/rendering Educator Input
+    # (routers/students_ui.py now passes include_educator_inputs=False
+    # unconditionally instead of gating it on this permission), so
+    # routers/students_ui.py is no longer a live consumer of this key. The
+    # permission itself remains active-enforced via its own dedicated router
+    # and the Learner Profile route below.
+    "talent_educator_inputs.view": ("A", ('routers/talent_educator_inputs.py', 'routers/talent_learner_profiles.py')),
     "talent_educator_inputs.add": ("A", ('routers/talent_educator_inputs.py',)),
     "talent_educator_inputs.amend": ("A", ('routers/talent_educator_inputs.py',)),
     # --- talent_learner_profiles
@@ -360,7 +369,7 @@ def build_registry_matrix():
 
 
 def test_registry_shape_is_the_audited_shape():
-    assert len(registry.ALL_PERMISSION_KEYS) == 175
+    assert len(registry.ALL_PERMISSION_KEYS) == 177
     assert len(registry.PERMISSION_GROUPS) == 26
     assert len(registry.ALL_PERMISSION_KEYS) == len(set(registry.ALL_PERMISSION_KEYS))
 
@@ -380,7 +389,7 @@ def test_no_key_is_unresolved_and_statuses_are_valid():
 
 def test_classification_counts_are_pinned():
     counts = collections.Counter(status for status, _ in CLASSIFICATION.values())
-    assert dict(counts) == {"A": 143, "B": 14, "C": 5, "D": 13}
+    assert dict(counts) == {"A": 145, "B": 14, "C": 5, "D": 13}
 
 
 def test_active_platform_and_alias_keys_have_a_discovered_consumer():

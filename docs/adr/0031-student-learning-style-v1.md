@@ -1,9 +1,10 @@
 ---
 title: Student Learning Style V1
-documentation_version: 1.1
-last_updated: 2026-09-10
+documentation_version: 1.2
+last_updated: 2026-09-22
 status: accepted
 module: architecture
+amended_by: "ADR 0042 adds a separate, independent four-dimension Learning Style percentage profile (Verbal/Non-verbal/Quantitative/Spatial) alongside this ADR's single-select categorical field. The categorical field, its four fixed values, and its single-select nature (below) are unchanged and remain in effect; ADR 0042 clarifies only that its later four-percentage profile is not the multi-style scaffolding this ADR declined to build speculatively."
 ---
 
 # ADR 0031: Student Learning Style V1
@@ -38,6 +39,14 @@ is learner-profile context only.
 - V1 supports exactly one primary Learning Style per Student (single-select).
   Multi-style support is explicitly out of scope for V1 and is not to be
   scaffolded speculatively.
+  - **Amended by ADR 0042** (2026-09-22, unmodified original text above):
+    a later, separately governed decision adds an independent
+    four-dimension Learning Style percentage profile (Verbal/Non-verbal/
+    Quantitative/Spatial) alongside this single-select categorical field.
+    That later profile is not a multi-select of the four categorical values
+    above and is not the speculative scaffolding this bullet declined; this
+    field, its four values, and its single-select nature remain exactly as
+    decided here.
 - V1 approved value set, exactly these four values, no others:
   - Visual
   - Auditory

@@ -1,7 +1,7 @@
 ---
 title: TIS Documentation Index
-documentation_version: 3.1
-last_updated: 2026-07-22
+documentation_version: 3.2
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
@@ -69,6 +69,7 @@ Current module history areas:
 ## Supporting Documents
 
 - [Location Data Roadmap](location-data-roadmap.md): location data roadmap and related implementation notes.
+- [Students + Talent & Potential Update Package Release Handoff (M1-M13)](releases/2026-09-23-students-talent-m1-m13-release-handoff.md): release-readiness closeout, migration/deployment plan, and post-deploy smoke matrix for the bounded Student ID/Learning Style/Al-Andalus/roster/Talent-cleanup/Evaluation-Progress/Results-and-Analytics package.
 - [Landing Page Source of Truth](marketing/landing_page_source_of_truth.md): boundary between the public Next.js landing website and the FastAPI application portal.
 - [Landing Page Master Content](marketing/tis_landing_page_master_content.md): approved marketing foundation and landing page content direction.
 

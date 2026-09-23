@@ -8,6 +8,7 @@ import auth
 import authorization
 import branding_storage
 import models
+from academic_grade import format_section_display
 from auth import get_current_user
 from dependencies import get_db
 from planning_scope_service import list_operational_planning_grades, list_operational_planning_sections
@@ -170,7 +171,18 @@ def programs_planning_sections(request: Request, academic_year_id: int = Query(.
     normalized = str(grade_level or "").strip().upper()
     items = [row for row in list_operational_planning_sections(db, branch_id, academic_year_id)
              if str(row.grade_level or "").strip().upper() == normalized]
-    return [{"id": row.id, "section_name": row.section_name} for row in items]
+    school_group = db.get(models.SchoolGroup, group_id)
+    workspace_uuid = school_group.workspace_uuid if school_group else None
+    return [
+        {
+            "id": row.id,
+            "section_name": row.section_name,
+            # ADR 0045: bounded presentation projection for this filter's
+            # option label - section_name above remains the real filter value.
+            "section_display": format_section_display(workspace_uuid, grade_level, row.section_name),
+        }
+        for row in items
+    ]
 
 
 @router.get("/summaries")
