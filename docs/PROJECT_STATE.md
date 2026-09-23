@@ -1,11 +1,59 @@
 ---
 title: TIS Project State
-documentation_version: 5.14
+documentation_version: 5.15
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M17 Automatic Assessment Classification + New Normal Talent Workflow (2026-09-23)
+
+Owner-approved product direction: Student -> Program -> Rubric -> Teacher
+assesses -> Complete/Submit -> the backend automatically classifies the
+result. On a Completed Assessment, TIS derives the ADR 0037 Overall Program
+Result as before, then (ADR 0037's 2026-09-23 Amendment) deterministically
+projects it onto a governed 1.00-5.00 classification scale and assigns
+exactly one fixed, owner-approved band: 1.00-1.99 Needs Improvement,
+2.00-2.99 Developing, 3.00-3.74 Meets Expectations, 3.75-4.49 Advanced,
+4.50-5.00 Exceptional. Only Exceptional is Talented. These bands are never a
+percentage and never reuse `normalized_percent`.
+
+**Architecture decision (Part 1):** real configured Talent Programs do not
+universally use a five-level rubric (the realistic seed dataset in
+`talent_local_test_data.py` configures 4-level, 3-level, and 4-level
+Programs). Mandating a system-wide five-level rubric would have broken real
+Program configurations. TIS instead preserves each Program's own configured
+1..N rubric scale for the raw educational result exactly as ADR 0037 already
+defines it, and adds one additional, separately governed deterministic
+linear projection from that raw 1..N average onto the fixed 1.00-5.00
+classification scale, reusing the same linear-rescale technique ADR 0037
+already approves for `normalized_percent`. See
+`talent_classification_service.py` and ADR 0037's 2026-09-23 Amendment.
+
+The normal current workflow no longer requires a manual Review Candidate or
+Official Identification step to make a Student Talented - `Talented` is now
+a direct backend consequence of a Completed Assessment's automatic
+classification. Existing `TalentReviewCandidate`/`TalentOfficialIdentification`
+rows (including ones recorded before this milestone) are fully preserved as
+legacy/history evidence, remain reachable through their existing services,
+and are never silently rewritten to match a later automatic classification -
+they simply no longer govern current `Talented` state. No schema migration
+was required: classification is a deterministic read projection over the
+same immutable Completed-Assessment inputs the Overall Program Result
+already uses, computed only when `status == "completed"`.
+
+API: `/api/talent/assessments/*` and `/api/talent/review-candidates/*`
+responses additively expose backend-computed `classification`,
+`classification_score`, and `is_talented` fields; the frontend only ever
+displays these values and never derives or spoofs a band. The Talent
+assessment and legacy Review workspaces (`static/js/talent-operations.js`)
+show the classification/Talented state, and the legacy Review workspace
+copy now describes Review status/Official Identification as preserved
+history rather than a required step. M18 (Results & Analytics rebuild,
+including the Learner Profile/organization-analytics visible-copy
+implications of this new classification authority) remains out of scope and
+was not implemented here.
 
 ## M16 Talent Module Performance And Student Actions (2026-09-23)
 

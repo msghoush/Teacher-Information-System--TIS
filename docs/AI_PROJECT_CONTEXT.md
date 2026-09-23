@@ -1,11 +1,30 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.2
+documentation_version: 4.3
 last_updated: 2026-09-23
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Automatic Assessment Classification + New Normal Talent Workflow (M17)
+
+A Completed Student Assessment is automatically classified by the backend
+into exactly one of five fixed, owner-approved bands (1.00-1.99 Needs
+Improvement, 2.00-2.99 Developing, 3.00-3.74 Meets Expectations, 3.75-4.49
+Advanced, 4.50-5.00 Exceptional); only Exceptional is Talented. These bands
+are never a percentage conversion and never AI-derived. A manual Review
+Candidate/Official Identification step is no longer required for a Student
+to become Talented in the current normal workflow, though both remain fully
+preserved, independently governed legacy/history surfaces.
+
+The classification input is a deterministic linear projection from each
+Talent Program's own configured 1..N rubric-average (ADR 0037's existing
+Overall Program Result, unchanged) onto the fixed 1.00-5.00 classification
+scale - not a system-wide five-level rubric mandate, because real Programs
+in this repository configure varying rubric level counts. See ADR 0037's
+2026-09-23 Amendment and `talent_classification_service.py` before touching
+Talent classification, Talented-state, or Review/Identification code.
 
 ## Talent Module Performance And Student Action Layout (M16)
 

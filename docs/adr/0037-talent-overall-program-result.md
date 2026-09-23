@@ -1,7 +1,7 @@
 ---
 title: Talent Overall Program Result
-documentation_version: 2.0
-last_updated: 2026-09-11
+documentation_version: 2.1
+last_updated: 2026-09-23
 status: accepted
 module: architecture
 ---
@@ -127,3 +127,119 @@ those Program results into one universal Talent score.
 - Review Candidate and Official Identification remain separate governed concepts.
 - Historical assessment evidence remains immutable.
 - No schema migration is required for the result projection.
+
+## 2026-09-23 Amendment: Governed 1.00-5.00 Classification Authority (M17)
+
+This amendment appends new governed decisions. It does not rewrite or weaken
+any decision above: the raw Overall Program Result on the Program's own 1-N
+rubric scale, `normalized_percent`, and the arithmetic-mean calculation
+method all remain exactly as decided.
+
+### Product direction
+
+M17 introduces automatic Assessment classification. Once a Student Assessment
+is Completed, TIS automatically classifies the Overall Program Result into
+one of five owner-approved, fixed bands and derives a `Talented` boolean.
+These fixed bands are expressed on a governed **1.00-5.00 classification
+scale** that is deliberately independent of any one Program's own rubric
+level count:
+
+- 1.00-1.99 Needs Improvement
+- 2.00-2.99 Developing
+- 3.00-3.74 Meets Expectations
+- 3.75-4.49 Advanced
+- 4.50-5.00 Exceptional
+
+Only Exceptional means Talented. These bands are never expressed or
+recomputed as a percentage, and never reuse `normalized_percent` (which
+remains presentation/analytics only, unchanged by this amendment).
+
+### Architecture problem this amendment resolves
+
+The classification bands above are literally valid only for a Program whose
+rubric scale is exactly five ordered levels. This ADR's own worked example
+("a five-level Program") was always one example, not a universal constant -
+`scale_max` is a variable throughout this ADR's "Normalized presentation
+percentage" section. Real configured Programs in this repository do not
+universally use five levels: the realistic local seed dataset
+(`talent_local_test_data.py`, built end-to-end through the real
+`talent_program_service`/`talent_student_assessment_service` contracts)
+configures a 4-level Program, a 3-level Program, and a second 4-level
+Program side by side. Mandating a system-wide five-level rubric for every
+Talent Program (rejected Option A) would therefore be a breaking change to
+existing real Program configurations, not a small formalization, and would
+force every Program owner to redesign already-approved rubric structures
+purely to satisfy the classification band's five-way shape.
+
+### Decision: deterministic 1..N -> 1.00-5.00 projection (Option B)
+
+TIS preserves each Program's own configured rubric-level count for the
+educational raw result exactly as decided above (the arithmetic-mean rubric
+rank on the Program's own 1..N scale is unchanged), and adds one additional,
+separately governed **deterministic linear projection** from that raw 1..N
+average onto the fixed 1.00-5.00 classification scale:
+
+```
+classification_score = 1 + (average - scale_min) * 4 / (scale_max - scale_min)
+```
+
+This reuses the exact linear-rescale technique this ADR already approves for
+`normalized_percent` (`average / scale_max * 100`), but targets the fixed
+classification range `[1.00, 5.00]` instead of a percentage. It is computed
+with exact `Decimal` arithmetic directly from the integer `average_tenths`
+value already produced by the Overall Program Result projection (never a
+second float division of the already-rounded `average`), and the projected
+score is rounded deterministically half-up to two decimal places. A
+five-level Program's projection is the identity map
+(`classification_score == average`), so the M17 product direction's worked
+examples remain literally true for a five-level Program while now also being
+correct for every other configured scale.
+
+A Program whose rubric scale cannot be projected deterministically - a
+degenerate single-level rubric (`scale_max <= scale_min`), or the existing
+"inconsistent rubric scale" state this ADR already blocks at completion -
+is not compatible with automatic classification. TIS fails closed: no
+classification, no Talented state, `available: false` with an explicit
+`reason`. This is a new possible outcome, not a new possible error path for
+existing consumers of the raw Overall Program Result, which is unchanged.
+
+Implementation: `talent_classification_service.py` (`project_to_
+classification_scale`, `classify_score`, `is_talented`,
+`assessment_classification`). `overall_program_result` additively exposes
+`average_tenths` (the exact integer tenths already computed internally) so
+the projection never re-derives precision from a float.
+
+### Persistence
+
+No new result table or schema migration is introduced. Classification, like
+the raw Overall Program Result itself, is a deterministic read projection
+computed only for a Completed Assessment, from the same immutable inputs
+this ADR already establishes as stable (the exact Student Assessment, its
+immutable Framework Version, the Grade-applicable Framework Competencies,
+the stored competency results, and each competency's exact ordered rubric
+levels). A Completed Assessment's classification is therefore exactly as
+immutable as its Overall Program Result already is.
+
+### Talent Review and Official Identification (superseded in part)
+
+This ADR's original "Talent Review and Official Identification" section
+remains true as a description of the pre-M17 workflow and of the still-
+preserved legacy/history surfaces. As of this amendment, for the *current
+normal* workflow: automatic classification is a direct backend consequence
+of a Completed Assessment. `Talented` (Exceptional classification) no
+longer requires a Review Candidate to be materialized, reviewed, or an
+Official Identification decision to be recorded. Existing `TalentReview
+Candidate` and `TalentOfficialIdentification` rows, including any recorded
+before this amendment, are preserved unchanged as legacy/history evidence
+and continue to be evaluated/recordable through their existing services for
+historical/audit purposes, but they no longer govern current `Talented`
+state and are never silently rewritten to match a later automatic
+classification.
+
+### Non-negotiable boundaries reaffirmed
+
+- No percentage-band conversion of the classification bands, ever.
+- AI has no classification or identification authority.
+- The frontend only displays the backend-computed `classification`/
+  `is_talented` fields; it never derives or spoofs a band.
+- SchoolGroup/tenant/Branch/privacy/audit boundaries are unchanged.

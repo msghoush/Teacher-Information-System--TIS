@@ -1,11 +1,36 @@
 ---
 title: TIS Change History
-documentation_version: 5.5
+documentation_version: 5.6
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-23 - M17 Automatic Assessment Classification + New Normal Talent Workflow
+
+- Completing a Student Assessment now automatically classifies it into one
+  of five fixed, owner-approved 1.00-5.00 bands (Needs Improvement,
+  Developing, Meets Expectations, Advanced, Exceptional) and derives
+  `Talented` (Exceptional only) - never a percentage conversion, never
+  AI-derived, never frontend-derived.
+- Resolved the architecture question of how a 1-N rubric-scale Program
+  result reaches a fixed 1.00-5.00 classification: real Programs configure
+  varying rubric-level counts (verified in `talent_local_test_data.py`), so
+  TIS added a governed deterministic linear projection (ADR 0037's
+  2026-09-23 Amendment) rather than mandating a five-level rubric
+  system-wide.
+- The current normal workflow no longer requires a manual Review Candidate
+  or Official Identification step to make a Student Talented. Existing
+  Review Candidate/Official Identification records and services are fully
+  preserved as legacy/history and remain independently reachable, but no
+  longer govern current `Talented` state.
+- Added `talent_classification_service.py`; additively exposed
+  `classification`/`classification_score`/`is_talented` on the Talent
+  Assessments and legacy Review Candidate API responses; updated the Talent
+  assessment and legacy Review workspace UI to show the automatic
+  classification. No schema migration, no new permission keys, no tenant/
+  privacy boundary change.
 
 ## 2026-09-23 - M16 Talent Performance And Student Action Layout
 

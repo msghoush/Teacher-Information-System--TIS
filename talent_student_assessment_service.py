@@ -1107,6 +1107,7 @@ def overall_program_result(db: Session, assessment):
     return {
         "available": True,
         "average": average,
+        "average_tenths": average_tenths,
         "scale_min": 1,
         "scale_max": scale_max,
         "normalized_percent": normalized_percent,

@@ -1,11 +1,38 @@
 ---
 title: TIS Master Context
-documentation_version: 4.5
+documentation_version: 4.6
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Automatic Assessment Classification Authority (M17)
+
+Completing a Student Assessment automatically derives its classification and
+`Talented` state; no manual Review Candidate/Official Identification step is
+required for the current normal workflow. Classification is always
+backend-computed, deterministic, and derived only from the ADR 0037 Overall
+Program Result of a Completed Assessment - never from AI, never from the
+frontend, never from `normalized_percent`, and never expressed as a
+percentage. The five owner-approved bands (Needs Improvement, Developing,
+Meets Expectations, Advanced, Exceptional) are fixed on a governed 1.00-5.00
+classification scale; only Exceptional is Talented.
+
+Because real Talent Programs configure varying rubric level counts (not
+universally five), the classification scale is reached by a deterministic
+linear projection from each Program's own 1..N rubric average onto
+1.00-5.00 (ADR 0037's 2026-09-23 Amendment), not by mandating a five-level
+rubric system-wide. `talent_classification_service.py` is the single
+classification authority; `talent_student_assessment_service.overall_
+program_result` is unchanged except for an additive `average_tenths` field
+used for exact Decimal projection math.
+
+Legacy `TalentReviewCandidate`/`TalentOfficialIdentification` records remain
+fully preserved and independently reachable for history/audit, but no
+longer govern current `Talented` state and are never rewritten to match a
+later automatic classification. No schema migration, permission removal, or
+tenant/privacy boundary change was required.
 
 ## Talent Performance And Student Action Layout Authority (M16)
 

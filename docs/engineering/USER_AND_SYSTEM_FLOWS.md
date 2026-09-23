@@ -1,11 +1,41 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.8
+documentation_version: 3.9
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Automatic Assessment Classification Flow (M17)
+
+1. A Teacher opens a Student Assessment, records rubric evidence/scores per
+   competency, and saves as needed while the Assessment is In Progress. No
+   classification exists yet - a draft/In Progress Assessment never carries
+   a final automatic classification.
+2. The Teacher selects Complete/Submit. The backend independently validates
+   completeness (every Grade-applicable competency has a valid saved
+   result, and every applicable rubric shares the same ordered level count)
+   before accepting completion, exactly as ADR 0037 already requires.
+3. On successful completion the backend computes the ADR 0037 Overall
+   Program Result, then deterministically projects it onto the governed
+   1.00-5.00 classification scale and assigns exactly one fixed band (Needs
+   Improvement / Developing / Meets Expectations / Advanced / Exceptional).
+   Only Exceptional sets `Talented = true`. This never runs client-side and
+   is never influenced by any client-supplied classification value.
+4. The result is immediately visible in the authorized Assessment view and
+   the legacy Review workspace - no manual Review Candidate nomination or
+   Official Identification decision is required for the Student to appear
+   Talented.
+5. Existing Review Candidate policy evaluation still runs (idempotent,
+   deterministic) for legacy/history continuity, and Official Identification
+   remains available as a separate, permission-gated human decision surface
+   for legacy/history purposes; neither is required by the current normal
+   workflow and neither can override or rewrite the automatic
+   classification.
+6. A completed Assessment's rubric evidence and Framework Version remain
+   immutable (ADR 0037); its classification is therefore exactly as stable
+   as its Overall Program Result already is.
 
 ## Learning Style Correction + Aggregate Distribution Flow (M14)
 

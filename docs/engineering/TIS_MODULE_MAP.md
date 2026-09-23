@@ -1,11 +1,41 @@
 ---
 title: TIS Module Map
-documentation_version: 4.3
+documentation_version: 4.4
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Automatic Assessment Classification Ownership (M17)
+
+- `talent_classification_service.py` (new): single classification authority.
+  `project_to_classification_scale` (deterministic `Decimal` linear
+  projection of a Program's own 1..N rubric average onto 1.00-5.00),
+  `classify_score` (the five fixed owner-approved bands), `is_talented`
+  (Exceptional only), `assessment_classification` (bounded per-Assessment
+  read projection, `None` unless `status == "completed"`).
+- `talent_student_assessment_service.py`: `overall_program_result` now
+  additively returns `average_tenths` (the exact integer tenths already
+  computed internally) so classification never re-derives precision from a
+  float; no other behavior changed.
+- `routers/talent_assessments.py` / `routers/talent_review_candidates.py`:
+  `_display_payload` additively exposes backend-computed `classification`,
+  `classification_score`, `is_talented` fields (assessments router) and
+  `classification`, `is_talented` (review-candidates router, for legacy
+  Review workspace context). No new endpoints, no new permission keys.
+- `talent_review_candidate_service.py` / `talent_official_identification_
+  service.py`: unchanged - remain the legacy/history Review Candidate and
+  Official Identification authorities; no longer the source of current
+  `Talented` state.
+- `static/js/talent-operations.js` / `static/css/talent.css`: assessment
+  detail and legacy Review workspace views render the backend classification
+  and Talented state; the legacy Review link is relabeled to reflect its
+  history role; no client-side band derivation.
+- `docs/adr/0037-talent-overall-program-result.md`: 2026-09-23 Amendment
+  records the governed classification-scale decision (Option B: preserve
+  per-Program rubric scale, add a deterministic projection) without
+  rewriting the original ADR 0037 decision.
 
 ## Learning Style Correction + Aggregate Distribution Ownership (M14)
 
