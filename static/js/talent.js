@@ -251,8 +251,90 @@
     }).join('')}</div>` : '';
     return path+plot+`<ol class="tp-sequence tp-period-grid">${data.points.map(p=>`<li class="tp-period"><span class="tp-seq">${esc(p.evaluation_period.sequence)}</span><div><h3>${esc(p.evaluation_period.label)}</h3>${badge(p.evaluation_period.status)}<p>${esc(labels[data.metric])}</p>${metric(p.metric_result)}${p.no_data_reason?`<p class="tp-state-explanation">${esc(friendlyReason(p.no_data_reason))}</p>`:''}</div></li>`).join('')}</ol>`;
   }
+  // M18b-2 Results & Analytics rebuild: bucket distribution chart/table pair
+  // reused by the Learning Style and Classification families of the new
+  // /api/talent/results-analytics/... contract. Bar length is set only by an
+  // already-visible backend percentage; every other state renders a
+  // distinct categorical treatment matching this file's existing privacy
+  // contract - never a magnitude cue for a protected/no-data bucket, and
+  // never a client-derived band/percentage.
+  function bucketBars(buckets, groupLabel) {
+    const rows = Array.isArray(buckets) ? buckets : [];
+    if (!rows.length) return empty('No results are available for this selection.');
+    const body = rows.map(b => {
+      const visible = b && b.state === 'visible' && typeof b.percentage === 'number' && Number.isFinite(b.percentage);
+      if (!visible) {
+        return `<div class="tp-grade-row"><span class="tp-grade-label">${esc(human(b && b.label))}</span><div class="tp-grade-state">${esc(states[b && b.state] || 'Unavailable')}</div></div>`;
+      }
+      const width = Math.max(0, Math.min(100, b.percentage));
+      return `<div class="tp-grade-row"><span class="tp-grade-label">${esc(human(b.label))}</span><div class="tp-grade-track" role="img" aria-label="${esc(human(b.label))}: ${number(b.percentage)} percent"><span style="width:${width}%"></span></div><strong>${number(b.percentage)}%</strong></div>`;
+    }).join('');
+    return `<div class="tp-grade-chart" role="group" aria-label="${esc(groupLabel || 'Distribution')}">${body}</div>`;
+  }
+  // Accessible non-visual equivalent for every bucket chart above: a real
+  // data table carrying the identical backend count/percentage, never
+  // recalculated or reconstructed client-side.
+  function bucketTable(title, buckets) {
+    const rows = (Array.isArray(buckets) ? buckets : []).map(b => {
+      const visible = b && b.state === 'visible';
+      const countText = visible && typeof b.count === 'number' ? number(b.count) : esc(states[b && b.state] || 'Unavailable');
+      const pctText = visible && typeof b.percentage === 'number' ? `${number(b.percentage)}%` : '—';
+      return `<tr><th scope="row">${esc(human(b && b.label))}</th><td>${countText}</td><td>${pctText}</td></tr>`;
+    });
+    return table(title, ['Category', 'Count', 'Percentage'], rows);
+  }
+  // One coherent chart+table section for a privacy-closed bucket
+  // distribution (Learning Style / Classification). Never derives a band,
+  // count, or percentage - every value is exactly what the backend
+  // returned for this scope; a non-visible total renders a neutral
+  // unavailable state, never the literal "Protected for privacy".
+  function distributionSection(id, eyebrow, heading, description, distribution, footnote) {
+    const unavailable = !distribution || distribution.state !== 'visible';
+    const body = unavailable
+      ? empty('This distribution is not available for this selection.')
+      : bucketBars(distribution.buckets, heading) + bucketTable(heading, distribution.buckets);
+    return `<section aria-labelledby="${id}-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">${esc(eyebrow)}</p><h3 id="${id}-title">${esc(heading)}</h3></div><p>${esc(description)}</p></div>${body}${footnote ? note(footnote) : ''}</section>`;
+  }
+  // Family 3 (current Talent): Talented==Exceptional only, exactly the
+  // backend's own count/applicable-denominator/rate. The Organization value
+  // is never a client-side average of the per-Branch rates below - it is
+  // the backend's own raw-count rollup (sum_raw_counts_across_branches).
+  function talentedSection(data, branchNames) {
+    if (!data) return '';
+    const summary = (data.organization && data.organization.summary) || {};
+    const rateVisible = data.organization && data.organization.distribution && data.organization.distribution.state === 'visible'
+      && typeof summary.talented_rate_percentage === 'number';
+    const rateCell = rateVisible
+      ? {state: 'visible', percentage: summary.talented_rate_percentage, numerator: summary.talented_count, denominator: summary.applicable_denominator}
+      : {state: (data.organization && data.organization.distribution && data.organization.distribution.state) || 'no_data'};
+    const gauge = radialGauge(rateCell, 'Talented (Exceptional) rate');
+    const context = rateVisible
+      ? `<p>${number(summary.talented_count)} of ${number(summary.applicable_denominator)} applicable current, completed assessments are classified Exceptional.</p>`
+      : '<p>No current Talented result is available for this selection.</p>';
+    const branchRows = (data.branch_breakdown || []).map(item => {
+      const bucket = ((item.distribution && item.distribution.buckets) || []).find(b => b.label === 'talented');
+      const cell = bucket && bucket.state === 'visible'
+        ? {state: 'visible', percentage: bucket.percentage, numerator: bucket.count, denominator: item.distribution.total.value}
+        : {state: (item.distribution && item.distribution.state) || 'no_data'};
+      return {label: (branchNames && branchNames.get(String(item.branch_id))) || 'Authorized Branch', cell};
+    });
+    const branchChart = branchRows.length
+      ? `<div class="tp-grade-chart" role="group" aria-label="Talented rate by Branch">${branchRows.map(item => {
+          const cell = item.cell;
+          if (!cell || cell.state !== 'visible' || typeof cell.percentage !== 'number' || !Number.isFinite(cell.percentage)) {
+            return `<div class="tp-grade-row"><span class="tp-grade-label">${esc(item.label)}</span><div class="tp-grade-state">${metric(cell)}</div></div>`;
+          }
+          const width = Math.max(0, Math.min(100, cell.percentage));
+          return `<div class="tp-grade-row"><span class="tp-grade-label">${esc(item.label)}</span><div class="tp-grade-track" role="img" aria-label="${esc(item.label)}: ${number(cell.percentage)} percent"><span style="width:${width}%"></span></div><strong>${number(cell.percentage)}%</strong></div>`;
+        }).join('')}</div>`
+      : empty('No Branch results are available yet.');
+    const branchSection = branchRows.length
+      ? `<div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3>Talented rate by Branch</h3></div><p>Each Branch value is the backend's own raw Talented/applicable count. The Organization value above sums every Branch's raw counts - it is never an average of these Branch rates.</p></div>${branchChart}`
+      : '';
+    return `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) Students</h3></div></div><div class="tp-primary-indicator-body">${gauge}${context}<p>Talented is the current, automatic Exceptional classification of a completed assessment. A separately preserved Legacy Review &amp; Identification history remains available from Talent Review and is not part of this current figure.</p></div>${branchSection}${data.not_currently_classifiable_count ? note(`${data.not_currently_classifiable_count} completed assessment(s) use a Program rubric that cannot currently be classified and are excluded from this rate.`) : ''}</section>`;
+  }
   // Small pure boundary exported for privacy and injection regression tests.
-  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, branchComparisonMetricOptions, branchMetricValue, branchComparisonChart, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, branchComparisonMetricOptions, branchMetricValue, branchComparisonChart, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection, bucketBars, bucketTable, distributionSection, talentedSection};
   if (typeof document === 'undefined') return;
   const configNode = document.getElementById('tp-config');
   if (!configNode) return;
@@ -407,30 +489,40 @@
     if (pid && !['longitudinal'].includes(view)) common.program_ids=pid;
     if (view==='analytics') {
       const overviewMetric=can('talent_review_candidates.view')?'candidate_of_eligible':'completion_coverage';
-      // The primary "how many Students are talented" indicator is Official
-      // Identification (a separate, permanent human decision), never the
-      // rubric level or Meets Program Criteria membership alone - see
-      // talent_official_identifications and the talent_review_candidates
-      // three-tier distinction preserved throughout this view.
-      const identificationAllowed=can('talent_official_identifications.view');
       const rubricAllowed=Boolean(pid)&&can('talent_analytics.view');
+      // M18b-2: Learning Style is Student-domain-wide (never Program-bound)
+      // and gated on the same "students.view" permission the
+      // /api/talent/results-analytics/.../learning-style route itself
+      // requires - never a new permission, never the four deprecated M14
+      // percentage dimensions.
+      const learningStyleAllowed=can('students.view');
       const selectedBranchMetric=metricSelect.value||'current_overall_progress';
-      const [overview,map,gradeMap,identifiedMap,rubric,longitudinal,studentPreview,branchComparison]=await Promise.all([
+      const resultsFilters={branch_id:params.get('branch_id'),grade:params.get('grade_level')};
+      const [overview,map,gradeMap,rubric,longitudinal,studentPreview,branchComparison,learningStyleData,classificationData,talentedData]=await Promise.all([
         api(`${base}overview?${qs(common)}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_grade'})}`,signal),
-        identificationAllowed?api(`${base}talent-map?${qs({...common,metric:'identified_of_eligible',dimension:'program_branch'})}`,signal).catch(()=>null):Promise.resolve(null),
         rubricAllowed?api(`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`,signal).catch(()=>null):Promise.resolve(null),
         pid?api(`${base}programs/${encodeURIComponent(pid)}/longitudinal?${qs({...common,metric:'completion_coverage'})}`,signal).catch(()=>null):Promise.resolve(null),
         can('talent_analytics.view_students')?api(`${base}students?${qs({...common,limit:10,offset:0})}`,signal).catch(()=>null):Promise.resolve(null),
         pid?api(`evaluation-progress/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/branch-comparison?${qs({metric:selectedBranchMetric})}`,signal):Promise.resolve(null),
+        // Family 1: Learning Style distribution (M18b-1 backend contract).
+        learningStyleAllowed?api(`results-analytics/academic-years/${encodeURIComponent(ay)}/learning-style?${qs({branch_id:params.get('branch_id'),grade_level:params.get('grade_level')})}`,signal).catch(()=>null):Promise.resolve(null),
+        // Family 2: current M17 Classification distribution, Program-bound.
+        pid?api(`results-analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/classification?${qs(resultsFilters)}`,signal).catch(()=>null):Promise.resolve(null),
+        // Family 3: current Talented (Exceptional-only), Program-bound.
+        pid?api(`results-analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/talented?${qs(resultsFilters)}`,signal).catch(()=>null):Promise.resolve(null),
       ]);
-      // Drawn only from the already-privacy-closed organization_total cell the
-      // backend returns for this exact scope (org-wide, or the selected
-      // Program's scope when one is chosen) - no client-side ratio, no new
-      // denominator, no reconstruction from sibling cells.
-      const identifiedCell=identifiedMap&&identifiedMap.organization_total?identifiedMap.organization_total:null;
-      const identifiedIndicator=identificationAllowed?`<section aria-labelledby="tp-identified-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Officially Identified</p><h3 id="tp-identified-title">How many Students are talented${pid?' in this Program':''}?</h3></div></div><div class="tp-primary-indicator-body">${radialGauge(identifiedCell,labels.identified_of_eligible)}<p>Official Identification is a separate, permanent human decision recorded in Talent Review. It is not the same as Meets Program Criteria (a rubric-based result) or a Student's highest rubric level on its own.</p></div></section>`:'';
+      const branchNames=new Map((map.columns||[]).map(item=>[String(item.id),item.label]));
+      const learningStyleSection=learningStyleAllowed
+        ? distributionSection('tp-learning-style','Learning Style','Learning Style Distribution','Every currently recorded Learning Style category for Students in this selection, including Unassigned. This is never a per-Student percentage.',learningStyleData&&learningStyleData.distribution)
+        : '';
+      const classificationSection=pid
+        ? distributionSection('tp-classification','Classification','Classification Distribution','The current classification of every applicable completed assessment: Needs Improvement, Developing, Meets Expectations, Advanced, or Exceptional.',classificationData&&classificationData.distribution,classificationData&&classificationData.not_currently_classifiable_count?`${classificationData.not_currently_classifiable_count} completed assessment(s) use a Program rubric that cannot currently be classified.`:'')
+        : `<section aria-labelledby="tp-classification-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Classification</p><h3 id="tp-classification-title">Classification Distribution</h3></div></div>${empty('Choose one Program to see its current Classification Distribution.')}</section>`;
+      const talentedIndicator=pid
+        ? talentedSection(talentedData,branchNames)
+        : `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) Students</h3></div></div>${empty('Choose one Program to see its current Talented (Exceptional) rate.')}</section>`;
       const rubricSection=rubric&&Array.isArray(rubric.distributions)&&rubric.distributions.length
         ? `<section aria-labelledby="tp-rubric-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Rubrics</p><h3 id="tp-rubric-title">Competency rubric distributions</h3></div></div><p>Each competency is evaluated on its own rubric. These distributions remain separate from Review Candidate and Official Identification.</p>${rubric.distributions.map(d=>{const title=[d.competency_label,d.rubric_name].filter(Boolean).join(' — ')||d.framework_title||'Assessment setup';return d.state==='restricted'?`<div class="tp-card"><h4>${esc(title)}</h4>${empty('This rubric distribution is not available for this selection.')}</div>`:`<div class="tp-card"><h4>${esc(title)}</h4>${d.average_rank!=null?`<div class="tp-competency-average"><span><strong>${Number(d.average_rank).toFixed(1)}</strong>/${esc(d.scale_max)}</span><div class="tp-result-meter" aria-label="Average ${Number(d.average_rank).toFixed(1)} out of ${esc(d.scale_max)}"><i style="width:${Math.max(0,Math.min(100,Number(d.normalized_percent||0)))}%"></i></div></div>`:''}${rubricDistribution(d.levels)}</div>`;}).join('')}</section>`
         : '';
@@ -454,9 +546,11 @@
       const gradeSection=(gradeMap.columns&&gradeMap.columns.length)?`<section aria-labelledby="tp-grade-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Grades</p><h3 id="tp-grade-title">${can('talent_review_candidates.view')?'Talent by Grade':'Assessment progress by Grade'}</h3></div>${link('talent-map','Open the full Talent Map',{metric:overviewMetric,dimension:'program_grade'})}</div>${gradeGauges(gradeItems)}</section>`:'';
       const progressionSection=longitudinal?`<section aria-labelledby="tp-period-progression"><div class="tp-section-heading"><div><p class="tp-eyebrow">Evaluation Periods</p><h3 id="tp-period-progression">Assessment progression</h3></div>${link('longitudinal','Open Progress Over Time',{program_id:pid})}</div>${periodVisual(longitudinal)}</section>`:'';
       return lede('Your organization at a glance','See Program activity, Student participation, evaluation progress, and the next places to explore.')+
-        identifiedIndicator+
         `<section aria-labelledby="tp-headline-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Academic Year ${esc(year.options[year.selectedIndex]?.textContent||'')}</p><h3 id="tp-headline-title">Organization snapshot</h3></div><p>Figures reflect your authorized scope and this Academic Year.</p></div><div class="tp-kpi-grid">${rateKpis.map(k=>kpiCard(k,m[k],k==='completion_coverage'?`/talent/portfolio?${qs({academic_year_id:ay})}`:'' )).join('')}</div><div class="tp-fact-strip">${factKpis.map(k=>`<span><b>${metric(m[k])}</b>${esc(labels[k]||human(k))}</span>`).join('')}</div></section>`+
         note('Participation counts Program memberships, so a Student in two Programs can appear twice. Program results remain separate; TIS never combines different Programs into one universal Talent score.')+
+        learningStyleSection+
+        classificationSection+
+        talentedIndicator+
         programResultSection+
         competencyAverageSection+
         gradeSection+

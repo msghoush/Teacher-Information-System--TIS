@@ -1,11 +1,80 @@
 ---
 title: TIS Change History
-documentation_version: 5.8
+documentation_version: 5.9
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-24 - M18b-2 Results & Analytics Frontend Rebuild (Current-Talent indicator + Learning Style/Classification consumption)
+
+- Bounded FRONTEND-ONLY sub-phase consuming the already-approved M18b-1
+  backend contract (`/api/talent/results-analytics/...`). No backend
+  semantic change, no new `MetricCode`, no change to legacy
+  `TalentReviewCandidate`/`TalentOfficialIdentification` services.
+- `static/js/talent.js`'s `analytics` view (the Results & Analytics landing
+  page) now fetches and renders all three M18b-1 families alongside the
+  pre-existing, unchanged competency (`/api/talent/analytics/.../
+  rubric-distribution`) and progress/branch-comparison
+  (`/api/talent/evaluation-progress/...`) consumption:
+  - **Learning Style Distribution** - new `distributionSection`/
+    `bucketBars`/`bucketTable` chart+table pair rendering the exact 8
+    categories + Unassigned the backend returns, gated on the `students.view`
+    permission (additively surfaced in `talent_permissions` by
+    `routers/talent_ui.py`, presentation-only, no new authorization scope).
+  - **Classification Distribution** - the same chart+table pair rendering
+    the exact 5 backend bands, Program-bound (requires a selected Program,
+    matching the existing Competency section's gating pattern).
+  - **Talented (Exceptional) Students** - new `talentedSection` primary
+    indicator (count/applicable-denominator/rate, plus an optional per-Branch
+    breakdown), replacing the removed legacy `identified_of_eligible`
+    (Official Identification) primary indicator. The Organization figure is
+    rendered exactly as returned by the backend's
+    `sum_raw_counts_across_branches` rollup - the frontend never averages the
+    per-Branch rates it displays alongside it.
+- Removed the legacy `identifiedIndicator`/`identificationAllowed`/
+  `identifiedMap`/`identifiedCell` primary-Talent-indicator code path from
+  the Results & Analytics landing view. The underlying legacy Official
+  Identification/Review Candidate data, services, routers, and the separate
+  Talent Review workspace are completely unchanged and remain available;
+  `identified_of_eligible`/`candidate_of_eligible` remain valid, unchanged
+  selectable options only in the separate legacy Branch-comparison metric
+  selector (`branchComparisonMetricOptions`, a different view/control),
+  never in the current-Talent section.
+- All new chart sections reuse the existing `tp-grade-chart`/`tp-grade-row`/
+  `tp-grade-track`/`table()` CSS/markup primitives - no new charting
+  library, no `static/css/talent.css` change, no new script bundle (the
+  existing `templates/talent/workspace.html` M16 conditional-script-loading
+  gate for the `analytics`/`talent-map`/`portfolio`/`overlap`/`students`/
+  `longitudinal` view family is unchanged).
+- Updated `tests/talent_results_experience.test.cjs`: replaced the two
+  stale assertions that locked in the removed legacy `identified_of_eligible`
+  primary indicator with tests for the new `talentedSection`/`bucketBars`/
+  `bucketTable`/`distributionSection` contract, including the exact M18b-1
+  Branch A 50% + Branch B 10% -> Organization ~10.9% (never 30%) proof case
+  rendered through the UI layer, and a Learning Style/Classification
+  privacy-neutral-state/no-"Protected for privacy" regression.
+- Full regression re-verified via `git worktree` comparison against the
+  unmodified M18b-1 baseline (`2bf9b8c`): `tests/talent_*.test.cjs` is
+  170 tests/154 passed/16 failed on this task's changes versus 165/149/16 at
+  baseline - the same 16 pre-existing failures by exact test name in both
+  runs, zero new JS failures. `tests/test_talent_results_analytics.py` +
+  `tests/test_talent_ui.py` (the exactly-named M18b-2 focused regression
+  set): 51/51 passed, unchanged. No schema/migration change, `tis.db`
+  untouched (SHA-256 verified byte-identical before/after this task).
+- Competency, Progress/Evaluation-Period, and Branch/Organization comparison
+  sections were NOT rebuilt in this task beyond confirming they already
+  consume the correct existing governed endpoints unchanged - a full 9-section
+  information-architecture reorder (page header/filters/summary
+  cards/Learning Style/Classification/Talented/Competency/Progress/Branch
+  comparison exactly in that order, filter-bar progressive disclosure across
+  Program/Branch/Grade/Section/Evaluation Period/Competency/Learning
+  Style/Classification, full WCAG audit, and mobile responsive verification)
+  remains open follow-up work for a subsequent M18b-2b/M18b-3 pass - this
+  task targeted the specific, highest-value defect (legacy metric presented
+  as current Talent state) and the three new backend families becoming
+  reachable from the UI, not a full visual/IA rebuild of the page.
 
 ## 2026-09-24 - M18b-1 Results & Analytics Backend Contract + Correct Aggregation Authority
 

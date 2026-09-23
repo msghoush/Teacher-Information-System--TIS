@@ -1,11 +1,74 @@
 ---
 title: TIS Project State
-documentation_version: 5.17
+documentation_version: 5.18
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M18b-2 Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (2026-09-24)
+
+Bounded FRONTEND-ONLY sub-phase consuming the M18b-1 backend contract
+(`/api/talent/results-analytics/...`). No backend semantic change; M18b-3
+(final broad regression/performance/KMS closeout for the full M18 milestone)
+remains separately scoped and still pending.
+
+**What changed:** `static/js/talent.js`'s `analytics` view (Results &
+Analytics landing page) now calls all three M18b-1 families - Learning Style
+(`/academic-years/{ay}/learning-style`, Student-domain-wide, gated on
+`students.view`), Classification (`/programs/{pid}/academic-years/{ay}/
+classification`, Program-bound, exactly the 5 backend bands), and Talented
+(`/programs/{pid}/academic-years/{ay}/talented`, Program-bound, Exceptional-
+only) - and renders them with new reusable helpers: `bucketBars`/
+`bucketTable`/`distributionSection` (chart+accessible-table pair for Learning
+Style/Classification) and `talentedSection` (primary current-Talent
+indicator with an optional per-Branch breakdown, reusing the same visual
+classes as the existing `gradeBars`/`branchBars` primitives - no new charting
+library, no CSS change). The competency (`/api/talent/analytics/.../
+rubric-distribution`) and progress/branch-comparison
+(`/api/talent/evaluation-progress/...`) sections were already correctly
+wired to the right existing governed endpoints and were left unchanged.
+
+**Legacy-metric removal from the current-Talent section:** the previous
+`identifiedIndicator` primary indicator (sourced from the legacy
+`identified_of_eligible`/Official Identification `talent-map` projection) is
+removed from this view. `talentedSection` (backed by the new M17-
+classification-derived Talented family) is now the only current-Talent
+indicator here. The underlying legacy Review Candidate/Official
+Identification services, routers, data, and the separate Talent Review
+workspace are completely unchanged; `identified_of_eligible`/
+`candidate_of_eligible` remain valid, unrelabeled options only in the
+still-supported legacy Branch-comparison metric selector (a different
+control/view), never presented as current Talent state.
+
+**Permission surfacing (small, non-semantic, additive):**
+`routers/talent_ui.py` now additively includes `"students.view"` in the
+`talent_permissions` dict passed to the template, purely so the frontend can
+gate the new Learning Style section's fetch/render on the same permission
+its backend route already requires - no new authorization scope, no change
+to any endpoint's actual permission check.
+
+**Regression (git-worktree-verified against the unmodified M18b-1 baseline
+`2bf9b8c`):** `tests/talent_*.test.cjs` - 170 tests/154 passed/16 failed on
+this task's changes versus 165/149/16 at baseline, the identical 16
+pre-existing failures by exact test name in both runs, zero new JS
+failures. `tests/test_talent_results_analytics.py` + `tests/test_talent_ui.py`
+(the exactly-named M18b-2 focused Python/UI regression set): 51/51 passed.
+No schema/migration change; `tis.db` byte-identical before/after (SHA-256
+verified).
+
+**Explicitly not done in this task (open for M18b-2b/M18b-3):** the full
+9-section Results & Analytics information-architecture reorder (page
+header, progressive filter bar across Program/Branch/Grade/Section/
+Evaluation Period/Competency/Learning Style/Classification, a full chart-
+type-selector/keyboard/WCAG audit, and explicit mobile responsive
+verification) called for by the M18b-2 task specification was not
+completed end-to-end - this pass targeted the highest-value, most
+defect-prone item (a legacy metric presented as the current Talent state)
+and made the three new backend families reachable from the UI with
+accessible chart+table pairs and privacy-safe neutral states, rather than a
+full visual rebuild of the page.
 
 ## M18b-1 Results & Analytics Backend Contract + Correct Aggregation Authority (2026-09-24)
 

@@ -1,11 +1,43 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.5
+documentation_version: 4.6
 last_updated: 2026-09-24
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (M18b-2)
+
+Bounded FRONTEND-ONLY sub-phase consuming the M18b-1 backend contract.
+Before touching the Talent Results & Analytics page/rendering, read this:
+
+- `static/js/talent.js`'s `analytics` view now calls all three M18b-1
+  `/api/talent/results-analytics/...` families (Learning Style,
+  Classification, Talented) and renders them with new reusable helpers
+  (`bucketBars`/`bucketTable`/`distributionSection`/`talentedSection`) - the
+  frontend never derives a band, classification, or Talented state itself;
+  every value rendered is exactly what the backend returned.
+- The previous legacy `identifiedIndicator` (Official Identification /
+  `identified_of_eligible`) primary "how many Students are talented"
+  indicator is REMOVED from this view and replaced by `talentedSection`
+  (backed by the new M17-classification-derived Talented family). The
+  underlying legacy Review Candidate/Official Identification services and
+  workspace are unchanged; `identified_of_eligible`/`candidate_of_eligible`
+  remain valid options only in the separate, still-supported legacy
+  Branch-comparison metric selector - never in the current-Talent section.
+- `routers/talent_ui.py` additively surfaces `"students.view"` in
+  `talent_permissions` (presentation-gating only, no new authorization
+  scope) so the new Learning Style section can be gated client-side on the
+  same permission its backend route requires.
+- Competency and Progress/Evaluation-Period/Branch-comparison sections were
+  confirmed already wired to the correct pre-existing governed endpoints and
+  were left unchanged - do not assume they were rebuilt here.
+- A full 9-section information-architecture reorder, progressive filter
+  bar, and explicit accessibility/responsive audit of the whole page was
+  NOT completed in this task - it remains open follow-up work (M18b-2b or
+  M18b-3). Do not assume the Results & Analytics page is in its final target
+  shape.
 
 ## Results & Analytics Backend Contract + Correct Aggregation Authority (M18b-1)
 

@@ -6,6 +6,7 @@ const {
   progressVisual, radialGauge, gradeBars, gradeGauges, branchBars,
   rubricDistribution, rubricLevelIntensity,
   friendlyReason, overlapMatrix, periodVisual, errorPanel,
+  bucketBars, bucketTable, distributionSection, talentedSection,
 } = require('../static/js/talent.js');
 
 test('visible server percentages alone control progress length', () => {
@@ -184,28 +185,106 @@ test('permission and analytics availability failures have distinct plain-languag
   assert.doesNotMatch(errorPanel({status:503,message:'Try later.'}),/provider|policy|privacy class/i);
 });
 
-test('the Organization Overview primary indicator is sourced from Official Identification, not a candidate/rubric metric', () => {
+// M18b-2: the Results & Analytics primary "how many Students are talented"
+// indicator is now the backend M17-classification-derived Talented
+// (Exceptional-only) family from /api/talent/results-analytics/.../talented
+// (M18b-1) - never the legacy Official Identification/candidate_of_eligible/
+// identified_of_eligible projection, which the M18b-2 rebuild removes from
+// this current-Talent section (the underlying legacy Review/Identification
+// services and workspace remain fully preserved elsewhere, untouched).
+test('the Results & Analytics current-Talent indicator is sourced from the new backend Talented family, not legacy Official Identification/candidate metrics', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  // The gauge must come from the "identified_of_eligible" projection, gated
-  // by the Official Identification view permission - never from
-  // candidate_of_eligible (Meets Program Criteria) or a rubric level, and
-  // never computed client-side from raw counts.
-  assert.match(source, /identificationAllowed=can\('talent_official_identifications\.view'\)/);
-  assert.match(source, /metric:'identified_of_eligible'/);
-  assert.match(source, /identifiedCell=identifiedMap&&identifiedMap\.organization_total\?identifiedMap\.organization_total:null/);
-  assert.match(source, /radialGauge\(identifiedCell,labels\.identified_of_eligible\)/);
-  assert.match(source, /identifiedIndicator\+/);
-  assert.match(source, /Official Identification is a separate, permanent human decision/);
+  assert.match(source, /results-analytics\/programs\/\$\{encodeURIComponent\(pid\)\}\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/talented/);
+  assert.match(source, /talentedSection\(talentedData,branchNames\)/);
+  // "identified_of_eligible" remains a legitimate legacy Branch-comparison
+  // metric option (a separate, still-supported view outside the current
+  // Talent section) - it must simply no longer drive this indicator.
+  assert.doesNotMatch(source, /identifiedIndicator|identifiedCell|identifiedMap/);
+  assert.doesNotMatch(source, /identificationAllowed=can\('talent_official_identifications\.view'\)/);
 });
 
-test('gauges and comparison bars: identified indicator renders the protected state distinctly and never leaks its magnitude', () => {
+test('talentedSection renders the backend Talented (Exceptional) rate and count, and the Organization value is never a client-side average of Branch rates', () => {
+  const data = {
+    organization: {distribution: {state: 'visible'}, summary: {talented_count: 10, applicable_denominator: 92, talented_rate_percentage: 10.87}},
+    branch_breakdown: [
+      {branch_id: 1, distribution: {state: 'visible', total: {state: 'visible', value: 2}, buckets: [{label: 'talented', state: 'visible', count: 1, percentage: 50}, {label: 'not_talented', state: 'visible', count: 1, percentage: 50}]}},
+      {branch_id: 2, distribution: {state: 'visible', total: {state: 'visible', value: 90}, buckets: [{label: 'talented', state: 'visible', count: 9, percentage: 10}, {label: 'not_talented', state: 'visible', count: 81, percentage: 90}]}},
+    ],
+    not_currently_classifiable_count: 0,
+  };
+  const branchNames = new Map([['1', 'Branch A'], ['2', 'Branch B']]);
+  const html = talentedSection(data, branchNames);
+  // number() formats to one decimal place (existing app-wide convention),
+  // so the backend's 10.87 renders as 10.9% - still nowhere near the naive
+  // 30% average this proof case guards against.
+  assert.match(html, /10\.9%/);
+  assert.match(html, /10 of 92/);
+  assert.match(html, /width:50%/);
+  assert.match(html, /width:10%/);
+  assert.match(html, /aria-label="Talented rate by Branch"/);
+  // The proof case from M18b-1: Branch A 50% + Branch B 10% must never be
+  // averaged into 30% anywhere in this rendered Organization figure.
+  assert.doesNotMatch(html, />30%|width:30%/);
+  assert.match(html, /Talented \(Exceptional\) Students/);
+  assert.doesNotMatch(html, /Officially Identified|Official Identification is a separate/);
+});
+
+test('talentedSection renders a neutral unavailable state, never a fabricated zero or the literal "Protected for privacy"', () => {
+  const html = talentedSection({organization: {distribution: {state: 'suppressed'}, summary: {}}, branch_breakdown: [], not_currently_classifiable_count: 0}, new Map());
+  assert.match(html, /Unavailable/);
+  assert.doesNotMatch(html, /Protected for privacy/i);
+  assert.doesNotMatch(html, />0%|width:0%/);
+});
+
+test('gauges and comparison bars: talented indicator renders the protected state distinctly and never leaks its magnitude', () => {
   const visible = {state:'visible', percentage:37, numerator:37, denominator:100};
   const protectedCell = {state:'suppressed', percentage:91, numerator:91, denominator:100};
-  const visibleGauge = radialGauge(visible, 'Legacy identification share');
+  const visibleGauge = radialGauge(visible, 'Talented (Exceptional) rate');
   assert.match(visibleGauge, /37%/);
-  const protectedGauge = radialGauge(protectedCell, 'Legacy identification share');
+  const protectedGauge = radialGauge(protectedCell, 'Talented (Exceptional) rate');
   assert.doesNotMatch(protectedGauge, /91|stroke-dashoffset| of /);
   assert.match(protectedGauge, /Unavailable/);
+});
+
+// Family 1/2 (Learning Style / Classification) distribution chart+table pair.
+test('bucketBars/bucketTable render backend count and percentage only, with an accessible table equivalent for every chart, and a neutral unavailable state for a protected bucket', () => {
+  const buckets = [
+    {label: 'Visual', state: 'visible', count: 4, percentage: 40},
+    {label: 'Unassigned', state: 'visible', count: 6, percentage: 60},
+    {label: 'Auditory', state: 'suppressed', count: 91, percentage: 91},
+  ];
+  const chart = bucketBars(buckets, 'Learning Style Distribution');
+  assert.match(chart, /width:40%/);
+  assert.match(chart, /width:60%/);
+  assert.doesNotMatch(chart, /91|width:91%/);
+  assert.match(chart, /Unavailable/);
+  const tableHtml = bucketTable('Learning Style Distribution', buckets);
+  assert.match(tableHtml, /<table>/);
+  assert.match(tableHtml, /Visual/);
+  assert.match(tableHtml, /Unassigned/);
+  assert.match(tableHtml, /40%/);
+  assert.doesNotMatch(tableHtml, /91%/);
+});
+
+test('distributionSection never claims "Protected for privacy" and always renders a neutral unavailable state for a restricted/no-data distribution', () => {
+  const html = distributionSection('tp-learning-style', 'Learning Style', 'Learning Style Distribution', 'description', {state: 'restricted', buckets: []});
+  assert.doesNotMatch(html, /Protected for privacy/i);
+  assert.match(html, /not available for this selection/);
+  const empty = distributionSection('tp-classification', 'Classification', 'Classification Distribution', 'description', null);
+  assert.match(empty, /not available for this selection/);
+});
+
+// M18b-2 contract: the frontend consumes the new backend endpoints for
+// Learning Style/Classification/Talented and never reconstructs the
+// deprecated four-dimension percentage fields or the dead
+// learning_style_dimension parameter (both removed by M14/M18a/M18b-1).
+test('Results & Analytics consumes the three new results-analytics endpoints and never references deprecated Learning Style fields', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /results-analytics\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/learning-style/);
+  assert.match(source, /results-analytics\/programs\/\$\{encodeURIComponent\(pid\)\}\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/classification/);
+  assert.match(source, /results-analytics\/programs\/\$\{encodeURIComponent\(pid\)\}\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/talented/);
+  assert.doesNotMatch(source, /learning_style_dimension/);
+  assert.doesNotMatch(source, /visual_percentage|auditory_percentage|kinesthetic_percentage|reading_percentage/);
 });
 
 test('rubricDistribution builds an order-derived (not value-derived) intensity for any label set and count', () => {

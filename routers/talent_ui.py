@@ -81,6 +81,12 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
     allowed = {key: key in allowed_keys
                for key in {entry[1] for entry in VIEWS.values()} | {
                    "talent_analytics.view_students", "talent_official_identifications.view",
+                   # M18b-2: the Results & Analytics page gates its new
+                   # Learning Style distribution section on the same
+                   # permission the /api/talent/results-analytics/.../
+                   # learning-style route itself requires (student-domain-
+                   # wide, never Program-bound) - see routers/talent_results_analytics.py.
+                   "students.view",
                    "talent_assessment_cycles.view", "talent_assessment_cycles.view_population",
                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                    "talent_programs.manage", "talent_programs.govern",

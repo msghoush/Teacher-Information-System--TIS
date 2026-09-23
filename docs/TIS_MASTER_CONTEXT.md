@@ -1,11 +1,43 @@
 ---
 title: TIS Master Context
-documentation_version: 4.8
+documentation_version: 4.9
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (M18b-2)
+
+Bounded FRONTEND-ONLY sub-phase consuming the already-approved M18b-1
+backend contract; no backend semantic change. `static/js/talent.js`'s
+`analytics` view now fetches and renders all three M18b-1 families -
+Learning Style (Student-domain-wide, gated on `students.view`),
+Classification (Program-bound, exactly 5 bands), and Talented
+(Program-bound, Exceptional-only, with an optional per-Branch breakdown) -
+using new reusable chart+accessible-table helpers (`bucketBars`/
+`bucketTable`/`distributionSection`/`talentedSection`) that reuse the
+existing `tp-grade-chart`/`table()` CSS/markup, so no charting library or
+CSS change was needed. The legacy `identifiedIndicator` (Official
+Identification) primary "how many Students are talented" indicator is
+removed from this view and replaced by `talentedSection`; the underlying
+legacy Review Candidate/Official Identification services, data, and the
+separate Talent Review workspace are completely unchanged, and
+`identified_of_eligible`/`candidate_of_eligible` remain valid options only
+in the separate, still-supported legacy Branch-comparison metric selector.
+`routers/talent_ui.py` additively surfaces `"students.view"` in
+`talent_permissions` (presentation-gating only). Competency and
+Progress/Evaluation-Period/Branch-comparison sections were confirmed already
+correctly wired to the pre-existing governed endpoints and were left
+unchanged. Regression (git-worktree-verified against unmodified M18b-1
+baseline `2bf9b8c`): `tests/talent_*.test.cjs` 170/154/16 versus baseline
+165/149/16, identical 16 pre-existing failures by exact name, zero new JS
+failures; `tests/test_talent_results_analytics.py` + `tests/test_talent_ui.py`
+51/51 passed; no schema/migration change; `tis.db` byte-identical
+(SHA-256 verified). A full 9-section information-architecture reorder,
+progressive filter bar, and explicit accessibility/responsive audit remain
+open follow-up work (M18b-2b/M18b-3) - this page is not yet in its final
+target shape.
 
 ## Results & Analytics Backend Contract + Correct Aggregation Authority (M18b-1)
 
