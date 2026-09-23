@@ -1,11 +1,50 @@
 ---
 title: TIS Change History
-documentation_version: 5.2
+documentation_version: 5.3
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-23 - M12.1 PostgreSQL Managed Student Number Index Identifier Remediation
+
+Fixed the PostgreSQL identifier-length defect M12 documented but deliberately
+did not fix. The M1 managed-Student-number active-per-Student partial unique
+index was declared as `uq_student_external_identifiers_tis_student_number_active_student`
+(65 characters), exceeding PostgreSQL's 63-character `NAMEDATALEN` limit;
+PostgreSQL silently truncated it on `CREATE UNIQUE INDEX` to a different,
+63-character physical name
+(`uq_student_external_identifiers_tis_student_number_active_stude`), which
+broke this migration's own idempotency check and risked a `DuplicateTable`
+failure if the migration ledger were ever re-applied against a real
+PostgreSQL deployment - reproduced live against a real PostgreSQL test
+database in this task.
+
+The canonical replacement name is `uq_student_external_identifiers_tis_number_active_student`
+(57 characters, verified ≤63). `models.py`'s `Index` declaration and the
+original `20260922_002_student_tis_number_identifier_integrity` migration in
+`db_migrations.py` now both create this canonical name directly on any FRESH
+database (SQLite or PostgreSQL) - no intermediate old name is ever created.
+A new forward migration,
+`20260923_001_student_tis_number_index_identifier_length_remediation`,
+remediates an already-migrated PostgreSQL database: it inspects the actual
+PostgreSQL catalog definition (columns, uniqueness, partial predicate) of
+both the canonical and the old truncated physical name before acting, and
+only `ALTER INDEX ... RENAME TO` the old truncated index once its definition
+is verified to match the expected invariant; it is a no-op if the canonical
+name is already present, and it fails closed with a clear `RuntimeError`
+(no rename/drop) if an unexpected index occupies either name or if both
+names exist simultaneously. The partial-unique-index semantic invariant
+(`UNIQUE (student_id) WHERE namespace = 'tis_student_number' AND status =
+'active'`, ADR 0043) is completely unchanged, as is the separate global
+Student-number value-uniqueness index
+(`uq_student_external_identifiers_tis_student_number_value`, 56 characters -
+never had a length problem). No `Student` or `StudentExternalIdentifier` row
+was read, rewritten, merged, or deleted by this migration. SQLite, including
+the checked-in `tis.db`, is unaffected (verified byte-identical via
+SHA-256); this is a PostgreSQL-only physical schema-identifier fix with no
+product/API/frontend change.
 
 ## 2026-09-23 - M12 Integrated QA / Regression Verification
 

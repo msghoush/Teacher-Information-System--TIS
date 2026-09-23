@@ -1,7 +1,7 @@
 ---
 title: TIS Student Number Global Managed-Identifier Invariant (Schema Foundation)
-documentation_version: 1.0
-last_updated: 2026-09-22
+documentation_version: 1.1
+last_updated: 2026-09-23
 status: Accepted
 ---
 
@@ -78,3 +78,21 @@ ACCEPTED as of 2026-09-22. Implementation status (schema/migration only, as
 of this ADR) is tracked in `docs/PROJECT_STATE.md`; this ADR is the
 governance/authorization record, not a completion record for any API,
 service, or frontend surface.
+
+## M12.1 Amendment - 2026-09-23: physical index identifier correction only
+
+This is an implementation-detail correction, not a change to the decision
+above. The active-per-Student partial unique index described in this ADR
+("a second partial unique index on `student_id` filtered to `namespace =
+'tis_student_number' AND status = 'active'`") was originally implemented
+with the physical name `uq_student_external_identifiers_tis_student_number_active_student`
+(65 characters), which exceeds PostgreSQL's 63-character `NAMEDATALEN`
+identifier limit and was silently truncated by PostgreSQL on `CREATE UNIQUE
+INDEX`, breaking the originating migration's own idempotency check. The
+canonical physical name is now `uq_student_external_identifiers_tis_number_active_student`
+(57 characters); see `docs/PROJECT_STATE.md` (M12.1) and
+`db_migrations.py` (migration
+`20260923_001_student_tis_number_index_identifier_length_remediation`) for
+the full remediation record. The semantic invariant - unique, partial,
+`(student_id)`, filtered to `namespace = 'tis_student_number' AND status =
+'active'` - is completely unchanged, as is every other decision in this ADR.

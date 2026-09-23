@@ -90,7 +90,7 @@ def test_migration_is_registered_additive_and_idempotent():
         engine, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_value",
     )
     assert db_migrations._index_exists(
-        engine, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_active_student",
+        engine, "student_external_identifiers", "uq_student_external_identifiers_tis_number_active_student",
     )
     assert any(
         m.migration_id == "20260922_002_student_tis_number_identifier_integrity"
@@ -156,7 +156,7 @@ def test_migration_fails_safely_on_multiple_active_rows_for_one_student():
         with pytest.raises(RuntimeError, match="more than one active"):
             db_migrations._student_tis_number_identifier_integrity(engine, connection)
     assert not db_migrations._index_exists(
-        engine, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_active_student",
+        engine, "student_external_identifiers", "uq_student_external_identifiers_tis_number_active_student",
     )
 
 
@@ -175,7 +175,7 @@ def test_migration_succeeds_when_existing_rows_are_clean():
         engine, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_value",
     )
     assert db_migrations._index_exists(
-        engine, "student_external_identifiers", "uq_student_external_identifiers_tis_student_number_active_student",
+        engine, "student_external_identifiers", "uq_student_external_identifiers_tis_number_active_student",
     )
 
 

@@ -308,8 +308,17 @@ class StudentExternalIdentifier(Base):
             sqlite_where=text("namespace = 'tis_student_number'"),
             postgresql_where=text("namespace = 'tis_student_number'"),
         ),
+        # Canonical name kept to 57 characters (PostgreSQL NAMEDATALEN is 63)
+        # so it is never silently truncated by PostgreSQL on CREATE UNIQUE
+        # INDEX. The original 65-character name
+        # ("uq_student_external_identifiers_tis_student_number_active_student")
+        # was silently truncated by PostgreSQL to a different 63-character
+        # physical name, breaking this migration's own idempotency check;
+        # see migration `20260923_001_student_tis_number_index_identifier_length_remediation`
+        # in db_migrations.py, which renames any already-migrated PostgreSQL
+        # database's truncated physical index to this canonical name.
         Index(
-            "uq_student_external_identifiers_tis_student_number_active_student",
+            "uq_student_external_identifiers_tis_number_active_student",
             "student_id",
             unique=True,
             sqlite_where=text("namespace = 'tis_student_number' AND status = 'active'"),

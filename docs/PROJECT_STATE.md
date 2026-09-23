@@ -1,11 +1,70 @@
 ---
 title: TIS Project State
-documentation_version: 5.11
+documentation_version: 5.12
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M12.1 PostgreSQL Managed Student Number Index Identifier Remediation (2026-09-23)
+
+Fixes the PostgreSQL identifier-length risk M12 (below) documented but
+deliberately did not fix. The M1 active-per-Student partial unique index was
+declared as `uq_student_external_identifiers_tis_student_number_active_student`
+(65 characters), exceeding PostgreSQL's 63-character `NAMEDATALEN` limit.
+Live verification against a real PostgreSQL test database (`TIS_TEST_POSTGRESQL_URL`)
+in this task confirmed PostgreSQL silently truncates it on `CREATE UNIQUE
+INDEX` to the 63-character physical name
+`uq_student_external_identifiers_tis_student_number_active_stude`, and
+confirmed re-running the original migration function a second time against
+that truncated physical index fails with `psycopg2.errors.DuplicateTable`,
+exactly as M12 predicted.
+
+The canonical replacement name is
+`uq_student_external_identifiers_tis_number_active_student` (57 characters).
+`models.py`'s `Index` declaration and the original
+`20260922_002_student_tis_number_identifier_integrity` migration
+(`db_migrations.py`) now create this canonical name directly on any FRESH
+database (SQLite or PostgreSQL) - the old 65-character name is never created
+anywhere anymore. A new forward migration,
+`20260923_001_student_tis_number_index_identifier_length_remediation`,
+handles an already-migrated PostgreSQL database: using SQLAlchemy's
+PostgreSQL catalog inspection (`inspect(...).get_indexes(...)`, including
+the reflected `postgresql_where` partial predicate), it verifies the actual
+definition of any index at the old truncated name (columns, uniqueness,
+predicate) before renaming it with `ALTER INDEX ... RENAME TO` - never a
+drop/recreate, never a row rewrite. It is a no-op if the canonical index is
+already present, reuses the original migration's existing
+preflight-conflict checks (non-canonical values, cross-SchoolGroup
+duplicates, multiple active rows) to create the canonical index directly if
+neither name exists, and fails closed with a descriptive `RuntimeError` -
+never a silent guess - if both names exist simultaneously or if an
+unexpected index occupies either name.
+
+The partial-unique-index semantic invariant (ADR 0043: `UNIQUE (student_id)
+WHERE namespace = 'tis_student_number' AND status = 'active'`) is completely
+unchanged, and the separate global Student-number value-uniqueness index
+(`uq_student_external_identifiers_tis_student_number_value`, 56 characters)
+was inspected and confirmed to have no length problem - it was not touched.
+No `Student` or `StudentExternalIdentifier` row was read, rewritten, merged,
+or deleted. The checked-in `tis.db` is verified byte-identical
+(SHA-256 `01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136`)
+before and after this task; SQLite is unaffected by this fix because it
+never truncated the name. This is a PostgreSQL-only physical
+schema-identifier correction - no product, API, or frontend change, and it
+does not itself require a coordinated Web + Timetable Workflow deploy
+(Students/Talent schema only, unrelated to the timetable solver/worker
+contract). Tested live against a real PostgreSQL database
+(`tests/test_postgresql_migration_transactions.py`): fresh-database
+canonical-name creation, truncated-legacy-index rename, idempotent no-op on
+rerun, no-op when canonical already present, fail-closed on an unexpected
+index at either name, fail-closed when both names exist, row-data and
+uniqueness-semantics preservation across the rename, and the migration-ledger
+path for a database where the original M1 migration is already recorded as
+applied - all passed. `docs/adr/0043-tis-student-number-managed-identifier-invariant.md`
+records this as an implementation-detail amendment (physical index name
+only; the ADR's governance decision is unchanged).
 
 ## M12 Integrated QA / Regression Verification (2026-09-23)
 
@@ -24,8 +83,8 @@ its two real consumers (`routers/talent_educator_inputs.py`,
 only, matching already-shipped M8 behavior - no product, permission, or
 architecture change.
 
-**Known unresolved deployment risk (not fixed by M12 - out of this
-verification task's boundary):** the PostgreSQL index name
+**Deployment risk identified here - remediated the same day by M12.1
+above:** the PostgreSQL index name
 `uq_student_external_identifiers_tis_student_number_active_student`
 (`models.py`; re-declared as raw DDL in `db_migrations.py`, migration
 `20260922_002_student_tis_number_identifier_integrity`; introduced in
