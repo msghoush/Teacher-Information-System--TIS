@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 import models
+from talent_classification_service import assessment_classification
 from talent_student_assessment_service import overall_program_result
 from talent_analytics_privacy import Cell, VISIBLE
 from talent_analytics_privacy_closure import apply_primary_privacy_and_close
@@ -102,6 +103,16 @@ class StudentDrillContext:
     has_overall_result: bool = False
     kpi_result: Optional[int] = None
     has_kpi_result: bool = False
+    # M18a: current Talented-authority classification (ADR 0037's 2026-09-23
+    # amendment / talent_classification_service.assessment_classification),
+    # computed for the exact same current+Completed Assessment already
+    # gating `overall_result` above (never a duplicated derivation, never
+    # from `candidate_state`/`identification_state` below). Additive, same
+    # has_*-presence convention as `has_overall_result`/`has_kpi_result`.
+    classification: Optional[str] = None
+    classification_score: Optional[str] = None
+    is_talented: bool = False
+    has_classification_field: bool = False
     candidate_state: Optional[str] = None
     has_candidate_field: bool = False
     identification_state: Optional[str] = None
@@ -122,6 +133,10 @@ class StudentDrillContext:
             }
         if self.has_kpi_result:
             payload["kpi_result"] = self.kpi_result
+        if self.has_classification_field:
+            payload["classification"] = self.classification
+            payload["classification_score"] = self.classification_score
+            payload["is_talented"] = self.is_talented
         if self.has_candidate_field:
             payload["candidate_state"] = self.candidate_state
         if self.has_identification_field:
@@ -272,6 +287,8 @@ def fetch_student_rows(
         overall = overall_program_result(db, assessment) if current_completed else None
         overall_present = bool(overall and overall.get("available") is True)
         kpi_present = current_completed and assessment.kpi_result is not None
+        classification = assessment_classification(db, assessment) if current_completed else None
+        classification_present = bool(classification and classification.get("available") is True)
         candidate = candidates_by_member.get(member.id) if has_candidate else None
         identification = identifications_by_member.get(member.id) if has_identification else None
         context = StudentDrillContext(
@@ -285,6 +302,10 @@ def fetch_student_rows(
             has_overall_result=overall_present,
             kpi_result=assessment.kpi_result if kpi_present else None,
             has_kpi_result=kpi_present,
+            classification=classification.get("classification") if classification_present else None,
+            classification_score=classification.get("classification_score") if classification_present else None,
+            is_talented=bool(classification_present and classification.get("is_talented")),
+            has_classification_field=classification_present,
             candidate_state=candidate.status if candidate is not None else None,
             has_candidate_field=has_candidate,
             identification_state=identification.decision if identification is not None else None,

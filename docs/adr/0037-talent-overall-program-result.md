@@ -1,6 +1,6 @@
 ---
 title: Talent Overall Program Result
-documentation_version: 2.1
+documentation_version: 2.2
 last_updated: 2026-09-23
 status: accepted
 module: architecture
@@ -243,3 +243,34 @@ classification.
 - The frontend only displays the backend-computed `classification`/
   `is_talented` fields; it never derives or spoofs a band.
 - SchoolGroup/tenant/Branch/privacy/audit boundaries are unchanged.
+
+## 2026-09-23 Amendment: Current-Result Authority For Multi-Assessment Students; Learner Profile/Student Drill Integration (M18a)
+
+Added 2026-09-23. Appends only; the M17 amendment above is unchanged.
+
+**Which Assessment is "the applicable current result"?** When a Student has
+more than one `TalentStudentAssessment` for a Program (across reassessment
+attempts per ADR 0036), the one that governs current M17 classification is
+the row where `status == 'completed'` AND `is_current == True`. This was
+resolved from existing evidence, not invented: `models
+.TalentStudentAssessment.is_current` and its reassessment-flow semantics
+already existed before M18a (ADR 0036), and `talent_analytics_service
+._assessment_ids_subquery` plus the B9 Student Drill (`talent_org_student
+_drill.py`) already used exactly this predicate to select the Assessment
+whose Overall Program Result counts for the current Program+Cycle scope.
+M18a's own classification integrations use the identical predicate.
+
+**Learner Profile / Student Drill integration.** `talent_learner_profile
+_service.build_learner_profile`'s per-Assessment item and `talent_org
+_student_drill.py`'s per-context row now additively carry the same
+`classification`/`classification_score`/`is_talented` fields already on the
+Talent Assessment API (`routers/talent_assessments.py`, since M17), computed
+by the same single authority (`talent_classification_service
+.assessment_classification`) - never duplicated, never derived from
+`TalentReviewCandidate`/`TalentOfficialIdentification`. This closes the
+"Current downstream Talented state must use M17 automatic classification"
+requirement for per-Student/per-row surfaces. A new org/Branch AGGREGATE
+"current Talented count" metric (privacy-safe Cell/Group infrastructure
+against a new classification grain) was evaluated and is explicitly deferred
+to M18b - see ADR 0044's M18a amendment and this ADR's own frozen `MetricCode`
+discipline; it is new analytics infrastructure, not a cleanup-scope change.

@@ -193,8 +193,8 @@ source_of_truth: true
 
 - `static/js/talent-rubric-visual.js` and `static/css/talent-rubric-visual.css`: shared arbitrary-label/count rubric ordering, position cue, selected state, and reduced-motion treatment.
 - `routers/talent_review_candidates.py`: adds the exact Assessment's highest recorded rubric level to authorized Review read projections only.
-- `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence.
-- `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views.
+- `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence; each Assessment item also carries the M17 backend classification/`is_talented` fields (M18a), reusing `talent_classification_service.assessment_classification`.
+- `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views; the legacy Review/Identification `candidate_of_eligible`/`identified_of_eligible` labels are explicitly "Legacy ..." (M18a) and never read as current Talent authority.
 - `routers/students_ui.py` and `templates/students.html`: present the existing Learning Style distribution through Planning-derived Branch/Grade/Section choices; the API and privacy provider remain unchanged.
 
 ## Owner Video Acceptance Correction Ownership
@@ -291,7 +291,9 @@ source_of_truth: true
   plus privacy-safe average rubric rank and selected-Program result summary
   derived only when all required level cells are visible.
 - `talent_org_student_drill.py`: existing P7 Student drill extended to expose
-  each current completed Assessment's separate Program-scale Overall Result.
+  each current completed Assessment's separate Program-scale Overall Result,
+  and (M18a) its M17 backend classification/`is_talented` state, gated on the
+  same `status == 'completed' AND is_current == True` predicate.
 - `routers/talent_organization_analytics.py`: retains tenant/scope,
   permission, breadth, and privacy gating for organization Student drill and
   aggregate intelligence.

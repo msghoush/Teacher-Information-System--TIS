@@ -34,7 +34,7 @@ test('Progress Over Time chart never encodes protected magnitude', () => {
   ]});
   assert.match(html, /height:25%/);
   assert.doesNotMatch(html, /height:99%|>99%|99 of 100/);
-  assert.match(html, /Protected for privacy/);
+  assert.match(html, /Unavailable/);
   assert.match(html, /Autumn[\s\S]*Spring/);
   assert.match(html, /tp-period-path/);
   assert.doesNotMatch(html, /Baseline|Final/);
@@ -201,11 +201,11 @@ test('the Organization Overview primary indicator is sourced from Official Ident
 test('gauges and comparison bars: identified indicator renders the protected state distinctly and never leaks its magnitude', () => {
   const visible = {state:'visible', percentage:37, numerator:37, denominator:100};
   const protectedCell = {state:'suppressed', percentage:91, numerator:91, denominator:100};
-  const visibleGauge = radialGauge(visible, 'Officially confirmed share');
+  const visibleGauge = radialGauge(visible, 'Legacy identification share');
   assert.match(visibleGauge, /37%/);
-  const protectedGauge = radialGauge(protectedCell, 'Officially confirmed share');
+  const protectedGauge = radialGauge(protectedCell, 'Legacy identification share');
   assert.doesNotMatch(protectedGauge, /91|stroke-dashoffset| of /);
-  assert.match(protectedGauge, /Protected for privacy/);
+  assert.match(protectedGauge, /Unavailable/);
 });
 
 test('rubricDistribution builds an order-derived (not value-derived) intensity for any label set and count', () => {
@@ -250,7 +250,7 @@ test('rubricDistribution never derives a bar width or numeric text for a protect
   assert.match(html, /width:10%/);
   assert.doesNotMatch(html, /88|width:88%|width:5%/);
   assert.match(html, /tp-rubric-track-state/);
-  assert.match(html, /Protected for privacy/);
+  assert.match(html, /Unavailable/);
   assert.match(html, /Not available for this view/);
   // Intensity is present for every row (order-derived), including protected ones.
   assert.match(html, /--tp-rubric-intensity:0\.000/);

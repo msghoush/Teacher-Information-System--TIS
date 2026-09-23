@@ -1,11 +1,39 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.3
+documentation_version: 4.4
 last_updated: 2026-09-23
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (M18a)
+
+Bounded first half of M18 (M18b, the full Results & Analytics page rebuild,
+remains separate and out of scope). Before touching current Talent
+authority, Learning Style API exposure, or Talent privacy copy, read this
+section:
+
+- **Applicable-current-result authority** (resolved from existing evidence,
+  not invented): a `TalentStudentAssessment` row governs a Student's current
+  classification exactly when `status == 'completed'` AND
+  `is_current == True` - the pre-existing ADR 0036 reassessment authority.
+- The Learner Profile and B9 Student Drill now expose the same M17
+  classification already on the Talent Assessment API - reuse
+  `talent_classification_service.assessment_classification`, never
+  duplicate it, never source current Talented state from
+  `TalentReviewCandidate`/`TalentOfficialIdentification`.
+- Do NOT add a new org/Branch aggregate "Talented count" `MetricCode` -
+  `talent_org_intelligence_contract.MetricCode` is frozen at 14 values (ADR
+  0044). That is explicitly M18b (Results & Analytics rebuild) scope.
+- The four `learning_style_*_percentage` fields are fully removed from the
+  current normal Student API/UI projection (`routers/students.py`/
+  `routers/students_ui.py`); stored columns remain untouched. There is no
+  current four-dimension Learning Style analytics authority anywhere.
+- The literal phrase "Protected for privacy" is removed from Talent &
+  Potential UI; the underlying suppression/privacy contract is unchanged -
+  do not reintroduce the literal phrase, and do not weaken suppression when
+  writing replacement copy.
 
 ## Automatic Assessment Classification + New Normal Talent Workflow (M17)
 

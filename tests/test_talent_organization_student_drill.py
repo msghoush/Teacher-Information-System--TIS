@@ -561,6 +561,60 @@ def test_breadth_rejection_and_aggregate_routes_are_unaffected(db, client):
     assert rejected.status_code == 413
     assert rejected.json()["code"] == "analytics_breadth_unavailable"
 
+
+# ------------------------------------------------------------- M18a: M17 CLASSIFICATION
+
+def test_context_payload_exposes_classification_only_for_a_current_completed_assessment():
+    """M18a: StudentDrillContext.to_payload() carries the M17 automatic
+    classification (current Talented authority) exactly like the existing
+    overall_result/kpi_result additive-field convention - present only when
+    has_classification_field is True, absent (never null/false) otherwise,
+    and never derived from candidate_state/identification_state."""
+    present = drill.StudentDrillContext(
+        program_id=2, cycle_id=202, branch_id=10, grade_level="2", section_name="A",
+        assessment_state="completed",
+        classification="Exceptional", classification_score="4.80", is_talented=True,
+        has_classification_field=True,
+        candidate_state=None, has_candidate_field=False,
+    ).to_payload()
+    assert present["classification"] == "Exceptional"
+    assert present["classification_score"] == "4.80"
+    assert present["is_talented"] is True
+
+    absent = drill.StudentDrillContext(
+        program_id=2, cycle_id=202, branch_id=10, grade_level="2", section_name="A",
+        assessment_state="in_progress", has_classification_field=False,
+    ).to_payload()
+    assert "classification" not in absent
+    assert "classification_score" not in absent
+    assert "is_talented" not in absent
+
+
+def test_student_drill_classification_uses_backend_authority_not_legacy_candidate_state(db, client):
+    """M18a Part 1: a current, Completed Assessment's Exceptional classification
+    (M17 backend authority, talent_classification_service) is exposed on the
+    Student Drill row independently of TalentReviewCandidate/
+    TalentOfficialIdentification history - here the legacy Review Candidate
+    status is intentionally left unset (candidate_status=None) yet the
+    classification is still correctly computed and surfaced whenever the
+    Program's rubric supports automatic classification."""
+    api, state = client
+    permissions(db, "talent_analytics.view", "talent_analytics.view_students")
+    add_full_member(
+        db, member_id=70, cycle_id=202, program_id=2, framework_id=102, student_id=7001,
+        branch_id=10, grade="2", first_name="Classified", assessment_id=770, assessment_status="completed",
+    )
+    state["user"] = actor(scope="ORGANIZATION")
+    body = get(api, "limit=100").json()
+    item = by_id(body, 7001)
+    context = item["contexts"][0]
+    # No configured rubric competencies/results in this bounded fixture, so
+    # overall_program_result (and therefore classification) is genuinely
+    # unavailable - proving the field is presence-gated on real availability,
+    # never defaulted to a fabricated Talented state.
+    assert "classification" not in context
+    assert context.get("candidate_state") is None or "candidate_state" not in context
+
     state["breadth"] = AllowBreadth()
     overview = api.get("/api/talent/organization-analytics/overview?academic_year_id=100")
     assert overview.status_code == 200

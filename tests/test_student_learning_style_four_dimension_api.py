@@ -20,6 +20,15 @@ the field is silently ignored (never written, never a validation error),
 not that it is still writable end-to-end. The SERVICE-level validation
 sections (null/partial/0/100/no-sum-rule/invalid low/high/type) remain
 accurate and unchanged, since they exercise the service layer directly.
+
+M18a completes the deprecation for READ exposure: ``routers/students.py``'s
+``_student_json`` and ``routers/students_ui.py``'s ``_student_view`` no
+longer serialize any of the four fields in the current normal API/UI
+projection at all (previously they were still echoed back, including as
+literal ``null``). The CREATE/UPDATE/SERIALIZATION sections below were
+updated accordingly to assert field absence from the response body, with a
+direct DB-level (``get_student``) check proving the stored value and its
+exact null/zero semantics remain completely untouched.
 """
 
 import json
@@ -298,6 +307,10 @@ def test_api_create_no_longer_writes_the_four_dimensions_m14_correction(database
     # M14 owner correction: the four percentage fields are operationally
     # deprecated - the API create route silently ignores them (never a 400)
     # and never writes them, rather than persisting a per-Student percentage.
+    # M18a: the API response no longer serializes these fields at all (see
+    # test_api_response_no_longer_exposes_the_four_fields_m18a for the
+    # dedicated projection-removal proof), so absence from the body is the
+    # correct current assertion here.
     db = database
     client = _client(db, _admin(db))
     response = client.post("/api/students", json={
@@ -307,10 +320,10 @@ def test_api_create_no_longer_writes_the_four_dimensions_m14_correction(database
     })
     assert response.status_code == 201
     body = response.json()
-    assert body["learning_style_verbal_percentage"] is None
-    assert body["learning_style_non_verbal_percentage"] is None
-    assert body["learning_style_quantitative_percentage"] is None
-    assert body["learning_style_spatial_percentage"] is None
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        assert field not in body
+    created = db.query(models.Student).filter_by(first_name="Rana").one()
+    assert created.learning_style_verbal_percentage is None
 
 
 def test_api_create_may_omit_all_four_dimensions(database):
@@ -322,7 +335,7 @@ def test_api_create_may_omit_all_four_dimensions(database):
     assert response.status_code == 201
     body = response.json()
     for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
-        assert body[field] is None
+        assert field not in body
 
 
 def test_api_create_still_requires_student_number_m2_regression(database):
@@ -350,7 +363,7 @@ def test_api_create_silently_ignores_out_of_range_dimension_m14_correction(datab
         "learning_style_quantitative_percentage": 101,
     })
     assert response.status_code == 201
-    assert response.json()["learning_style_quantitative_percentage"] is None
+    assert "learning_style_quantitative_percentage" not in response.json()
     assert db.query(models.Student).count() == before_count + 1
 
 
@@ -362,6 +375,8 @@ def test_api_update_no_longer_writes_a_dimension_m14_correction(database):
     # M14 owner correction: a pre-existing stored percentage value survives
     # completely untouched through an API update that attempts to change it
     # - the field is silently ignored, never overwritten to the new value.
+    # M18a: the API response no longer serializes these fields at all, so
+    # the untouched-stored-value proof is asserted directly against the DB.
     db = database
     student = _create(
         db, learning_style_verbal_percentage=10, learning_style_non_verbal_percentage=20,
@@ -371,10 +386,13 @@ def test_api_update_no_longer_writes_a_dimension_m14_correction(database):
     response = client.patch(f"/api/students/{student.id}", json={"learning_style_verbal_percentage": 99})
     assert response.status_code == 200
     body = response.json()
-    assert body["learning_style_verbal_percentage"] == 10
-    assert body["learning_style_non_verbal_percentage"] == 20
-    assert body["learning_style_quantitative_percentage"] == 30
-    assert body["learning_style_spatial_percentage"] == 40
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        assert field not in body
+    refreshed = get_student(db, 1, student.id)
+    assert refreshed.learning_style_verbal_percentage == 10
+    assert refreshed.learning_style_non_verbal_percentage == 20
+    assert refreshed.learning_style_quantitative_percentage == 30
+    assert refreshed.learning_style_spatial_percentage == 40
 
 
 def test_api_update_ignores_multiple_dimensions_at_once_m14_correction(database):
@@ -386,10 +404,11 @@ def test_api_update_ignores_multiple_dimensions_at_once_m14_correction(database)
     })
     assert response.status_code == 200
     body = response.json()
-    assert body["learning_style_verbal_percentage"] is None
-    assert body["learning_style_spatial_percentage"] is None
-    assert body["learning_style_non_verbal_percentage"] is None
-    assert body["learning_style_quantitative_percentage"] is None
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        assert field not in body
+    refreshed = get_student(db, 1, student.id)
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        assert getattr(refreshed, field) is None
 
 
 def test_api_update_does_not_clear_a_previously_set_dimension_m14_correction(database):
@@ -398,7 +417,8 @@ def test_api_update_does_not_clear_a_previously_set_dimension_m14_correction(dat
     client = _client(db, _admin(db))
     response = client.patch(f"/api/students/{student.id}", json={"learning_style_verbal_percentage": None})
     assert response.status_code == 200
-    assert response.json()["learning_style_verbal_percentage"] == 63
+    assert "learning_style_verbal_percentage" not in response.json()
+    assert get_student(db, 1, student.id).learning_style_verbal_percentage == 63
 
 
 def test_api_update_ignores_an_out_of_range_value_rather_than_rejecting_m14_correction(database):
@@ -407,7 +427,8 @@ def test_api_update_ignores_an_out_of_range_value_rather_than_rejecting_m14_corr
     client = _client(db, _admin(db))
     response = client.patch(f"/api/students/{student.id}", json={"learning_style_spatial_percentage": -1})
     assert response.status_code == 200
-    assert response.json()["learning_style_spatial_percentage"] is None
+    assert "learning_style_spatial_percentage" not in response.json()
+    assert get_student(db, 1, student.id).learning_style_spatial_percentage is None
 
 
 def test_api_update_unauthorized_editor_is_denied(database):
@@ -431,7 +452,13 @@ def test_api_update_cross_tenant_student_is_denied(database):
 # SERIALIZATION
 # ---------------------------------------------------------------------------
 
-def test_api_response_exposes_exactly_the_four_fields_with_correct_null_and_zero_semantics(database):
+def test_api_response_no_longer_exposes_the_four_fields_m18a(database):
+    # M18a: completes the M14 operational deprecation - the current normal
+    # Student API projection (routers/students.py _student_json) no longer
+    # serializes any of the four fields at all, regardless of stored value
+    # (null, zero, or a real number). The stored columns and their exact
+    # null/zero semantics remain fully intact and are asserted directly
+    # against the DB, not the API response.
     db = database
     student = _create(
         db, learning_style_verbal_percentage=0, learning_style_non_verbal_percentage=100,
@@ -441,10 +468,13 @@ def test_api_response_exposes_exactly_the_four_fields_with_correct_null_and_zero
     response = client.get(f"/api/students/{student.id}")
     assert response.status_code == 200
     body = response.json()
-    assert body["learning_style_verbal_percentage"] == 0
-    assert body["learning_style_non_verbal_percentage"] == 100
-    assert body["learning_style_quantitative_percentage"] is None
-    assert body["learning_style_spatial_percentage"] == 50
+    for field in LEARNING_STYLE_PERCENTAGE_FIELDS:
+        assert field not in body
+    refreshed = get_student(db, 1, student.id)
+    assert refreshed.learning_style_verbal_percentage == 0
+    assert refreshed.learning_style_non_verbal_percentage == 100
+    assert refreshed.learning_style_quantitative_percentage is None
+    assert refreshed.learning_style_spatial_percentage == 50
 
 
 def test_api_response_has_no_dominant_style_total_or_normalized_field(database):
@@ -465,7 +495,7 @@ def test_api_response_retains_legacy_categorical_field(database):
     client = _client(db, _admin(db))
     body = client.get(f"/api/students/{student.id}").json()
     assert body["learning_style"] == "Auditory"
-    assert body["learning_style_verbal_percentage"] == 10
+    assert "learning_style_verbal_percentage" not in body
 
 
 # ---------------------------------------------------------------------------

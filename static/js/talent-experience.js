@@ -239,7 +239,7 @@
       const title = [d.competency_label, d.rubric_name].filter(Boolean).join(' — ')
         || d.framework_title || 'Assessment setup';
       if (d.state === 'restricted') {
-        return `<div class="tp-card"><h4>${esc(title)}</h4><p class="tp-empty">Protected for privacy; this rubric distribution is not shown.</p></div>`;
+        return `<div class="tp-card"><h4>${esc(title)}</h4><p class="tp-empty">This rubric distribution is not available for this selection.</p></div>`;
       }
       const average = d.average_rank != null
         ? `<div class="tp-competency-average"><span><strong>${Number(d.average_rank).toFixed(1)}</strong>/${esc(d.scale_max)}</span><div class="tp-result-meter" aria-label="Average ${Number(d.average_rank).toFixed(1)} out of ${esc(d.scale_max)}"><i style="width:${Math.max(0,Math.min(100,Number(d.normalized_percent||0)))}%"></i></div></div>`

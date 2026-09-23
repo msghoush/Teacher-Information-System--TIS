@@ -21,7 +21,7 @@ test('suppressed and no-data Branches remain distinct and never expose supplied 
     {branch_id:10,state:'suppressed',value:91,count:4},
     {branch_id:11,state:'no_data',value:73,count:0},
   ]},branches);
-  assert.match(html,/Protected for privacy/);assert.match(html,/No data/);
+  assert.match(html,/Unavailable/);assert.match(html,/No data/);
   assert.doesNotMatch(html,/>91<|>73<|>4<|>0%<|width:/);
 });
 

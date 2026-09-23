@@ -1,11 +1,51 @@
 ---
 title: TIS Master Context
-documentation_version: 4.6
+documentation_version: 4.7
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (M18a)
+
+Bounded first half of M18 (the full Results & Analytics rebuild is M18b, out
+of scope here). Applicable-current-result authority for M17 classification:
+the `TalentStudentAssessment` row where `status == 'completed'` AND
+`is_current == True` (the pre-existing ADR 0036 reassessment authority
+already consumed by M9 analytics and the B9 Student Drill - not a new rule).
+
+The Learner Profile and B9 Student Drill now additively expose the same
+backend M17 classification (`classification`/`classification_score`/
+`is_talented`) already on the Talent Assessment API, reusing the single
+classification authority (`talent_classification_service
+.assessment_classification`) - never a duplicated derivation, never from
+`TalentReviewCandidate`/`TalentOfficialIdentification`. A NEW org/Branch
+AGGREGATE "current Talented count" metric was evaluated and explicitly
+deferred to M18b: `talent_org_intelligence_contract.MetricCode` is a frozen
+14-value enum (ADR 0044: "no MetricCode extension"), and the existing
+Talent-adjacent aggregate metrics are grounded in the legacy Review/
+Identification membership grains, not an M17-classification grain - that is
+new analytics infrastructure, not cleanup. `static/js/talent.js`'s
+`candidate_of_eligible`/`identified_of_eligible` labels (previously "Talent
+share"/"Officially confirmed share", which read as current Talent-status
+shares though their data is the legacy Review/Identification workflow) are
+relabeled "Legacy review share"/"Legacy identification share" - data,
+permissions, and computation unchanged.
+
+M14's Learning Style deprecation is now complete for read exposure:
+`routers/students.py`/`routers/students_ui.py` no longer serialize the four
+`learning_style_*_percentage` fields in the current normal API/UI projection
+(stored columns untouched), and `talent_evaluation_progress_service.py`'s
+confirmed-unreachable `learning_style_branch_aggregate`/
+`_learning_style_values_by_branch`/`_LEARNING_STYLE_COLUMNS` dead code is
+removed. There is no current four-dimension Learning Style analytics
+authority anywhere after M18a.
+
+The literal visible phrase "Protected for privacy" is removed from Talent &
+Potential / Learning Style UI and replaced with context-appropriate neutral
+copy (presentation only - the underlying suppression/privacy contract is
+completely unchanged).
 
 ## Automatic Assessment Classification Authority (M17)
 

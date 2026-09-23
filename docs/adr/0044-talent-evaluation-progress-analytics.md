@@ -1,8 +1,8 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.1
+documentation_version: 1.2
 last_updated: 2026-09-23
-status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) - see 'M14 Amendment' section at the end of this document. Original text below preserved unmodified as historical record."
+status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
 
 # ADR 0044: Talent Evaluation Progress Analytics (M4)
@@ -181,3 +181,41 @@ is left for a later, separately governed milestone; the Student-domain
 aggregate Learning Style distribution required by ADR 0031 continues to be
 served by `student_learning_style_analytics.py` (Students page), unaffected
 by this removal.
+
+## M18a Amendment (2026-09-23): Dead Learning Style Branch Aggregate Code Removed; is_current Confirmed as Applicable-Current-Result Authority
+
+Added 2026-09-23. Two confirmations, no new rule:
+
+**Dead code removal.** The M14 amendment above removed `learning_style` from
+`APPROVED_BRANCH_METRICS` but deliberately kept
+`learning_style_branch_aggregate`/`_learning_style_values_by_branch`/
+`_LEARNING_STYLE_COLUMNS` in `talent_evaluation_progress_service.py`,
+unreferenced by the dispatcher, purely so the deprecated-column mean
+computation was not silently mutated. M18a re-verified directly that
+`branch_comparison_metric` (`routers/talent_evaluation_progress.py`'s only
+caller of any Branch-comparison metric) has rejected `"learning_style"`
+before ever reaching that code since M14, confirming the three symbols were
+genuinely unreachable from any current endpoint/service path. They were
+removed outright, along with their two direct-call tests
+(`tests/test_talent_evaluation_progress.py`, formerly "Section 8"). The
+`learning_style_dimension` query parameter on
+`routers/talent_evaluation_progress.py`'s branch-comparison route remains
+present but was already inert (rejected before use) since M14 and is left
+untouched - removing that plumbing is a separate, non-blocking cleanup, not
+required to close "no current four-dimension Learning Style analytics
+authority."
+
+**Applicable-current-result authority confirmed.** M18a needed to resolve
+which `TalentStudentAssessment` governs a Student's current M17
+classification when more than one exists for a Program. This ADR's own
+"Active/opened Evaluation Period predicate" section already establishes that
+only `sequence`-ordered, actually-active Periods weight into a combined
+result; separately, `models.TalentStudentAssessment.is_current` (set by the
+reassessment flow this repository already implements per ADR 0036) is the
+authority for which Assessment attempt is the current one for a given
+Program+Cycle+Student, already consumed by
+`talent_analytics_service._assessment_ids_subquery` and the B9 Student Drill
+before M18a. M18a's `talent_classification_service.assessment_classification`
+integrations (Learner Profile, B9 Student Drill) use exactly this same
+`status == 'completed' AND is_current == True` predicate - no new business
+rule was introduced, and this ADR is not reopened.

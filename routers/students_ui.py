@@ -121,6 +121,10 @@ def _can_view_branch(db, user, branch_id):
 
 
 def _student_view(db, row):
+    # M18a: the four Learning Style percentage fields (ADR 0042) are fully
+    # removed from the current normal UI projection - see the matching
+    # removal in routers/students.py's _student_json. Stored columns are
+    # untouched; only this projection no longer serializes them.
     return {
         "id": row.id,
         "school_group_id": row.school_group_id,
@@ -130,10 +134,6 @@ def _student_view(db, row):
         "gender": row.gender,
         "status": row.status,
         "learning_style": row.learning_style,
-        "learning_style_verbal_percentage": row.learning_style_verbal_percentage,
-        "learning_style_non_verbal_percentage": row.learning_style_non_verbal_percentage,
-        "learning_style_quantitative_percentage": row.learning_style_quantitative_percentage,
-        "learning_style_spatial_percentage": row.learning_style_spatial_percentage,
         "student_number": current_student_number(
             db, school_group_id=row.school_group_id, student_id=row.id
         ),

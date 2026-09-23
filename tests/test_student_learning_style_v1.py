@@ -468,9 +468,10 @@ def test_html_students_page_explains_when_privacy_policy_is_unavailable(db, monk
 def test_html_students_page_shows_one_panel_level_protected_message_when_every_category_is_suppressed(db, monkeypatch):
     """When the whole cohort is small enough that every Learning Style
     category is individually suppressed, the page must show ONE clear
-    panel-level explanation rather than repeating "Protected for privacy" on
-    every row - while still rendering every category label (categorical
-    protection preserved) and never a count/percentage for a suppressed row."""
+    panel-level explanation rather than repeating "Unavailable" (M18a;
+    formerly the literal "Protected for privacy" copy) on every row - while
+    still rendering every category label (categorical protection preserved)
+    and never a count/percentage for a suppressed row."""
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -501,7 +502,10 @@ def test_html_students_page_shows_one_panel_level_protected_message_when_every_c
     assert response.status_code == 200
     # Exactly one panel-level protected explanation, not one per row.
     assert response.text.count("stu-protected-panel") == 1
-    assert response.text.lower().count("protected for privacy") == 1
+    assert response.text.lower().count("distribution unavailable") == 1
+    # M18a: the literal "Protected for privacy" phrase is fully removed from
+    # visible Talent & Potential / Learning Style copy.
+    assert "protected for privacy" not in response.text.lower()
     # Fully protected data renders no chart rows or category-by-category fake bars.
     assert 'class="stu-ls-chart"' not in response.text
     assert 'class="stu-ls-row"' not in response.text

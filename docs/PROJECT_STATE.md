@@ -1,11 +1,88 @@
 ---
 title: TIS Project State
-documentation_version: 5.15
+documentation_version: 5.16
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M18a Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (2026-09-23)
+
+Bounded first half of the M18 milestone (the full Results & Analytics page
+rebuild is M18b and remains out of scope here). Four areas, closed:
+
+**Applicable-current-result authority (resolved, not invented):** for a
+Talent Program, the Assessment that governs a Student's current M17
+classification is the `TalentStudentAssessment` row where
+`status == 'completed'` AND `is_current == True` - the exact pre-existing
+authority ADR 0036 (Talent Rubric Reassessment Attempts) already established
+and that M9 analytics (`talent_analytics_service._assessment_ids_subquery`)
+and the B9 Student Drill already consumed before this milestone. No new rule
+was introduced.
+
+**Part 1 - current Talented authority:** the Learner Profile
+(`talent_learner_profile_service.build_learner_profile`) and the B9 Student
+Drill (`talent_org_student_drill.py`) now additively expose the same
+backend-authoritative M17 classification (`classification`,
+`classification_score`, `is_talented`, via
+`talent_classification_service.assessment_classification`) already wired
+into `routers/talent_assessments.py` since M17 - reusing the single
+classification authority, never a duplicated derivation, never sourced from
+`TalentReviewCandidate`/`TalentOfficialIdentification`. Building a NEW
+org/Branch AGGREGATE "current Talented count" metric was explicitly
+evaluated and deferred to M18b: `talent_org_intelligence_contract.MetricCode`
+is a frozen 14-value enum (ADR 0044 explicitly states "no MetricCode
+extension"), and the only existing Talent-adjacent aggregate metrics
+(`CANDIDATE_COUNT`/`CANDIDATE_OF_ELIGIBLE`/`IDENTIFIED_COUNT`/
+`IDENTIFIED_OF_ELIGIBLE`) are grounded in the legacy Review/Identification
+membership grains, not an M17-classification grain - adding a privacy-safe
+Cell/Group aggregate for the new grain is real new analytics infrastructure
+that belongs with the M18b Results & Analytics rebuild, not a cleanup task.
+`static/js/talent.js`'s `candidate_of_eligible`/`identified_of_eligible`
+labels ("Talent share"/"Officially confirmed share" - which read as CURRENT
+Talent-status shares even though their underlying data is the legacy
+Review/Identification workflow) are relabeled "Legacy review share"/"Legacy
+identification share"; the underlying metrics, data, and permissions are
+completely unchanged. `TalentReviewCandidate`/`TalentOfficialIdentification`
+rows, services, and routers remain fully preserved as legacy/history,
+byte-identical, code-unchanged.
+
+**Part 2 - M14 Learning Style deprecation completed:** `routers/students.py`
+(`_student_json`) and `routers/students_ui.py` (`_student_view`) no longer
+serialize `learning_style_verbal_percentage`/`learning_style_non_verbal_percentage`/
+`learning_style_quantitative_percentage`/`learning_style_spatial_percentage`
+in the current normal Student API/UI projection (verified: they still did,
+including as literal `null`, before this milestone). Stored DB columns and
+historical values are completely untouched - only read exposure is removed.
+`talent_evaluation_progress_service.py`'s `learning_style_branch_aggregate`/
+`_learning_style_values_by_branch`/`_LEARNING_STYLE_COLUMNS` (dead since the
+M14 dispatcher removal, kept only so the deprecated-column computation was
+not silently mutated) were confirmed genuinely unreachable from any current
+endpoint/service path and removed outright, along with their two stale
+direct-call tests. There is no current four-dimension Learning Style
+analytics authority anywhere in the repository after M18a. M14's own
+governing model (one categorical `learning_style` value; aggregate
+distribution over eight categories + Unassigned; no per-Student percentage
+dimensions or bars) is unchanged and still served by
+`student_learning_style_analytics.py`.
+
+**Part 3 - privacy copy cleanup (presentation only):** the literal visible
+phrase "Protected for privacy" is removed from Talent & Potential /
+Learning Style UI (`static/js/talent.js`, `talent-rubric-visual.js`,
+`talent-experience.js`, `templates/students.html`) and replaced with
+context-appropriate neutral copy ("Unavailable", "Not available for this
+view", "This distribution/rubric distribution is not available for this
+selection", "Distribution unavailable") - never one mechanical replacement
+everywhere. The underlying privacy/suppression contract (primary suppression,
+complementary suppression, minimum-population rules, anti-reconstruction,
+tenant/Branch/organization scope) is completely unchanged; no protected
+numeric value was ever in the copy being replaced, and none is introduced by
+the new neutral copy.
+
+M18b (the full Results & Analytics page rebuild, including any new org/Branch
+aggregate Talented-count analytics) remains explicitly out of scope and was
+not implemented here.
 
 ## M17 Automatic Assessment Classification + New Normal Talent Workflow (2026-09-23)
 

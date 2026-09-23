@@ -213,9 +213,10 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-ls-track-state { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--stu-ls-accent, var(--app-surface-muted)) 9%, var(--app-surface-muted)), color-mix(in srgb, var(--stu-ls-accent, var(--app-surface-muted)) 9%, var(--app-surface-muted)) 6px, var(--app-line) 6px, var(--app-line) 12px); border-color: color-mix(in srgb, var(--stu-ls-accent, var(--app-line)) 55%, var(--app-line)); }
 .stu-protected { color: var(--app-muted, #5d6b82); font-style: italic; font-size: 13px; margin: 0; }
 /* Panel-level protected-state explanation: shown once when every category in
-   the current selection is suppressed, replacing a "Protected for privacy"
-   line repeated on every row. Neutral tone - this is an expected privacy
-   outcome, not an error or a broken/empty panel. */
+   the current selection is suppressed, replacing an "Unavailable" (M18a;
+   formerly "Protected for privacy") line repeated on every row. Neutral
+   tone - this is an expected privacy outcome, not an error or a broken/empty
+   panel. */
 .stu-protected-panel { display: flex; align-items: flex-start; gap: 8px; font-style: normal; font-size: 13px; padding: 10px 12px; border-radius: 10px; background: var(--app-surface-muted); border: 1px solid var(--app-line); margin: 0 0 var(--stu-space-3); }
 .stu-protected-panel svg { width: 18px; height: 18px; min-width: 18px; color: var(--app-muted, #5d6b82); }
 .stu-protected-panel strong { color: var(--app-ink); font-style: normal; }

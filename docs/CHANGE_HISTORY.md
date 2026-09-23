@@ -1,11 +1,49 @@
 ---
 title: TIS Change History
-documentation_version: 5.6
+documentation_version: 5.7
 last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-23 - M18a Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX
+
+- Resolved (not invented) the applicable-current-result authority for
+  automatic classification: the `TalentStudentAssessment` row where
+  `status == 'completed'` AND `is_current == True` - the pre-existing ADR
+  0036 reassessment authority already consumed by M9 analytics and the B9
+  Student Drill.
+- The Learner Profile and B9 Student Drill now additively expose the same
+  M17 backend classification (`classification`/`classification_score`/
+  `is_talented`) already on the Talent Assessment API, reusing the single
+  classification authority. Building a new org/Branch aggregate "current
+  Talented count" metric was evaluated and explicitly deferred to M18b (the
+  `MetricCode` enum is frozen at 14 values per ADR 0044; a new
+  classification-grain aggregate is new analytics infrastructure, not
+  cleanup).
+- Relabeled `static/js/talent.js`'s `candidate_of_eligible`/
+  `identified_of_eligible` metric labels ("Talent share"/"Officially
+  confirmed share") to "Legacy review share"/"Legacy identification share" -
+  they read as current Talent-status shares while their underlying data is
+  the legacy Review/Identification workflow. No metric data, permission, or
+  computation changed.
+- Completed the M14 Learning Style deprecation for read exposure: removed
+  the four `learning_style_*_percentage` fields from `routers/students.py`'s
+  and `routers/students_ui.py`'s current API/UI projection (stored columns
+  untouched); removed the now-confirmed-unreachable
+  `learning_style_branch_aggregate`/`_learning_style_values_by_branch`/
+  `_LEARNING_STYLE_COLUMNS` dead code and their stale tests from
+  `talent_evaluation_progress_service.py`.
+- Removed the literal visible phrase "Protected for privacy" from Talent &
+  Potential / Learning Style UI, replaced with context-appropriate neutral
+  copy ("Unavailable", "Distribution unavailable", "This ... is not
+  available for this selection"). Presentation-only: the underlying
+  primary/complementary suppression, minimum-population, anti-reconstruction,
+  and tenant/Branch/organization privacy contract is unchanged.
+- No schema migration, no `tis.db` change, no new permission keys. M18b (the
+  full Results & Analytics page rebuild, including any new org/Branch
+  aggregate Talented-count analytics) remains out of scope.
 
 ## 2026-09-23 - M17 Automatic Assessment Classification + New Normal Talent Workflow
 

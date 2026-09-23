@@ -11,14 +11,23 @@
     assessment_started:'Assessments started', started_coverage:'Assessments started coverage',
     required_period_execution:'Required evaluations run',
     candidate_membership_count:'Meets Program Criteria', candidate_count:'Meets Program Criteria',
-    candidate_of_eligible:'Talent share',
-    identified_count:'Officially confirmed', identified_of_eligible:'Officially confirmed share',
+    // M18a: these two read as CURRENT Talent-status shares before this
+    // change (candidate_of_eligible -> "Talent share", identified_of_eligible
+    // -> "Officially confirmed share"), but their underlying data is the
+    // legacy Review Candidate / Official Identification workflow (ADR-preserved
+    // history), never the M17 automatic-classification current Talented
+    // authority (talent_classification_service.assessment_classification).
+    // Relabeled to legacy/history-scoped copy so they can never be mistaken
+    // for the current Talented state; the underlying metrics/data/permissions
+    // are completely unchanged.
+    candidate_of_eligible:'Legacy review share',
+    identified_count:'Officially confirmed', identified_of_eligible:'Legacy identification share',
     participation_overlap:'Distinct participating Students',
     evaluation_period_result:'Evaluation Period Result', current_overall_progress:'Overall Result',
     assessment_completion:'Assessment Completion', assessments_started:'Assessments Started',
     meets_program_criteria:'Meets Program Criteria', officially_confirmed:'Officially Confirmed',
   };
-  const states = {suppressed:'Protected for privacy', complementary_suppressed:'Protected for privacy',
+  const states = {suppressed:'Unavailable', complementary_suppressed:'Unavailable',
     restricted:'Not available for this view', no_data:'No data yet', coarsened:'Shown as a broader group'};
   // no_data is a structural absence (no authoritative population/equation), never a
   // privacy decision - it must stay visually and textually distinct from an actual
@@ -124,7 +133,7 @@
     ...(identificationAllowed?[['officially_confirmed','Officially Confirmed']]:[]),
   ];
   const branchStateText = state => ({
-    suppressed:'Protected for privacy', complementary_suppressed:'Protected for privacy',
+    suppressed:'Unavailable', complementary_suppressed:'Unavailable',
     restricted:'Not available for this view', no_data:'No data',
     coarsened:'Shown as a broader group',
   }[state] || 'No data');
@@ -164,7 +173,7 @@
     const body=`<article class="tp-kpi${href?' tp-kpi-link':''}"><span class="tp-kpi-label">${esc(labels[key]||human(key))}</span>${value}${context?`<p>${esc(context)}</p>`:''}${href?`<a class="tp-card-hit" href="${href}" aria-label="Explore ${esc(labels[key]||human(key))}"><span>Explore</span><span aria-hidden="true">&rarr;</span></a>`:''}</article>`;
     return body;
   }
-  const friendlyReason = reason => ({missing_cycle:'An evaluation cycle has not been linked',cycle_not_authoritative:'The linked cycle is not open or closed',cancelled_period:'This evaluation period was cancelled',no_frozen_population:'No recorded Student assessment context is available',metric_unavailable:'This result is not available for the selected measure',framework_changed:'The Program framework changed between these periods',privacy_protected:'One or both results are protected for privacy'}[reason] || 'These periods cannot be compared');
+  const friendlyReason = reason => ({missing_cycle:'An evaluation cycle has not been linked',cycle_not_authoritative:'The linked cycle is not open or closed',cancelled_period:'This evaluation period was cancelled',no_frozen_population:'No recorded Student assessment context is available',metric_unavailable:'This result is not available for the selected measure',framework_changed:'The Program framework changed between these periods',privacy_protected:'One or both results are unavailable for this comparison'}[reason] || 'These periods cannot be compared');
   const errorPanel = error => `<div class="tp-error"><h3>${error.status===403?'Permission denied':error.status===503?'Analytics unavailable':'Unable to load view'}</h3><p>${esc(error.message)}</p><button type="button" id="tp-retry">Retry</button></div>`;
   const lede = (title, text, tone='') => `<div class="tp-section-lede${tone?` tp-tone-${tone}`:''}"><svg aria-hidden="true" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><path d="M12 8v5"/><path d="M12 16h.01"/></svg><div><h3>${esc(title)}</h3><p>${esc(text)}</p></div></div>`;
   // Canonical Program-selection resolver shared by the ribbon/context selector
@@ -194,7 +203,7 @@
       <span class="tp-legend-item"><span class="tp-legend-swatch tp-heat-1" aria-hidden="true"></span>Lower</span>
       <span class="tp-legend-item"><span class="tp-legend-swatch tp-heat-3" aria-hidden="true"></span>Mid-range</span>
       <span class="tp-legend-item"><span class="tp-legend-swatch tp-heat-5" aria-hidden="true"></span>Higher</span>
-      <span class="tp-legend-item"><span class="tp-legend-swatch tp-protected-swatch" aria-hidden="true"></span>Protected for privacy (no value or magnitude shown)</span>
+      <span class="tp-legend-item"><span class="tp-legend-swatch tp-protected-swatch" aria-hidden="true"></span>Unavailable (no value or magnitude shown)</span>
       <span class="tp-legend-item"><span class="tp-legend-swatch" style="background:var(--app-surface);border-style:dashed" aria-hidden="true"></span>No data (no authoritative population - not a privacy decision)</span>
     </div>`;
   }
@@ -204,7 +213,7 @@
     const isNoData = state === 'no_data' || !cell;
     const heat = (isProtected || isNoData) ? 0 : heatBucket(cell);
     const cls = `tp-matrix-cell tp-heat-${heat}${isProtected?' tp-protected-cell':''}${isNoData?' tp-nodata-cell':''}`;
-    const explanation=isProtected?'Protected for privacy; no value is shown':isNoData?'No data is available for this context':'This result is available';
+    const explanation=isProtected?'Unavailable; no value is shown':isNoData?'No data is available for this context':'This result is available';
     const label = `${esc(rowLabel)} and ${esc(colLabel)}: ${explanation}`;
     return `<div class="${cls}" role="gridcell" tabindex="0" aria-label="${label}" data-clickable="${drill?'true':'false'}">${metric(cell)}<span class="tp-cell-help">${esc(explanation)}</span>${drill?`<small>${drill}</small>`:''}</div>`;
   }
@@ -423,7 +432,7 @@
       const identifiedCell=identifiedMap&&identifiedMap.organization_total?identifiedMap.organization_total:null;
       const identifiedIndicator=identificationAllowed?`<section aria-labelledby="tp-identified-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Officially Identified</p><h3 id="tp-identified-title">How many Students are talented${pid?' in this Program':''}?</h3></div></div><div class="tp-primary-indicator-body">${radialGauge(identifiedCell,labels.identified_of_eligible)}<p>Official Identification is a separate, permanent human decision recorded in Talent Review. It is not the same as Meets Program Criteria (a rubric-based result) or a Student's highest rubric level on its own.</p></div></section>`:'';
       const rubricSection=rubric&&Array.isArray(rubric.distributions)&&rubric.distributions.length
-        ? `<section aria-labelledby="tp-rubric-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Rubrics</p><h3 id="tp-rubric-title">Competency rubric distributions</h3></div></div><p>Each competency is evaluated on its own rubric. These distributions remain separate from Review Candidate and Official Identification.</p>${rubric.distributions.map(d=>{const title=[d.competency_label,d.rubric_name].filter(Boolean).join(' — ')||d.framework_title||'Assessment setup';return d.state==='restricted'?`<div class="tp-card"><h4>${esc(title)}</h4>${empty('Protected for privacy; this rubric distribution is not shown.')}</div>`:`<div class="tp-card"><h4>${esc(title)}</h4>${d.average_rank!=null?`<div class="tp-competency-average"><span><strong>${Number(d.average_rank).toFixed(1)}</strong>/${esc(d.scale_max)}</span><div class="tp-result-meter" aria-label="Average ${Number(d.average_rank).toFixed(1)} out of ${esc(d.scale_max)}"><i style="width:${Math.max(0,Math.min(100,Number(d.normalized_percent||0)))}%"></i></div></div>`:''}${rubricDistribution(d.levels)}</div>`;}).join('')}</section>`
+        ? `<section aria-labelledby="tp-rubric-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Rubrics</p><h3 id="tp-rubric-title">Competency rubric distributions</h3></div></div><p>Each competency is evaluated on its own rubric. These distributions remain separate from Review Candidate and Official Identification.</p>${rubric.distributions.map(d=>{const title=[d.competency_label,d.rubric_name].filter(Boolean).join(' — ')||d.framework_title||'Assessment setup';return d.state==='restricted'?`<div class="tp-card"><h4>${esc(title)}</h4>${empty('This rubric distribution is not available for this selection.')}</div>`:`<div class="tp-card"><h4>${esc(title)}</h4>${d.average_rank!=null?`<div class="tp-competency-average"><span><strong>${Number(d.average_rank).toFixed(1)}</strong>/${esc(d.scale_max)}</span><div class="tp-result-meter" aria-label="Average ${Number(d.average_rank).toFixed(1)} out of ${esc(d.scale_max)}"><i style="width:${Math.max(0,Math.min(100,Number(d.normalized_percent||0)))}%"></i></div></div>`:''}${rubricDistribution(d.levels)}</div>`;}).join('')}</section>`
         : '';
       const programResultSummary=rubric?.program_result_summary;
       const programResultSection=pid&&programResultSummary?.state==='visible'

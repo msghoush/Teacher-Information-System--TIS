@@ -503,54 +503,30 @@ def test_organization_overall_never_reconstructs_a_suppressed_period(db, scenari
 
 
 # ---------------------------------------------------------------------------
-# Section 8: Learning Style Branch aggregate
+# Section 8: Learning Style Branch aggregate - REMOVED (M18a)
 #
-# M14 owner correction: this metric is REMOVED from the Branch-comparison
-# dispatcher (see Section 9's updated six-metric test and the new
-# "learning_style is no longer an approved metric" test below) because it
-# averaged the now-deprecated four percentage columns - semantically wrong
-# under the corrected model, where "percentage" means population/aggregate
-# distribution, never a mean of per-Student dimension scores. The two tests
-# below still call ``learning_style_branch_aggregate`` directly (bypassing
-# the dispatcher) to prove the underlying deprecated-column computation and
-# its stored values are left completely untouched, not to assert it is
-# still a reachable product surface.
+# M14 owner correction: this metric was REMOVED from the Branch-comparison
+# dispatcher (see Section 9's six-metric test and the "learning_style is no
+# longer an approved metric" test below) because it averaged the now-
+# deprecated four percentage columns - semantically wrong under the
+# corrected model, where "percentage" means population/aggregate
+# distribution, never a mean of per-Student dimension scores. M14 initially
+# left the underlying ``learning_style_branch_aggregate``/
+# ``_learning_style_values_by_branch`` computation in place (unreferenced by
+# the dispatcher) purely so the deprecated-column mean computation was not
+# silently mutated. M18a re-verified that dispatcher is the only caller of
+# any Branch-comparison metric and that it has rejected "learning_style"
+# since M14 - confirming the two functions were genuinely unreachable - and
+# removed them outright, along with the two direct-call tests that
+# previously lived in this section (they bypassed the dispatcher to call the
+# functions directly and are no longer applicable once the functions are
+# deleted). The four ``learning_style_*_percentage`` columns remain
+# untouched on ``models.Student``.
 # ---------------------------------------------------------------------------
 
 
-def test_learning_style_aggregate_excludes_null_and_includes_zero(db, scenario):
-    students = scenario["students"]
-    students["a1"].learning_style_verbal_percentage = 80
-    students["a2"].learning_style_verbal_percentage = 0  # a real valid value
-    students["a3"].learning_style_verbal_percentage = None  # excluded, not treated as 0
-    db.commit()
-
-    ctx = _ctx(db, scenario["program"])
-    filters = svc.ResolvedFilters()
-    pop_query = svc.population_query(db, ctx, filters, None)
-    result = progress_svc.learning_style_branch_aggregate(db, ctx, pop_query, dimension="verbal", policy=AllowAllTestPolicy())
-    branch_a_row = next(row for row in result["rows"] if row["branch_id"] == 10)
-    assert branch_a_row["count"] == 2  # a1 and a2 only; a3's null excluded
-    assert branch_a_row["mean_normalized_percent"] == 40.0  # (80 + 0) / 2
-
-
-def test_learning_style_aggregate_suppressed_below_minimum_cohort(db, scenario):
-    students = scenario["students"]
-    students["b1"].learning_style_spatial_percentage = 50
-    db.commit()
-    ctx = _ctx(db, scenario["program"])
-    filters = svc.ResolvedFilters()
-    pop_query = svc.population_query(db, ctx, filters, None)
-    policy = DeterministicSuppressionTestPolicy(minimum_cohort=2)
-    result = progress_svc.learning_style_branch_aggregate(db, ctx, pop_query, dimension="spatial", policy=policy)
-    branch_b_row = next(row for row in result["rows"] if row["branch_id"] == 11)
-    assert branch_b_row["count"] is None
-    assert branch_b_row["mean_normalized_percent"] is None
-    assert branch_b_row["state"] == SUPPRESSED
-
-
 # ---------------------------------------------------------------------------
-# Section 9: Branch comparison metric dispatcher (7 approved metrics)
+# Section 9: Branch comparison metric dispatcher (6 approved metrics)
 # ---------------------------------------------------------------------------
 
 

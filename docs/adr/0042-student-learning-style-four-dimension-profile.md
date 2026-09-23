@@ -1,6 +1,6 @@
 ---
 title: Student Learning Style Four-Dimension Profile (Schema Foundation)
-documentation_version: 1.1
+documentation_version: 1.2
 last_updated: 2026-09-23
 status: "Superseded (M14, 2026-09-23) - see 'M14 Correction' section at the end of this document. Original text below preserved unmodified as historical record."
 amends: "ADR 0031 Decision > Domain and scope: 'V1 supports exactly one primary Learning Style per Student (single-select). Multi-style support is explicitly out of scope for V1 and is not to be scaffolded speculatively.' (original wording preserved unmodified in ADR 0031, with this amendment note added alongside it - the single-select categorical field itself is unchanged and is not superseded)."
@@ -148,3 +148,16 @@ This correction does not reauthorize anything this ADR's own "Governance
 boundary" section already declined (e.g. it does not retroactively bless
 the M2/M3 frontend/API overreach noted above); it corrects the underlying
 product model going forward.
+
+## M18a Amendment (2026-09-23): Read-Exposure Deprecation Completed
+
+Added 2026-09-23. M18a independently re-verified the M14 amendment's "no
+longer ... exposed" claim above against the actual implementation and found
+it was not yet fully true: `routers/students.py`'s `_student_json` and
+`routers/students_ui.py`'s `_student_view` still serialized all four
+`learning_style_*_percentage` fields in the current normal Student API/UI
+projection (including as literal `null` when unset). M18a removed them from
+both projections, completing the M14 read-exposure deprecation exactly as
+originally intended. Stored columns and any historical values remain
+completely untouched (same as M14); physical column removal remains a
+separately gated, later decision, unchanged by this amendment.
