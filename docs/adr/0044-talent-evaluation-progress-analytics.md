@@ -205,6 +205,20 @@ untouched - removing that plumbing is a separate, non-blocking cleanup, not
 required to close "no current four-dimension Learning Style analytics
 authority."
 
+**2026-09-24 Amendment (M18b-1).** The `learning_style_dimension` query
+parameter/keyword argument was re-audited directly (grep, not assumed) and
+confirmed still genuinely unreferenced inside `branch_comparison_metric`'s
+own body - it was removed outright from
+`routers/talent_evaluation_progress.py`'s branch-comparison route and from
+`branch_comparison_metric`'s signature in
+`talent_evaluation_progress_service.py`. No schema/behavior change: the
+function still raises `invalid_filter` for any `metric` outside the six
+`APPROVED_BRANCH_METRICS`, exactly as before. The governed Family 1 Learning
+Style backend contract (categorical distribution, never a per-dimension
+mean) is `student_learning_style_analytics.py`, now also reachable through
+`talent_results_analytics_service.py`'s bounded M18 Results & Analytics
+contract (see the M18b-1 release note).
+
 **Applicable-current-result authority confirmed.** M18a needed to resolve
 which `TalentStudentAssessment` governs a Student's current M17
 classification when more than one exists for a Program. This ADR's own

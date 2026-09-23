@@ -117,7 +117,7 @@ def organization_progress(program_id: int, academic_year_id: int, request: Reque
 
 @router.get("/programs/{program_id}/academic-years/{academic_year_id}/branch-comparison")
 def branch_comparison(program_id: int, academic_year_id: int, request: Request,
-                       metric: str = Query(...), learning_style_dimension: str | None = Query(None),
+                       metric: str = Query(...),
                        db: Session = Depends(get_db), current_user=Depends(get_current_user),
                        policy=Depends(resolve_privacy_policy_provider)):
     user, group_id, ctx, visible_branch_ids, denied = _resolve_context(
@@ -133,7 +133,7 @@ def branch_comparison(program_id: int, academic_year_id: int, request: Request,
         payload = progress_svc.branch_comparison_metric(
             db, ctx, metric=metric, visible_branch_ids=visible_branch_ids,
             has_candidate_permission=has_candidate, has_identification_permission=has_identification,
-            policy=policy, learning_style_dimension=learning_style_dimension,
+            policy=policy,
         )
     except progress_svc.EvaluationProgressError as exc:
         return _error(exc)

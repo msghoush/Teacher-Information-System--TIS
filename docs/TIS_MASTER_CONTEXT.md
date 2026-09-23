@@ -1,11 +1,49 @@
 ---
 title: TIS Master Context
-documentation_version: 4.7
-last_updated: 2026-09-23
+documentation_version: 4.8
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Results & Analytics Backend Contract + Correct Aggregation Authority (M18b-1)
+
+Bounded BACKEND-ONLY sub-phase delivering the org/Branch aggregate "current
+Talented count" analytics M18a deferred, plus a Learning Style/Classification
+backend contract (M18b-2's visible page/chart rebuild remains separately
+scoped and pending). `talent_org_intelligence_contract.MetricCode` stays
+frozen and unmodified - the new module `talent_results_analytics_service.py`
+instead reuses the existing M9 `talent_analytics_service` Program+
+AcademicYear context/filter/scope architecture and generic `Cell`/`Group`
+privacy primitives (a new opaque privacy class `"P4"`, never the legacy
+Candidate/Identification metrics) behind one coherent route,
+`routers/talent_results_analytics.py`
+(`/api/talent/results-analytics/...`), for three families: Learning Style
+(thin reuse of `student_learning_style_analytics.py`, no new computation),
+Classification (current M17 five-band distribution over the M18a-governed
+completed+current grain, reusing `talent_classification_service.
+assessment_classification` for every band - never a duplicated band table),
+and Talented (Exceptional-only count/denominator/rate).
+
+**Correct Organization aggregation (CRITICAL, regression-tested exactly):**
+Organization/Branch totals are always the raw sum of individual Branch
+counts (`sum_raw_counts_across_branches`), never an average of Branch
+percentages - proven with the exact Branch A 1/2 (50%) + Branch B 9/90 (10%)
+-> Organization 10/92 (~10.87%, not the naive 30% average) case.
+
+Competency and Evaluation Period/Overall Result analytics are deliberately
+NOT reimplemented in this contract: the pre-existing
+`/api/talent/analytics/.../rubric-distribution` and
+`/api/talent/evaluation-progress/...` routes already provide governed,
+correct, Program-bound/Period-bound backend analytics for those two families
+and are consumed directly by M18b-2 instead of being duplicated.
+
+The dead `learning_style_dimension` query parameter (inert since M14 - the
+"learning_style" Branch-comparison metric it parameterized was never a
+member of `APPROVED_BRANCH_METRICS`) is removed outright from
+`routers/talent_evaluation_progress.py`/`talent_evaluation_progress_service
+.py`.
 
 ## Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (M18a)
 

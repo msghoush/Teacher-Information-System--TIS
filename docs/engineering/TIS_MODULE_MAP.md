@@ -1,11 +1,43 @@
 ---
 title: TIS Module Map
-documentation_version: 4.4
-last_updated: 2026-09-23
+documentation_version: 4.5
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Results & Analytics Backend Contract Ownership (M18b-1)
+
+- `talent_results_analytics_service.py` (new): bounded M18b-1 Results &
+  Analytics backend contract - `applicable_assessment_rows`/`classify_rows`
+  (the M18a-governed `status == 'completed' AND is_current == True` grain,
+  classified via `talent_classification_service.assessment_classification`,
+  never a duplicated band table), `sum_raw_counts_across_branches` (the ONLY
+  Organization/Branch rollup rule - a pure raw-count sum, never an average of
+  Branch percentages), `classification_family`/`talented_family` (privacy-
+  closed distributions reusing `talent_analytics_service.build_breakdown_group`
+  / `apply_primary_privacy`/`run_complementary_suppression`, the same M9
+  primitives every other breakdown uses, with a new opaque privacy class
+  `"P4"`). Does NOT extend `talent_org_intelligence_contract.MetricCode`
+  (stays frozen per ADR 0044) and does NOT duplicate Competency/Evaluation-
+  Period-Progress semantics - those two families are served by the
+  pre-existing `routers/talent_analytics.py` `/rubric-distribution` route and
+  `routers/talent_evaluation_progress.py` routes directly.
+- `routers/talent_results_analytics.py` (new): `/api/talent/results-analytics`
+  route family - `/academic-years/{id}/learning-style` (Student-domain-wide,
+  `students.view` permission, delegates to
+  `student_learning_style_analytics.py`), `/programs/{id}/academic-years/{id}
+  /classification` and `.../talented` (Program-bound, `talent_analytics.view`
+  permission, reuse `talent_analytics_service.resolve_context`/
+  `resolve_filters`/`population_query` for scope/filter enforcement - a
+  filter can only narrow, never widen, the caller's authorized Branch scope).
+- `routers/talent_evaluation_progress.py` /
+  `talent_evaluation_progress_service.py`: the dead `learning_style_dimension`
+  query parameter/keyword argument (inert since M14 - the "learning_style"
+  metric it parameterized was never a member of `APPROVED_BRANCH_METRICS`) is
+  removed outright from `branch_comparison`/`branch_comparison_metric`'s
+  signatures. No behavior change.
 
 ## Automatic Assessment Classification Ownership (M17)
 

@@ -1,11 +1,94 @@
 ---
 title: TIS Project State
-documentation_version: 5.16
-last_updated: 2026-09-23
+documentation_version: 5.17
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M18b-1 Results & Analytics Backend Contract + Correct Aggregation Authority (2026-09-24)
+
+Bounded BACKEND-ONLY sub-phase of the M18b Results & Analytics rebuild (the
+visible page/chart rebuild is the separate, still-pending M18b-2; no
+template/chart-rendering change was made here). Delivers the backend
+authority M18a explicitly deferred.
+
+**Contract decision:** `talent_org_intelligence_contract.MetricCode` remains
+frozen and unmodified (ADR 0044) - the new current-classification/Talented
+grain is NOT added to it. A new module,
+`talent_results_analytics_service.py`, reuses the existing M9
+`talent_analytics_service` Program+AcademicYear context/filter/scope
+architecture (`resolve_context`/`resolve_filters`/`population_query`) and the
+same generic `Cell`/`Group`/`apply_primary_privacy`/
+`run_complementary_suppression` privacy primitives every M9 breakdown already
+uses, adding one new opaque privacy class (`"P4"`) for this grain - never the
+legacy `CANDIDATE_COUNT`/`IDENTIFIED_COUNT`-family metrics, which remain
+legacy-Review/Identification-grain only. One coherent router,
+`routers/talent_results_analytics.py` (`/api/talent/results-analytics/...`),
+serves three families:
+
+- **Learning Style** (`/academic-years/{academic_year_id}/learning-style`) -
+  thin reuse of `student_learning_style_analytics.py` (M14), gated on the
+  existing `students.view` permission; no new computation.
+- **Classification**
+  (`/programs/{id}/academic-years/{id}/classification`) - the current M17
+  classification distribution (five owner-approved bands) over the exact
+  M18a-governed grain (`TalentStudentAssessment.status == 'completed' AND
+  is_current == True`), reusing `talent_classification_service.
+  assessment_classification` for every band decision (never a duplicated
+  band table; `talent_classification_service.CLASSIFICATION_LABELS` is now
+  exported read-only for this purpose). A rubric-incompatible ("available:
+  False") Assessment is tracked as `not_currently_classifiable_count`, never
+  fabricated into a band.
+- **Talented** (`/programs/{id}/academic-years/{id}/talented`) - current
+  Talented (Exceptional-only) count, applicable denominator, and rate,
+  projected from the same classification computation.
+
+**Correct Organization aggregation (the CRITICAL invariant, regression-
+tested exactly):** `talent_results_analytics_service.
+sum_raw_counts_across_branches` is a pure function that sums each Branch's
+own raw bucket counts - the ONLY Organization/Branch rollup rule anywhere in
+this module. Proof case: Branch A 1 Talented/2 applicable (50%), Branch B 9
+Talented/90 applicable (10%) -> Organization 10/92 (~10.87%), never the naive
+30% average of the two Branch rates (`tests/test_talent_results_analytics.py`,
+Sections A and C).
+
+**`learning_style_dimension` dead-parameter cleanup:** re-audited directly
+(not assumed) and confirmed still genuinely unreferenced inside
+`branch_comparison_metric`'s own body (the "learning_style" metric it
+existed to parameterize has never been a member of
+`APPROVED_BRANCH_METRICS` since M14) - removed outright from
+`routers/talent_evaluation_progress.py`'s branch-comparison route and from
+`branch_comparison_metric`'s signature in
+`talent_evaluation_progress_service.py`; the one stale frontend-contract test
+assertion for the now-nonexistent parameter
+(`tests/talent_branch_comparison_frontend.test.cjs`) is removed. No behavior
+change: `branch_comparison_metric` still rejects any `metric` outside the six
+`APPROVED_BRANCH_METRICS` exactly as before.
+
+**Competency and Progress families are deliberately NOT reimplemented here.**
+`routers/talent_analytics.py`'s existing `/rubric-distribution` route
+(Program-bound, canonical framework/competency identity, governed
+completed/current evidence semantics) and
+`routers/talent_evaluation_progress.py`'s existing branch/organization/
+branch-comparison routes (ACTIVE/OPENED weighting, framework comparability,
+raw Overall Result semantics) already provide governed, privacy-safe backend
+analytics for those two families with correct, unaltered semantics - M18b-2's
+frontend calls those existing routes directly for Competency/Progress and the
+new `/api/talent/results-analytics/...` routes for Learning
+Style/Classification/Talented.
+
+**Regression:** full `-k talent` pytest suite (746 passed / 11 failed,
+worktree-compared byte-identical by exact test name against the unmodified
+81cfa75 baseline - all 11 pre-existing, zero new) and the full
+`node --test tests/*.test.cjs` suite (17 unique pre-existing failures,
+down from 18 at baseline - `talent_branch_comparison_frontend.test.cjs`'s
+stale `learning_style_dimension` assertion fixed, zero new failures). No
+schema/migration change; `tis.db` byte-identical before/after (SHA-256
+verified). M18b-2 (the visible Results & Analytics page/chart rebuild
+consuming this contract) remains explicitly out of scope and was not
+implemented here.
 
 ## M18a Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (2026-09-23)
 

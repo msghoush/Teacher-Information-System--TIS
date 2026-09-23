@@ -145,6 +145,19 @@ _UNAVAILABLE_RESULT_STATES = (
 # along with their stale direct-call tests. The four
 # ``learning_style_*_percentage`` columns remain on ``models.Student``,
 # untouched, for separately-gated historical/physical-removal decisions.
+#
+# M18b-1: the ``learning_style_dimension`` query parameter/keyword argument
+# on ``routers/talent_evaluation_progress.py``'s ``branch_comparison`` route
+# and this function's signature is REMOVED. It was a no-op since M14: the
+# "learning_style" metric it existed to parameterize is not, and never was
+# after M14, a member of ``APPROVED_BRANCH_METRICS`` above, so
+# ``branch_comparison_metric`` always raised ``invalid_filter`` before the
+# argument's value could ever be read - confirmed genuinely unreferenced
+# inside this function's own body prior to removal (audited directly, not
+# assumed). No current Talent Branch-comparison metric consumes a Learning
+# Style dimension; the correct Family 1 Learning Style backend contract
+# (categorical distribution, never a per-dimension mean) is
+# ``student_learning_style_analytics.py``/``talent_results_analytics_service.py``.
 APPROVED_BRANCH_METRICS = (
     "evaluation_period_result",
     "current_overall_progress",
@@ -471,8 +484,7 @@ def _breakdown_percentage(cell, total_cell):
 
 def branch_comparison_metric(db: Session, ctx: "svc.AnalyticsContext", *, metric: str,
                               visible_branch_ids, has_candidate_permission: bool,
-                              has_identification_permission: bool, policy,
-                              learning_style_dimension: Optional[str] = None) -> dict:
+                              has_identification_permission: bool, policy) -> dict:
     if metric not in APPROVED_BRANCH_METRICS:
         raise EvaluationProgressError("invalid_filter", "metric is not one of the six approved Branch comparison metrics.")
 

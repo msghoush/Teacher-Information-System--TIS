@@ -1,11 +1,45 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.4
-last_updated: 2026-09-23
+documentation_version: 4.5
+last_updated: 2026-09-24
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Results & Analytics Backend Contract + Correct Aggregation Authority (M18b-1)
+
+Bounded BACKEND-ONLY sub-phase of M18b (the visible Results & Analytics
+page/chart rebuild is the separate, still-pending M18b-2). Before touching
+Talent Results & Analytics backend, Talented aggregation, or the Learning
+Style/Classification API contract, read this section:
+
+- `talent_org_intelligence_contract.MetricCode` is STILL frozen - the new
+  current-classification/Talented aggregate grain is served by a new module,
+  `talent_results_analytics_service.py`, reusing the existing M9
+  `talent_analytics_service` context/filter/scope architecture and generic
+  `Cell`/`Group` privacy primitives, NOT by extending `MetricCode`.
+- One coherent router, `routers/talent_results_analytics.py`
+  (`/api/talent/results-analytics/...`), serves three families: Learning
+  Style (thin reuse of `student_learning_style_analytics.py`),
+  Classification (current M17 five-band distribution, reusing
+  `talent_classification_service.assessment_classification` - never a
+  duplicated band table), and Talented (Exceptional-only).
+- **Organization/Branch aggregation is always a raw-count sum, never an
+  average of Branch percentages** - `sum_raw_counts_across_branches` is the
+  only rollup rule; the exact proof case (Branch A 1/2=50%, Branch B
+  9/90=10% -> Organization 10/92, not the naive 30% average) is
+  regression-tested.
+- Competency and Evaluation Period/Overall Result analytics are NOT
+  reimplemented here - the pre-existing `/api/talent/analytics/.../
+  rubric-distribution` and `/api/talent/evaluation-progress/...` routes
+  already serve those two families correctly and are consumed directly.
+- The dead `learning_style_dimension` query parameter (inert since M14) is
+  removed outright from `routers/talent_evaluation_progress.py`/
+  `talent_evaluation_progress_service.py`.
+- M18b-2 (the visible page/chart rebuild consuming this contract) is
+  separate, still-pending work - do not assume the Results & Analytics
+  templates/charts were touched here.
 
 ## Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (M18a)
 

@@ -1,11 +1,56 @@
 ---
 title: TIS Change History
-documentation_version: 5.7
-last_updated: 2026-09-23
+documentation_version: 5.8
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-24 - M18b-1 Results & Analytics Backend Contract + Correct Aggregation Authority
+
+- Bounded BACKEND-ONLY sub-phase of M18b (the visible Results & Analytics
+  page/chart rebuild is the separate, still-pending M18b-2).
+- Added `talent_results_analytics_service.py` and one coherent route family,
+  `routers/talent_results_analytics.py`
+  (`/api/talent/results-analytics/...`), serving three families: Learning
+  Style (thin reuse of `student_learning_style_analytics.py`), Classification
+  (current M17 five-band distribution over the M18a-governed
+  completed+current grain, reusing
+  `talent_classification_service.assessment_classification` - never a
+  duplicated band table), and Talented (Exceptional-only count/denominator/
+  rate).
+- `talent_org_intelligence_contract.MetricCode` remains frozen and
+  unmodified (ADR 0044); the new grain reuses the existing M9
+  `talent_analytics_service` context/filter/scope architecture and generic
+  `Cell`/`Group` privacy primitives with a new opaque privacy class
+  (`"P4"`), never the legacy Candidate/Identification metrics.
+- Added `sum_raw_counts_across_branches` as the ONLY Organization/Branch
+  rollup rule (raw-count sum, never an average of Branch percentages) with
+  an exact regression proof: Branch A 1/2 Talented (50%), Branch B 9/90
+  Talented (10%) -> Organization 10/92 (~10.87%), not the naive 30% average.
+- Removed the dead `learning_style_dimension` query parameter (inert since
+  M14) from `routers/talent_evaluation_progress.py`'s branch-comparison
+  route and from `branch_comparison_metric`'s signature in
+  `talent_evaluation_progress_service.py`; removed the one stale frontend
+  assertion for the now-nonexistent parameter in
+  `tests/talent_branch_comparison_frontend.test.cjs`.
+- Competency and Evaluation Period/Overall Result analytics are deliberately
+  NOT reimplemented - the pre-existing `/api/talent/analytics/.../
+  rubric-distribution` and `/api/talent/evaluation-progress/...` routes
+  already serve those two families correctly and M18b-2 consumes them
+  directly instead of a duplicated wrapper.
+- Added `tests/test_talent_results_analytics.py` (19 tests: pure raw-count
+  aggregation proof, classification band/exclusion/reuse coverage,
+  Branch/Organization Talented scope enforcement, privacy suppression,
+  router permission gating, dead-parameter regression).
+- No schema migration, no `tis.db` change, no new permission keys (reuses
+  `students.view`/`talent_analytics.view`). Full regression re-verified via
+  `git worktree` comparison against the unmodified M18a baseline
+  (`81cfa75`): the same 11 pre-existing Python `-k talent` failures and the
+  same (minus the one now-fixed stale assertion) JS failures reproduce
+  unchanged, by exact test name - zero new regressions. M18b-2 (the visible
+  page/chart rebuild consuming this contract) remains out of scope.
 
 ## 2026-09-23 - M18a Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX
 

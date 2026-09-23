@@ -60,6 +60,12 @@ _BANDS = (
     (Decimal("4.50"), Decimal("5.00"), "Exceptional"),
 )
 
+# M18b-1: the exact ordered canonical label set, exposed read-only so a
+# caller (e.g. ``talent_results_analytics_service.py``'s classification/
+# Talented aggregation) can build an aggregation bucket set without
+# hardcoding/duplicating the owner-approved band labels above.
+CLASSIFICATION_LABELS = tuple(label for _, _, label in _BANDS)
+
 
 class TalentClassificationError(ValueError):
     def __init__(self, code: str, message: str):
