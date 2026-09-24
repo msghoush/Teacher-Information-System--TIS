@@ -563,7 +563,11 @@ def test_list_shows_student_id_and_does_not_promote_legacy_learning_style(db, cl
     assert response.status_code == 200
     assert response.text.count("STD0000001001") >= 2  # desktop row and mobile card
     assert response.text.count("TIS Student ID not assigned") >= 1
-    assert "Read/Write" not in response.text
+    # Acceptance C: the aggregate Learning Style distribution panel legitimately
+    # lists every category label, so the "not promoted" rule is asserted on the
+    # Student list itself (rows/cards), i.e. everything after the panel.
+    student_list_html = response.text.split("stu-list-table", 1)[1]
+    assert "Read/Write" not in student_list_html
     assert "<th>Talent score</th>" not in response.text
     assert "<th>Talent status</th>" not in response.text
 

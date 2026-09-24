@@ -1,11 +1,28 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.8
+documentation_version: 4.9
 last_updated: 2026-09-24
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
+
+Read before touching `student_learning_style_analytics.py`, the Students Learning
+Style panel or the Results & Analytics Learning Style section. The distribution is
+authorized Student-domain aggregation, **not** Talent scoring output: it has no
+Talent P3/small-cell or complementary suppression and no privacy-provider
+dependency (`build_distribution(students)` takes no policy). Denominator = every
+authorized Student in the selection including Unassigned; nine categories in stable
+order (eight values then Unassigned) with key/label/count/percentage plus
+`total_population`; zero is `0`/`0%`; empty selection is state `empty`. There is no
+per-Student percentage and the four `learning_style_*_percentage` columns stay
+deprecated and unread. Authorization is unchanged (`resolve_population`,
+`students.view`, SchoolGroup/Branch/Grade scope). Never extend this exception to
+Classification, Talented, competency or organization metrics - their suppression
+is unchanged. The Results frontend renders backend `levels` and never computes a
+percentage. See ADR 0031 "Acceptance C Amendment".
 
 ## Talent Current Workflow Correction (Deployment Acceptance Correction B, 2026-09-24)
 

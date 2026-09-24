@@ -1,32 +1,38 @@
-"""Student Learning Style V1 aggregate distribution (ADR 0031).
+"""Student Learning Style aggregate distribution (ADR 0031, Acceptance C amendment).
 
-Learning Style is Student-domain learner-profile context, never a Talent
-score, and this module never participates in any Talent scoring, Program
-Criteria, Review, or Official Identification computation. Its aggregate
-distribution nonetheless carries the same "a visible total plus all-but-one
-visible sibling reconstructs the suppressed sibling" risk any small-cohort
-categorical breakdown does, so this module reuses the exact governed privacy
-primitives Talent analytics already uses - ``talent_analytics_privacy.py``'s
-``Cell``/``Group``/``apply_primary_privacy``/``run_complementary_suppression``,
-plus ``talent_analytics_service.build_breakdown_group``/``percentage`` - the
-same way ``routers/talent_analytics.py``'s rubric-distribution route already
-does for a structurally identical "one Group, total = sum(children)"
-breakdown. There is no separate or weaker suppression rule here.
+Learning Style is Student-domain learner-profile context: ONE categorical
+value per Student (eight approved values) or ``Unassigned``. It is never a
+Talent score, and this module never participates in any Talent scoring,
+Program Criteria, Review, or Official Identification computation. There is no
+per-Student Learning Style percentage; the four ``learning_style_*_percentage``
+columns are deprecated and are never read here.
+
+The aggregate distribution is authorized Student-domain profile aggregation,
+NOT sensitive Talent scoring/classification output. Deployment Acceptance
+Correction C therefore removed the Talent small-cell privacy pipeline
+(``talent_analytics_privacy``: primary/complementary suppression) from THIS
+distribution only. That pipeline is untouched and remains fully active for
+every Classification, Talented, competency, result and organization Talent
+metric. What still bounds this distribution is the caller's authorization:
+SchoolGroup, Branch and Grade scope and Student visibility are resolved by
+``resolve_population`` before anything is counted, and only aggregate counts and
+percentages (never Student identity) are returned.
+
+Denominator: every authorized Student in the selected population, INCLUDING
+``Unassigned``. A valid category with zero Students is ``0`` / ``0%``.
 
 This lives as a lightweight Students-domain module, not a Talent analytics
-route, because its population is "Students with a current effective academic
-placement in the actor's authorized scope" and is never filtered by Talent
-Program/Cycle participation - unlike every existing Talent analytics metric,
-which is Program/Cycle-scoped by construction.
+route, because its population is "Students in the actor's authorized scope"
+and is never filtered by Talent Program/Cycle participation.
 """
 
 from __future__ import annotations
 
+from decimal import ROUND_HALF_UP, Decimal
+
 import auth
 import models
 from student_academic_service import list_students
-from talent_analytics_privacy import apply_primary_privacy, run_complementary_suppression
-from talent_analytics_service import build_breakdown_group, percentage
 
 LEARNING_STYLES = (
     "Visual", "Auditory", "Read/Write", "Kinesthetic",
@@ -34,10 +40,9 @@ LEARNING_STYLES = (
 )
 NOT_SPECIFIED = "not_specified"
 
-# M14 owner correction (task G/H): the aggregate distribution's eighth
-# "no value assigned" bucket is labeled "Unassigned" and is always part of
-# the denominator, never silently excluded, alongside the eight categorical
-# values above (extended from the original four).
+# The aggregate distribution's ninth "no value assigned" bucket is labeled
+# "Unassigned" and is always part of the denominator, never silently
+# excluded, alongside the eight categorical values above.
 _LABELS = {**{style: style for style in LEARNING_STYLES}, NOT_SPECIFIED: "Unassigned"}
 _ORDER = {key: index for index, key in enumerate((*LEARNING_STYLES, NOT_SPECIFIED))}
 
@@ -80,8 +85,7 @@ def resolve_population(db, *, school_group_id, user, branch_id=None, grade_level
 
 
 def raw_learning_style_counts(students):
-    """Raw (pre-privacy) counts keyed by the four approved values plus
-    ``not_specified``, from an already-authorized/filtered Student iterable.
+    """Counts keyed by the eight approved values plus ``not_specified``, from an already-authorized/filtered Student iterable.
 
     Accepts ORM ``Student`` rows or plain dicts exposing ``learning_style``.
     Never itself applies any authorization/branch-scope filtering - callers
@@ -94,42 +98,41 @@ def raw_learning_style_counts(students):
     return counts
 
 
-def build_distribution(students, policy):
-    """Privacy-safe Learning Style distribution for one already-authorized
-    Student population.
+def _percentage(count, total):
+    if not total:
+        return None
+    return float((Decimal(count) * Decimal(100) / Decimal(total)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-    Returns ``{"state", "total": {"state", "value"}, "levels": [...]}``.
-    ``levels`` entries are ``{"label", "display_order", "state", "count",
-    "percentage"}`` - a non-``visible`` entry always carries ``count`` and
-    ``percentage`` as ``None`` (never a hidden magnitude behind a visible
-    percentage/tooltip/ordering). When complementary suppression does not
-    converge to a safe fixed point, this fails closed to ``state:
-    "restricted"`` with no per-level data at all, exactly like the existing
-    rubric-distribution route.
+
+def build_distribution(students):
+    """Learning Style distribution for one already-authorized Student population.
+
+    Returns ``{"state", "total_population", "total": {"state", "value"},
+    "levels": [...]}``. ``levels`` always lists all nine categories in the
+    fixed governed order (the eight approved values, then ``Unassigned``);
+    each entry is ``{"key", "label", "display_order", "state", "count",
+    "percentage"}``. Every percentage uses the same denominator - the whole
+    authorized population including Unassigned. ``state`` is ``"visible"``
+    for a populated selection and ``"empty"`` when the authorized population
+    is 0 (no divide-by-zero; percentages are then ``None``, never a
+    misleading ``0%``). No Talent privacy suppression is applied.
     """
     counts = raw_learning_style_counts(students)
-    total_raw = sum(counts.values())
-    group = build_breakdown_group(
-        name="student_learning_style", privacy_class="P3", total_raw=total_raw, children_raw=counts,
-    )
-    apply_primary_privacy(group.all_cells(), policy)
-    converged = run_complementary_suppression([group], policy)
-    if not converged:
-        return {"state": "restricted", "total": None, "levels": []}
-    levels = []
-    for cell in group.children:
-        key = cell.key[2]
-        is_visible = cell.state == "visible" and group.total.state == "visible" and total_raw
-        levels.append({
+    total = sum(counts.values())
+    levels = [
+        {
+            "key": key,
             "label": _LABELS[key],
             "display_order": _ORDER[key],
-            "state": cell.state,
-            "count": cell.value,
-            "percentage": float(percentage(cell.value, total_raw)) if is_visible else None,
-        })
-    levels.sort(key=lambda item: item["display_order"])
+            "state": "visible",
+            "count": counts[key],
+            "percentage": _percentage(counts[key], total),
+        }
+        for key in sorted(counts, key=_ORDER.__getitem__)
+    ]
     return {
-        "state": group.total.state,
-        "total": {"state": group.total.state, "value": group.total.value},
+        "state": "visible" if total else "empty",
+        "total_population": total,
+        "total": {"state": "visible", "value": total},
         "levels": levels,
     }

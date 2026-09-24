@@ -1,11 +1,27 @@
 ---
 title: TIS Master Context
-documentation_version: 4.11
+documentation_version: 4.12
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Learning Style Distribution (Deployment Acceptance Correction C, 2026-09-24)
+
+Learning Style is Student-domain categorical profile data (one of eight values,
+or Unassigned); there is no per-Student percentage and the four deprecated
+`learning_style_*_percentage` columns stay unread. The aggregate distribution
+(Students panel, `/api/students/analytics/learning-style-distribution`, and
+`/api/talent/results-analytics/academic-years/{id}/learning-style`) is authorized
+Student-domain aggregation: denominator = every authorized Student in the
+selection including Unassigned; nine categories always returned with count and
+percentage; zero categories are `0` / `0%`; empty population is an explicit empty
+state. By owner decision (ADR 0031 "Acceptance C Amendment") it is **not
+subject to Talent small-cell suppression**, and this does not weaken any other
+Talent privacy class. SchoolGroup/Branch/Grade scope, Student visibility, tenant
+isolation and `students.view` still bound the population; only aggregates are
+returned. No schema or migration change.
 
 ## Current Talent Workflow And Student Identity (Deployment Acceptance Correction B, 2026-09-24)
 
@@ -565,9 +581,9 @@ labels. Cross-Branch Student browsing uses the dedicated
 `students.view_all_branches` permission and also requires organization/global
 scope; the managed role policy keeps it Administrator-only. Other actors
 are fixed to their assigned authorized Branch and do not see **All branches**.
-Learning Style aggregates still fail closed under ADR 0031: unavailable privacy
-configuration renders an explanatory unavailable state with no statistics,
-while suppressed cohorts remain privacy-protected.
+Learning Style aggregates formerly failed closed under ADR 0031 (unavailable privacy
+configuration, suppressed cohorts); **superseded 2026-09-24 by the ADR 0031 Acceptance C
+Amendment**: the distribution is authorized aggregation with no Talent small-cell suppression.
 
 ## Talent Assessment Recovery And Review UX Authority
 

@@ -68,20 +68,20 @@ def _error(exc):
 def learning_style(academic_year_id: int, request: Request,
                     branch_id: int | None = Query(None), grade_level: str | None = Query(None),
                     section_name: str | None = Query(None),
-                    db: Session = Depends(get_db), current_user=Depends(get_current_user),
-                    policy=Depends(resolve_privacy_policy_provider)):
+                    db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Family 1. ``academic_year_id`` is accepted for URL-shape symmetry with
     the Program-bound families only; Learning Style population resolution is
     Student-domain-wide by design (ADR 0031/M14) and never Program/Cycle/
     Academic-Year filtered - see ``student_learning_style_analytics.py``.
+    Acceptance C: authorized Student-domain aggregation; the Talent small-cell
+    suppression pipeline is deliberately not applied to this family (the other
+    families below keep it). The denominator includes Unassigned Students.
     """
     user, denied = authorization.require_any_permission(
         request, db, "students.view", current_user=current_user, page_key="talent_results_analytics",
     )
     if denied:
         return denied
-    if policy is None:
-        return _fail_closed()
     group_id = _scope(db, user)
     if not group_id:
         return JSONResponse({"detail": "Select an organization scope.", "code": "organization_scope_required"}, status_code=403)
@@ -94,8 +94,7 @@ def learning_style(academic_year_id: int, request: Request,
     return jsonable_encoder({
         "family": "learning_style",
         "academic_year_id": academic_year_id,
-        "distribution": build_learning_style_distribution(rows, policy),
-        "privacy_policy_version": policy.privacy_policy_version,
+        "distribution": build_learning_style_distribution(rows),
     })
 
 

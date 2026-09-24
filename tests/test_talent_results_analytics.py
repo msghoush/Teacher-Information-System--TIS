@@ -253,12 +253,10 @@ def test_router_learning_style_reuses_students_view_permission_and_delegates(db)
                          access_scope="ORGANIZATION", school_group_id=1, branch_id=None, academic_year_id=100, is_active=True)
     db.add(admin)
     db.commit()
-    from talent_analytics_privacy import resolve_privacy_policy_provider
     app = FastAPI()
     app.include_router(results_router)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: admin
-    app.dependency_overrides[resolve_privacy_policy_provider] = lambda: AllowAllTestPolicy()
     with TestClient(app) as client:
         response = client.get("/api/talent/results-analytics/academic-years/100/learning-style")
     assert response.status_code == 200

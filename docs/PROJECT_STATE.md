@@ -1,11 +1,67 @@
 ---
 title: TIS Project State
-documentation_version: 5.20
+documentation_version: 5.21
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Deployment Acceptance Correction C - Learning Style Distribution (2026-09-24)
+
+**Status: implemented on `dev` only; not deployed and not merged to `master`.
+Whether production shows the corrected distribution needs production
+verification after a deploy. Web Service only - the separate
+`tis-timetable-workflow` revision is unaffected. No schema, migration, permission
+or `tis.db` change. Frontend structurally verified with a DOM-stub harness and
+Python route/template tests; not exercised in a real browser.**
+
+Owner-observed defect: every Learning Style category showed "Unavailable" even
+though authorized Students had Learning Styles. Confirmed causes: (1) the
+distribution was passed through the Talent P3 primary and complementary
+small-cell suppression pipeline, so a small cohort (10 Students, minimum cohort
+5) suppressed every per-category cell; (2) independently, the Results &
+Analytics frontend consumed a `buckets` key while the Learning Style route
+returns `levels`, so a visible distribution rendered no bars. Owner decision
+(dated ADR 0031 "Acceptance C Amendment"): the Learning Style distribution is
+authorized Student-domain profile aggregation, not Talent scoring output, and
+is **not subject to Talent small-cell suppression**.
+
+- **Semantics.** `Student.learning_style` stays one categorical value (eight
+  values, or Unassigned); there is no per-Student percentage and the four
+  deprecated `learning_style_*_percentage` columns are untouched and unread. The
+  aggregate returns all nine categories in stable order with key, label, count
+  and percentage over one denominator: every authorized Student in the selected
+  population **including Unassigned** (`total_population`). Zero categories are
+  `0` / `0%` and visible. An empty authorized population returns state `empty`
+  with no misleading `0%`.
+- **Boundaries kept.** SchoolGroup, Branch, Grade (Section where already
+  supported), Student visibility, tenant isolation and the `students.view`
+  permission; `resolve_population` is unchanged; only aggregate counts and
+  percentages are returned, never Student identity.
+- **Scope of the exception.** It applies to this one distribution only.
+  `talent_analytics_privacy.py`, its thresholds and P1-P7 suppression remain
+  active for Classification, Talented, competency/rubric, result and
+  organization Talent metrics; the Classification and Talented Results routes
+  still require and apply the privacy provider.
+- **Consumers.** The same engine feeds `/api/students/analytics/learning-style-distribution`,
+  the Students page panel and `/api/talent/results-analytics/academic-years/{id}/learning-style`;
+  all three are corrected consistently and none depends on the privacy provider
+  any more (the Results route no longer returns `privacy_policy_version`).
+- **Frontend.** Results & Analytics gains `learningStyleDistributionSection`
+  (label, "N Students", percentage, progress bar from the backend percentage,
+  "N Students in this selection, including Unassigned", accessible table,
+  neutral Unassigned row, responsive at 680px); the Students panel shows the same
+  fields. Loader hardening (Acceptance A) and identity behavior (Acceptance B)
+  are unchanged.
+- **Pinned expectations deliberately updated.** The former suppression /
+  privacy-unavailable panel tests and the 503-when-policy-missing test in
+  `tests/test_student_learning_style_v1.py` were replaced (this also retires the
+  previously failing panel-message test); the Students-list "not promoted"
+  assertion now excludes the aggregate panel; the Acceptance A loader test uses
+  the Learning Style contract body.
+- Performance: one authorized-population query plus in-memory aggregation, as
+  before; no per-Student or per-category query and no frontend N+1.
 
 ## Deployment Acceptance Correction B - Student Identity + Automatic Classification + Current Talent Workflow (2026-09-24)
 
@@ -78,7 +134,8 @@ What changed:
   Student Drill approved identity-field set (+`learning_style`), and the
   removed legacy filter/column assertions.
 
-Open follow-ups: Learning Style aggregate/privacy correction (Acceptance C) and
+Open follow-ups: Learning Style aggregate/privacy correction (Acceptance C, since implemented - see the
+Acceptance C section above) and
 the Assessment entry editor body (Acceptance D) were intentionally not started;
 the Student-domain Learning Style badge now renders "Unassigned" (normalized to
 match Talent surfaces by the follow-up remediation below).
@@ -2176,6 +2233,9 @@ the actor's assigned authorized Branch. Learning Style aggregate privacy is
 unchanged: a missing governed privacy provider now produces a clear
 "statistics unavailable" panel instead of hiding the whole section, with no
 counts/percentages/bars leaked; privacy-suppressed cohorts stay suppressed.
+**Superseded 2026-09-24 (Acceptance C):** the Learning Style distribution no longer
+depends on the privacy provider and is never suppressed; see the Acceptance C
+section at the top of this document.
 
 ## Talent Urgent UX And Recovery Adjustment Batch
 

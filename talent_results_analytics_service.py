@@ -6,7 +6,9 @@ ONLY the analytics families that did not already have a governed aggregate
 backend before this task:
 
 - ``learning_style``  - thin reuse of ``student_learning_style_analytics.py``
-  (M14), never a new Learning Style computation.
+  (M14), never a new Learning Style computation. Since Acceptance C it is
+  authorized Student-domain aggregation and is NOT subject to the Talent
+  small-cell suppression the classification/talented families below use.
 - ``classification``  - current M17 classification distribution (Needs
   Improvement / Developing / Meets Expectations / Advanced / Exceptional)
   over the exact same "current, applicable result" grain M18a already
@@ -180,7 +182,8 @@ def build_bucket_projection(*, name: str, raw_counts: dict, policy) -> dict:
     percentage per bucket, denominator explicit), reusing exactly the same
     ``build_breakdown_group``/``apply_primary_privacy``/
     ``run_complementary_suppression`` machinery every other M9 breakdown
-    (rubric distribution, Learning Style distribution) already uses. A
+    (rubric distribution) uses. (Learning Style distribution no longer does;
+    see Acceptance C in ``student_learning_style_analytics.py``.) A
     non-visible bucket always carries ``count``/``percentage`` as ``None``.
     """
     total_raw = sum(raw_counts.values())

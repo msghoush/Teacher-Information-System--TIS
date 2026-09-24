@@ -17,6 +17,8 @@ const FULL = {
 const mapBody = {metric: 'completion_coverage', columns: [], rows: [], cells: [], row_totals: [], column_totals: [], organization_total: null};
 const overviewBody = {metrics: {completion_coverage: {state: 'visible', percentage: 50, numerator: 1, denominator: 2}, programs_configured: {state: 'visible', value: 3}}};
 const distribution = {distribution: {state: 'visible', buckets: [{label: 'Visual', state: 'visible', count: 1, percentage: 100}]}};
+// Acceptance C: Learning Style is served in its own `levels` contract (all nine categories, total_population).
+const learningStyleBody = {distribution: {state: 'visible', total_population: 1, total: {state: 'visible', value: 1}, levels: [{key: 'Visual', label: 'Visual', display_order: 0, state: 'visible', count: 1, percentage: 100}]}};
 
 // Default scripted API: every analytics endpoint succeeds with a minimal valid payload.
 function okHandler(overrides = {}) {
@@ -31,7 +33,7 @@ function okHandler(overrides = {}) {
     if (url.includes('/longitudinal')) return {body: {points: [], comparisons: [], metric: 'completion_coverage', program: {name: 'P'}, academic_year: {label: 'Y'}}};
     if (url.includes('/students?')) return {body: {items: []}};
     if (url.includes('branch-comparison')) return {body: {metric: 'current_overall_progress', rows: []}};
-    if (url.includes('learning-style')) return {body: distribution};
+    if (url.includes('learning-style')) return {body: learningStyleBody};
     if (url.includes('/classification')) return {body: distribution};
     if (url.includes('/talented')) return {body: {organization: {distribution: {state: 'visible'}, summary: {talented_count: 1, applicable_denominator: 2, talented_rate_percentage: 50}}, branch_breakdown: [], not_currently_classifiable_count: 0}};
     return {body: []};
@@ -175,7 +177,7 @@ test('9b. Results & Analytics: a failing snapshot request does not erase Classif
 test('12. section Retry performs a fresh bounded request for that section only', async () => {
   let failing = true;
   const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({
-    'learning-style': () => failing ? {status: 500, body: {}} : {body: distribution},
+    'learning-style': () => failing ? {status: 500, body: {}} : {body: learningStyleBody},
   })}).start();
   assert.equal(env.callsTo('learning-style').length, 1);
   const totalBefore = env.calls.length;

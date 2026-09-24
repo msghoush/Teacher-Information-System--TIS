@@ -262,6 +262,11 @@
 .tp-grade-track span {display: block; height: 100%; background: linear-gradient(90deg, var(--app-brand), var(--app-brand-deep)); border-radius: 999px}
 .tp-grade-row > strong {font-variant-numeric: tabular-nums; text-align: right; font-size: var(--tp-text-sm)}
 .tp-grade-state {grid-column: 2 / -1}
+.tp-ls-context {margin: 0 0 var(--tp-space-3); font-weight: 650}
+.tp-ls-chart .tp-grade-row {grid-template-columns: 120px 1fr 56px 96px}
+.tp-ls-chart .tp-grade-row > small {font-variant-numeric: tabular-nums; color: var(--app-muted); white-space: nowrap}
+.tp-ls-chart .tp-ls-unassigned .tp-grade-track span {background: var(--app-muted)}
+.tp-ls-chart .tp-ls-unassigned .tp-grade-label {font-style: italic}
 .tp-grade-gauges {display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
 .tp-grade-gauge {display:grid;justify-items:center;padding:10px 8px;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface-strong)}
 .tp-grade-gauge-label {font-size:var(--tp-text-sm);font-weight:750;color:var(--app-brand-deep)}
@@ -335,6 +340,8 @@
 
 @media (max-width: 680px) {
   .tp-grade-row {grid-template-columns: 92px 1fr 46px; gap: 8px}
+  .tp-ls-chart .tp-grade-row {grid-template-columns: 1fr auto auto; gap: 4px 8px}
+  .tp-ls-chart .tp-grade-row .tp-grade-track {grid-column: 1 / -1; grid-row: 2}
   .tp-radial {width: 92px; height: 92px}
   .tp-radial-center strong {font-size: 19px}
   .tp-branch-row {grid-template-columns:92px 1fr 46px;gap:8px}

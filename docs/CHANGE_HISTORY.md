@@ -1,11 +1,28 @@
 ---
 title: TIS Change History
-documentation_version: 5.11
+documentation_version: 5.12
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-24 - Deployment Acceptance Correction C: Learning Style distribution
+
+- Root cause of "all Unavailable": the Learning Style distribution ran through the
+  Talent P3 primary/complementary small-cell suppression, and the Results &
+  Analytics frontend read `buckets` while the route returned `levels`.
+- Owner decision (ADR 0031 "Acceptance C Amendment", ADR 0044 note): the
+  distribution is authorized Student-domain aggregation and is no longer subject to
+  Talent small-cell suppression; no other Talent privacy class changed.
+- `build_distribution(students)` now returns nine categories with key/label/count/
+  percentage plus `total_population` (denominator includes Unassigned, zero is
+  `0`/`0%`, empty population is state `empty`); no privacy-provider dependency on the
+  Students API route, Students page panel or the Results `/learning-style` route.
+- Results & Analytics and the Students panel render count, percentage and a bar per
+  category from backend values. Replaced the suppression/privacy-unavailable tests
+  (retiring the stale failing panel-message test); no schema, migration, permission
+  or `tis.db` change. Web Service only; not deployed; Acceptance D not started.
 
 ## 2026-09-24 - Deployment Acceptance Correction B: Student identity, automatic Classification, current Talent workflow
 

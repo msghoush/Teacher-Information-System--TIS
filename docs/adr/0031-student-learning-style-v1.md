@@ -1,10 +1,10 @@
 ---
 title: Student Learning Style V1
-documentation_version: 1.3
-last_updated: 2026-09-23
+documentation_version: 1.4
+last_updated: 2026-09-24
 status: accepted
 module: architecture
-amended_by: "ADR 0042 (2026-09-22, superseded/corrected by the M14 amendment below) added a separate, independent four-dimension Learning Style percentage profile (Verbal/Non-verbal/Quantitative/Spatial) alongside this ADR's single-select categorical field. M14 (2026-09-23, owner correction) determined that ADR 0042's premise was a misinterpretation - 'percentage' was always intended to mean population/aggregate distribution, never a per-Student dimension score - and corrected the model: Verbal, Non-verbal, Quantitative, and Spatial become four MORE single-select categorical values on THIS field (eight total), not an independent percentage profile. The original four values, this field's single-select nature, and its Student-domain/no-Talent-effect governance are unchanged and remain in effect; only the approved value count changes (four to eight) and ADR 0042's four-percentage product model is corrected/superseded (see ADR 0042's own amendment note)."
+amended_by: "ADR 0042 (2026-09-22, superseded/corrected by the M14 amendment below) added a separate, independent four-dimension Learning Style percentage profile (Verbal/Non-verbal/Quantitative/Spatial) alongside this ADR's single-select categorical field. M14 (2026-09-23, owner correction) determined that ADR 0042's premise was a misinterpretation - 'percentage' was always intended to mean population/aggregate distribution, never a per-Student dimension score - and corrected the model: Verbal, Non-verbal, Quantitative, and Spatial become four MORE single-select categorical values on THIS field (eight total), not an independent percentage profile. The original four values, this field's single-select nature, and its Student-domain/no-Talent-effect governance are unchanged and remain in effect; only the approved value count changes (four to eight) and ADR 0042's four-percentage product model is corrected/superseded (see ADR 0042's own amendment note). Deployment Acceptance Correction C (2026-09-24, owner decision) then amended the aggregate-distribution privacy rule for THIS distribution only: it is authorized Student-domain aggregation and is no longer subject to Talent small-cell/complementary suppression (see the 'Acceptance C Amendment' section at the end; the original text above is preserved)."
 ---
 
 # ADR 0031: Student Learning Style V1
@@ -82,6 +82,11 @@ Learning Style is edited using the existing `students.edit` permission
 
 ### Analytics and privacy
 
+> **Amended 2026-09-24 (Acceptance C):** the Talent small-cell/complementary-
+> suppression requirement in this section no longer applies to the Learning
+> Style distribution; see the "Acceptance C Amendment" section at the end.
+> The historical text below is preserved unmodified.
+
 Where Learning Style distribution is surfaced in aggregate (Branch or
 Organization level), it must go through the same privacy/suppression
 contract already governing Talent aggregate analytics (minimum cohort
@@ -92,6 +97,11 @@ treatment must not encode hidden magnitude through bar length, color
 intensity, percentage, tooltip, or ordering.
 
 ### Student list branch scope and unavailable analytics presentation
+
+> **Amended 2026-09-24 (Acceptance C):** the privacy-provider fail-closed and
+> "privacy-protected state" behavior described in the second paragraph below is
+> removed for the Learning Style distribution (it no longer depends on the
+> privacy provider); Student list Branch scope is unchanged.
 
 Cross-Branch Student browsing is explicitly permissioned. The dedicated
 `students.view_all_branches` permission is Administrator-only in the managed
@@ -185,3 +195,63 @@ any Talent scoring/eligibility/identification computation, a new or weakened
 privacy rule, or any Branch-level override of the Student-domain ownership
 model - the original Governance boundary section above continues to apply in
 full, now scoped to eight values instead of four.
+
+## Acceptance C Amendment (2026-09-24): Authorized Aggregate, No Talent Small-Cell Suppression
+
+Added 2026-09-24 by explicit owner decision after Deployment Acceptance
+Correction C. The text above is preserved unmodified; this section records
+what supersedes it for the Learning Style aggregate distribution.
+
+### Observed defect
+
+In deployed Results & Analytics and the Students panel every Learning Style
+category rendered "Unavailable" although authorized Students already had
+Learning Styles assigned. Root cause (reproduced with a 10-Student cohort and
+the release-1 minimum cohort of 5): the distribution was passed through the
+Talent P3 primary and complementary suppression pipeline, which suppresses
+every per-category cell smaller than the minimum cohort; and, independently,
+the Results & Analytics frontend read a `buckets` key while the Learning Style
+route returned `levels`, so even a visible distribution rendered no bars.
+
+### Decision
+
+- Learning Style is Student-domain categorical profile data (one of eight
+  values, or Unassigned). There is **no per-Student Learning Style
+  percentage**; the four `learning_style_*_percentage` columns stay deprecated,
+  untouched and never read. The aggregate percentage exists only as a
+  population statistic.
+- The aggregate distribution is **authorized Student-domain profile
+  aggregation, not sensitive Talent scoring/classification output**, and is
+  therefore **not subject to Talent small-cell (P3) or complementary
+  suppression**. A valid category is never "Unavailable"/"Suppressed" for an
+  authorized actor; a category with zero Students is `0` / `0%`.
+- Denominator: every authorized Student in the selected population **including
+  Unassigned** (not only assigned, Talent-assessed, or active Program
+  Students). Nine categories are always returned in stable order: Visual,
+  Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal, Quantitative,
+  Spatial, Unassigned, each with key, label, count and percentage, plus
+  `total_population`. An empty authorized population returns state `empty`
+  (percentages `null`), never a misleading `0%`.
+- Boundaries that **remain**: SchoolGroup, Branch, Grade (and Section where the
+  existing contract supports it) scope, Student visibility, tenant isolation
+  and the existing `students.view` permission. `resolve_population` is
+  unchanged. Only aggregate counts/percentages are returned, never Student
+  identity.
+- **This exception does not weaken any other Talent privacy class.** P1-P7
+  suppression, complementary suppression and the fail-closed privacy provider
+  remain fully active for Classification, Talented, competency/rubric,
+  result, organization and every other Talent metric;
+  `talent_analytics_privacy.py` and its policy thresholds are unmodified.
+- No schema change and no migration; `tis.db` is not touched.
+
+### Implementation record
+
+`student_learning_style_analytics.build_distribution(students)` no longer takes
+a privacy policy and no longer imports `talent_analytics_privacy`;
+`/api/students/analytics/learning-style-distribution`,
+`/api/talent/results-analytics/academic-years/{id}/learning-style` and the
+Students page panel no longer depend on `resolve_privacy_policy_provider`
+(the Results route no longer returns `privacy_policy_version`). The Results &
+Analytics frontend renders the backend `levels` (count, percentage, bar drawn
+from the backend percentage, zero rows kept, Unassigned neutral) and never
+computes a percentage.

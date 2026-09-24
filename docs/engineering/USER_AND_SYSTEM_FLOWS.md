@@ -1,11 +1,28 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.10
+documentation_version: 3.11
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Learning Style Distribution Flow (Deployment Acceptance Correction C, 2026-09-24)
+
+1. An actor with `students.view` opens the Students page panel or Results & Analytics
+   (Learning Style section, Student-domain-wide, never Program-bound).
+2. The backend resolves the authorized Student population for the selected
+   Branch/Grade (SchoolGroup, Branch scope and tenant isolation enforced; an
+   out-of-scope Branch is refused).
+3. It counts one categorical Learning Style per Student in memory; Students with no
+   value are Unassigned. The denominator is the whole authorized population
+   including Unassigned.
+4. The UI shows all nine categories with count, percentage and a bar drawn from the
+   backend percentage, plus "N Students in this selection, including Unassigned".
+   Zero categories show `0` / `0%`. An empty selection shows "No Students in the
+   current authorized selection". No Talent small-cell suppression applies to this
+   distribution (owner decision, ADR 0031 Acceptance C Amendment); a request failure
+   or 403 keeps the section's own error/retry state.
 
 ## Current Talent Assessment Flow (Deployment Acceptance Correction B, 2026-09-24)
 
@@ -239,7 +256,7 @@ M10 comparison charts, and M11 roster UI are not part of this flow.
 1. Add Student, Delete selected, per-row Open, and per-row Delete are compact icon-only controls with accessible names/tooltips.
 2. Cross-Branch Students browsing requires `students.view_all_branches` **and** organization/global access scope. The managed-role policy keeps this permission Administrator-only.
 3. Without that authority the list is fixed to the actor's assigned authorized Branch, the Branch selector is replaced by a read-only Branch context, and **All branches** is not offered.
-4. Learning Style distribution continues to use the ADR 0031 privacy provider. If that provider is unavailable, the page explains that aggregate statistics are unavailable and emits no chart/count/percentage. If the selected cohort is suppressed, the privacy-protected state remains the only aggregate presentation.
+4. Learning Style distribution formerly used the ADR 0031 privacy provider; **superseded 2026-09-24 (Acceptance C)**: it is authorized aggregation with no provider dependency or suppression (see the Learning Style Distribution Flow above).
 
 ## Talent Selected Evaluation And Recovery Flow
 

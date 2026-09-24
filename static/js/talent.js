@@ -381,6 +381,41 @@
       : bucketBars(distribution.buckets, heading) + bucketTable(heading, distribution.buckets);
     return `<section aria-labelledby="${id}-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">${esc(eyebrow)}</p><h3 id="${id}-title">${esc(heading)}</h3></div><p>${esc(description)}</p></div>${body}${footnote ? note(footnote) : ''}</section>`;
   }
+  // Acceptance C: Learning Style distribution. Authorized Student-domain
+  // aggregate (denominator = every authorized Student in the selection,
+  // including Unassigned; no Talent small-cell suppression, so a valid
+  // category is never "Unavailable"). Renders the backend `levels` exactly:
+  // label, count and percentage are backend values, never recomputed here; the
+  // bar width is geometry from the backend percentage only. Zero rows stay
+  // visible with an empty bar. A failed/forbidden request never reaches this
+  // renderer (the section loader shows its own error/retry state).
+  const studentsText = n => `${number(n)} Student${n === 1 ? '' : 's'}`;
+  function learningStyleBars(levels) {
+    const body = levels.map(level => {
+      const pct = typeof level.percentage === 'number' && Number.isFinite(level.percentage) ? level.percentage : 0;
+      const count = typeof level.count === 'number' ? level.count : 0;
+      const width = Math.max(0, Math.min(100, pct));
+      const unassigned = level.key === 'not_specified' ? ' tp-ls-unassigned' : '';
+      return `<div class="tp-grade-row${unassigned}"><span class="tp-grade-label">${esc(level.label)}</span><div class="tp-grade-track" role="img" aria-label="${esc(level.label)}: ${number(pct)} percent, ${studentsText(count)}"><span style="width:${width}%"></span></div><strong>${number(pct)}%</strong><small>${studentsText(count)}</small></div>`;
+    }).join('');
+    return `<div class="tp-grade-chart tp-ls-chart" role="group" aria-label="Learning Style distribution">${body}</div>`;
+  }
+  function learningStyleTable(levels) {
+    const rows = levels.map(level => `<tr><th scope="row">${esc(level.label)}</th><td>${number(level.count)}</td><td>${number(level.percentage)}%</td></tr>`);
+    return table('Learning Style Distribution', ['Category', 'Students', 'Percentage'], rows);
+  }
+  function learningStyleDistributionSection(id, eyebrow, heading, description, distribution) {
+    const levels = distribution && Array.isArray(distribution.levels) ? distribution.levels : null;
+    let body;
+    if (!levels || !distribution || (distribution.state !== 'visible' && distribution.state !== 'empty')) {
+      body = empty('This distribution is not available for this selection.');
+    } else if (distribution.state === 'empty' || !distribution.total_population) {
+      body = empty('No Students in the current authorized selection.');
+    } else {
+      body = `<p class="tp-ls-context">${studentsText(distribution.total_population)} in this selection, including Unassigned.</p>${learningStyleBars(levels)}${learningStyleTable(levels)}`;
+    }
+    return `<section aria-labelledby="${id}-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">${esc(eyebrow)}</p><h3 id="${id}-title">${esc(heading)}</h3></div><p>${esc(description)}</p></div>${body}</section>`;
+  }
   // Family 3 (current Talent): Talented==Exceptional only, exactly the
   // backend's own count/applicable-denominator/rate. The Organization value
   // is never a client-side average of the per-Branch rates below - it is
@@ -420,7 +455,7 @@
     return `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) Students</h3></div></div><div class="tp-primary-indicator-body">${gauge}${context}<p>Talented is the current, automatic Exceptional classification of a completed assessment. Preserved Legacy Review &amp; Identification History is separate audit history and is not part of this current figure.</p></div>${branchSection}${data.not_currently_classifiable_count ? note(`${data.not_currently_classifiable_count} completed assessment(s) use a Program rubric that cannot currently be classified and are excluded from this rate.`) : ''}</section>`;
   }
   // Small pure boundary exported for privacy and injection regression tests.
-  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, branchComparisonMetricOptions, branchMetricValue, branchComparisonChart, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection, bucketBars, bucketTable, distributionSection, talentedSection, boundedRequest, safeMessage, sectionErrorHtml, sectionLoadingHtml, slotHtml, REQUEST_TIMEOUT_MS};
+  if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, branchComparisonMetricOptions, branchMetricValue, branchComparisonChart, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection, bucketBars, bucketTable, distributionSection, learningStyleDistributionSection, talentedSection, boundedRequest, safeMessage, sectionErrorHtml, sectionLoadingHtml, slotHtml, REQUEST_TIMEOUT_MS};
   if (typeof document === 'undefined') return;
   const configNode = document.getElementById('tp-config');
   if (!configNode) return;
@@ -697,7 +732,7 @@
       const learningStyleSection=learningStyleAllowed?slotHtml('tp-learning-style-slot','Learning Style distribution'):'';
       if(learningStyleAllowed)sections.add({id:'tp-learning-style-slot',label:'Learning Style distribution',keys:['learningStyle'],build:async()=>{
         const learningStyleData=await learningStyleReq();
-        return distributionSection('tp-learning-style','Learning Style','Learning Style Distribution','Every currently recorded Learning Style category for Students in this selection, including Unassigned. This is never a per-Student percentage.',learningStyleData&&learningStyleData.distribution);
+        return learningStyleDistributionSection('tp-learning-style','Learning Style','Learning Style Distribution','Share of the Students in this selection in each Learning Style category, including Unassigned. Learning Style is a single category per Student; percentages describe the group, never an individual Student.',learningStyleData&&learningStyleData.distribution);
       }});
       const classificationSection=pid
         ? slotHtml('tp-classification-slot','Classification distribution')

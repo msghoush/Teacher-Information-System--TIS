@@ -120,9 +120,10 @@ test('phase-2 assessment editor never falls back across Grade and has profession
   assert.doesNotMatch(source,/^\s*on\('reload'/m);
   assert.match(source,/tp-assessment-grid/);assert.match(source,/tp-assessment-kpi-label/);
 });
-test('phase-2 Students keeps protected style categories and removes nested vertical table scrolling',()=>{
+test('phase-2 Students shows every Learning Style category with count and percentage (Acceptance C) and removes nested vertical table scrolling',()=>{
   const template=fs.readFileSync(path.join(__dirname,'..','templates','students.html'),'utf8');
   const css=fs.readFileSync(path.join(__dirname,'..','static','css','students.css'),'utf8');
-  assert.match(template,/Learning Style categories remain visible below without counts or proportional bar lengths/);
+  assert.doesNotMatch(template,/without counts or proportional bar lengths|Too few Students match this selection/);
+  assert.match(template,/in this selection, including Unassigned/);
   assert.match(css,/overflow-y: visible/);assert.match(css,/stu-ls-row-label::before/);
 });
