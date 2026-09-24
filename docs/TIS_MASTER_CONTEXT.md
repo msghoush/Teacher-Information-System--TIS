@@ -18,15 +18,18 @@ Authority for the Talent workspace client lifecycle (`static/js/talent.js`,
   and fails, independently with its own Retry.
 - Every script global that `talent.js` or a delegate needs must be loaded by
   the template for that view before `talent.js` (defer scripts run in document
-  order); `talent-rubric-visual.js` is loaded on all views. A future change that
+  order); `talent-rubric-visual.js`, `talent-api-errors.js` and
+  `talent-rubric-request.js` are loaded on all views. A future change that
   gates a script per view must update the per-view dependency test in
   `tests/test_talent_ui.py`.
 - Read requests are bounded (25 s; 15 s for selector lookups; 20 s boot context
   deadline); the stale-generation guard, AbortController, no-store and 250 ms
   debounce are preserved; the current generation always reaches a terminal
-  state; user-facing errors never expose exception text, stack, database or
-  endpoint detail. Authorization, tenant scope, privacy policy and analytics
-  semantics are unchanged.
+  state. User-facing errors use a curated status/code mapping
+  (`talent-api-errors.js`) and never expose raw backend `detail`, exception
+  text, stack, database or endpoint detail (raw-`detail` disclosure was
+  corrected by the ClinePass remediation). Authorization, tenant scope, privacy
+  policy and analytics semantics are unchanged.
 
 ## M14-M18 Correction Program Closed On dev - Final Authority Summary (M18b-3, 2026-09-24)
 

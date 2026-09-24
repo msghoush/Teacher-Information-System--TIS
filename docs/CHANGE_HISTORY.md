@@ -17,12 +17,35 @@ source_of_truth: true
   state), bounded read requests (25 s; 15 s selector lookups; 20 s boot context
   deadline) with explicit timeout state, and independent section loading/error/
   Retry states for Organization Overview and Results & Analytics (no more
-  all-or-nothing `Promise.all`; no duplicate requests; analytics semantics
-  unchanged). Error text is sanitized; `aria-busy`/status reach a terminal state.
+  all-or-nothing `Promise.all`; analytics semantics unchanged); `aria-busy`/
+  status reach a terminal state. (The "no duplicate requests" and "error text is
+  sanitized" claims were overstatements at this commit - corrected by the
+  follow-up remediation below.)
 - Tests: stub-harness `tests/talent_runtime_loading.test.cjs`, per-view script
   dependency checks in `tests/test_talent_ui.py`. Not a real-browser test.
 - No schema, migration, authorization, tenant, or privacy change. Web Service
   only; not deployed.
+
+## 2026-09-24 - Deployment Acceptance Correction A Remediation (ClinePass Precision Remediation)
+
+- Independent Codex audit found two blocking defects in Acceptance A's frontend
+  runtime path: raw backend `data.detail` disclosure (`talent.js`
+  `parseApiResponse()`/`operationApi()`, `talent-experience.js` `fetchRubric()`),
+  and a duplicate rubric-distribution request issued by both `talent.js`
+  `rubricReq()` and `talent-experience.js` `ensureRubricSection()`.
+- Fixed with two shared, always-loaded helpers: `static/js/talent-api-errors.js`
+  (curated status/code error mapping; arbitrary `detail` and raw exception/SQL/
+  stack/endpoint text can never surface) and `static/js/talent-rubric-request.js`
+  (single-flight read ownership keyed by Program + Academic Year +
+  `assessment_state`; `talent.js` owns the request, `talent-experience.js`
+  reuses it). Retry re-issues; Program/year change resets the store.
+- `tests/talent_runtime_harness.cjs` now executes talent-rubric-visual,
+  talent-api-errors, talent-rubric-request, talent.js and talent-experience.js
+  together and observes fetches from both modules; the runtime-loading suite
+  grew from 23 to 30 tests. Per-view script dependency tests now require the two
+  new helpers before `talent.js`.
+- No backend, schema, migration, authorization, tenant, privacy or analytics
+  change. Web Service only; not deployed; `tis.db` unchanged.
 
 ## 2026-09-24 - M18b-3 M14-M18 correction program closeout (final regression / performance / privacy verification)
 

@@ -74,19 +74,19 @@ def test_talent_views_load_only_their_required_script_bundles(db, client, view, 
 # four views, so every other view threw at load time and stayed on the
 # server-rendered "Loading your authorized workspace" placeholder forever.
 REQUIRED_SCRIPTS_BY_VIEW = {
-    'overview': ('talent-rubric-visual.js',),
-    'programs': ('talent-rubric-visual.js', 'talent-program-workspace.js'),
-    'evaluation-plans': ('talent-rubric-visual.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
-    'assessments': ('talent-rubric-visual.js', 'talent-operations.js'),
-    'reviews': ('talent-rubric-visual.js', 'talent-operations.js'),
-    'learner-profile': ('talent-rubric-visual.js',),
-    'analytics': ('talent-rubric-visual.js',),
-    'talent-map': ('talent-rubric-visual.js',),
-    'portfolio': ('talent-rubric-visual.js',),
-    'branch': ('talent-rubric-visual.js',),
-    'overlap': ('talent-rubric-visual.js',),
-    'students': ('talent-rubric-visual.js',),
-    'longitudinal': ('talent-rubric-visual.js',),
+    'overview': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'programs': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-program-workspace.js'),
+    'evaluation-plans': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
+    'assessments': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-operations.js'),
+    'reviews': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-operations.js'),
+    'learner-profile': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'analytics': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'talent-map': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'portfolio': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'branch': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'overlap': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'students': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
 }
 
 

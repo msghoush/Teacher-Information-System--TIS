@@ -21,6 +21,15 @@ dependencies in `tests/test_talent_ui.py` accurate and use the stub harness in
 `tests/talent_runtime_harness.cjs`. No backend, schema, permission, privacy or
 analytics-semantics change; Web Service only.
 
+Follow-up ClinePass remediation (same day): the Acceptance A closeout overclaimed
+"no duplicate requests" and "sanitized errors" - at 507dc59 raw backend
+`data.detail` could reach users and the rubric-distribution endpoint was fetched
+by both `talent.js` and `talent-experience.js`. Fixed via shared curated error
+mapping (`static/js/talent-api-errors.js`) and shared rubric read ownership
+(`static/js/talent-rubric-request.js`); the runtime harness now executes both
+`talent.js` and `talent-experience.js` together to prove single-request
+deduplication.
+
 ## M14-M18 Correction Program Closeout (M18b-3, 2026-09-24)
 
 Read this first for Talent work: the M14-M18 correction program is functionally

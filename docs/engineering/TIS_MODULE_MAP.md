@@ -14,10 +14,15 @@ generation/stale guard, and independent section scheduling (`createSections`)
 for every view; delegates (`TalentOperations`, `TalentProgramWorkspace`,
 `TalentEvaluationWorkspace`) render inside that lifecycle and their failures
 surface through it. `templates/talent/workspace.html` must load every global a
-view's render path needs before `talent.js` (rubric visual on all views;
-operational bundles per surface). `static/js/talent-experience.js` owns the
-Program-filtered rubric section (bounded request, Retry). No module, route or
-schema was added.
+view's render path needs before `talent.js` (`talent-rubric-visual.js`,
+`talent-api-errors.js`, `talent-rubric-request.js` on all views; operational
+bundles per surface). `static/js/talent-experience.js` owns the Program-filtered
+rubric section UI (bounded request, Retry). `static/js/talent-api-errors.js`
+owns curated user-facing error copy (HTTP status + stable code; never raw
+`detail`). `static/js/talent-rubric-request.js` owns the single-flight
+rubric-distribution read (keyed by Program + Academic Year + assessment_state;
+`talent.js` publishes, `talent-experience.js` consumes). No backend module,
+route or schema was added.
 
 ## M14-M18 Correction Program Closeout Ownership Notes (M18b-3, 2026-09-24)
 

@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-24T11:21:00.964978+03:00",
+  "generated_at": "2026-09-24T12:27:33.110532+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "21cebc3",
+  "commit_sha": "507dc59",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "b40d25833844cb9d488db13a2538bf7af25cd546c5ff520ca5f83cce105c026b",
-  "pdf_size_bytes": 2237105,
+  "pdf_sha256": "2a3e9c90a7eb1fffe26c2734de7d9a97902f8f92c436be7ea1b064d1ce76dfc2",
+  "pdf_size_bytes": 2240814,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-09-24T11:19:33.608831+03:00",
-      "size_bytes": 227254,
-      "sha256": "6a0cd375471cb38723fe577645051a7157db1948c6dd6d026a19cd5cb530f8fc",
+      "modified_at": "2026-09-24T12:24:59.236977+03:00",
+      "size_bytes": 227810,
+      "sha256": "d74eabdf936619b07a1609840f6bdd3d02c293fc2939c9d9bd85e478129b3327",
       "pdf_page": 17
     },
     {
@@ -39,23 +39,23 @@
     },
     {
       "path": "docs/TIS_MASTER_CONTEXT.md",
-      "modified_at": "2026-09-24T11:19:33.606863+03:00",
-      "size_bytes": 166286,
-      "sha256": "a17463dcbf565fd3cef8697658fc39fe2cfb3ad98068a33169df463b357cc87b",
+      "modified_at": "2026-09-24T12:24:42.786330+03:00",
+      "size_bytes": 166502,
+      "sha256": "066bb7cdc51596f76223adc0ef68be220d17757d970bdf570808865cebfb1a6c",
       "pdf_page": 75
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-24T11:19:33.605947+03:00",
-      "size_bytes": 327251,
-      "sha256": "a09feba895a4d061ca8b8688e01b41fb6c9f752188062947e069a921f63d0189",
+      "modified_at": "2026-09-24T12:24:25.771975+03:00",
+      "size_bytes": 330262,
+      "sha256": "00d9ea77c17f183260dfe1c671982587a5c14c3535f4bf7b21e23d00732352d1",
       "pdf_page": 119
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-24T11:19:33.611923+03:00",
-      "size_bytes": 293327,
-      "sha256": "a70cf8a80f092a8c9ce846e1aa482f228bd9ea9cc95acc470253346c5d38b30d",
+      "modified_at": "2026-09-24T12:25:21.307849+03:00",
+      "size_bytes": 294838,
+      "sha256": "db3df78601c4cec25a9b1c392a17fa1e112e5a1399b1d91096146a09c0cbacaf",
       "pdf_page": 199
     },
     {
@@ -74,9 +74,9 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-09-24T11:19:33.610836+03:00",
-      "size_bytes": 87788,
-      "sha256": "66ce4695258fc3e4de323d65260859142bfcf717c2d92df38858976c57497338",
+      "modified_at": "2026-09-24T12:25:36.114294+03:00",
+      "size_bytes": 88177,
+      "sha256": "640326204a362b657079e29f1b1b011d0c36038005ca83a5f2cebae72c8f0210",
       "pdf_page": 297
     },
     {

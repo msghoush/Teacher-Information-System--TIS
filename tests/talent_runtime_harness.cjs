@@ -19,7 +19,8 @@ class Element {
     this.id = id; this.env = env; this.attrs = {}; this.listeners = {};
     this.hidden = false; this.value = ''; this.options = []; this.textContent = '';
     this.parentElement = {hidden: false}; this.selectedIndex = 0; this._html = ''; this.slots = new Map();
-    this.classList = {add() {}, remove() {}, contains: () => false};
+    this.classList = {add() {}, remove() {}, contains: () => false, toggle() {}};
+    this.dataset = {}; this.isConnected = true; this._children = [];
   }
   set innerHTML(value) { this._html = String(value); this.slots = new Map(); this.retryButton = null; if (this.isSelect) this.parseOptions(); }
   get innerHTML() { return this._html; }
@@ -33,6 +34,9 @@ class Element {
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
   removeEventListener() {}
   replaceChildren() { this._html = ''; this.slots = new Map(); }
+  append(child) { this._children.push(child); }
+  closest() { return null; }
+  querySelectorAll() { return []; }
   matches(selector) { return selector === 'select' && Boolean(this.isSelect); }
   emit(type, event = {}) { (this.listeners[type] || []).forEach(fn => fn({preventDefault() {}, ...event})); }
   // Serialized view: server markup with each independent slot replaced by the
@@ -64,7 +68,23 @@ class Element {
       this.retryButton ||= new Element('tp-retry', this.env);
       return this.retryButton;
     }
+    // talent-experience.js rubric section traversal (Results & Analytics).
+    if (selector === '[data-tp-rubric-section]') return /data-tp-rubric-section/.test(this._html) ? this._rubricChild('[data-tp-rubric-section]') : null;
+    if (selector === '.tp-error') return null;
+    if (selector === '#tp-rubric-title') return null;
+    if (selector === '#tp-rubric-program-filter') return this._rubricChild('#tp-rubric-program-filter');
+    if (selector === '[data-tp-rubric-results]') return this._rubricChild('[data-tp-rubric-results]');
+    if (selector === '[data-tp-rubric-retry]') return this._rubricChild('[data-tp-rubric-retry]');
     return null;
+  }
+  _rubricChild(selector) {
+    if (!this._rubricChildren) this._rubricChildren = new Map();
+    if (!this._rubricChildren.has(selector)) {
+      const element = new Element('rubric' + selector.replace(/[^a-zA-Z0-9]/g, '-'), this.env);
+      if (selector === '#tp-rubric-program-filter') element.isSelect = true;
+      this._rubricChildren.set(selector, element);
+    }
+    return this._rubricChildren.get(selector);
   }
 }
 
@@ -87,6 +107,7 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
     elements[`tp-${name}`].parentElement = field;
   }
   el('tp-breadcrumb-current');
+  el('talent-workspace', {dataset: {view}});
   if (breakInit) delete elements['tp-metric-field'];
 
   const windowListeners = {};
@@ -100,6 +121,8 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
       querySelectorAll: () => [],
       addEventListener() {},
       readyState: 'complete',
+      createElement: tag => new Element('created-' + tag + '-' + ((env.createdSeq = (env.createdSeq || 0) + 1)), env),
+      body: {classList: {toggle() {}}},
     },
     setTimeout: (fn, ms) => { const id = ++timerSeq; timers.push({id, at: now + ms, fn}); return id; },
     clearTimeout: id => { const index = timers.findIndex(timer => timer.id === id); if (index >= 0) timers.splice(index, 1); },
@@ -116,6 +139,7 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
         resolve(response(status, outcome && 'body' in outcome ? outcome.body : {}));
       });
     },
+    MutationObserver: class { constructor(callback) { env.mutationCallback = callback; } observe() {} disconnect() {} },
     ...globals,
   };
   sandbox.window = sandbox;
@@ -143,9 +167,23 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
   };
   env.pendingTimers = () => timers.length;
   env.start = async () => {
-    vm.runInNewContext(fs.readFileSync(source, 'utf8'), sandbox, {filename: 'talent.js'});
+    vm.createContext(sandbox);
+    const script = (file, name) => vm.runInContext(fs.readFileSync(file, 'utf8'), sandbox, {filename: name});
+    const js = file => path.join(__dirname, '..', 'static', 'js', file);
+    // Production defer order: shared rubric visual, shared error mapper, shared
+    // rubric-read ownership store, then talent.js, then talent-experience.js.
+    script(js('talent-rubric-visual.js'), 'talent-rubric-visual.js');
+    script(js('talent-api-errors.js'), 'talent-api-errors.js');
+    script(js('talent-rubric-request.js'), 'talent-rubric-request.js');
+    script(source, 'talent.js');
+    script(js('talent-experience.js'), 'talent-experience.js');
     await env.flush();
     return env;
+  };
+  // Simulates the MutationObserver fire that follows talent.js's DOM write, so
+  // talent-experience.js's ensureRubricSection() runs against the rendered view.
+  env.triggerMutation = async () => {
+    if (env.mutationCallback) { env.mutationCallback(); await env.flush(); }
   };
   env.callsTo = fragment => calls.filter(call => String(call.url).includes(fragment));
   env.sandbox = sandbox;

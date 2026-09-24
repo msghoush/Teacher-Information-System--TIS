@@ -7,6 +7,16 @@
 })(typeof window !== 'undefined' ? window : globalThis, root => {
   'use strict';
 
+  // Shared helpers loaded by the template before this script (and require()'d
+  // under Node). Resolved defensively so a missing module degrades instead of
+  // aborting the page.
+  const apiErrors = (typeof require === 'function' && typeof module !== 'undefined' && module.exports)
+    ? require('./talent-api-errors.js')
+    : (root && root.TalentApiErrors) || null;
+  const rubricRequest = (typeof require === 'function' && typeof module !== 'undefined' && module.exports)
+    ? require('./talent-rubric-request.js')
+    : (root && root.TalentRubricRequest) || null;
+
   const PRIVATE_EVALUATION_SUFFIXES = [' · Current rubric', ' · Re-assessment'];
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -244,7 +254,9 @@
         }
         const data = await response.json();
         if (!response.ok) {
-          throw Object.assign(new Error(typeof data?.detail === 'string' ? data.detail : 'Unable to load rubric distributions.'), {userSafe:true});
+          throw (apiErrors && typeof apiErrors.httpError === 'function')
+            ? apiErrors.httpError(response.status, data?.code)
+            : Object.assign(new Error('Unable to load rubric distributions.'), {userSafe:true});
         }
         return data;
       }).then(value => finish(resolve, value), error => finish(reject, error));
@@ -347,7 +359,17 @@
     rubricController = new AbortController();
     const serial = ++rubricRequestSerial;
     try {
-      const data = await fetchRubric(selectedId, year, rubricController.signal);
+      // Reuse talent.js's authoritative rubric read for the same Program + Year +
+      // assessment_state context (cross-module deduplication). Retry (force) always
+      // re-issues its own bounded request. A different Program selected in this
+      // section's own filter is a different context and fetches independently.
+      const requestKey = (rubricRequest && typeof rubricRequest.key === 'function')
+        ? rubricRequest.key(selectedId, year)
+        : `${selectedId}|${year}|completed`;
+      const shared = !force && rubricRequest && typeof rubricRequest.get === 'function'
+        ? rubricRequest.get(requestKey)
+        : null;
+      const data = shared ? await shared : await fetchRubric(selectedId, year, rubricController.signal);
       if (serial !== rubricRequestSerial || !section.isConnected) return;
       const target = section.querySelector('[data-tp-rubric-results]');
       if (target) target.innerHTML = rubricDistributionHtml(data, selectedProgram.name);

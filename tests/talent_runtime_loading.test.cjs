@@ -299,7 +299,9 @@ test('16. every terminal state leaves aria-busy false and status set (no permane
 
 test('17. permission-denied section errors show no Retry (retrying cannot help) and expose no internals', async () => {
   const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({'learning-style': {status: 403, body: {detail: 'Not permitted for this scope.'}}})}).start();
-  assert.match(env.text(), /Not permitted for this scope\./);
+  // Curated 403 copy is shown; the raw backend detail is never rendered.
+  assert.match(env.text(), /This view is not available for your permissions or selected scope/);
+  assert.doesNotMatch(env.text(), /Not permitted for this scope/);
   assert.doesNotMatch(env.text(), /data-tp-section-retry="tp-learning-style-slot"/);
 });
 
@@ -315,7 +317,7 @@ test('18. the rubric section request is bounded and its failure state is concise
     controller.abort();
     await assert.rejects(pending, error => error.name === 'AbortError');
     global.fetch = async () => response(500, {detail: 'A safe backend message.'});
-    await assert.rejects(experience.fetchRubric(5, 1, undefined, 1000), error => error.userSafe === true && /safe backend message/.test(error.message));
+    await assert.rejects(experience.fetchRubric(5, 1, undefined, 1000), error => error.userSafe === true && /This view could not be loaded/.test(error.message) && !/safe backend message/.test(error.message));
   } finally { global.fetch = realFetch; }
   const timeoutHtml = experience.rubricErrorHtml('Reading', {name: 'TimeoutError'});
   assert.match(timeoutHtml, /could not finish loading/);
@@ -332,7 +334,102 @@ test('19. pure lifecycle helpers: bounded request settles on timeout even when f
   controller.abort();
   await assert.rejects(pending, error => error.name === 'AbortError');
   assert.equal(safeMessage(new TypeError('boom internals')), 'This section could not finish loading.');
-  assert.equal(safeMessage({status: 403, message: 'Not permitted.'}), 'Not permitted.');
+  assert.equal(safeMessage({status: 403, message: 'Not permitted.'}), 'This section could not finish loading.');
   assert.doesNotMatch(sectionErrorHtml('s', new Error('SELECT * FROM secret')), /SELECT|secret/);
   assert.doesNotMatch(errorPanel(new Error('/api/internal/endpoint failed')), /internal|endpoint/);
+});
+
+// --- Deployment Acceptance Correction A Remediation: curated error mapping ---
+
+test('20. curated error mapping maps statuses to approved copy and never echoes backend detail', () => {
+  const apiErrors = require('../static/js/talent-api-errors.js');
+  assert.equal(apiErrors.messageFor(401, undefined), 'Your session may have ended. Sign in again, then reopen this view.');
+  assert.equal(apiErrors.messageFor(403, undefined), 'This view is not available for your permissions or selected scope.');
+  assert.equal(apiErrors.messageFor(404, undefined), 'This record is unavailable in your authorized scope.');
+  assert.equal(apiErrors.messageFor(400, undefined), 'This context cannot be displayed. Check the selected Academic Year, Program, and available assessment data.');
+  assert.equal(apiErrors.messageFor(422, undefined), 'This context cannot be displayed. Check the selected Academic Year, Program, and available assessment data.');
+  assert.equal(apiErrors.messageFor(503, undefined), 'Analytics cannot be displayed yet because its governed privacy/configuration prerequisites are incomplete. Ask an administrator to complete the required analytics configuration, then retry.');
+  assert.equal(apiErrors.messageFor(500, undefined), apiErrors.GENERIC);
+  assert.equal(apiErrors.messageFor(502, undefined), apiErrors.GENERIC);
+  const err = apiErrors.httpError(500, 'not_a_real_code');
+  assert.equal(err.userSafe, true);
+  assert.equal(err.status, 500);
+  assert.doesNotMatch(err.message, /not_a_real_code|detail/i);
+});
+
+test('21. raw backend detail is never rendered for 400/500/503; curated copy is shown instead', async () => {
+  const cases = [
+    ['portfolio', {'program-portfolio': {status: 400, body: {detail: 'SELECT * FROM students'}}}, /This context cannot be displayed/, /SELECT \* FROM students/],
+    ['portfolio', {'program-portfolio': {status: 500, body: {detail: 'psycopg2 ProgrammingError: syntax'}}}, /This view could not be loaded/, /psycopg2|ProgrammingError|syntax/],
+    ['portfolio', {'program-portfolio': {status: 503, body: {detail: 'governed config MISSING_KEY'}}}, /Analytics cannot be displayed/, /MISSING_KEY|governed config/],
+  ];
+  for (const [view, override, shown, hidden] of cases) {
+    const env = await createEnv({view, permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler(override)}).start();
+    assert.match(env.text(), shown);
+    assert.doesNotMatch(env.text(), hidden);
+  }
+});
+
+test('22. raw exception/stack-like text never reaches the page', async () => {
+  const env = await createEnv({view: 'portfolio', permissions: FULL, handler: okHandler({'program-portfolio': () => { throw new Error('TypeError: Cannot read properties of undefined (reading "TalentRubricVisual")'); }})}).start();
+  assert.match(env.text(), /Unable to load view/);
+  assert.doesNotMatch(env.text(), /TypeError|Cannot read|TalentRubricVisual|undefined/);
+});
+
+
+// --- Deployment Acceptance Correction A Remediation: cross-module deduplication ---
+
+const ANALYTICS_PROGRAMS = {'api/talent/programs': {body: [{id: 5, name: 'Mental Math'}]}};
+
+test('23. talent.js + talent-experience.js issue exactly ONE rubric-distribution request for the same Program/Year/context', async () => {
+  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: ANALYTICS_SEARCH, handler: okHandler(ANALYTICS_PROGRAMS)}).start();
+  await env.triggerMutation();
+  assert.equal(env.callsTo('rubric-distribution').length, 1, JSON.stringify(env.calls.map(c => c.url)));
+  const section = env.root.querySelector('[data-tp-rubric-section]');
+  assert.ok(section, 'talent.js rendered the experience-owned rubric section shell');
+  assert.match(section.querySelector('[data-tp-rubric-results]').innerHTML, /No completed rubric results/);
+});
+
+test('24. rubric-section Retry performs exactly ONE new request (not two)', async () => {
+  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: ANALYTICS_SEARCH, handler: okHandler({...ANALYTICS_PROGRAMS, 'rubric-distribution': {status: 500, body: {detail: 'boom'}}})}).start();
+  await env.triggerMutation();
+  assert.equal(env.callsTo('rubric-distribution').length, 1, 'one shared request, one failure');
+  const section = env.root.querySelector('[data-tp-rubric-section]');
+  const retry = section.querySelector('[data-tp-rubric-results]').querySelector('[data-tp-rubric-retry]');
+  assert.ok(retry, 'rubric section shows a Retry button');
+  retry.emit('click');
+  await env.flush();
+  assert.equal(env.callsTo('rubric-distribution').length, 2, 'Retry re-issues exactly one new request');
+});
+
+test('25. Program change invalidates the old read and issues ONE correctly-keyed request', async () => {
+  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: '?program_id=5&academic_year_id=1', handler: (url, init, call) => {
+    if (url.includes('api/talent/programs')) return {body: [{id: 5, name: 'Mental Math'}, {id: 7, name: 'Qaaidah Nouraniah'}]};
+    return okHandler()(url, init, call);
+  }}).start();
+  assert.equal(env.callsTo('rubric-distribution').length, 1);
+  assert.match(env.callsTo('rubric-distribution')[0].url, /\/programs\/5\//);
+  env.elements['tp-program'].value = '7';
+  env.elements['tp-filters'].emit('submit');
+  await env.flush();
+  assert.equal(env.callsTo('rubric-distribution').length, 2);
+  assert.match(env.callsTo('rubric-distribution')[1].url, /\/programs\/7\//);
+});
+
+test('26. a stale rubric response cannot overwrite the newer Program state', async () => {
+  let first = true;
+  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: '?program_id=5&academic_year_id=1', handler: (url, init, call) => {
+    if (url.includes('api/talent/programs')) return {body: [{id: 5, name: 'Mental Math'}, {id: 7, name: 'Qaaidah Nouraniah'}]};
+    if (url.includes('rubric-distribution')) {
+      if (first) { first = false; return {defer: true, body: {distributions: [], program_result_summary: {state: 'visible', average: 1, scale_max: 5, normalized_percent: 20, competency_count: 2}}}; }
+      return {body: {distributions: [], program_result_summary: {state: 'no_data'}}};
+    }
+    return okHandler()(url, init, call);
+  }}).start();
+  const stale = env.callsTo('rubric-distribution')[0];
+  env.elements['tp-program'].value = '7';
+  env.elements['tp-filters'].emit('submit');
+  await env.flush();
+  assert.ok(stale.signal.aborted, 'the obsolete rubric request is aborted');
+  assert.doesNotMatch(env.text(), /Average Overall Program Result|20%/);
 });

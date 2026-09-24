@@ -11,6 +11,14 @@
   const rubricVisual = typeof module !== 'undefined' && module.exports
     ? require('./talent-rubric-visual.js')
     : (typeof window !== 'undefined' && window.TalentRubricVisual) || null;
+  // Shared helpers loaded by the template on every view (and require()'d under Node).
+  // Both are resolved defensively so a missing module degrades instead of aborting.
+  const apiErrors = typeof module !== 'undefined' && module.exports
+    ? require('./talent-api-errors.js')
+    : (typeof window !== 'undefined' && window.TalentApiErrors) || null;
+  const rubricRequest = typeof module !== 'undefined' && module.exports
+    ? require('./talent-rubric-request.js')
+    : (typeof window !== 'undefined' && window.TalentRubricRequest) || null;
   const labels = {
     programs_configured:'Programs configured', active_programs:'Active Programs',
     frozen_eligible_memberships:'Students participating', frozen_eligible:'Students participating',
@@ -215,11 +223,18 @@
   const abortError = () => Object.assign(new Error('Request cancelled.'), {name: 'AbortError'});
   const timeoutError = () => Object.assign(new Error('This is taking longer than expected. Check your connection, then retry.'), {name: 'TimeoutError', code: 'timeout', userSafe: true});
   const userSafeError = (message, extra = {}) => Object.assign(new Error(message), {userSafe: true}, extra);
-  // Only messages that this module itself authored (userSafe) or that were mapped
-  // from an HTTP status are shown. Any other exception (a TypeError from a render
-  // bug, a JSON parse failure, a network error) is replaced by a generic message so
-  // stack fragments, raw exception text and internal names never reach the user.
-  const safeMessage = error => (error && (error.userSafe === true || (Number.isInteger(error.status) && error.status > 0)) && typeof error.message === 'string' && error.message.trim())
+  // Curated, user-safe mapping for a non-2xx API response. HTTP status + a known
+  // stable backend `code` choose the copy; arbitrary backend `detail` is never
+  // interpolated, so raw SQL/Python/JS/endpoint/stack/internal text cannot surface.
+  const mapHttpError = (status, code) => (apiErrors && typeof apiErrors.httpError === 'function')
+    ? apiErrors.httpError(status, code)
+    : userSafeError('This view could not be loaded. Retry, or contact your administrator if the problem continues.', {status, code});
+  // Only messages this module itself authored (userSafe === true) are shown. Any
+  // other exception (a TypeError from a render bug, a JSON parse failure, a network
+  // error, or a status-bearing error that was not explicitly curated) is replaced by
+  // a generic message so stack fragments, raw exception text and internal names
+  // never reach the user.
+  const safeMessage = error => (error && error.userSafe === true && typeof error.message === 'string' && error.message.trim())
     ? error.message : GENERIC_LOAD_MESSAGE;
   const errorTitle = error => error && error.status === 403 ? 'Permission denied'
     : error && error.status === 503 ? 'Analytics unavailable'
@@ -484,19 +499,7 @@
   async function parseApiResponse(response) {
     if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) throw userSafeError('Your session may have ended. Sign in again, then reopen this view.', {status: 401});
     const data = await response.json();
-    if (!response.ok) {
-      const detail = typeof data?.detail === 'string' ? data.detail.trim() : '';
-      const message = response.status === 403 ? (detail || 'This view is not available for your permissions or selected scope.') :
-        response.status === 404 ? (detail || 'This record is unavailable in your authorized scope.') :
-        response.status === 503 ? (detail
-          ? `Analytics cannot be displayed yet: ${detail}`
-          : 'Analytics cannot be displayed yet because its governed privacy/configuration prerequisites are incomplete. Ask an administrator to complete the required analytics configuration, then retry.') :
-        response.status === 400 || response.status === 422 ? (detail
-          ? `This analytics context needs attention: ${detail}`
-          : 'This context cannot be displayed. Check the selected Academic Year, Program, and available assessment data.') :
-        (detail || 'This view could not be loaded. Retry, or contact your administrator if the problem continues.');
-      throw userSafeError(message, {status: response.status, code: data?.code});
-    }
+    if (!response.ok) throw mapHttpError(response.status, data?.code);
     return data;
   }
   function api(path, signal, timeoutMs = REQUEST_TIMEOUT_MS) {
@@ -572,7 +575,7 @@
         return boundedRequest(fetch,path,init,signal,async response=>{
           if(response.redirected||!response.headers.get('content-type')?.includes('application/json'))throw userSafeError('Your session may have ended. Sign in again and reopen this page.');
           const data=await response.json();
-          if(!response.ok)throw userSafeError(typeof data.detail==='string'?data.detail:'Check your entries and try again.',{status:response.status,code:data.code});
+          if(!response.ok)throw mapHttpError(response.status,data.code);
           return data;
         },method==='GET'?REQUEST_TIMEOUT_MS:0);
       };
@@ -681,7 +684,14 @@
       const overviewReq=()=>request('overview',`${base}overview?${qs(common)}`);
       const mapReq=()=>request('map',`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`);
       const gradeMapReq=()=>request('gradeMap',`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_grade'})}`);
-      const rubricReq=()=>request('rubric',`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`);
+      const rubricReq=()=>{
+        const pending=request('rubric',`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`);
+        // Publish the single authoritative read so talent-experience.js reuses it
+        // for the same Program + Academic Year + assessment_state context instead of
+        // issuing a duplicate request. talent.js remains the sole request owner.
+        if(rubricRequest && typeof rubricRequest.publish==='function') rubricRequest.publish(rubricRequest.key(pid,ay),pending);
+        return pending;
+      };
       const longitudinalReq=()=>request('longitudinal',`${base}programs/${encodeURIComponent(pid)}/longitudinal?${qs({...common,metric:'completion_coverage'})}`);
       const studentPreviewReq=()=>request('studentPreview',`${base}students?${qs({...common,limit:10,offset:0})}`);
       const branchComparisonReq=()=>request('branchComparison',`evaluation-progress/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/branch-comparison?${qs({metric:selectedBranchMetric})}`);
@@ -904,6 +914,9 @@
   // generation owns the placeholder, aria-busy and status from that point on.
   async function load() {
     const run=++generation; controller?.abort(); controller=new AbortController();
+    // New render generation invalidates any prior rubric read ownership so a
+    // Program/Academic-Year change can never reuse a stale shared promise.
+    if(rubricRequest && typeof rubricRequest.reset==='function') rubricRequest.reset();
     const signal=controller.signal; activeSections=null;
     try {
       updateBreadcrumb();

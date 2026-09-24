@@ -71,17 +71,22 @@ sections):
   `Promise.all` with independent sections (snapshot, Learning Style,
   Classification, Current Talent, Program result, competency averages, rubric,
   Grade results, Evaluation progression, Branch comparison, Student results),
-  each ending independently with its own Retry; every request is still issued
-  exactly once (memoized, including the shared Talent Map/Branch-name lookup)
-  and metric semantics, endpoints and debounce (250 ms) are unchanged. Program
+  each ending independently with its own Retry; every request is issued exactly
+  once within `talent.js` (memoized, including the shared Talent Map/Branch-name
+  lookup). Cross-module rubric-distribution deduplication was NOT part of this
+  change and is corrected by the follow-up remediation below; metric semantics,
+  endpoints and debounce (250 ms) are unchanged. Program
   Results / Branch Results gate the page on their primary payload only; their
   grade/Branch breakdowns are an independent section.
-- Errors show only messages authored by the UI or mapped from an HTTP status;
-  any other exception text is replaced by "This section could not finish
-  loading."; no stack, database or endpoint detail is shown. `#tp-status`
-  (`role=status`) and `aria-busy` are updated on every terminal state.
+- Errors were intended to show only messages authored by the UI or mapped from
+  an HTTP status, with any other exception text replaced by "This section could
+  not finish loading."; at baseline 507dc59 arbitrary backend `data.detail`
+  could still reach users in `parseApiResponse`, `operationApi` and `fetchRubric`.
+  The follow-up remediation below replaces this with a curated status/code
+  mapping. `#tp-status` (`role=status`) and `aria-busy` are updated on every
+  terminal state.
 - `talent-experience.js` rubric section: bounded request and a concise Retry
-  state instead of raw error text.
+  state (its raw `detail` disclosure is corrected in the follow-up remediation).
 
 Verification: `tests/talent_runtime_loading.test.cjs` (23 tests, stub harness in
 `tests/talent_runtime_harness.cjs`) and HTML-level per-view script-dependency
@@ -90,6 +95,47 @@ a real browser. Not implemented here (later acceptance batches): Learning Style
 privacy/distribution correction, Learning Style and Classification beside every
 Student, removal of Review/Official Identification from normal UX, Assessment
 editor redesign.
+
+## Deployment Acceptance Correction A Remediation - ClinePass Precision Remediation (2026-09-24)
+
+**Status: implemented on `dev` only; frontend/template/tests + KMS correction. No
+backend, schema, migration, authorization, tenant, privacy-policy or
+analytics-semantics change. Web Service only; not deployed and not merged to
+`master`.**
+
+An independent Codex audit of Acceptance A found two blocking defects in the
+frontend runtime path plus an overstatement in the closeout above:
+
+1. **Raw backend `data.detail` disclosure.** `talent.js` `parseApiResponse()` and
+   `operationApi()`, and `talent-experience.js` `fetchRubric()`, interpolated
+   arbitrary backend `detail` strings into user-facing errors. Fixed with one
+   shared curated mapper (`static/js/talent-api-errors.js`) keyed by HTTP status
+   plus a known stable backend `code`; arbitrary `detail` is never rendered, and
+   `safeMessage` now requires `userSafe === true` (a bare HTTP status is no
+   longer authority). 401/403/404/400/422/503 and unknown 5xx map to approved
+   copy; raw exception/SQL/Python/JS/endpoint/stack/internal text can never
+   surface.
+2. **Duplicate rubric-distribution request.** `talent.js` `rubricReq()` and
+   `talent-experience.js` `fetchRubric()`/`ensureRubricSection()` both requested
+   the same Program + Academic Year + `assessment_state=completed` endpoint per
+   render generation. Fixed with a shared single-flight read-ownership store
+   (`static/js/talent-rubric-request.js`): `talent.js` owns the request and
+   publishes its memoized promise keyed by context; `talent-experience.js`
+   reuses it for the same context. A different Program selected in that
+   section's own filter is a different context and still fetches independently.
+   Retry (`force`) re-issues its own bounded request; a Program/year change
+   resets the store; the existing generation/stale guards prevent a late
+   response from overwriting the current context.
+
+The runtime stub harness (`tests/talent_runtime_harness.cjs`) now executes the
+production script composition in order (talent-rubric-visual, talent-api-errors,
+talent-rubric-request, talent.js, talent-experience.js) and observes fetches from
+both modules, so the "no duplicate request" guarantee is actually proven rather
+than assumed. `tests/talent_runtime_loading.test.cjs` grew from 23 to 30 tests
+(curated error mapping, no raw-detail rendering, cross-module deduplication,
+retry, Program-change invalidation, stale-response safety). Per-view script
+dependency tests in `tests/test_talent_ui.py` now also require the two new
+shared helpers before `talent.js`. `tis.db` is unchanged.
 
 ## M14-M18 Correction Program Closeout - M18b-3 Final Regression / Performance / Privacy Verification (2026-09-24)
 
