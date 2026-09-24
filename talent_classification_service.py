@@ -130,8 +130,16 @@ def project_to_classification_scale(average_tenths: int, scale_min: int, scale_m
     return quantized
 
 
-def assessment_classification(db, assessment):
+_OVERALL_NOT_SUPPLIED = object()
+
+
+def assessment_classification(db, assessment, *, overall=_OVERALL_NOT_SUPPLIED):
     """Backend-authoritative classification for one Student Assessment.
+
+    ``overall`` may carry the ``overall_program_result(db, assessment)`` value
+    the caller has already computed for this exact Assessment (M18b-3: the
+    Student Drill row loop), so it is not recomputed a second time per row.
+    Omitting it keeps the original behavior of computing it here.
 
     Returns ``None`` when the Assessment is not Completed - a draft/in
     progress Assessment never carries a final automatic classification.
@@ -141,7 +149,8 @@ def assessment_classification(db, assessment):
     """
     if assessment is None or assessment.status != "completed":
         return None
-    overall = overall_program_result(db, assessment)
+    if overall is _OVERALL_NOT_SUPPLIED:
+        overall = overall_program_result(db, assessment)
     if not overall or overall.get("available") is False:
         return {
             "available": False,

@@ -7,6 +7,35 @@ source_of_truth: true
 
 # TIS Master Context
 
+## M14-M18 Correction Program Closed On dev - Final Authority Summary (M18b-3, 2026-09-24)
+
+The M14-M18 correction program is functionally implemented on `dev` and closed
+for owner-acceptance/release planning only; it is NOT deployed, merged to
+`master`, or claimed live. Final authority: (1) Learning Style is one
+categorical Student value from exactly eight categories, aggregated as those
+eight plus Unassigned; the four legacy percentage columns are operationally
+deprecated (stored, never exposed or aggregated). (2) Student vs Talent count
+differences are scope/population semantics; force-deleted Students never appear
+on current Talent surfaces. (3) Assessment classification is automatic and
+backend-only: the Program-native 1..N result is deterministically projected to
+1.00-5.00 and banded Needs Improvement / Developing / Meets Expectations /
+Advanced / Exceptional; only Exceptional is Talented; Review Candidate and
+Official Identification are preserved legacy history, not current Talent
+authority. (4) An applicable current result is `status == 'completed' AND
+is_current == True`. (5) Results & Analytics owns a backend contract
+(`/api/talent/results-analytics/...`) for Learning Style, Classification, and
+Talented; Organization values are raw-count sums (10/92, never averaged rates);
+the UI renders backend values only, with a Program-bound narrow-only
+Classification filter and privacy states that never expose suppressed numbers.
+(6) Performance boundary: at most 3 effective permission projections on the
+common Talent page, per-request (never shared) authorization, and
+surface-specific script bundles. Known pre-existing issues (Student Drill
+fixed query budget/N+1, stale JS/Python test expectations, PostgreSQL FK-order
+tests, SaaS permission-pattern test, the historic unscoped-suite hang) are
+documented in `docs/PROJECT_STATE.md` and are not correction-program
+regressions. M18b-3 made one bounded fix: the Student Drill no longer
+recomputes the overall Program result a second time per row for classification.
+
 ## Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (M18b-2b)
 
 Bounded completion pass over M18b-2's own explicit open-item list; no

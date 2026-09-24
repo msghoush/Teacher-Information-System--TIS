@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS Module Map
 
+## M14-M18 Correction Program Closeout Ownership Notes (M18b-3, 2026-09-24)
+
+Final module ownership after the correction program (functionally implemented
+on `dev`, not deployed): `talent_classification_service.py` is the sole
+classification authority; `assessment_classification(db, assessment, *,
+overall=...)` optionally accepts the caller's already computed
+`overall_program_result` so per-row callers (`talent_org_student_drill.py`) do
+not recompute it. `talent_results_analytics_service.py` and
+`routers/talent_results_analytics.py` own the Learning Style / Classification /
+Talented Results & Analytics contract; `static/js/talent.js` renders it without
+recomputation and `templates/talent/workspace.html` gates surface-specific
+bundles. The stored Student four-percentage columns and their write validators
+in `student_academic_service.py` remain only as deprecated storage. No new
+module, route, or schema was added by M18b-3.
+
 ## Results & Analytics Backend Contract Ownership (M18b-1)
 
 - `talent_results_analytics_service.py` (new): bounded M18b-1 Results &

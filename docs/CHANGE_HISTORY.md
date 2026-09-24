@@ -7,6 +7,30 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-24 - M18b-3 M14-M18 correction program closeout (final regression / performance / privacy verification)
+
+- Verification and KMS closeout only; no product semantics, analytics family,
+  filter, schema, or migration change. The correction program (M14-M18) is
+  functionally implemented on `dev` and closed for owner-acceptance/release
+  planning only; not deployed, not merged to `master`.
+- Repository consistency audit: no current executable contradiction of the final
+  M14-M18 semantics was found. Stored four-percentage Student columns and their
+  write validators remain as deprecated storage only; legacy Official
+  Identification/"Officially Confirmed" labels remain as legacy history.
+- One bounded fix: `assessment_classification` accepts an optional pre-computed
+  `overall`; the Student Drill passes it, removing the doubled per-completed-row
+  query cost introduced in M18a (2 -> 4 queries per row back to 2). Guarded by
+  new tests in `tests/test_talent_organization_student_drill.py`.
+- Results: scoped Talent/Student Python suites and Node suites were rerun and
+  every failure was classified against worktrees at `9771b3c` and the pre-program
+  commit `50c049f`; no failure is a new correction-program regression (Node:
+  three stale expectations of the removed four-dimension Learning Style Branch
+  metric; all other failures reproduce at `50c049f`). The Student Drill fixed
+  query budget, PostgreSQL FK-order tests, and SaaS permission-pattern test
+  remain documented pre-existing follow-ups (see `docs/PROJECT_STATE.md`).
+- `tis.db` unchanged. No deployment; Web and Workflow do not need to deploy
+  together for this change (no Workflow change).
+
 ## 2026-09-24 - M18b-2b Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision
 
 - Bounded completion pass over M18b-2's own explicit open-item list; no

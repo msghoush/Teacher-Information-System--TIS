@@ -7,6 +7,21 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Results & Analytics Final Flow And Request Behavior (M18b-3 closeout, 2026-09-24)
+
+An authorized user opens Results & Analytics (`/talent/analytics`); one batch of
+requests loads the analytics payloads (each endpoint once, including Learning
+Style, Classification, and Talented for the same context; Classification and
+Talented only with a Program). Changing a filter is debounced (250 ms), updates
+the URL with `history.replaceState`, aborts any in-flight batch, and ignores
+stale responses. Selecting a Program reveals the narrow-only Classification
+filter; clearing the Program hides and clears it. Every visible value comes from
+the backend; suppressed cells show a neutral unavailable state with no numbers
+in markup, ARIA, or datasets. Organization totals are raw-count sums. Legacy
+Review/Identification remain reachable as history/legacy workflow only. This
+flow is verified structurally (no browser-visual verification) and is not
+deployed.
+
 ## Automatic Assessment Classification Flow (M17)
 
 1. A Teacher opens a Student Assessment, records rubric evidence/scores per

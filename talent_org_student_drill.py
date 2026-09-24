@@ -287,7 +287,7 @@ def fetch_student_rows(
         overall = overall_program_result(db, assessment) if current_completed else None
         overall_present = bool(overall and overall.get("available") is True)
         kpi_present = current_completed and assessment.kpi_result is not None
-        classification = assessment_classification(db, assessment) if current_completed else None
+        classification = assessment_classification(db, assessment, overall=overall) if current_completed else None
         classification_present = bool(classification and classification.get("available") is True)
         candidate = candidates_by_member.get(member.id) if has_candidate else None
         identification = identifications_by_member.get(member.id) if has_identification else None

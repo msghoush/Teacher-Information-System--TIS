@@ -618,3 +618,62 @@ def test_student_drill_classification_uses_backend_authority_not_legacy_candidat
     state["breadth"] = AllowBreadth()
     overview = api.get("/api/talent/organization-analytics/overview?academic_year_id=100")
     assert overview.status_code == 200
+
+
+# ------------------------------------------------------------ M18b-3 PERF GUARD
+
+def test_completed_row_query_cost_does_not_recompute_overall_result_for_classification(db, client):
+    """M18b-3: the M18a classification field must reuse the row's already
+    computed overall Program result. Before this guard the per-completed-row
+    query cost doubled (2 -> 4) because ``assessment_classification``
+    recomputed ``overall_program_result``. This pins the per-row cost at the
+    pre-M18a value without pretending to fix the older fixed-budget defect
+    asserted by ``test_query_family_is_bounded_and_not_row_proportional``."""
+    api, state = client
+    permissions(
+        db, "talent_analytics.view", "talent_analytics.view_students",
+        "talent_review_candidates.view", "talent_official_identifications.view",
+    )
+
+    def count():
+        state["user"] = actor(scope="ORGANIZATION")
+        statements = []
+        listener = lambda _c, _u, statement, _p, _x, _m: statements.append(statement)
+        event.listen(db.bind, "before_cursor_execute", listener)
+        try:
+            assert get(api, "limit=100").status_code == 200
+        finally:
+            event.remove(db.bind, "before_cursor_execute", listener)
+        return len(statements)
+
+    def add(n):
+        add_full_member(
+            db, member_id=n, cycle_id=202, program_id=2, framework_id=102, student_id=7000 + n,
+            branch_id=10, grade="2", first_name="Guard", assessment_id=800 + n, assessment_status="completed",
+        )
+
+    add(70)
+    add(71)
+    two = count()
+    add(72)
+    add(73)
+    four = count()
+    assert four - two <= 4  # at most 2 queries per additional completed row
+
+
+def test_assessment_classification_reuses_supplied_overall_result_identically(db):
+    from talent_classification_service import assessment_classification
+    from talent_student_assessment_service import overall_program_result
+
+    assert assessment_classification(db, None, overall=None) is None
+    assessment = type("A", (), {"status": "completed"})()
+    unavailable = {"available": False, "reason": "no_results"}
+    supplied = assessment_classification(db, assessment, overall=unavailable)
+    assert supplied["available"] is False and supplied["reason"] == "no_results"
+    assert supplied["classification"] is None and supplied["is_talented"] is False
+    ok = {"available": True, "average_tenths": 40, "scale_min": 1, "scale_max": 5}
+    result = assessment_classification(db, assessment, overall=ok)
+    assert result["available"] is True
+    assert result["classification_score"] == "4.00"
+    assert result["classification"] == "Advanced"
+    assert overall_program_result  # authority import stays the real one

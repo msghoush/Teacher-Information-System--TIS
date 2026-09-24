@@ -7,6 +7,23 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## M14-M18 Correction Program Closeout (M18b-3, 2026-09-24)
+
+Read this first for Talent work: the M14-M18 correction program is functionally
+closed on `dev` (owner-acceptance/release planning only; not deployed or merged).
+Do not reintroduce: the four Learning Style percentage dimensions (Student
+Learning Style is one of eight categories plus Unassigned in aggregates);
+percentage-band or client-side classification (backend `talent_classification_service`
+only, only Exceptional is Talented); Review Candidate/Official Identification as
+current Talent indicators (legacy history only); averaging of Branch rates for
+Organization values (sum raw counts); visible "Protected for privacy" copy or any
+suppressed numeric value in HTML/JS/ARIA; per-request permission fan-out on the
+common Talent page (bound: 3 projections) or any cross-user/global permission
+cache. Current applicable result = `completed` AND `is_current`. Before changing
+Student Drill queries note the pre-existing fixed-budget test failure and that
+per-row `overall_program_result` is passed into `assessment_classification`
+(M18b-3). No AI provider, entitlement, or execution architecture changed.
+
 ## Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (M18b-2b)
 
 Bounded completion pass over M18b-2's own explicit open-item list. Before

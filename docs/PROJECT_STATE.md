@@ -7,6 +7,133 @@ source_of_truth: true
 
 # TIS Project State
 
+## M14-M18 Correction Program Closeout - M18b-3 Final Regression / Performance / Privacy Verification (2026-09-24)
+
+**Status: the five-milestone correction program (M14, M15, M16, M17, M18) is
+functionally implemented on `dev` and closed for owner-acceptance and release
+planning only. Nothing here states that any of it is deployed, merged to
+`master`, or live in production; deployment, merge, and any production-state
+claim remain separate Owner decisions.** M18b-3 is a verification/KMS
+closeout pass, not a feature: no product semantics, analytics family, or
+filter was added, and there is no schema or migration change.
+
+**Final current-state truth (verified against code and tests, not only docs):**
+
+- Learning Style (M14): `Student.learning_style` is ONE categorical value from
+  exactly eight (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
+  Quantitative, Spatial); the aggregate is those eight plus Unassigned. The four
+  legacy percentage columns remain physically in the schema and in the write
+  service only so already-stored values are never silently rewritten; no current
+  API, UI, or analytics surface reads or exposes them (physical removal stays
+  gated on a separate data-occupancy verification).
+- Student/Talent scope (M15): the Student vs Talent count difference is
+  scope/population semantics, not a deletion defect; a force-deleted Student
+  cannot appear on current Talent surfaces; the roster export is re-importable.
+- Performance (M16): the common Talent page performs at most 3 effective
+  permission projections (governed regression
+  `tests/test_talent_ui.py::test_talent_page_bounds_authorized_permission_projection_reuse`
+  passed). `authorization.require_any_permission`/`require_all_permissions`
+  still resolve the current user and allowed keys on every call; the only reuse
+  is `request.state`, which is request-scoped (no global or cross-user cache).
+  `templates/talent/workspace.html` still loads the rubric-visual, operations,
+  program-workspace, and evaluation-workspace bundles only for the views that
+  need them.
+- Classification (M17): the raw Program result stays Program-native 1..N and is
+  deterministically projected to 1.00-5.00; bands are 1.00-1.99 Needs
+  Improvement, 2.00-2.99 Developing, 3.00-3.74 Meets Expectations, 3.75-4.49
+  Advanced, 4.50-5.00 Exceptional; ONLY Exceptional is Talented. Authority is
+  backend-only (`talent_classification_service.py`); there is no percentage-band
+  classification. Legacy Review Candidate and Official Identification records
+  are preserved as history/legacy workflow and are not current Talent authority.
+- Current Talent authority (M18a): an applicable current result is
+  `status == 'completed' AND is_current == True`. Learner Profile and Student
+  Drill use the M17 classification authority. The obsolete four-dimension Branch
+  aggregation and the visible "Protected for privacy" runtime copy are gone;
+  privacy suppression itself is unchanged.
+- Results & Analytics backend (M18b-1): one coherent family (Learning Style,
+  Classification, Talented) under `/api/talent/results-analytics/...`; frozen
+  ADR 0044 `MetricCode` values are not repurposed. Organization aggregation sums
+  RAW counts across Branches (Branch A 1/2 + Branch B 9/90 gives Organization
+  10/92, never an average of rates such as 30%); competency and progress keep
+  the governed pre-existing endpoints.
+- Results & Analytics UI (M18b-2/2b): the page consumes those backend families;
+  nine sections in order (header, summary cards, Learning Style, Classification,
+  Current Talent, Competency Analysis, Results/Evaluation Progress,
+  Branch/Organization comparison, navigation); the current Talented summary is
+  backend-sourced; the Classification filter is Program-bound, narrow-only, and
+  cleared when Program context disappears; `candidate_membership_count` is
+  labeled "Legacy: Meets Program Criteria". No client-side classification,
+  rate averaging, or new chart library.
+- Privacy UX: suppressed values are never rendered as numbers (HTML, chart
+  datasets, tooltips, ARIA); primary/complementary suppression, anti-
+  reconstruction, Branch isolation, and Organization privacy are unchanged and
+  their suites pass.
+
+**Results & Analytics request behavior (structural evidence from
+`static/js/talent.js`; no timings measured):** the analytics view issues one
+`Promise.all` batch with exactly one request per endpoint (Learning Style,
+Classification, Talented each once per context); Classification/Talented are
+only requested when a Program is selected; ordinary filter changes go through
+the existing `AUTO_APPLY_DEBOUNCE_MS` (250 ms) debounce and `applyContext`,
+which uses `history.replaceState` (no full-page navigation); the
+generation counter plus `AbortController` in `load()` prevent a stale response
+from overwriting a newer one.
+
+**Accessibility / responsive (structural only; no browser was available, so
+NOT visually verified):** every distribution has both a `role="group"` bar
+rendering and a captioned data table (`bucketBars`/`bucketTable`); the
+Classification filter is a native labeled `<select>`; category meaning is
+carried by text labels, not color alone; the `.tp-filters` wrap, the 680px/
+980px/760px breakpoints, and the `.tp-table-wrap` overflow container exist in
+`static/css/talent.css`.
+
+**Bounded fix made in M18b-3:** M18a made the Student Drill call
+`assessment_classification`, which recomputed `overall_program_result` a second
+time for every current+completed row, doubling per-completed-row query cost
+(measured 2 -> 4 queries per completed row; fixed drill total 36 -> 38).
+`assessment_classification` now accepts an optional pre-computed `overall`
+(default behavior unchanged) and the drill passes its row's existing result,
+restoring the pre-M18a cost (2 per row). Regression guard:
+`test_completed_row_query_cost_does_not_recompute_overall_result_for_classification`
+plus an equivalence test in `tests/test_talent_organization_student_drill.py`.
+
+**Known unresolved PRE-EXISTING issues (identical at the pre-program commit
+`50c049f` unless noted; classified with git worktrees, not assumed):**
+
+- Student Drill fixed query budget: `test_query_family_is_bounded_and_not_row_proportional`
+  asserts `<= 12` queries but the drill already used 36 (and grows ~2 per
+  completed row, an N+1 from per-row `overall_program_result`) before M14; it
+  still fails after the M18b-3 fix (36). Post-correction follow-up: batch the
+  per-row overall-result computation. Related:
+  `test_overview_uses_one_caller_session_and_bounded_set_based_queries` fails at
+  31 vs a 16 budget, identical at program start.
+- `tests/test_student_learning_style_v1.py::...one_panel_level_protected_message...`
+  asserts the chart container is absent while the template deliberately renders
+  the category labels with neutral unavailable states and no magnitudes (the
+  page leaks no numbers); stale test expectation to reconcile.
+- `test_force_delete_student_history_removes_protected_academic_history`
+  (`ObjectDeletedError` in the test's own post-delete refresh), four
+  `test_talent_assessment_cycle_frozen_population` tests, one
+  `test_talent_operational_journey`, one educator-input, and one rubric-policy
+  test fail identically at `50c049f`.
+- Node: 16 of 188 tests in `tests/talent*.test.cjs` + `tests/student*.test.cjs`
+  fail (13 of 179 at `50c049f`). Three are stale expectations of the removed
+  M14/M18a four-dimension Learning Style Branch metric in
+  `tests/talent_branch_comparison_frontend.test.cjs`; the remaining 13 are old
+  program-workspace/operations/experience expectations that predate the program.
+- PostgreSQL (`TIS_TEST_POSTGRESQL_URL`, local test database, isolated
+  schemas): 11 passed / 5 failed in `tests/test_postgresql_migration_transactions.py`,
+  the same 5 (FK creation order) at `50c049f`.
+- `tests/test_permission_dangerous_patterns.py` reports unclassified SaaS
+  permission-shortcut hits (unrelated to Talent; identical at `50c049f`).
+- An unscoped full `pytest tests/` run previously hung in an unrelated
+  SaaS/timetable area; M18b-3 did not repeat it and used scoped suites.
+
+**Deployment/boundary:** no Web Service or `tis-timetable-workflow` change; no
+migration; `tis.db` unchanged (SHA-256
+`01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136` before and
+after). GitHub Actions status was not verifiable from this environment.
+
 ## M18b-2b Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (2026-09-24)
 
 Bounded completion pass over the M18b-2 explicit open-item list (a)-(e), on
