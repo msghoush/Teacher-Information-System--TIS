@@ -1,11 +1,44 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.6
+documentation_version: 4.7
 last_updated: 2026-09-24
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (M18b-2b)
+
+Bounded completion pass over M18b-2's own explicit open-item list. Before
+touching the Results & Analytics page again, read this:
+
+- The in-content page header (`lede()` inside the `analytics` view render)
+  now reads "Results & Analytics" with a dedicated subtext. The shared
+  workspace chrome title (`VIEWS["analytics"]` = "Organization Overview") is
+  deliberately unchanged - it is pinned by `tests/
+  test_talent_organization_analytics_providers.py`.
+- The 9 required sections now render in order: header -> summary cards
+  (now includes one backend-sourced "Talented (Exceptional) Students" fact)
+  -> Learning Style -> Classification -> Current Talent -> Competency
+  Analysis (Program result + competency averages + rubric distributions,
+  now grouped together) -> Results/Evaluation Progress (Grade + Evaluation
+  Period progression) -> Branch/Organization comparison -> navigation links.
+- A real, progressive `Classification` filter (`<select name="classification">`)
+  was added, restricted to the 5 backend `CLASSIFICATION_LABELS`, narrowing
+  only the `/results-analytics/.../classification` request, hidden/cleared
+  until a Program is selected. Evaluation Period/Competency filters were
+  deliberately NOT added - they need new supporting list endpoints beyond
+  this pass's scope. Learning Style's own filters (`branch_id`/
+  `grade_level`/`section_name`) are already fully covered by the existing
+  Branch/Grade selectors; no new control was needed for it.
+- No chart-type selector exists anywhere in `static/js/talent.js` (bar-only
+  compatibility matrix) - confirmed directly, not added.
+- `candidate_membership_count`'s Results & Analytics summary-card label is
+  now `"Legacy: Meets Program Criteria"` (previously unqualified) so it can
+  never be read as a current-Talent figure; the metric/data/permission are
+  unchanged. `candidate_count` (Program Portfolio/Branch pages) is untouched.
+- Full broad M14-M18 regression/performance/KMS closeout remains M18b-3,
+  still pending.
 
 ## Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (M18b-2)
 

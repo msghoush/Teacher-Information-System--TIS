@@ -1,11 +1,112 @@
 ---
 title: TIS Project State
-documentation_version: 5.18
+documentation_version: 5.19
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M18b-2b Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (2026-09-24)
+
+Bounded completion pass over the M18b-2 explicit open-item list (a)-(e), on
+top of the already-landed M18b-2 first pass. No backend semantic change; the
+M18b-1 contract is unchanged; M18b-3 (final broad regression/performance/KMS
+closeout for the full M18 milestone) remains separately scoped and still
+pending.
+
+**(a) IA reorder (page-content level):** the in-content `lede()` header for
+the `analytics` view now reads "Results & Analytics" with a dedicated
+subtext, replacing the generic "Your organization at a glance" copy. The
+outer page chrome (breadcrumb/`<h2>`/`VIEWS["analytics"]` title, still
+"Organization Overview") is deliberately left unchanged - `tests/
+test_talent_organization_analytics_providers.py` pins that literal string
+for the page shell, and this pass targets the in-content Results & Analytics
+header called for by the task, not the shared workspace chrome. The 9
+sections now render in the required order: page header -> (context/filters
+live in the sticky `tp-filters` form outside this content region) -> summary
+cards (Organization snapshot KPI grid + fact strip, now including a single
+backend-sourced "Talented (Exceptional) Students" count) -> Learning Style ->
+Classification -> Current Talent -> Competency Analysis (Program result +
+per-competency averages + rubric distributions, now grouped together -
+`rubricSection` moved from the very end of the page to immediately follow
+`competencyAverageSection`) -> Results/Evaluation Progress (Grade progress +
+Evaluation Period progression, `progressionSection` moved before the Branch
+comparison section) -> Branch/Organization comparison (Branch comparison +
+the authorized cross-Program Student preview) -> secondary navigation links.
+
+**(b) Progressive Classification filter:** a real `Classification` filter
+control (`<select name="classification">`, the exact 5 backend
+`CLASSIFICATION_LABELS`) was added to the shared `tp-filters` form and wired
+only into the `/results-analytics/.../classification` request (never
+`/talented`, which has no such parameter). It is progressive: hidden until a
+Program is selected on the `analytics` view (`updateClassificationVisibility`),
+and cleared whenever hidden so a stale value can never be submitted for a
+different Program. It can only narrow the returned buckets (backend-validated
+against `CLASSIFICATION_LABELS`, rejects an unrecognized value), never widen
+authorization. Evaluation Period and Competency filters were evaluated and
+explicitly NOT added this pass: they would require new supporting
+period/competency list endpoints beyond this task's smallest-coherent-change
+scope, and are not "just wire the UI" the way Classification was (Classification
+already had a dedicated, documented backend query param per M18b-1).
+Learning Style's real backend filters (`branch_id`/`grade_level`/
+`section_name` only, Student-domain-wide per ADR 0031/M14) are already fully
+covered by the existing Branch/Grade selectors - confirmed directly against
+`routers/talent_results_analytics.py`, no new Learning-Style-specific
+control was added or needed.
+
+**(c) Accessibility audit (performed, not just asserted):** no chart-type
+selector exists anywhere in `static/js/talent.js` (grep-verified) - bar-only
+charts per the compatibility matrix, so no keyboard/chart-type-selector work
+was required. The new Classification filter is a native `<select>` inside a
+`<label for>` (identical pattern to every existing filter field), so it is
+natively keyboard-operable, has an accessible name, and sits in natural tab
+order with no `tabindex` manipulation - traced directly against the existing
+`tp-filters` form structure, not assumed.
+
+**(d) Responsive verification (performed, not just asserted):** independently
+re-checked `static/css/talent.css`'s breakpoints against every class name the
+new M18b-2 markup actually uses - `bucketBars`/`bucketTable` reuse
+`.tp-grade-chart`/`.tp-grade-row`/`.tp-table-wrap` (already covered at both
+the 680px breakpoint and the general responsive rules), `talentedSection`
+reuses `.tp-primary-indicator`/`.tp-grade-chart` (already covered), and the
+new Classification filter field reuses the same generic `.tp-filters
+label`/`select` styling as every other filter (flex-wrap at desktop, one
+field per row via `grid-template-columns:1fr` at the 680px breakpoint). No
+CSS gap was found; no CSS change was made in this pass.
+
+**(e) `candidate_membership_count` decision:** kept, not removed - it is a
+distinct, still-legitimate Review-Candidate-policy-match count (the legacy
+Review Candidate workflow's "meets this Program's eligibility policy"
+grain), never the M17 automatic Classification/Talented grain, and never
+literally uses "identified"/"candidate_of_eligible" percentage-share
+wording. Its Results & Analytics summary-card label is relabeled
+`"Legacy: Meets Program Criteria"` (previously unqualified `"Meets Program
+Criteria"`) so it can never be read as a current-Talent figure next to the
+new Classification/Talented sections on this same page, matching the
+existing Legacy-qualifier pattern already used for `candidate_of_eligible`/
+`identified_of_eligible`. The underlying metric/data/permission are
+completely unchanged; the separate `candidate_count` label (Program
+Portfolio/Branch pages, out of scope for this page) is untouched.
+
+**Regression:** `tests/talent_results_experience.test.cjs` - 28 tests (24 ->
+28, 4 new), 26 passed/2 failed, the identical 2 pre-existing failures by
+exact test name at both this change and the unmodified M18b-2 baseline
+`5aa13cb` (git-stash-verified, not assumed). `tests/
+talent_branch_comparison_frontend.test.cjs` + `tests/
+talent_experience_adjustments.test.cjs` + `tests/talent_ui.test.cjs`: 41
+tests/38 passed/3 failed, identical 3 pre-existing failures by exact test
+name at both states (git-stash-verified). `tests/test_talent_results_
+analytics.py` + `tests/test_talent_ui.py`: 51/51 passed. `tests/
+test_talent_organization_analytics_providers.py` (confirms the page-chrome
+title assertion is unaffected): 22/22 passed. No schema/migration change;
+`tis.db` byte-identical before/after this task (SHA-256 verified
+`01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136`).
+
+**Still open for M18b-3:** Evaluation Period and Competency filter controls
+(would need new supporting list endpoints); a chart-type selector was
+evaluated as unnecessary (bar-only compatibility matrix) rather than added;
+full broad M14-M18 regression/performance/KMS closeout.
 
 ## M18b-2 Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (2026-09-24)
 

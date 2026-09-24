@@ -10,7 +10,21 @@
     completed:'Assessed', completion_coverage:'Assessment completion',
     assessment_started:'Assessments started', started_coverage:'Assessments started coverage',
     required_period_execution:'Required evaluations run',
-    candidate_membership_count:'Meets Program Criteria', candidate_count:'Meets Program Criteria',
+    // M18b-2b: candidate_membership_count is a distinct, still-legitimate
+    // Review-Candidate-policy-match count (the legacy Review Candidate
+    // workflow's "meets this Program's eligibility policy" grain) - it is
+    // never the M17 automatic Classification/Talented grain and never
+    // literally uses "identified"/"candidate_of_eligible" percentage-share
+    // wording. It is kept (not removed - the legacy backend support and
+    // this fact are both real and still governed), but its Results &
+    // Analytics summary-card label is explicitly qualified "Legacy" so it
+    // can never be read as a current-Talent figure next to the new
+    // Classification/Talented sections on this page, matching the same
+    // Legacy-qualifier pattern already used below for candidate_of_eligible/
+    // identified_of_eligible. candidate_count keeps its own separate,
+    // unrelated label - it is used only on the still out-of-scope Program
+    // Portfolio/Branch pages, not this Results & Analytics page.
+    candidate_membership_count:'Legacy: Meets Program Criteria', candidate_count:'Meets Program Criteria',
     // M18a: these two read as CURRENT Talent-status shares before this
     // change (candidate_of_eligible -> "Talent share", identified_of_eligible
     // -> "Officially confirmed share"), but their underlying data is the
@@ -343,6 +357,16 @@
   const form = document.getElementById('tp-filters'), year = document.getElementById('tp-year');
   const program = document.getElementById('tp-program'), branch = document.getElementById('tp-branch'), grade = document.getElementById('tp-grade'), section = document.getElementById('tp-section'), metricSelect = document.getElementById('tp-metric');
   const dimension = document.getElementById('tp-dimension');
+  // M18b-2b: Classification filter (query param `classification`, restricted
+  // to the 5 backend CLASSIFICATION_LABELS) is real, already-supported
+  // scope narrowing on the /results-analytics/.../classification route
+  // (talent_results_analytics_service.classification_family). It is
+  // progressive/conditional: only relevant (and only ever shown) once a
+  // Program is selected on the analytics view, since Classification is
+  // Program-bound. It can only narrow the returned buckets, never widen
+  // authorization - the 5 option values are the exact literal backend labels.
+  const classificationSelect = document.getElementById('tp-classification');
+  const CLASSIFICATION_LABELS = ['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'];
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map();
   const can = key => permissions[key] === true;
   const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
@@ -371,6 +395,7 @@
         planning_section_id:params.get('planning_section_id'),
         metric:params.get('metric'),
         dimension:params.get('dimension'),
+        classification:params.get('classification'),
       });
       next.hash='';
       a.href=next.href;
@@ -498,6 +523,11 @@
       const learningStyleAllowed=can('students.view');
       const selectedBranchMetric=metricSelect.value||'current_overall_progress';
       const resultsFilters={branch_id:params.get('branch_id'),grade:params.get('grade_level')};
+      // M18b-2b: the `classification` narrowing param only exists on the
+      // classification route itself (never on `talented`, which has no such
+      // parameter) - kept as its own object so it never leaks onto the
+      // unrelated talented request.
+      const classificationFilters={...resultsFilters,classification:classificationSelect.parentElement.hidden?null:classificationSelect.value};
       const [overview,map,gradeMap,rubric,longitudinal,studentPreview,branchComparison,learningStyleData,classificationData,talentedData]=await Promise.all([
         api(`${base}overview?${qs(common)}`,signal),
         api(`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`,signal),
@@ -509,7 +539,7 @@
         // Family 1: Learning Style distribution (M18b-1 backend contract).
         learningStyleAllowed?api(`results-analytics/academic-years/${encodeURIComponent(ay)}/learning-style?${qs({branch_id:params.get('branch_id'),grade_level:params.get('grade_level')})}`,signal).catch(()=>null):Promise.resolve(null),
         // Family 2: current M17 Classification distribution, Program-bound.
-        pid?api(`results-analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/classification?${qs(resultsFilters)}`,signal).catch(()=>null):Promise.resolve(null),
+        pid?api(`results-analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/classification?${qs(classificationFilters)}`,signal).catch(()=>null):Promise.resolve(null),
         // Family 3: current Talented (Exceptional-only), Program-bound.
         pid?api(`results-analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/talented?${qs(resultsFilters)}`,signal).catch(()=>null):Promise.resolve(null),
       ]);
@@ -541,24 +571,42 @@
       const m={...(overview.metrics||{})};
       const rateKpis=['completion_coverage','started_coverage','required_period_execution'].filter(k=>Object.hasOwn(m,k));
       const factKpis=['candidate_membership_count'].filter(k=>Object.hasOwn(m,k));
+      // M18b-2b summary card: the same backend Talented count already fetched
+      // for the full Current Talent section below (family 3), never a second
+      // client-derived figure. It appears here only as a single compact
+      // fact-strip count (not a second gauge/percentage card), explicitly
+      // labeled with the "(Exceptional)" relation so it is never mistaken for
+      // a different population than the detailed section further down the
+      // page - see the talentedSection() below for the full rate/denominator/
+      // per-Branch detail.
+      const talentedSummary=pid&&talentedData&&talentedData.organization&&talentedData.organization.distribution&&talentedData.organization.distribution.state==='visible'&&typeof talentedData.organization.summary?.talented_count==='number'
+        ? `<span><b>${number(talentedData.organization.summary.talented_count)}</b>Talented (Exceptional) Students</span>` : '';
       const branchVisual=pid&&branchComparison?branchComparisonChart(branchComparison,map.columns||[]):empty('Choose one Program to compare its Branch results.');
       const gradeItems=(gradeMap.columns||[]).map(col=>({label:col.label,cell:(gradeMap.column_totals||[]).find(t=>String(t.grade_level)===String(col.id))}));
       const gradeSection=(gradeMap.columns&&gradeMap.columns.length)?`<section aria-labelledby="tp-grade-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Grades</p><h3 id="tp-grade-title">${can('talent_review_candidates.view')?'Talent by Grade':'Assessment progress by Grade'}</h3></div>${link('talent-map','Open the full Talent Map',{metric:overviewMetric,dimension:'program_grade'})}</div>${gradeGauges(gradeItems)}</section>`:'';
       const progressionSection=longitudinal?`<section aria-labelledby="tp-period-progression"><div class="tp-section-heading"><div><p class="tp-eyebrow">Evaluation Periods</p><h3 id="tp-period-progression">Assessment progression</h3></div>${link('longitudinal','Open Progress Over Time',{program_id:pid})}</div>${periodVisual(longitudinal)}</section>`:'';
-      return lede('Your organization at a glance','See Program activity, Student participation, evaluation progress, and the next places to explore.')+
-        `<section aria-labelledby="tp-headline-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Academic Year ${esc(year.options[year.selectedIndex]?.textContent||'')}</p><h3 id="tp-headline-title">Organization snapshot</h3></div><p>Figures reflect your authorized scope and this Academic Year.</p></div><div class="tp-kpi-grid">${rateKpis.map(k=>kpiCard(k,m[k],k==='completion_coverage'?`/talent/portfolio?${qs({academic_year_id:ay})}`:'' )).join('')}</div><div class="tp-fact-strip">${factKpis.map(k=>`<span><b>${metric(m[k])}</b>${esc(labels[k]||human(k))}</span>`).join('')}</div></section>`+
+      // M18b-2b IA: page header (1) -> context/filters (2, the sticky
+      // tp-filters form outside this content region) -> summary cards (3) ->
+      // Learning Style (4) -> Classification (5) -> Current Talent (6) ->
+      // Competency Analysis (7: Program result + per-competency average +
+      // rubric distributions, grouped together) -> Results/Evaluation
+      // Progress (8: Grade progress + Evaluation Period progression) ->
+      // Branch/Organization comparison (9: Branch comparison + the
+      // authorized cross-Program Student preview) -> secondary navigation.
+      return lede('Results & Analytics','This page summarizes your authorized current Talent results and Student populations for the selected Academic Year and Program. Every figure shown is exactly what the backend returns - nothing here is estimated or reconstructed.')+
+        `<section aria-labelledby="tp-headline-title"><div class="tp-section-heading"><div><p class="tp-eyebrow">Academic Year ${esc(year.options[year.selectedIndex]?.textContent||'')}</p><h3 id="tp-headline-title">Organization snapshot</h3></div><p>Figures reflect your authorized scope and this Academic Year.</p></div><div class="tp-kpi-grid">${rateKpis.map(k=>kpiCard(k,m[k],k==='completion_coverage'?`/talent/portfolio?${qs({academic_year_id:ay})}`:'' )).join('')}</div><div class="tp-fact-strip">${talentedSummary}${factKpis.map(k=>`<span><b>${metric(m[k])}</b>${esc(labels[k]||human(k))}</span>`).join('')}</div></section>`+
         note('Participation counts Program memberships, so a Student in two Programs can appear twice. Program results remain separate; TIS never combines different Programs into one universal Talent score.')+
         learningStyleSection+
         classificationSection+
         talentedIndicator+
         programResultSection+
         competencyAverageSection+
+        rubricSection+
         gradeSection+
-        `<section aria-labelledby="tp-branch-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3 id="tp-branch-summary">Branch comparison</h3></div><p>One backend-authoritative result per Branch. Protected and no-data states never become zero.</p></div>${branchVisual}</section>`+
         progressionSection+
+        `<section aria-labelledby="tp-branch-summary"><div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3 id="tp-branch-summary">Branch comparison</h3></div><p>One backend-authoritative result per Branch. Protected and no-data states never become zero.</p></div>${branchVisual}</section>`+
         studentResultsSection+
-        `<div class="tp-actions">${link('portfolio','Open Program Results')}${link('talent-map','Open Talent Map',{metric:overviewMetric})}</div>`+
-        rubricSection;
+        `<div class="tp-actions">${link('portfolio','Open Program Results')}${link('talent-map','Open Talent Map',{metric:overviewMetric})}</div>`;
     }
     if (view==='portfolio' || view==='branch') {
       if (view==='branch' && !params.get('branch_id')) return empty('Open Branch Results from the Talent Map or Organization Overview.');
@@ -649,9 +697,23 @@
     if(!section.parentElement.hidden){section.value?params.set('planning_section_id',section.value):params.delete('planning_section_id');}
     if(!metricSelect.parentElement.hidden)params.set('metric',metricSelect.value);
     if(!dimension.parentElement.hidden)params.set('dimension',dimension.value);
+    if(!classificationSelect.parentElement.hidden){classificationSelect.value?params.set('classification',classificationSelect.value):params.delete('classification');}
+    else params.delete('classification');
     params.delete('offset');
     history.replaceState(null,'',`${location.pathname}?${params}`);
     syncNavigation();updateBreadcrumb();load();
+  }
+  // Classification is Program-bound (talent_results_analytics_service's
+  // classification route requires a program_id path segment), so its filter
+  // control is progressively shown only once a Program is selected on the
+  // analytics view and cleared/hidden otherwise - it can never be submitted
+  // for a stale/no-longer-selected Program.
+  function updateClassificationVisibility() {
+    const field=document.getElementById('tp-classification-field');
+    if(!field)return;
+    const show=config.view==='analytics' && Boolean(program.value);
+    field.hidden=!show;
+    if(!show){classificationSelect.value='';params.delete('classification');}
   }
   form.addEventListener('submit',event=>{event.preventDefault();clearTimeout(autoApplyTimer);applyContext();});
   form.addEventListener('change',async event=>{
@@ -659,6 +721,7 @@
     if(event.target===year && !branch.parentElement.hidden) await refreshPlanningBranches();
     else if(event.target===branch && !grade.parentElement.hidden) await refreshPlanningGrades();
     else if(event.target===grade && !section.parentElement.hidden) await refreshPlanningSections();
+    else if(event.target===program && config.view==='analytics') updateClassificationVisibility();
     clearTimeout(autoApplyTimer);
     autoApplyTimer=setTimeout(applyContext,AUTO_APPLY_DEBOUNCE_MS);
   });
@@ -738,6 +801,10 @@
       }else{
         programCatalog=new Map();
       }
+    }
+    if(config.view==='analytics'){
+      classificationSelect.value=CLASSIFICATION_LABELS.includes(params.get('classification'))?params.get('classification'):'';
+      updateClassificationVisibility();
     }
     syncNavigation();
     await load();

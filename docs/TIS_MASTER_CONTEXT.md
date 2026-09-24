@@ -1,11 +1,47 @@
 ---
 title: TIS Master Context
-documentation_version: 4.9
+documentation_version: 4.10
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (M18b-2b)
+
+Bounded completion pass over M18b-2's own explicit open-item list; no
+backend semantic change, M18b-1 contract untouched. The `analytics` view's
+in-content page header now reads "Results & Analytics" with a dedicated
+subtext (the shared workspace chrome title stays "Organization Overview",
+pinned by `tests/test_talent_organization_analytics_providers.py`). Its 9
+sections now render in the required order (header -> summary cards,
+including one backend-sourced Talented count fact -> Learning Style ->
+Classification -> Current Talent -> Competency Analysis, now grouped
+together -> Results/Evaluation Progress -> Branch/Organization comparison
+-> navigation). A real, progressive `Classification` filter (`<select
+name="classification">`, the 5 backend `CLASSIFICATION_LABELS`) narrows
+only the classification request and is hidden/cleared until a Program is
+selected; Evaluation Period/Competency filters were deliberately not added
+(would need new supporting list endpoints); Learning Style's own filters are
+already covered by the existing Branch/Grade selectors. No chart-type
+selector exists (bar-only compatibility matrix, confirmed not added).
+`candidate_membership_count`'s summary-card label is now `"Legacy: Meets
+Program Criteria"` so it is never read as current-Talent data; metric/data/
+permission unchanged. `static/css/talent.css` was independently re-checked
+against every new class the M18b-2 markup uses (`.tp-grade-chart`/
+`.tp-grade-row`/`.tp-table-wrap`/`.tp-primary-indicator`/`.tp-filters
+label`) - all already responsive at the 680px breakpoint, no CSS gap found,
+no CSS change made. Regression: `tests/talent_results_experience.test.cjs`
+26/28 passed (4 new tests, 2 identical pre-existing failures, git-stash-
+verified against the unmodified `5aa13cb` baseline); `tests/
+talent_branch_comparison_frontend.test.cjs` + `tests/
+talent_experience_adjustments.test.cjs` + `tests/talent_ui.test.cjs` 38/41
+passed (identical 3 pre-existing failures, git-stash-verified); `tests/
+test_talent_results_analytics.py` + `tests/test_talent_ui.py` 51/51 passed;
+`tests/test_talent_organization_analytics_providers.py` 22/22 passed; no
+schema/migration change; `tis.db` byte-identical (SHA-256 verified). Full
+broad M14-M18 regression/performance/KMS closeout remains M18b-3, still
+pending.
 
 ## Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (M18b-2)
 

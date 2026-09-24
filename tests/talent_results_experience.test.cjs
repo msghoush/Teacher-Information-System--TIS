@@ -320,6 +320,58 @@ test('rubricDistribution and the primary indicator gauge carry accessible chart 
   assert.match(gauge, /role="img" aria-label="Officially confirmed share: 60 percent"/);
 });
 
+// M18b-2b: full 9-section Results & Analytics information architecture
+// reorder (page header, summary cards, Learning Style, Classification,
+// Current Talent, Competency Analysis grouped together, Results/Evaluation
+// Progress, then Branch/Organization comparison), dedicated page-header
+// copy, and the new progressive Classification filter.
+test('Results & Analytics page header uses dedicated copy, not internal architecture/legacy identification wording', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /lede\('Results & Analytics','This page summarizes your authorized current Talent results/);
+  assert.doesNotMatch(source, /Your organization at a glance/);
+});
+
+test('the 9-section IA renders Competency Analysis (Program result + competency averages + rubric distributions) together, and Results\\/Progress before Branch\\/Organization comparison', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  const returnStart = source.indexOf("return lede('Results & Analytics'");
+  assert.ok(returnStart > -1, 'the analytics view return expression was not found');
+  const returnBlock = source.slice(returnStart, returnStart + 2600);
+  const order = ['learningStyleSection', 'classificationSection', 'talentedIndicator', 'programResultSection', 'competencyAverageSection', 'rubricSection', 'gradeSection', 'progressionSection', 'tp-branch-summary', 'studentResultsSection'];
+  let lastIndex = -1;
+  for (const token of order) {
+    const index = returnBlock.indexOf(token);
+    assert.ok(index > lastIndex, `${token} is out of the required 9-section IA order`);
+    lastIndex = index;
+  }
+});
+
+test('Classification filter is real (narrows the classification route only, never the talented route), progressive (Program-bound), and never widens backend authorization', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  const template = fs.readFileSync(path.join(__dirname, '..', 'templates', 'talent', 'workspace.html'), 'utf8');
+  assert.match(template, /for="tp-classification"/);
+  assert.match(template, /name="classification" id="tp-classification"/);
+  for (const band of ['Needs Improvement', 'Developing', 'Meets Expectations', 'Advanced', 'Exceptional']) {
+    assert.match(template, new RegExp(`<option value="${band}">${band}</option>`));
+  }
+  assert.match(source, /CLASSIFICATION_LABELS = \['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'\]/);
+  assert.match(source, /classificationFilters=\{\.\.\.resultsFilters,classification:/);
+  assert.match(source, /\/classification\?\$\{qs\(classificationFilters\)\}/);
+  // The talented request must never receive the classification narrowing param.
+  assert.match(source, /\/talented\?\$\{qs\(resultsFilters\)\}/);
+  assert.match(source, /function updateClassificationVisibility\(\)/);
+  assert.match(source, /show=config\.view==='analytics' && Boolean\(program\.value\)/);
+});
+
+test('candidate_membership_count is explicitly relabeled Legacy on the Results & Analytics summary strip and is never conflated with the current Talented count', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
+  assert.match(source, /candidate_membership_count:'Legacy: Meets Program Criteria'/);
+  // The separate current-Talented summary fact is sourced only from the
+  // already-fetched backend Talented family (never a second client-derived
+  // gauge/percentage) and is explicitly labeled with its Exceptional relation.
+  assert.match(source, /Talented \(Exceptional\) Students<\/span>/);
+  assert.doesNotMatch(source, /talentedSummary[\s\S]{0,200}radialGauge/);
+});
+
 test('rubricDistribution never derives a bar width or numeric text for a protected level, only order-based intensity', () => {
   const html = rubricDistribution([
     {label:'Level A', display_order:1, state:'visible', percentage:10, count:1},
