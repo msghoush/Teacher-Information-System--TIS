@@ -214,7 +214,7 @@ def test_preview_valid_workbook_returns_ok_rows_with_zero_mutation(db, client):
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert body["summary"] == {"total_rows": 1, "valid_rows": 1, "error_rows": 0}
+    assert body["summary"] == {"total_rows": 1, "valid_rows": 1, "no_change_rows": 0, "error_rows": 0}
     assert db.query(models.Student).count() == before
 
 
@@ -555,3 +555,131 @@ def test_students_import_export_permissions_are_registered():
     assert "students.export" in pr.ALL_PERMISSION_KEYS
     assert "students.import" in pr.PERMISSION_LABELS
     assert "students.export" in pr.PERMISSION_LABELS
+
+
+# ---------------------------------------------------------------------------
+# M15 round-trip: export -> import compatibility, NO_CHANGE, formatting
+# ---------------------------------------------------------------------------
+
+def _seeded_student(db, *, number="0000000001", first="Ada", last="Lovelace", gender="Female",
+                    branch_id=10, planning_section_id=1, year_id=100, grade="1", section="A"):
+    from student_academic_service import create_placement
+    student = create_student_with_number(
+        db, school_group_id=1, student_number=number, first_name=first, last_name=last,
+        gender=gender, actor=actor(),
+    )
+    db.commit()
+    create_placement(
+        db, school_group_id=1, student_id=student.id, academic_year_id=year_id, branch_id=branch_id,
+        planning_section_id=planning_section_id, grade_level=grade, section_name=section,
+        effective_from=datetime(2026, 9, 1),
+    )
+    db.commit()
+    return student
+
+
+def test_exported_workbook_reimports_as_no_change(db, client):
+    """The exact export (which includes the presentation-only ``section_display``
+    column) must re-import as NO_CHANGE without an ``unexpected_column``."""
+    permissions(db, "students.export", "students.import", "students.view")
+    _seeded_student(db)
+    exported = client.get("/api/students/roster/export")
+    assert exported.status_code == 200
+    headers = [cell.value for cell in load_workbook(BytesIO(exported.content)).active[1]]
+    assert "section_display" in headers
+
+    response = _upload(client, "/api/students/roster/import/preview", exported.content)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "ok"
+    assert body["file_error"] is None
+    assert body["summary"]["no_change_rows"] == 1
+    assert body["summary"]["valid_rows"] == 0
+    assert body["rows"][0]["status"] == "no_change"
+
+
+def test_preview_classifies_unchanged_row_as_no_change(db, client):
+    permissions(db, "students.import")
+    _seeded_student(db)
+    response = _upload(client, "/api/students/roster/import/preview", _workbook_bytes([_row()]))
+    body = response.json()
+    assert body["rows"][0]["status"] == "no_change"
+    assert body["summary"]["no_change_rows"] == 1
+    assert body["summary"]["valid_rows"] == 0
+
+
+def test_preview_classifies_new_row_as_create(db, client):
+    permissions(db, "students.import")
+    response = _upload(client, "/api/students/roster/import/preview", _workbook_bytes([_row(student_id="0000000001")]))
+    body = response.json()
+    assert body["rows"][0]["status"] == "ok"
+    assert body["summary"]["valid_rows"] == 1
+
+
+def test_preview_blocks_mutated_existing_row(db, client):
+    permissions(db, "students.import")
+    _seeded_student(db)
+    row = _row(last="Changed")  # same Student ID, different name -> never a silent update
+    response = _upload(client, "/api/students/roster/import/preview", _workbook_bytes([row]))
+    body = response.json()
+    assert body["rows"][0]["status"] == "error"
+    assert any(e["error_code"] == "student_id_conflict" for e in body["rows"][0]["errors"])
+
+
+def test_section_display_column_is_accepted_and_ignored(db, client):
+    permissions(db, "students.import")
+    headers = ROSTER_HEADERS + ("section_display",)
+    content = _workbook_bytes([_row() + ["1.1"]], headers=headers)
+    response = _upload(client, "/api/students/roster/import/preview", content)
+    body = response.json()
+    assert body["file_error"] is None
+    # section_display is presentation-only; the new Student resolves by canonical section.
+    assert body["rows"][0]["status"] == "ok"
+    assert body["rows"][0]["data"]["section_name"] == "A"
+
+
+def test_mixed_workbook_apply_creates_only_create_rows(db, client):
+    permissions(db, "students.import")
+    _seeded_student(db, number="0000000001")
+    existing = _row()  # matches the seeded Student -> NO_CHANGE
+    new = _row(student_id="0000000002", first="New", last="Kid")
+    before = db.query(models.Student).count()
+
+    preview = _upload(client, "/api/students/roster/import/preview", _workbook_bytes([existing, new]))
+    body = preview.json()
+    assert {r["status"] for r in body["rows"]} == {"no_change", "ok"}
+    assert body["summary"]["no_change_rows"] == 1
+    assert body["summary"]["valid_rows"] == 1
+
+    response = _upload(client, "/api/students/roster/import/apply", _workbook_bytes([existing, new]))
+    assert response.status_code == 201
+    body = response.json()
+    assert body["applied"] is True
+    assert len(body["created_student_ids"]) == 1
+    # Only the CREATE row wrote a new Student; the NO_CHANGE row neither duplicated nor mutated.
+    assert db.query(models.Student).count() == before + 1
+
+
+def test_no_change_apply_creates_no_mutation(db, client):
+    permissions(db, "students.import")
+    _seeded_student(db)
+    before = db.query(models.Student).count()
+    response = _upload(client, "/api/students/roster/import/apply", _workbook_bytes([_row()]))
+    assert response.status_code == 201
+    body = response.json()
+    assert body["applied"] is True
+    assert body["created_student_ids"] == []
+    assert db.query(models.Student).count() == before
+
+
+def test_export_workbook_formatting(db, client):
+    permissions(db, "students.export", "students.view")
+    _seeded_student(db)
+    response = client.get("/api/students/roster/export")
+    workbook = load_workbook(BytesIO(response.content))
+    sheet = workbook.active
+    assert sheet.freeze_panes == "A2"
+    assert sheet.auto_filter.ref is not None
+    header = sheet.cell(row=1, column=1)
+    assert header.font.bold is True
+    assert sheet.column_dimensions["A"].width is not None

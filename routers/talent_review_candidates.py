@@ -9,6 +9,7 @@ import authorization
 import models
 from auth import get_current_user
 from dependencies import get_db
+from talent_classification_service import assessment_classification
 from talent_operational_context import authorized_contexts, authorized_payload
 from talent_student_assessment_service import assessment_payload, overall_program_result, reassessment_requirement
 from talent_review_candidate_service import (
@@ -25,6 +26,18 @@ def _display_payload(db, row):
         id=row.assessment_id, school_group_id=row.school_group_id
     ).one_or_none()
     payload["overall_result"] = overall_program_result(db, assessment) if assessment is not None else None
+    # M17: legacy/history Review Candidate surface shows the same
+    # backend-authoritative automatic classification for context. Historical
+    # Review Candidate/Official Identification rows are preserved but no
+    # longer required to make a Student Talented - see
+    # talent_classification_service.assessment_classification.
+    classification = assessment_classification(db, assessment) if assessment is not None else None
+    payload["classification"] = (
+        classification.get("classification") if classification and classification.get("available") else None
+    )
+    payload["is_talented"] = bool(
+        classification and classification.get("available") and classification.get("is_talented")
+    )
     return payload
 
 

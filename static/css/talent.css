@@ -308,6 +308,12 @@
 .tp-assessment-overall,.tp-review-overall {display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;margin:12px 0;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
 .tp-assessment-overall>span:first-child,.tp-review-overall>span:first-child {font-weight:800;color:var(--app-brand-deep)}
 
+/* M17: backend-authoritative automatic classification (ADR 0037 amendment). */
+.tp-classification {display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:10px 14px;margin:0 0 12px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+.tp-classification>span:first-child {font-weight:800;color:var(--app-brand-deep)}
+.tp-classification-talented {border-color:var(--app-success, #1f8a4c);background:color-mix(in srgb, var(--app-success, #1f8a4c) 10%, var(--app-surface))}
+.tp-badge-talented {background:var(--app-success, #1f8a4c);color:#fff}
+
 .tp-rubric-chart {display:grid;gap:12px;padding:8px 0}
 .tp-rubric-row {display:grid;grid-template-columns:150px 1fr 92px;align-items:center;gap:14px}
 .tp-rubric-label {font-size:var(--tp-text-sm);font-weight:700;padding:4px 10px;border-radius:999px;background:color-mix(in srgb, var(--app-brand) calc(var(--tp-rubric-intensity, 0) * 55%), var(--app-surface-muted));color:var(--app-brand-deep);text-align:center}

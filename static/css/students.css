@@ -47,7 +47,7 @@
 .stu-roster-picker{display:grid;gap:10px;margin:18px 0;padding:16px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface-strong)}
 .stu-roster-picker label{font-weight:700}.stu-roster-picker input[type=file]{max-width:100%;font:inherit}.stu-roster-picker [data-roster-filename]{overflow-wrap:anywhere}
 .stu-roster-summary{font-weight:700}.stu-roster-table{min-width:860px}.stu-roster-table td:last-child{min-width:240px;white-space:normal}
-.stu-roster-row-error{background:#fff7f6}.stu-roster-row-error th,.stu-roster-row-error td:last-child{color:#8f2118;font-weight:700}
+.stu-roster-row-error{background:#fff7f6}.stu-roster-row-error th,.stu-roster-row-error td:last-child{color:#8f2118;font-weight:700}.stu-roster-row-nochange{background:#f4f7fa}.stu-roster-row-nochange td:last-child{color:#3b5a74}
 .stu-roster-apply{margin-top:16px;padding:16px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-brand-soft)}
 @media(max-width:680px){.stu-roster-dialog{width:calc(100vw - 16px);max-height:calc(100vh - 16px);padding:16px}.stu-roster-dialog-head{align-items:stretch;flex-direction:column}.stu-roster-dialog-head .stu-btn{align-self:flex-start}.stu-roster-picker .stu-actions,.stu-roster-apply .stu-btn{width:100%}.stu-roster-picker .stu-actions .stu-btn{flex:1 1 100%;justify-content:center}}
 
@@ -90,7 +90,8 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-profile { display: flex; flex-wrap: wrap; gap: var(--stu-space-5); align-items: center; background: var(--app-surface); border: 1px solid var(--app-line); border-radius: var(--stu-radius); box-shadow: var(--app-shadow-sm); padding: var(--stu-space-5); margin-bottom: var(--stu-space-5); }
 .stu-profile .stu-id { flex: 1 1 320px; }
 .stu-profile h1 { margin: 6px 0 2px; font-size: clamp(22px, 2.6vw, 30px); letter-spacing: -.02em; }
-.stu-profile .stu-actions { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); align-items: center; }
+.stu-actions { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); align-items: center; }
+.stu-actions > form { margin: 0; }
 .stu-fact { display: flex; flex-wrap: wrap; gap: var(--stu-space-2); margin-top: var(--stu-space-3); }
 .stu-fact span { background: var(--app-surface-muted); border: 1px solid var(--app-line); border-radius: 999px; padding: 5px 12px; font-size: 13px; font-weight: 600; }
 
@@ -212,9 +213,10 @@ a.stu-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(15,
 .stu-ls-track-state { background: repeating-linear-gradient(45deg, color-mix(in srgb, var(--stu-ls-accent, var(--app-surface-muted)) 9%, var(--app-surface-muted)), color-mix(in srgb, var(--stu-ls-accent, var(--app-surface-muted)) 9%, var(--app-surface-muted)) 6px, var(--app-line) 6px, var(--app-line) 12px); border-color: color-mix(in srgb, var(--stu-ls-accent, var(--app-line)) 55%, var(--app-line)); }
 .stu-protected { color: var(--app-muted, #5d6b82); font-style: italic; font-size: 13px; margin: 0; }
 /* Panel-level protected-state explanation: shown once when every category in
-   the current selection is suppressed, replacing a "Protected for privacy"
-   line repeated on every row. Neutral tone - this is an expected privacy
-   outcome, not an error or a broken/empty panel. */
+   the current selection is suppressed, replacing an "Unavailable" (M18a;
+   formerly "Protected for privacy") line repeated on every row. Neutral
+   tone - this is an expected privacy outcome, not an error or a broken/empty
+   panel. */
 .stu-protected-panel { display: flex; align-items: flex-start; gap: 8px; font-style: normal; font-size: 13px; padding: 10px 12px; border-radius: 10px; background: var(--app-surface-muted); border: 1px solid var(--app-line); margin: 0 0 var(--stu-space-3); }
 .stu-protected-panel svg { width: 18px; height: 18px; min-width: 18px; color: var(--app-muted, #5d6b82); }
 .stu-protected-panel strong { color: var(--app-ink); font-style: normal; }

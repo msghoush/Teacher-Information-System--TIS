@@ -441,7 +441,9 @@ def require_any_permission(
     resolved_user = current_user or auth.get_current_user(request, db)
     if not resolved_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if any(auth.has_permission(db, resolved_user, permission_key) for permission_key in permission_keys):
+    allowed_keys = frozenset(auth.get_allowed_permission_keys(db, resolved_user))
+    request.state.allowed_permission_keys = allowed_keys
+    if any(str(permission_key or "").strip() in allowed_keys for permission_key in permission_keys):
         return resolved_user, None
     return (
         resolved_user,
@@ -467,7 +469,9 @@ def require_all_permissions(
     resolved_user = current_user or auth.get_current_user(request, db)
     if not resolved_user:
         return None, RedirectResponse(url="/", status_code=302)
-    if all(auth.has_permission(db, resolved_user, permission_key) for permission_key in permission_keys):
+    allowed_keys = frozenset(auth.get_allowed_permission_keys(db, resolved_user))
+    request.state.allowed_permission_keys = allowed_keys
+    if all(str(permission_key or "").strip() in allowed_keys for permission_key in permission_keys):
         return resolved_user, None
     return (
         resolved_user,

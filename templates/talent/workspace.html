@@ -34,9 +34,9 @@
     <label for="tp-branch" id="tp-branch-field" hidden>Branch<select name="branch_id" id="tp-branch"><option value="">All Branches</option></select></label>
     <label for="tp-grade" id="tp-grade-field" hidden>Grade<select name="grade_level" id="tp-grade"><option value="">All Grades</option></select></label>
     <label for="tp-section" id="tp-section-field" hidden>Section<select name="planning_section_id" id="tp-section" disabled><option value="">Choose a Branch and Grade first</option></select></label>
+    <label for="tp-classification" id="tp-classification-field" hidden>Classification<select name="classification" id="tp-classification"><option value="">All classifications</option><option value="Needs Improvement">Needs Improvement</option><option value="Developing">Developing</option><option value="Meets Expectations">Meets Expectations</option><option value="Advanced">Advanced</option><option value="Exceptional">Exceptional</option></select></label>
     <label for="tp-dimension" id="tp-dimension-field" hidden>Show by<select name="dimension" id="tp-dimension"><option value="program_branch">Branches</option><option value="program_grade">Grades</option></select></label>
     <label for="tp-metric" id="tp-metric-field" hidden>Metric<select name="metric" id="tp-metric"></select></label>
-    <label for="tp-learning-style-dimension" id="tp-learning-style-dimension-field" hidden>Learning Style dimension<select name="learning_style_dimension" id="tp-learning-style-dimension"><option value="verbal">Verbal</option><option value="non_verbal">Non-verbal</option><option value="quantitative">Quantitative</option><option value="spatial">Spatial</option></select></label>
     <button type="submit" title="Selections apply automatically. Use Refresh only if a view does not update on its own." aria-label="Refresh now (selections apply automatically)">{{ icon('check-circle') }}Refresh</button>
   </form>
   <div id="tp-status" role="status" aria-live="polite" class="tp-sr-status"></div>
@@ -44,10 +44,18 @@
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
 <script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
+{% if talent_view in ['programs', 'evaluation-plans', 'assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
+{% endif %}
+{% if talent_view in ['assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>
+{% endif %}
+{% if talent_view in ['programs', 'evaluation-plans'] %}
 <script src="{{ url_for('static', path='js/talent-program-workspace.js') }}" defer></script>
+{% endif %}
+{% if talent_view == 'evaluation-plans' %}
 <script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}" defer></script>
+{% endif %}
 <script src="{{ url_for('static', path='js/talent.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/talent-experience.js') }}" defer></script>
 {% endblock %}

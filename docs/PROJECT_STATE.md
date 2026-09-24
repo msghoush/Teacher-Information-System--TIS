@@ -1,11 +1,598 @@
 ---
 title: TIS Project State
-documentation_version: 5.13
-last_updated: 2026-09-23
+documentation_version: 5.19
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## M14-M18 Correction Program Closeout - M18b-3 Final Regression / Performance / Privacy Verification (2026-09-24)
+
+**Status: the five-milestone correction program (M14, M15, M16, M17, M18) is
+functionally implemented on `dev` and closed for owner-acceptance and release
+planning only. Nothing here states that any of it is deployed, merged to
+`master`, or live in production; deployment, merge, and any production-state
+claim remain separate Owner decisions.** M18b-3 is a verification/KMS
+closeout pass, not a feature: no product semantics, analytics family, or
+filter was added, and there is no schema or migration change.
+
+**Final current-state truth (verified against code and tests, not only docs):**
+
+- Learning Style (M14): `Student.learning_style` is ONE categorical value from
+  exactly eight (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
+  Quantitative, Spatial); the aggregate is those eight plus Unassigned. The four
+  legacy percentage columns remain physically in the schema and in the write
+  service only so already-stored values are never silently rewritten; no current
+  API, UI, or analytics surface reads or exposes them (physical removal stays
+  gated on a separate data-occupancy verification).
+- Student/Talent scope (M15): the Student vs Talent count difference is
+  scope/population semantics, not a deletion defect; a force-deleted Student
+  cannot appear on current Talent surfaces; the roster export is re-importable.
+- Performance (M16): the common Talent page performs at most 3 effective
+  permission projections (governed regression
+  `tests/test_talent_ui.py::test_talent_page_bounds_authorized_permission_projection_reuse`
+  passed). `authorization.require_any_permission`/`require_all_permissions`
+  still resolve the current user and allowed keys on every call; the only reuse
+  is `request.state`, which is request-scoped (no global or cross-user cache).
+  `templates/talent/workspace.html` still loads the rubric-visual, operations,
+  program-workspace, and evaluation-workspace bundles only for the views that
+  need them.
+- Classification (M17): the raw Program result stays Program-native 1..N and is
+  deterministically projected to 1.00-5.00; bands are 1.00-1.99 Needs
+  Improvement, 2.00-2.99 Developing, 3.00-3.74 Meets Expectations, 3.75-4.49
+  Advanced, 4.50-5.00 Exceptional; ONLY Exceptional is Talented. Authority is
+  backend-only (`talent_classification_service.py`); there is no percentage-band
+  classification. Legacy Review Candidate and Official Identification records
+  are preserved as history/legacy workflow and are not current Talent authority.
+- Current Talent authority (M18a): an applicable current result is
+  `status == 'completed' AND is_current == True`. Learner Profile and Student
+  Drill use the M17 classification authority. The obsolete four-dimension Branch
+  aggregation and the visible "Protected for privacy" runtime copy are gone;
+  privacy suppression itself is unchanged.
+- Results & Analytics backend (M18b-1): one coherent family (Learning Style,
+  Classification, Talented) under `/api/talent/results-analytics/...`; frozen
+  ADR 0044 `MetricCode` values are not repurposed. Organization aggregation sums
+  RAW counts across Branches (Branch A 1/2 + Branch B 9/90 gives Organization
+  10/92, never an average of rates such as 30%); competency and progress keep
+  the governed pre-existing endpoints.
+- Results & Analytics UI (M18b-2/2b): the page consumes those backend families;
+  nine sections in order (header, summary cards, Learning Style, Classification,
+  Current Talent, Competency Analysis, Results/Evaluation Progress,
+  Branch/Organization comparison, navigation); the current Talented summary is
+  backend-sourced; the Classification filter is Program-bound, narrow-only, and
+  cleared when Program context disappears; `candidate_membership_count` is
+  labeled "Legacy: Meets Program Criteria". No client-side classification,
+  rate averaging, or new chart library.
+- Privacy UX: suppressed values are never rendered as numbers (HTML, chart
+  datasets, tooltips, ARIA); primary/complementary suppression, anti-
+  reconstruction, Branch isolation, and Organization privacy are unchanged and
+  their suites pass.
+
+**Results & Analytics request behavior (structural evidence from
+`static/js/talent.js`; no timings measured):** the analytics view issues one
+`Promise.all` batch with exactly one request per endpoint (Learning Style,
+Classification, Talented each once per context); Classification/Talented are
+only requested when a Program is selected; ordinary filter changes go through
+the existing `AUTO_APPLY_DEBOUNCE_MS` (250 ms) debounce and `applyContext`,
+which uses `history.replaceState` (no full-page navigation); the
+generation counter plus `AbortController` in `load()` prevent a stale response
+from overwriting a newer one.
+
+**Accessibility / responsive (structural only; no browser was available, so
+NOT visually verified):** every distribution has both a `role="group"` bar
+rendering and a captioned data table (`bucketBars`/`bucketTable`); the
+Classification filter is a native labeled `<select>`; category meaning is
+carried by text labels, not color alone; the `.tp-filters` wrap, the 680px/
+980px/760px breakpoints, and the `.tp-table-wrap` overflow container exist in
+`static/css/talent.css`.
+
+**Bounded fix made in M18b-3:** M18a made the Student Drill call
+`assessment_classification`, which recomputed `overall_program_result` a second
+time for every current+completed row, doubling per-completed-row query cost
+(measured 2 -> 4 queries per completed row; fixed drill total 36 -> 38).
+`assessment_classification` now accepts an optional pre-computed `overall`
+(default behavior unchanged) and the drill passes its row's existing result,
+restoring the pre-M18a cost (2 per row). Regression guard:
+`test_completed_row_query_cost_does_not_recompute_overall_result_for_classification`
+plus an equivalence test in `tests/test_talent_organization_student_drill.py`.
+
+**Known unresolved PRE-EXISTING issues (identical at the pre-program commit
+`50c049f` unless noted; classified with git worktrees, not assumed):**
+
+- Student Drill fixed query budget: `test_query_family_is_bounded_and_not_row_proportional`
+  asserts `<= 12` queries but the drill already used 36 (and grows ~2 per
+  completed row, an N+1 from per-row `overall_program_result`) before M14; it
+  still fails after the M18b-3 fix (36). Post-correction follow-up: batch the
+  per-row overall-result computation. Related:
+  `test_overview_uses_one_caller_session_and_bounded_set_based_queries` fails at
+  31 vs a 16 budget, identical at program start.
+- `tests/test_student_learning_style_v1.py::...one_panel_level_protected_message...`
+  asserts the chart container is absent while the template deliberately renders
+  the category labels with neutral unavailable states and no magnitudes (the
+  page leaks no numbers); stale test expectation to reconcile.
+- `test_force_delete_student_history_removes_protected_academic_history`
+  (`ObjectDeletedError` in the test's own post-delete refresh), four
+  `test_talent_assessment_cycle_frozen_population` tests, one
+  `test_talent_operational_journey`, one educator-input, and one rubric-policy
+  test fail identically at `50c049f`.
+- Node: 16 of 188 tests in `tests/talent*.test.cjs` + `tests/student*.test.cjs`
+  fail (13 of 179 at `50c049f`). Three are stale expectations of the removed
+  M14/M18a four-dimension Learning Style Branch metric in
+  `tests/talent_branch_comparison_frontend.test.cjs`; the remaining 13 are old
+  program-workspace/operations/experience expectations that predate the program.
+- PostgreSQL (`TIS_TEST_POSTGRESQL_URL`, local test database, isolated
+  schemas): 11 passed / 5 failed in `tests/test_postgresql_migration_transactions.py`,
+  the same 5 (FK creation order) at `50c049f`.
+- `tests/test_permission_dangerous_patterns.py` reports unclassified SaaS
+  permission-shortcut hits (unrelated to Talent; identical at `50c049f`).
+- An unscoped full `pytest tests/` run previously hung in an unrelated
+  SaaS/timetable area; M18b-3 did not repeat it and used scoped suites.
+
+**Deployment/boundary:** no Web Service or `tis-timetable-workflow` change; no
+migration; `tis.db` unchanged (SHA-256
+`01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136` before and
+after). GitHub Actions status was not verifiable from this environment.
+
+## M18b-2b Results & Analytics IA reorder + Classification filter + accessibility/responsive audit + candidate_membership_count decision (2026-09-24)
+
+Bounded completion pass over the M18b-2 explicit open-item list (a)-(e), on
+top of the already-landed M18b-2 first pass. No backend semantic change; the
+M18b-1 contract is unchanged; M18b-3 (final broad regression/performance/KMS
+closeout for the full M18 milestone) remains separately scoped and still
+pending.
+
+**(a) IA reorder (page-content level):** the in-content `lede()` header for
+the `analytics` view now reads "Results & Analytics" with a dedicated
+subtext, replacing the generic "Your organization at a glance" copy. The
+outer page chrome (breadcrumb/`<h2>`/`VIEWS["analytics"]` title, still
+"Organization Overview") is deliberately left unchanged - `tests/
+test_talent_organization_analytics_providers.py` pins that literal string
+for the page shell, and this pass targets the in-content Results & Analytics
+header called for by the task, not the shared workspace chrome. The 9
+sections now render in the required order: page header -> (context/filters
+live in the sticky `tp-filters` form outside this content region) -> summary
+cards (Organization snapshot KPI grid + fact strip, now including a single
+backend-sourced "Talented (Exceptional) Students" count) -> Learning Style ->
+Classification -> Current Talent -> Competency Analysis (Program result +
+per-competency averages + rubric distributions, now grouped together -
+`rubricSection` moved from the very end of the page to immediately follow
+`competencyAverageSection`) -> Results/Evaluation Progress (Grade progress +
+Evaluation Period progression, `progressionSection` moved before the Branch
+comparison section) -> Branch/Organization comparison (Branch comparison +
+the authorized cross-Program Student preview) -> secondary navigation links.
+
+**(b) Progressive Classification filter:** a real `Classification` filter
+control (`<select name="classification">`, the exact 5 backend
+`CLASSIFICATION_LABELS`) was added to the shared `tp-filters` form and wired
+only into the `/results-analytics/.../classification` request (never
+`/talented`, which has no such parameter). It is progressive: hidden until a
+Program is selected on the `analytics` view (`updateClassificationVisibility`),
+and cleared whenever hidden so a stale value can never be submitted for a
+different Program. It can only narrow the returned buckets (backend-validated
+against `CLASSIFICATION_LABELS`, rejects an unrecognized value), never widen
+authorization. Evaluation Period and Competency filters were evaluated and
+explicitly NOT added this pass: they would require new supporting
+period/competency list endpoints beyond this task's smallest-coherent-change
+scope, and are not "just wire the UI" the way Classification was (Classification
+already had a dedicated, documented backend query param per M18b-1).
+Learning Style's real backend filters (`branch_id`/`grade_level`/
+`section_name` only, Student-domain-wide per ADR 0031/M14) are already fully
+covered by the existing Branch/Grade selectors - confirmed directly against
+`routers/talent_results_analytics.py`, no new Learning-Style-specific
+control was added or needed.
+
+**(c) Accessibility audit (performed, not just asserted):** no chart-type
+selector exists anywhere in `static/js/talent.js` (grep-verified) - bar-only
+charts per the compatibility matrix, so no keyboard/chart-type-selector work
+was required. The new Classification filter is a native `<select>` inside a
+`<label for>` (identical pattern to every existing filter field), so it is
+natively keyboard-operable, has an accessible name, and sits in natural tab
+order with no `tabindex` manipulation - traced directly against the existing
+`tp-filters` form structure, not assumed.
+
+**(d) Responsive verification (performed, not just asserted):** independently
+re-checked `static/css/talent.css`'s breakpoints against every class name the
+new M18b-2 markup actually uses - `bucketBars`/`bucketTable` reuse
+`.tp-grade-chart`/`.tp-grade-row`/`.tp-table-wrap` (already covered at both
+the 680px breakpoint and the general responsive rules), `talentedSection`
+reuses `.tp-primary-indicator`/`.tp-grade-chart` (already covered), and the
+new Classification filter field reuses the same generic `.tp-filters
+label`/`select` styling as every other filter (flex-wrap at desktop, one
+field per row via `grid-template-columns:1fr` at the 680px breakpoint). No
+CSS gap was found; no CSS change was made in this pass.
+
+**(e) `candidate_membership_count` decision:** kept, not removed - it is a
+distinct, still-legitimate Review-Candidate-policy-match count (the legacy
+Review Candidate workflow's "meets this Program's eligibility policy"
+grain), never the M17 automatic Classification/Talented grain, and never
+literally uses "identified"/"candidate_of_eligible" percentage-share
+wording. Its Results & Analytics summary-card label is relabeled
+`"Legacy: Meets Program Criteria"` (previously unqualified `"Meets Program
+Criteria"`) so it can never be read as a current-Talent figure next to the
+new Classification/Talented sections on this same page, matching the
+existing Legacy-qualifier pattern already used for `candidate_of_eligible`/
+`identified_of_eligible`. The underlying metric/data/permission are
+completely unchanged; the separate `candidate_count` label (Program
+Portfolio/Branch pages, out of scope for this page) is untouched.
+
+**Regression:** `tests/talent_results_experience.test.cjs` - 28 tests (24 ->
+28, 4 new), 26 passed/2 failed, the identical 2 pre-existing failures by
+exact test name at both this change and the unmodified M18b-2 baseline
+`5aa13cb` (git-stash-verified, not assumed). `tests/
+talent_branch_comparison_frontend.test.cjs` + `tests/
+talent_experience_adjustments.test.cjs` + `tests/talent_ui.test.cjs`: 41
+tests/38 passed/3 failed, identical 3 pre-existing failures by exact test
+name at both states (git-stash-verified). `tests/test_talent_results_
+analytics.py` + `tests/test_talent_ui.py`: 51/51 passed. `tests/
+test_talent_organization_analytics_providers.py` (confirms the page-chrome
+title assertion is unaffected): 22/22 passed. No schema/migration change;
+`tis.db` byte-identical before/after this task (SHA-256 verified
+`01e1a3065d92280ee9228db921f67545c8b837d4ecd787a5aeeddc6d128fc136`).
+
+**Still open for M18b-3:** Evaluation Period and Competency filter controls
+(would need new supporting list endpoints); a chart-type selector was
+evaluated as unnecessary (bar-only compatibility matrix) rather than added;
+full broad M14-M18 regression/performance/KMS closeout.
+
+## M18b-2 Results & Analytics Frontend Rebuild - current-Talent indicator + new-family consumption (2026-09-24)
+
+Bounded FRONTEND-ONLY sub-phase consuming the M18b-1 backend contract
+(`/api/talent/results-analytics/...`). No backend semantic change; M18b-3
+(final broad regression/performance/KMS closeout for the full M18 milestone)
+remains separately scoped and still pending.
+
+**What changed:** `static/js/talent.js`'s `analytics` view (Results &
+Analytics landing page) now calls all three M18b-1 families - Learning Style
+(`/academic-years/{ay}/learning-style`, Student-domain-wide, gated on
+`students.view`), Classification (`/programs/{pid}/academic-years/{ay}/
+classification`, Program-bound, exactly the 5 backend bands), and Talented
+(`/programs/{pid}/academic-years/{ay}/talented`, Program-bound, Exceptional-
+only) - and renders them with new reusable helpers: `bucketBars`/
+`bucketTable`/`distributionSection` (chart+accessible-table pair for Learning
+Style/Classification) and `talentedSection` (primary current-Talent
+indicator with an optional per-Branch breakdown, reusing the same visual
+classes as the existing `gradeBars`/`branchBars` primitives - no new charting
+library, no CSS change). The competency (`/api/talent/analytics/.../
+rubric-distribution`) and progress/branch-comparison
+(`/api/talent/evaluation-progress/...`) sections were already correctly
+wired to the right existing governed endpoints and were left unchanged.
+
+**Legacy-metric removal from the current-Talent section:** the previous
+`identifiedIndicator` primary indicator (sourced from the legacy
+`identified_of_eligible`/Official Identification `talent-map` projection) is
+removed from this view. `talentedSection` (backed by the new M17-
+classification-derived Talented family) is now the only current-Talent
+indicator here. The underlying legacy Review Candidate/Official
+Identification services, routers, data, and the separate Talent Review
+workspace are completely unchanged; `identified_of_eligible`/
+`candidate_of_eligible` remain valid, unrelabeled options only in the
+still-supported legacy Branch-comparison metric selector (a different
+control/view), never presented as current Talent state.
+
+**Permission surfacing (small, non-semantic, additive):**
+`routers/talent_ui.py` now additively includes `"students.view"` in the
+`talent_permissions` dict passed to the template, purely so the frontend can
+gate the new Learning Style section's fetch/render on the same permission
+its backend route already requires - no new authorization scope, no change
+to any endpoint's actual permission check.
+
+**Regression (git-worktree-verified against the unmodified M18b-1 baseline
+`2bf9b8c`):** `tests/talent_*.test.cjs` - 170 tests/154 passed/16 failed on
+this task's changes versus 165/149/16 at baseline, the identical 16
+pre-existing failures by exact test name in both runs, zero new JS
+failures. `tests/test_talent_results_analytics.py` + `tests/test_talent_ui.py`
+(the exactly-named M18b-2 focused Python/UI regression set): 51/51 passed.
+No schema/migration change; `tis.db` byte-identical before/after (SHA-256
+verified).
+
+**Explicitly not done in this task (open for M18b-2b/M18b-3):** the full
+9-section Results & Analytics information-architecture reorder (page
+header, progressive filter bar across Program/Branch/Grade/Section/
+Evaluation Period/Competency/Learning Style/Classification, a full chart-
+type-selector/keyboard/WCAG audit, and explicit mobile responsive
+verification) called for by the M18b-2 task specification was not
+completed end-to-end - this pass targeted the highest-value, most
+defect-prone item (a legacy metric presented as the current Talent state)
+and made the three new backend families reachable from the UI with
+accessible chart+table pairs and privacy-safe neutral states, rather than a
+full visual rebuild of the page.
+
+## M18b-1 Results & Analytics Backend Contract + Correct Aggregation Authority (2026-09-24)
+
+Bounded BACKEND-ONLY sub-phase of the M18b Results & Analytics rebuild (the
+visible page/chart rebuild is the separate, still-pending M18b-2; no
+template/chart-rendering change was made here). Delivers the backend
+authority M18a explicitly deferred.
+
+**Contract decision:** `talent_org_intelligence_contract.MetricCode` remains
+frozen and unmodified (ADR 0044) - the new current-classification/Talented
+grain is NOT added to it. A new module,
+`talent_results_analytics_service.py`, reuses the existing M9
+`talent_analytics_service` Program+AcademicYear context/filter/scope
+architecture (`resolve_context`/`resolve_filters`/`population_query`) and the
+same generic `Cell`/`Group`/`apply_primary_privacy`/
+`run_complementary_suppression` privacy primitives every M9 breakdown already
+uses, adding one new opaque privacy class (`"P4"`) for this grain - never the
+legacy `CANDIDATE_COUNT`/`IDENTIFIED_COUNT`-family metrics, which remain
+legacy-Review/Identification-grain only. One coherent router,
+`routers/talent_results_analytics.py` (`/api/talent/results-analytics/...`),
+serves three families:
+
+- **Learning Style** (`/academic-years/{academic_year_id}/learning-style`) -
+  thin reuse of `student_learning_style_analytics.py` (M14), gated on the
+  existing `students.view` permission; no new computation.
+- **Classification**
+  (`/programs/{id}/academic-years/{id}/classification`) - the current M17
+  classification distribution (five owner-approved bands) over the exact
+  M18a-governed grain (`TalentStudentAssessment.status == 'completed' AND
+  is_current == True`), reusing `talent_classification_service.
+  assessment_classification` for every band decision (never a duplicated
+  band table; `talent_classification_service.CLASSIFICATION_LABELS` is now
+  exported read-only for this purpose). A rubric-incompatible ("available:
+  False") Assessment is tracked as `not_currently_classifiable_count`, never
+  fabricated into a band.
+- **Talented** (`/programs/{id}/academic-years/{id}/talented`) - current
+  Talented (Exceptional-only) count, applicable denominator, and rate,
+  projected from the same classification computation.
+
+**Correct Organization aggregation (the CRITICAL invariant, regression-
+tested exactly):** `talent_results_analytics_service.
+sum_raw_counts_across_branches` is a pure function that sums each Branch's
+own raw bucket counts - the ONLY Organization/Branch rollup rule anywhere in
+this module. Proof case: Branch A 1 Talented/2 applicable (50%), Branch B 9
+Talented/90 applicable (10%) -> Organization 10/92 (~10.87%), never the naive
+30% average of the two Branch rates (`tests/test_talent_results_analytics.py`,
+Sections A and C).
+
+**`learning_style_dimension` dead-parameter cleanup:** re-audited directly
+(not assumed) and confirmed still genuinely unreferenced inside
+`branch_comparison_metric`'s own body (the "learning_style" metric it
+existed to parameterize has never been a member of
+`APPROVED_BRANCH_METRICS` since M14) - removed outright from
+`routers/talent_evaluation_progress.py`'s branch-comparison route and from
+`branch_comparison_metric`'s signature in
+`talent_evaluation_progress_service.py`; the one stale frontend-contract test
+assertion for the now-nonexistent parameter
+(`tests/talent_branch_comparison_frontend.test.cjs`) is removed. No behavior
+change: `branch_comparison_metric` still rejects any `metric` outside the six
+`APPROVED_BRANCH_METRICS` exactly as before.
+
+**Competency and Progress families are deliberately NOT reimplemented here.**
+`routers/talent_analytics.py`'s existing `/rubric-distribution` route
+(Program-bound, canonical framework/competency identity, governed
+completed/current evidence semantics) and
+`routers/talent_evaluation_progress.py`'s existing branch/organization/
+branch-comparison routes (ACTIVE/OPENED weighting, framework comparability,
+raw Overall Result semantics) already provide governed, privacy-safe backend
+analytics for those two families with correct, unaltered semantics - M18b-2's
+frontend calls those existing routes directly for Competency/Progress and the
+new `/api/talent/results-analytics/...` routes for Learning
+Style/Classification/Talented.
+
+**Regression:** full `-k talent` pytest suite (746 passed / 11 failed,
+worktree-compared byte-identical by exact test name against the unmodified
+81cfa75 baseline - all 11 pre-existing, zero new) and the full
+`node --test tests/*.test.cjs` suite (17 unique pre-existing failures,
+down from 18 at baseline - `talent_branch_comparison_frontend.test.cjs`'s
+stale `learning_style_dimension` assertion fixed, zero new failures). No
+schema/migration change; `tis.db` byte-identical before/after (SHA-256
+verified). M18b-2 (the visible Results & Analytics page/chart rebuild
+consuming this contract) remains explicitly out of scope and was not
+implemented here.
+
+## M18a Current Talent Authority Alignment + Learning Style Cleanup + Privacy UX (2026-09-23)
+
+Bounded first half of the M18 milestone (the full Results & Analytics page
+rebuild is M18b and remains out of scope here). Four areas, closed:
+
+**Applicable-current-result authority (resolved, not invented):** for a
+Talent Program, the Assessment that governs a Student's current M17
+classification is the `TalentStudentAssessment` row where
+`status == 'completed'` AND `is_current == True` - the exact pre-existing
+authority ADR 0036 (Talent Rubric Reassessment Attempts) already established
+and that M9 analytics (`talent_analytics_service._assessment_ids_subquery`)
+and the B9 Student Drill already consumed before this milestone. No new rule
+was introduced.
+
+**Part 1 - current Talented authority:** the Learner Profile
+(`talent_learner_profile_service.build_learner_profile`) and the B9 Student
+Drill (`talent_org_student_drill.py`) now additively expose the same
+backend-authoritative M17 classification (`classification`,
+`classification_score`, `is_talented`, via
+`talent_classification_service.assessment_classification`) already wired
+into `routers/talent_assessments.py` since M17 - reusing the single
+classification authority, never a duplicated derivation, never sourced from
+`TalentReviewCandidate`/`TalentOfficialIdentification`. Building a NEW
+org/Branch AGGREGATE "current Talented count" metric was explicitly
+evaluated and deferred to M18b: `talent_org_intelligence_contract.MetricCode`
+is a frozen 14-value enum (ADR 0044 explicitly states "no MetricCode
+extension"), and the only existing Talent-adjacent aggregate metrics
+(`CANDIDATE_COUNT`/`CANDIDATE_OF_ELIGIBLE`/`IDENTIFIED_COUNT`/
+`IDENTIFIED_OF_ELIGIBLE`) are grounded in the legacy Review/Identification
+membership grains, not an M17-classification grain - adding a privacy-safe
+Cell/Group aggregate for the new grain is real new analytics infrastructure
+that belongs with the M18b Results & Analytics rebuild, not a cleanup task.
+`static/js/talent.js`'s `candidate_of_eligible`/`identified_of_eligible`
+labels ("Talent share"/"Officially confirmed share" - which read as CURRENT
+Talent-status shares even though their underlying data is the legacy
+Review/Identification workflow) are relabeled "Legacy review share"/"Legacy
+identification share"; the underlying metrics, data, and permissions are
+completely unchanged. `TalentReviewCandidate`/`TalentOfficialIdentification`
+rows, services, and routers remain fully preserved as legacy/history,
+byte-identical, code-unchanged.
+
+**Part 2 - M14 Learning Style deprecation completed:** `routers/students.py`
+(`_student_json`) and `routers/students_ui.py` (`_student_view`) no longer
+serialize `learning_style_verbal_percentage`/`learning_style_non_verbal_percentage`/
+`learning_style_quantitative_percentage`/`learning_style_spatial_percentage`
+in the current normal Student API/UI projection (verified: they still did,
+including as literal `null`, before this milestone). Stored DB columns and
+historical values are completely untouched - only read exposure is removed.
+`talent_evaluation_progress_service.py`'s `learning_style_branch_aggregate`/
+`_learning_style_values_by_branch`/`_LEARNING_STYLE_COLUMNS` (dead since the
+M14 dispatcher removal, kept only so the deprecated-column computation was
+not silently mutated) were confirmed genuinely unreachable from any current
+endpoint/service path and removed outright, along with their two stale
+direct-call tests. There is no current four-dimension Learning Style
+analytics authority anywhere in the repository after M18a. M14's own
+governing model (one categorical `learning_style` value; aggregate
+distribution over eight categories + Unassigned; no per-Student percentage
+dimensions or bars) is unchanged and still served by
+`student_learning_style_analytics.py`.
+
+**Part 3 - privacy copy cleanup (presentation only):** the literal visible
+phrase "Protected for privacy" is removed from Talent & Potential /
+Learning Style UI (`static/js/talent.js`, `talent-rubric-visual.js`,
+`talent-experience.js`, `templates/students.html`) and replaced with
+context-appropriate neutral copy ("Unavailable", "Not available for this
+view", "This distribution/rubric distribution is not available for this
+selection", "Distribution unavailable") - never one mechanical replacement
+everywhere. The underlying privacy/suppression contract (primary suppression,
+complementary suppression, minimum-population rules, anti-reconstruction,
+tenant/Branch/organization scope) is completely unchanged; no protected
+numeric value was ever in the copy being replaced, and none is introduced by
+the new neutral copy.
+
+M18b (the full Results & Analytics page rebuild, including any new org/Branch
+aggregate Talented-count analytics) remains explicitly out of scope and was
+not implemented here.
+
+## M17 Automatic Assessment Classification + New Normal Talent Workflow (2026-09-23)
+
+Owner-approved product direction: Student -> Program -> Rubric -> Teacher
+assesses -> Complete/Submit -> the backend automatically classifies the
+result. On a Completed Assessment, TIS derives the ADR 0037 Overall Program
+Result as before, then (ADR 0037's 2026-09-23 Amendment) deterministically
+projects it onto a governed 1.00-5.00 classification scale and assigns
+exactly one fixed, owner-approved band: 1.00-1.99 Needs Improvement,
+2.00-2.99 Developing, 3.00-3.74 Meets Expectations, 3.75-4.49 Advanced,
+4.50-5.00 Exceptional. Only Exceptional is Talented. These bands are never a
+percentage and never reuse `normalized_percent`.
+
+**Architecture decision (Part 1):** real configured Talent Programs do not
+universally use a five-level rubric (the realistic seed dataset in
+`talent_local_test_data.py` configures 4-level, 3-level, and 4-level
+Programs). Mandating a system-wide five-level rubric would have broken real
+Program configurations. TIS instead preserves each Program's own configured
+1..N rubric scale for the raw educational result exactly as ADR 0037 already
+defines it, and adds one additional, separately governed deterministic
+linear projection from that raw 1..N average onto the fixed 1.00-5.00
+classification scale, reusing the same linear-rescale technique ADR 0037
+already approves for `normalized_percent`. See
+`talent_classification_service.py` and ADR 0037's 2026-09-23 Amendment.
+
+The normal current workflow no longer requires a manual Review Candidate or
+Official Identification step to make a Student Talented - `Talented` is now
+a direct backend consequence of a Completed Assessment's automatic
+classification. Existing `TalentReviewCandidate`/`TalentOfficialIdentification`
+rows (including ones recorded before this milestone) are fully preserved as
+legacy/history evidence, remain reachable through their existing services,
+and are never silently rewritten to match a later automatic classification -
+they simply no longer govern current `Talented` state. No schema migration
+was required: classification is a deterministic read projection over the
+same immutable Completed-Assessment inputs the Overall Program Result
+already uses, computed only when `status == "completed"`.
+
+API: `/api/talent/assessments/*` and `/api/talent/review-candidates/*`
+responses additively expose backend-computed `classification`,
+`classification_score`, and `is_talented` fields; the frontend only ever
+displays these values and never derives or spoofs a band. The Talent
+assessment and legacy Review workspaces (`static/js/talent-operations.js`)
+show the classification/Talented state, and the legacy Review workspace
+copy now describes Review status/Official Identification as preserved
+history rather than a required step. M18 (Results & Analytics rebuild,
+including the Learner Profile/organization-analytics visible-copy
+implications of this new classification authority) remains out of scope and
+was not implemented here.
+
+## M16 Talent Module Performance And Student Actions (2026-09-23)
+
+Implemented on the isolated `m16-talent-performance` branch from `50c049f`.
+Talent page permission projection calls are bounded at three (previously roughly
+28-31 through repeated per-key checks), and unrelated operational JavaScript is
+not emitted by Overview/analytics or other non-owning surfaces. Depending on the
+surface, two to four of the former six scripts are emitted; Overview/analytics
+drop about 135 KB of unminified JavaScript. Student action containers now render
+as wrapping horizontal flex rows. No schema, migration, API, authorization,
+tenant/Branch isolation, analytics calculation, or product-semantic change was
+introduced. Deployment surface is Web Service only; the timetable workflow is
+unchanged.
+
+## M14 Students + Talent & Potential — Learning Style Correction + Aggregate Distribution (2026-09-23)
+
+Owner-directed correction milestone following a read-only Post-M13
+Correction Review. Two corrections, both governed by amendments to ADR 0031
+and ADR 0042 (see each ADR's own "M14 Amendment"/"M14 Correction" section)
+and, for the removed Talent metric, ADR 0044's M14 Amendment section:
+
+1. **Learning Style is ONE categorical selection per Student, extended from
+   four to eight values.** `Student.learning_style` now accepts Visual,
+   Auditory, Read/Write, Kinesthetic (original four, unchanged) plus Verbal,
+   Non-verbal, Quantitative, Spatial (added). Those four added values were
+   previously, mistakenly, modeled as an independent four-dimension
+   percentage profile (`learning_style_verbal_percentage`,
+   `learning_style_non_verbal_percentage`,
+   `learning_style_quantitative_percentage`,
+   `learning_style_spatial_percentage`; ADR 0042/M1-M3). Verified against
+   actual code that, contrary to ADR 0042's own stated M1 scope boundary,
+   the M2/M3 delivery had already built a full create/update/GET API and a
+   real Student create/edit frontend for the four percentages - while the
+   ORIGINAL single-select categorical field from ADR 0031 had never received
+   any create/edit frontend selector at all until this milestone. Student
+   create/edit now shows one Learning Style selector (all eight values, plus
+   "Not assigned"); the Student profile shows the one selected value (or
+   "Not assigned") instead of four percentage bars; Talent Student context
+   reads the current categorical value directly (no historical snapshot, no
+   effect on rubric/Assessment/Overall Result/Evaluation
+   Progress/classification/Candidate-Identification).
+2. **"Percentage" means population/aggregate distribution, never a
+   per-Student dimension percentage.** The four
+   `learning_style_*_percentage` columns are now OPERATIONALLY DEPRECATED:
+   no longer written (API/UI create/edit no longer accept them - silently
+   ignored, never a validation error), no longer displayed anywhere, and no
+   longer read as Learning Style authority anywhere, including the M4/M10
+   Talent Evaluation Progress "Learning Style" Branch-comparison metric
+   (which averaged them) - that metric is REMOVED from
+   `talent_evaluation_progress_service.APPROVED_BRANCH_METRICS` (six
+   approved metrics remain; a request for it now receives the same
+   `invalid_filter`/400 as any other unrecognized metric). Existing stored
+   percentage values are preserved completely untouched (no backfill, no
+   conversion, no clearing) - physical column removal is a separately
+   gated, later cleanup contingent on an explicit data-occupancy
+   verification this milestone could not safely perform (the local `tis.db`
+   has no `students` table at all, so real occupancy could not be inspected
+   either way). `student_learning_style_analytics.py` (the existing
+   privacy-safe categorical count/percentage/"Unassigned" distribution
+   engine, reused and extended rather than parallel-built) now covers all
+   eight categorical values plus an "Unassigned" bucket for the authorized
+   Student population; the denominator is always every authorized Student in
+   scope, including Unassigned Students - this is served at the existing
+   Students page summary location, unchanged in scope/authorization/privacy
+   contract from ADR 0031.
+
+Database: one forward-only migration
+(`20260923_002_student_learning_style_eight_values`) widens
+`ck_students_learning_style` from four to eight values on PostgreSQL
+(`DROP CONSTRAINT IF EXISTS` + `ADD CONSTRAINT ... NOT VALID` +
+`VALIDATE CONSTRAINT`, mirroring the exact pattern already used elsewhere in
+`db_migrations.py` for widening a CHECK constraint under the same name);
+SQLite continues to rely on the service-layer guard for an already-migrated
+database, exactly like the original `_student_learning_style_v1` migration,
+and a fresh SQLite database gets the widened constraint directly from
+`models.py`'s current `CheckConstraint`. No column is added or dropped, no
+row is rewritten, and `tis.db` is unchanged (verified by SHA-256 before and
+after this task).
+
+`student_roster_service.py`'s column contract was inspected and does not
+include Learning Style or the four percentage columns at all - roster scope
+is therefore untouched by this milestone, per its explicit boundary.
+
+Out of scope for M14 (left for later, separately governed milestones):
+Student deletion/count correction, roster redesign, Student action layout,
+Talent whole-module performance, assessment classification, the full
+Results & Analytics rebuild, and any privacy-copy cleanup beyond the
+Learning-Style-specific surfaces touched here.
 
 ## M13 Students + Talent & Potential Release Readiness Closeout (2026-09-23)
 
@@ -196,6 +783,38 @@ The browser performs no workbook parsing, uniqueness check, tenant inference,
 Branch/Academic-Year/Section authorization, or `section_display` conversion.
 No CSV/`.xls`, persistent batch, background job, backend change, schema, or
 migration is included.
+
+## Student Integrity, Talent Visibility & Roster Round-Trip M15 Implemented (2026-09-23)
+
+M15 (isolated `m15-student-integrity-roster` feature branch, off `50c049f`)
+delivers two owner corrections without schema change.
+
+**Student permanent delete -> Talent visibility.** `force_delete_student_history`
+(`student_academic_service.py`) already deletes every Student-owned table in
+FK-safe child-before-parent order and never commits itself; Talent current
+operational surfaces INNER-join `models.Student`, so a force-deleted Student
+cannot appear anywhere in Talent & Potential. The owner's "~9 vs ~13" mismatch
+is a population-scope distinction, not a deletion defect: the Students list is
+Branch-scoped (single authorized Branch unless `students.view_all_branches` +
+organization/global scope) over current effective Placement, while Talent/Review
+span frozen `TalentAssessmentCyclePopulationMember` membership (historical,
+multi-Branch) and the eligible-students roster intentionally does not filter
+`Student.status` (ADR 0039). Locked by
+`tests/test_student_delete_talent_visibility.py` (full-chain cascade removal,
+blockers, rollback/transaction boundary, tenant isolation).
+
+**Student roster round-trip.** `student_roster_service.py` export now re-imports
+cleanly: `section_display` is accepted-but-ignored (display-only, never identity;
+`section` remains canonical identity per ADR 0045), and the canonical `STD`
+prefix is stripped back to the 10-digit business value on import. Import stays
+create-only: unchanged exported rows classify **NO_CHANGE** (managed Student ID
+resolves identity; name/gender/status + current Placement Branch/Year/Grade/
+Section must match exactly), new rows **CREATE**, and any mutated existing row
+stays a blocked `student_id_conflict` (never update/merge/upsert). Apply writes
+only CREATE rows, skips NO_CHANGE rows, and stays atomic. Export formatting adds
+a bold header, frozen header row, deterministic widths, and autofilter.
+`static/js/students-roster.js` renders CREATE / No change / error from backend
+row status. Permissions, tenant/Branch scope, uniqueness, and audit unchanged.
 
 ## Results & Analytics Branch Comparison Frontend M10 Implemented (2026-09-23)
 

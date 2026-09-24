@@ -21,7 +21,7 @@ test('suppressed and no-data Branches remain distinct and never expose supplied 
     {branch_id:10,state:'suppressed',value:91,count:4},
     {branch_id:11,state:'no_data',value:73,count:0},
   ]},branches);
-  assert.match(html,/Protected for privacy/);assert.match(html,/No data/);
+  assert.match(html,/Unavailable/);assert.match(html,/No data/);
   assert.doesNotMatch(html,/>91<|>73<|>4<|>0%<|width:/);
 });
 
@@ -65,7 +65,10 @@ test('M10 frontend requests selected backend metric and contains no governed agg
   const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
   const implementation=source.slice(source.indexOf('const branchComparisonMetricOptions'),source.indexOf('const rubricLevelIntensity'));
   assert.match(source,/evaluation-progress\/programs\/\$\{encodeURIComponent\(pid\)\}/);
-  assert.match(source,/learning_style_dimension:learningStyleDimension\.value/);
+  // M18b-1: learning_style_dimension was a dead backend parameter (removed
+  // outright - see talent_evaluation_progress_service.py's M18b-1 note) and
+  // was never actually sent by this frontend module; this stale assertion
+  // for a non-existent contract is removed rather than left misleading.
   assert.doesNotMatch(implementation,/\.reduce\(|\.sort\(|nominal_weight|minimum_cohort|current_placement/);
   assert.doesNotMatch(source,/students\/roster\/import|students\/roster\/export/);
 });

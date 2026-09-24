@@ -26,13 +26,61 @@ def test_navigation_and_html_use_actual_shared_shell(db, client):
     assert response.status_code == 200
     assert 'Talent &amp; Potential' in response.text
     assert '/static/js/talent.js' in response.text
-    assert '/static/js/talent-program-workspace.js' in response.text
-    assert '/static/js/talent-evaluation-workspace.js' in response.text
-    assert '/static/js/talent-operations.js' in response.text
+    assert '/static/js/talent-experience.js' in response.text
+    assert '/static/js/talent-program-workspace.js' not in response.text
+    assert '/static/js/talent-evaluation-workspace.js' not in response.text
+    assert '/static/js/talent-operations.js' not in response.text
+    assert '/static/js/talent-rubric-visual.js' not in response.text
     assert '/static/css/talent-program-workspace.css' in response.text
     assert response.headers['cache-control'] == 'no-store'
     assert 'href="/talent/programs"' in response.text
     assert 'href="/talent/reviews"' not in response.text
+
+
+@pytest.mark.parametrize(
+    ('view', 'present', 'absent'),
+    (
+        ('programs', ('talent-rubric-visual.js', 'talent-program-workspace.js'),
+         ('talent-operations.js', 'talent-evaluation-workspace.js')),
+        ('evaluation-plans', ('talent-rubric-visual.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
+         ('talent-operations.js',)),
+        ('assessments', ('talent-rubric-visual.js', 'talent-operations.js'),
+         ('talent-program-workspace.js', 'talent-evaluation-workspace.js')),
+        ('reviews', ('talent-rubric-visual.js', 'talent-operations.js'),
+         ('talent-program-workspace.js', 'talent-evaluation-workspace.js')),
+        ('analytics', (), ('talent-rubric-visual.js', 'talent-operations.js',
+                           'talent-program-workspace.js', 'talent-evaluation-workspace.js')),
+    ),
+)
+def test_talent_views_load_only_their_required_script_bundles(db, client, view, present, absent):
+    permissions(db, *set(item[1] for item in talent_ui.VIEWS.values()))
+    response = client.get(f'/talent/{view}')
+    assert response.status_code == 200
+    assert 'talent.js' in response.text and 'talent-experience.js' in response.text
+    for asset in present:
+        assert asset in response.text
+    for asset in absent:
+        assert asset not in response.text
+
+
+def test_talent_page_bounds_authorized_permission_projection_reuse(db, client, monkeypatch):
+    import auth
+
+    permissions(db, *set(item[1] for item in talent_ui.VIEWS.values()))
+    original = auth.get_allowed_permission_keys
+    calls = []
+
+    def counted(*args, **kwargs):
+        calls.append((args, kwargs))
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(auth, 'get_allowed_permission_keys', counted)
+    response = client.get('/talent/overview')
+    assert response.status_code == 200
+    # Route gating, the shell's commercial feature checks, and the final
+    # projection stay independently authorized, but the old per-key loop
+    # (roughly 25 extra full projections) must never return.
+    assert len(calls) <= 3
 
 
 def test_talent_year_defaults_to_shell_year_and_respects_explicit_authorized_year(db, client):

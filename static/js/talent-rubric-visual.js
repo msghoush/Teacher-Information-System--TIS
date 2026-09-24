@@ -40,7 +40,7 @@
     return `<div class="tp-rubric-chart" role="group" aria-label="Rubric level distribution">${rows.map((level,index)=>{
       const strength=intensity(index,rows.length);
       const visible=level.state==='visible'&&Number.isFinite(level.percentage);
-      const state=level.state==='no_data'?'No data yet':level.state==='restricted'?'Not available for this view':'Protected for privacy';
+      const state=level.state==='no_data'?'No data yet':level.state==='restricted'?'Not available for this view':'Unavailable';
       const track=visible?`<div class="tp-rubric-track" role="img" aria-label="${esc(level.label)}: ${level.percentage} percent"><span style="width:${Math.max(0,Math.min(100,level.percentage))}%"></span></div>`:`<div class="tp-rubric-track tp-rubric-track-state" role="img" aria-label="${esc(level.label)}: ${state}"></div>`;
       const value=visible?`<strong>${level.percentage}%</strong><small>${level.count ?? ''}</small>`:`<span class="tp-protected">${state}</span>`;
       return `<div class="tp-rubric-row" style="--tp-rubric-intensity:${strength.toFixed(3)}">${badge({...level,position:index+1,total_levels:rows.length},rows)}${track}${value}</div>`;

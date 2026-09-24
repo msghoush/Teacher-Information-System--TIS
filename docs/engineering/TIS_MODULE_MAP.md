@@ -1,11 +1,125 @@
 ---
 title: TIS Module Map
-documentation_version: 4.2
-last_updated: 2026-09-23
+documentation_version: 4.5
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## M14-M18 Correction Program Closeout Ownership Notes (M18b-3, 2026-09-24)
+
+Final module ownership after the correction program (functionally implemented
+on `dev`, not deployed): `talent_classification_service.py` is the sole
+classification authority; `assessment_classification(db, assessment, *,
+overall=...)` optionally accepts the caller's already computed
+`overall_program_result` so per-row callers (`talent_org_student_drill.py`) do
+not recompute it. `talent_results_analytics_service.py` and
+`routers/talent_results_analytics.py` own the Learning Style / Classification /
+Talented Results & Analytics contract; `static/js/talent.js` renders it without
+recomputation and `templates/talent/workspace.html` gates surface-specific
+bundles. The stored Student four-percentage columns and their write validators
+in `student_academic_service.py` remain only as deprecated storage. No new
+module, route, or schema was added by M18b-3.
+
+## Results & Analytics Backend Contract Ownership (M18b-1)
+
+- `talent_results_analytics_service.py` (new): bounded M18b-1 Results &
+  Analytics backend contract - `applicable_assessment_rows`/`classify_rows`
+  (the M18a-governed `status == 'completed' AND is_current == True` grain,
+  classified via `talent_classification_service.assessment_classification`,
+  never a duplicated band table), `sum_raw_counts_across_branches` (the ONLY
+  Organization/Branch rollup rule - a pure raw-count sum, never an average of
+  Branch percentages), `classification_family`/`talented_family` (privacy-
+  closed distributions reusing `talent_analytics_service.build_breakdown_group`
+  / `apply_primary_privacy`/`run_complementary_suppression`, the same M9
+  primitives every other breakdown uses, with a new opaque privacy class
+  `"P4"`). Does NOT extend `talent_org_intelligence_contract.MetricCode`
+  (stays frozen per ADR 0044) and does NOT duplicate Competency/Evaluation-
+  Period-Progress semantics - those two families are served by the
+  pre-existing `routers/talent_analytics.py` `/rubric-distribution` route and
+  `routers/talent_evaluation_progress.py` routes directly.
+- `routers/talent_results_analytics.py` (new): `/api/talent/results-analytics`
+  route family - `/academic-years/{id}/learning-style` (Student-domain-wide,
+  `students.view` permission, delegates to
+  `student_learning_style_analytics.py`), `/programs/{id}/academic-years/{id}
+  /classification` and `.../talented` (Program-bound, `talent_analytics.view`
+  permission, reuse `talent_analytics_service.resolve_context`/
+  `resolve_filters`/`population_query` for scope/filter enforcement - a
+  filter can only narrow, never widen, the caller's authorized Branch scope).
+- `routers/talent_evaluation_progress.py` /
+  `talent_evaluation_progress_service.py`: the dead `learning_style_dimension`
+  query parameter/keyword argument (inert since M14 - the "learning_style"
+  metric it parameterized was never a member of `APPROVED_BRANCH_METRICS`) is
+  removed outright from `branch_comparison`/`branch_comparison_metric`'s
+  signatures. No behavior change.
+
+## Automatic Assessment Classification Ownership (M17)
+
+- `talent_classification_service.py` (new): single classification authority.
+  `project_to_classification_scale` (deterministic `Decimal` linear
+  projection of a Program's own 1..N rubric average onto 1.00-5.00),
+  `classify_score` (the five fixed owner-approved bands), `is_talented`
+  (Exceptional only), `assessment_classification` (bounded per-Assessment
+  read projection, `None` unless `status == "completed"`).
+- `talent_student_assessment_service.py`: `overall_program_result` now
+  additively returns `average_tenths` (the exact integer tenths already
+  computed internally) so classification never re-derives precision from a
+  float; no other behavior changed.
+- `routers/talent_assessments.py` / `routers/talent_review_candidates.py`:
+  `_display_payload` additively exposes backend-computed `classification`,
+  `classification_score`, `is_talented` fields (assessments router) and
+  `classification`, `is_talented` (review-candidates router, for legacy
+  Review workspace context). No new endpoints, no new permission keys.
+- `talent_review_candidate_service.py` / `talent_official_identification_
+  service.py`: unchanged - remain the legacy/history Review Candidate and
+  Official Identification authorities; no longer the source of current
+  `Talented` state.
+- `static/js/talent-operations.js` / `static/css/talent.css`: assessment
+  detail and legacy Review workspace views render the backend classification
+  and Talented state; the legacy Review link is relabeled to reflect its
+  history role; no client-side band derivation.
+- `docs/adr/0037-talent-overall-program-result.md`: 2026-09-23 Amendment
+  records the governed classification-scale decision (Option B: preserve
+  per-Program rubric scale, add a deterministic projection) without
+  rewriting the original ADR 0037 decision.
+
+## Learning Style Correction + Aggregate Distribution Ownership (M14)
+
+- `models.py` / `db_migrations.py`: `Student.learning_style`'s
+  `ck_students_learning_style` CHECK constraint is widened from four to
+  eight values (`20260923_002_student_learning_style_eight_values`); the
+  four `learning_style_*_percentage` columns/constraints are unchanged and
+  preserved (operationally deprecated, not dropped).
+- `student_academic_service.py`: `LEARNING_STYLES` is the single
+  authoritative eight-value constant (`_clean_learning_style` validates
+  against it); `LEARNING_STYLE_PERCENTAGE_FIELDS`/
+  `_clean_learning_style_percentage` remain present only so a pre-existing
+  stored value is never silently rewritten - no longer reachable from any
+  create/update API or UI input path.
+- `routers/students.py` / `routers/students_ui.py`: Student create/update no
+  longer accept the four percentage fields as input (silently ignored, not
+  validated); `routers/students_ui.py`'s `LEARNING_STYLE_OPTIONS` backs the
+  one categorical selector.
+- `templates/_learning_style.html`: `learning_style_field`/
+  `learning_style_badge` are the sole shared categorical display/edit
+  macros (extended to eight values); the percentage-profile macros are
+  removed.
+- `templates/student_form.html` / `templates/student_profile.html`: one
+  Learning Style selector on create/edit; the profile shows the one
+  selected value (or "Not assigned"), never four percentage bars; the
+  Talent context line reads the current categorical value directly.
+- `student_learning_style_analytics.py`: the existing privacy-safe
+  categorical distribution engine (reused, not parallel-built), extended to
+  all eight values plus an "Unassigned" bucket; unchanged scope/permission/
+  privacy contract from ADR 0031.
+- `talent_evaluation_progress_service.py`: `APPROVED_BRANCH_METRICS` is six
+  metrics (the "learning_style" Branch-comparison metric is removed);
+  `static/js/talent.js` and `templates/talent/workspace.html` no longer
+  offer the Learning Style dimension selector (see the M10 section below,
+  now corrected).
+- `student_roster_service.py` is untouched - its column contract never
+  included Learning Style or the four percentage columns.
 
 ## Students M11 Roster Frontend Ownership
 
@@ -24,21 +138,37 @@ source_of_truth: true
 - No spreadsheet parser, CSV/`.xls`, persistent import batch, background job,
   schema, migration, or backend semantic change belongs to M11.
 
+### Students M15 Roster Round-Trip & Integrity Ownership
+
+- `student_roster_service.py` owns M15 round-trip: `section_display`
+  accepted-but-ignored (display-only, never identity), `STD`-prefix
+  normalization, deterministic NO_CHANGE classification, create-only apply that
+  skips NO_CHANGE rows, and the bold/frozen/autofilter export header styling.
+- `static/js/students-roster.js` renders CREATE / No change / error from backend
+  row status and only enables apply when at least one CREATE row is error-free.
+- `student_academic_service.py::force_delete_student_history` (unchanged by M15,
+  now documented + tested) is the single permanent-delete cascade authority that
+  removes every Student-owned Talent table before the Student row.
+- `tests/test_student_delete_talent_visibility.py` and
+  `tests/test_student_roster_import_export.py` lock the M15 contract.
+
 ## Results & Analytics Branch Comparison Frontend (M10)
 
-- `templates/talent/workspace.html`: adds the labeled Learning Style dimension
-  selector beside the existing Program/Academic-Year/Metric context controls.
+- `templates/talent/workspace.html`: originally added the labeled Learning
+  Style dimension selector beside the existing Program/Academic-Year/Metric
+  context controls. **Current state (M14 correction): removed** - see
+  "Learning Style Correction + Aggregate Distribution Ownership (M14)" above.
 - `static/js/talent.js`: Organization Overview requests the existing M4 Branch
-  comparison route for the selected Program, metric, and optional Learning
-  Style dimension; one chart renders backend rows without reordering or
-  analytics calculation. Existing Talent Map columns supply authorized Branch
-  display labels.
+  comparison route for the selected Program and metric; one chart renders
+  backend rows without reordering or analytics calculation. Existing Talent
+  Map columns supply authorized Branch display labels.
 - `static/css/talent.css`: owns the responsive horizontal bar, grouped Period,
   and categorical protected/no-data treatments.
 - `routers/talent_evaluation_progress.py` and
-  `talent_evaluation_progress_service.py` remain unchanged authorities for the
-  seven-metric allowlist, permissions, frozen Branch grouping, privacy closure,
-  Learning Style means, Framework comparability, and serialized values.
+  `talent_evaluation_progress_service.py` remain unchanged authorities for
+  permissions, frozen Branch grouping, privacy closure, Framework
+  comparability, and serialized values; the metric allowlist is now six
+  metrics as of M14 (Learning Style means removed - see above).
 - The frontend never renders a numeric bar for a non-visible state and never
   calculates Branch/Organization results or privacy decisions. No second chart,
   backend route, permission, schema, migration, or M11 roster surface is added.
@@ -61,6 +191,20 @@ source_of_truth: true
   comparability, and results.
 - M9 exposes no Branch/Organization progress surface or comparison chart and
   adds no route, permission, schema, or migration.
+
+## Talent Performance M16 Ownership
+
+- `authorization.py`: resolves each route gate against one effective permission
+  projection and exposes that authorized set on request state for same-request
+  reuse.
+- `routers/talent_ui.py` + `ui_shell.py`: reuse the route-authorized set for
+  Talent action presentation and shell navigation; commercial feature checks
+  remain independent and every request remains authorized.
+- `templates/talent/workspace.html`: owns surface-specific script inclusion;
+  common orchestration/presentation stays universal while Program, Evaluation,
+  Assessment, and Review bundles load only on their owning surfaces.
+- `static/css/students.css`: owns the shared wrapping horizontal Students action
+  row used by page-level and per-Student controls.
 
 ## Talent Frontend Cleanup M8 Ownership
 
@@ -96,8 +240,8 @@ source_of_truth: true
 
 - `static/js/talent-rubric-visual.js` and `static/css/talent-rubric-visual.css`: shared arbitrary-label/count rubric ordering, position cue, selected state, and reduced-motion treatment.
 - `routers/talent_review_candidates.py`: adds the exact Assessment's highest recorded rubric level to authorized Review read projections only.
-- `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence.
-- `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views.
+- `talent_learner_profile_service.py`: resolves competency and rubric labels/order for authorized historical assessment evidence; each Assessment item also carries the M17 backend classification/`is_talented` fields (M18a), reusing `talent_classification_service.assessment_classification`.
+- `static/js/talent.js`: keeps Organization Overview selective and routes detailed Program, Branch, matrix, and longitudinal exploration to their owning views; the legacy Review/Identification `candidate_of_eligible`/`identified_of_eligible` labels are explicitly "Legacy ..." (M18a) and never read as current Talent authority.
 - `routers/students_ui.py` and `templates/students.html`: present the existing Learning Style distribution through Planning-derived Branch/Grade/Section choices; the API and privacy provider remain unchanged.
 
 ## Owner Video Acceptance Correction Ownership
@@ -194,7 +338,9 @@ source_of_truth: true
   plus privacy-safe average rubric rank and selected-Program result summary
   derived only when all required level cells are visible.
 - `talent_org_student_drill.py`: existing P7 Student drill extended to expose
-  each current completed Assessment's separate Program-scale Overall Result.
+  each current completed Assessment's separate Program-scale Overall Result,
+  and (M18a) its M17 backend classification/`is_talented` state, gated on the
+  same `status == 'completed' AND is_current == True` predicate.
 - `routers/talent_organization_analytics.py`: retains tenant/scope,
   permission, breadth, and privacy gating for organization Student drill and
   aggregate intelligence.

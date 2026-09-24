@@ -57,6 +57,12 @@ def test_list_requires_students_view(db, client):
     assert "Alya" in response.text
 
 
+def test_student_row_actions_use_responsive_horizontal_layout():
+    css = Path('static/css/students.css').read_text(encoding='utf-8')
+    assert '.stu-actions { display: flex; flex-wrap: wrap;' in css
+    assert '.stu-actions > form { margin: 0; }' in css
+
+
 def test_roster_actions_are_projected_by_independent_permissions(db, client):
     permissions(db, "students.view")
     neither = client.get("/students/")
@@ -93,16 +99,18 @@ def test_roster_import_markup_is_accessible_xlsx_only_and_create_only(db, client
 
 
 def test_new_student_workflow(db, client):
+    # M14 owner correction: Student create/edit collects exactly one
+    # categorical Learning Style selection; the four percentage fields
+    # (ADR 0042) are operationally deprecated and no longer written even if
+    # submitted (defense in depth - a stray/legacy client posting them must
+    # never persist a per-Student percentage).
     permissions(db, "students.view", "students.create")
     assert client.get("/students/new").status_code == 200
     before = db.query(models.Student).filter_by(school_group_id=1).count()
     response = client.post("/students/new", data={
         "student_number": "0012345678", "first_name": "Carla", "last_name": "New",
-        "father_name": "", "gender": "Female",
+        "father_name": "", "gender": "Female", "learning_style": "Quantitative",
         "learning_style_verbal_percentage": "0",
-        "learning_style_non_verbal_percentage": "25",
-        "learning_style_quantitative_percentage": "75",
-        "learning_style_spatial_percentage": "",
     })
     # TestClient follows the post-login redirect; the student creation is what matters.
     assert response.status_code in (200, 302)
@@ -113,13 +121,14 @@ def test_new_student_workflow(db, client):
     assert created.status == "active"
     identifier = db.query(models.StudentExternalIdentifier).filter_by(student_id=created.id, status="active").one()
     assert identifier.value == "STD0012345678"
-    assert created.learning_style_verbal_percentage == 0
-    assert created.learning_style_non_verbal_percentage == 25
-    assert created.learning_style_quantitative_percentage == 75
+    assert created.learning_style == "Quantitative"
+    assert created.learning_style_verbal_percentage is None
+    assert created.learning_style_non_verbal_percentage is None
+    assert created.learning_style_quantitative_percentage is None
     assert created.learning_style_spatial_percentage is None
 
 
-def test_m7_create_form_has_accessible_fixed_prefix_and_independent_dimensions(db, client):
+def test_m7_create_form_has_accessible_fixed_prefix_and_the_eight_value_selector(db, client):
     permissions(db, "students.create")
     response = client.get("/students/new")
     assert response.status_code == 200
@@ -127,15 +136,17 @@ def test_m7_create_form_has_accessible_fixed_prefix_and_independent_dimensions(d
     assert '<span class="stu-id-prefix" aria-hidden="true">STD</span>' in text
     assert 'name="student_number" type="text" inputmode="numeric" pattern="[0-9]{10}"' in text
     assert 'minlength="10" maxlength="10" required' in text
-    for field, label in (
-        ("learning_style_verbal_percentage", "Verbal"),
-        ("learning_style_non_verbal_percentage", "Non-verbal"),
-        ("learning_style_quantitative_percentage", "Quantitative"),
-        ("learning_style_spatial_percentage", "Spatial"),
+    assert 'class="stu-ls-options" role="radiogroup"' in text
+    for style in (
+        "Visual", "Auditory", "Read/Write", "Kinesthetic",
+        "Verbal", "Non-verbal", "Quantitative", "Spatial",
     ):
-        assert f'for="{field}">{label}</label>' in text
-        assert f'name="{field}" type="text" inputmode="numeric"' in text
-    assert "Each dimension is independent" in text
+        assert f'value="{style}"' in text
+    for field in (
+        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
+        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
+    ):
+        assert f'name="{field}"' not in text
     assert "students.js" in text
 
 
@@ -145,13 +156,13 @@ def test_m7_create_rejects_invalid_student_id_and_preserves_entered_data(db, cli
     before = db.query(models.Student).count()
     response = client.post("/students/new", data={
         "student_number": student_number, "first_name": "Preserved", "last_name": "Input",
-        "learning_style_verbal_percentage": "35",
+        "learning_style": "Visual",
     })
     assert response.status_code == 200
     assert "Student number must be exactly 10 digits" in response.text
     assert 'value="Preserved"' in response.text
     assert f'value="{student_number}"' in response.text
-    assert 'value="35"' in response.text
+    assert '<input type="radio" name="learning_style" value="Visual" checked>' in response.text
     assert db.query(models.Student).count() == before
 
 
@@ -185,7 +196,11 @@ def test_m7_duplicate_student_id_disclosure_is_tenant_safe(db, client):
     assert "/students/2001" not in cross.text
 
 
-def test_m7_profile_distinguishes_zero_from_unavailable_and_legacy_student_is_editable(db, client):
+def test_m7_profile_shows_the_categorical_value_and_preserves_deprecated_percentages(db, client):
+    # M14 owner correction: profile shows one categorical Learning Style
+    # value (or "Not assigned"), never four percentage bars. Pre-existing
+    # stored percentage values (ADR 0042, operationally deprecated) survive
+    # completely untouched through an unrelated Student edit.
     permissions(db, "students.view", "students.edit", "students.manage_identifiers")
     student = db.get(models.Student, 1001)
     student.learning_style = "Visual"
@@ -198,20 +213,25 @@ def test_m7_profile_distinguishes_zero_from_unavailable_and_legacy_student_is_ed
     profile = client.get("/students/1001?section=overview")
     assert profile.status_code == 200
     assert "TIS Student ID unavailable" in profile.text
-    assert "Not assigned" in profile.text
-    assert 'aria-label="Verbal: 0 percent"' in profile.text
-    assert 'aria-valuenow="0"' in profile.text
-    assert 'aria-label="Non-verbal: not available"' in profile.text
-    assert "Visual" not in profile.text
+    assert "Visual" in profile.text
+    assert 'aria-label="Verbal: 0 percent"' not in profile.text
+    assert 'aria-label="Non-verbal: not available"' not in profile.text
 
     edited = client.post("/students/1001/edit", data={
         "first_name": "Alya", "last_name": "Updated", "father_name": "", "gender": "",
-        "learning_style_verbal_percentage": "0", "learning_style_non_verbal_percentage": "",
-        "learning_style_quantitative_percentage": "80", "learning_style_spatial_percentage": "35",
+        "learning_style": "Kinesthetic",
     })
     assert edited.status_code in (200, 302)
-    assert db.get(models.Student, 1001).last_name == "Updated"
-    assert db.get(models.Student, 1001).learning_style == "Visual"
+    updated = db.get(models.Student, 1001)
+    assert updated.last_name == "Updated"
+    # The categorical value changes per the edit...
+    assert updated.learning_style == "Kinesthetic"
+    # ...but the deprecated percentage columns are left completely untouched
+    # by this unrelated edit, even though they were never resubmitted.
+    assert updated.learning_style_verbal_percentage == 0
+    assert updated.learning_style_non_verbal_percentage is None
+    assert updated.learning_style_quantitative_percentage == 80
+    assert updated.learning_style_spatial_percentage == 35
     assert db.query(models.StudentExternalIdentifier).filter_by(student_id=1001).count() == 0
 
     assigned = client.post(
@@ -225,28 +245,30 @@ def test_m7_profile_distinguishes_zero_from_unavailable_and_legacy_student_is_ed
     assert "STD0000000042" in client.get("/students/1001?section=overview").text
 
 
-def test_m7_learning_style_validation_does_not_normalize_or_turn_blank_into_zero(db, client):
+def test_m7_learning_style_edit_rejects_invalid_category_and_ignores_percentage_fields(db, client):
     permissions(db, "students.view", "students.edit")
     response = client.post("/students/1001/edit", data={
         "first_name": "Alya", "last_name": "Learner", "father_name": "", "gender": "",
+        "learning_style": "Auditory",
+        # M14 owner correction: submitting these deprecated fields must never
+        # write them, and must never turn a blank/invalid categorical value
+        # into an error - the two concerns are fully independent now.
         "learning_style_verbal_percentage": "75", "learning_style_non_verbal_percentage": "75",
-        "learning_style_quantitative_percentage": "", "learning_style_spatial_percentage": "0",
     }, follow_redirects=False)
     assert response.status_code == 302
     student = db.get(models.Student, 1001)
-    assert student.learning_style_verbal_percentage == 75
-    assert student.learning_style_non_verbal_percentage == 75
-    assert student.learning_style_quantitative_percentage is None
-    assert student.learning_style_spatial_percentage == 0
+    assert student.learning_style == "Auditory"
+    assert student.learning_style_verbal_percentage is None
+    assert student.learning_style_non_verbal_percentage is None
 
     invalid = client.post("/students/1001/edit", data={
         "first_name": "Alya", "last_name": "Learner", "father_name": "", "gender": "",
-        "learning_style_verbal_percentage": "101",
+        "learning_style": "Telepathic",
     }, follow_redirects=False)
     assert invalid.status_code == 302
     assert "error=" in invalid.headers["location"]
     db.expire_all()
-    assert db.get(models.Student, 1001).learning_style_verbal_percentage == 75
+    assert db.get(models.Student, 1001).learning_style == "Auditory"
 
 
 def test_student_list_exposes_single_and_bulk_delete_only_with_delete_permissions(db, client):
@@ -494,19 +516,28 @@ def test_list_shows_student_id_and_does_not_promote_legacy_learning_style(db, cl
     assert "<th>Talent score</th>" not in response.text
     assert "<th>Talent status</th>" not in response.text
 
-    # Editing current fields must preserve deprecated historical categorical data.
+    # Editing current fields must preserve the categorical Learning Style
+    # value when the edit form resubmits the same selection (M14: this is
+    # now a real editable field, not silently dropped historical data), and
+    # must silently ignore the deprecated percentage fields even if a stray
+    # client still submits them.
     edited = client.post("/students/1001/edit", data={
         "first_name": "Alya", "last_name": "Learner", "father_name": "",
-        "gender": "", "learning_style_verbal_percentage": "0",
+        "gender": "", "learning_style": "Read/Write",
+        "learning_style_verbal_percentage": "0",
         "learning_style_non_verbal_percentage": "20",
         "learning_style_quantitative_percentage": "40",
         "learning_style_spatial_percentage": "60",
     })
     assert edited.status_code in (200, 302)
-    assert db.get(models.Student, 1001).learning_style == "Read/Write"
+    reloaded = db.get(models.Student, 1001)
+    assert reloaded.learning_style == "Read/Write"
+    assert reloaded.learning_style_verbal_percentage is None
+    assert reloaded.learning_style_quantitative_percentage is None
     profile = client.get("/students/1001?section=overview")
-    assert "Verbal: 0 percent" in profile.text
-    assert "Quantitative: 40 percent" in profile.text
+    assert "Verbal: 0 percent" not in profile.text
+    assert "Quantitative: 40 percent" not in profile.text
+    assert "Read/Write" in profile.text
 
 
 def test_current_placement_uses_change_flow_instead_of_overlapping_add_form(db, client):

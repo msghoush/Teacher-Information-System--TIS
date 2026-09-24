@@ -231,6 +231,15 @@ def test_one_visible_branch_talent_record_does_not_unlock_the_other_branchs_hist
     assert branch_a_cycle_item["review_candidate"]["id"] == candidate_a.id
     assert branch_a_cycle_item["official_identification"]["id"] == identification_a.id
     assert branch_a_cycle_item["official_identification"]["decision"] == "identified"
+    # M18a Part 1: the Learner Profile's M17 classification authority is
+    # completely independent of this legacy Official Identification "identified"
+    # decision - this fixture's single-level rubric ("High" only, scale_min ==
+    # scale_max) is fail-closed/unavailable for automatic classification, so
+    # is_talented is False (never fabricated True just because a legacy
+    # decision above says "identified").
+    assert "classification" in branch_a_cycle_item["assessment"]
+    assert branch_a_cycle_item["assessment"]["classification"] is None
+    assert branch_a_cycle_item["assessment"]["is_talented"] is False
     timeline_ids = {(event["event_type"], event["id"]) for event in branch_a_profile["timeline"]}
     assert ("assessment_completed", assessment_b.id) not in timeline_ids
     assert ("review_candidate_created", candidate_b.id) not in timeline_ids
@@ -370,3 +379,73 @@ def test_profile_composes_sensitive_view_permissions_without_metadata_leakage(db
                                   "talent_official_identifications.view", "talent_educator_inputs.view")
     assert after_transfer.status_code == 200
     assert [row["id"] for row in after_transfer.json()["placements"]] == [placement.id]
+
+
+# --------------------------------------------------------- M18a: M17 CLASSIFICATION
+
+
+def test_learner_profile_assessment_carries_m17_classification_and_talented_state(db):
+    """M18a Part 1: build_learner_profile's per-Assessment item now carries the
+    same backend-authoritative M17 classification already exposed on the
+    Talent Assessment detail API (routers/talent_assessments.py), reusing
+    talent_classification_service.assessment_classification directly - never
+    a duplicated/JS-side derivation, never sourced from Review Candidate or
+    Official Identification data. A five-level rubric's top level -> average
+    5.00 -> Exceptional -> is_talented True, matching
+    tests/test_talent_classification.py's own worked example exactly."""
+    student = create_student(db, school_group_id=1, first_name="Nadia", last_name="Exceptional")
+    create_placement(db, school_group_id=1, student_id=student.id, academic_year_id=100,
+                     branch_id=10, planning_section_id=1000, effective_from=datetime(2026, 9, 1))
+    program = create_program(db, school_group_id=1, name="Five Level Program")
+    transition_program(db, school_group_id=1, program_id=program.id, target_status="active")
+    framework = create_framework_draft(db, school_group_id=1, program_id=program.id, title="Framework")
+    competency = create_competency(db, school_group_id=1, program_id=program.id, code="C1", name="Competency 1")
+    fw_competency, framework = add_framework_competency(
+        db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+        competency_id=competency.id, expected_revision=framework.revision,
+    )
+    _, framework = upsert_rubric(db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+                                 expected_revision=framework.revision, name="Rubric")
+    levels = []
+    for index in range(5):
+        level, framework = add_rubric_level(
+            db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            expected_revision=framework.revision, code=f"L{index+1}", label=f"Level {index+1}",
+        )
+        levels.append(level)
+    for level in levels:
+        _, framework = upsert_descriptor(
+            db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+            framework_competency_id=fw_competency.id, rubric_level_id=level.id,
+            expected_revision=framework.revision, descriptor=f"Evidence for {level.label}",
+        )
+    activate_framework(db, school_group_id=1, program_id=program.id, framework_id=framework.id,
+                       expected_revision=framework.revision, expected_fingerprint=framework.semantic_fingerprint,
+                       organization_authorized=True)
+    upsert_annual_configuration(db, school_group_id=1, program_id=program.id, academic_year_id=100,
+                                is_enabled=True, eligible_grade_levels=["1"])
+    cycle = create_cycle(db, school_group_id=1, program_id=program.id, academic_year_id=100,
+                         framework_version_id=framework.id, title="Cycle", population_effective_at=datetime(2026, 10, 1))
+    open_cycle(db, school_group_id=1, cycle_id=cycle.id, expected_revision=cycle.revision, organization_authorized=True)
+    db.commit()
+    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(cycle_id=cycle.id, student_id=student.id).one()
+    assessment = start_assessment(db, school_group_id=1, cycle_id=member.cycle_id, cycle_population_member_id=member.id)
+    revision = assessment.revision
+    _, assessment = set_competency_result(
+        db, school_group_id=1, assessment_id=assessment.id,
+        framework_competency_id=fw_competency.id, rubric_level_id=levels[-1].id,
+        expected_revision=revision, evidence="evidence text",
+    )
+    complete_assessment(db, school_group_id=1, assessment_id=assessment.id, expected_revision=assessment.revision)
+    db.commit()
+
+    profile = build_learner_profile(db, school_group_id=1, student_id=student.id, visible_branch_ids=None)
+    cycle_item = profile["programs"][0]["academic_years"][0]["cycles"][0]
+    assert cycle_item["assessment"]["classification"] == "Exceptional"
+    assert cycle_item["assessment"]["classification_score"] == "5.00"
+    assert cycle_item["assessment"]["is_talented"] is True
+    # No Review Candidate/Official Identification was ever recorded for this
+    # Assessment - proving the current Talented state is a direct backend
+    # classification consequence, never dependent on the legacy workflow.
+    assert cycle_item.get("review_candidate") is None
+    assert cycle_item.get("official_identification") is None

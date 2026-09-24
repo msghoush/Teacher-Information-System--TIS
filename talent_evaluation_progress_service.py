@@ -10,10 +10,11 @@ Programs" rule that separate Program results are never averaged together):
 - Organization Evaluation Progress (OrganizationPeriodResult /
   OrganizationOverallResult), computed directly from governed Student
   results - never as an average of Branch averages.
-- The seven approved Branch comparison metrics
-  (``APPROVED_BRANCH_METRICS``), reusing existing M9 coverage/candidate/
-  identification breakdown providers wherever the metric is not new.
-- The Learning Style four-dimension Branch aggregate (ADR 0042 profile).
+- The six approved Branch comparison metrics (``APPROVED_BRANCH_METRICS``),
+  reusing existing M9 coverage/candidate/identification breakdown providers
+  wherever the metric is not new. (A seventh, "Learning Style", was removed
+  as of M14 and its dead computation code was removed outright as of M18a -
+  see the M14/M18a notes above ``APPROVED_BRANCH_METRICS``.)
 
 Governance this module implements exactly, without reopening it:
 
@@ -123,6 +124,40 @@ _UNAVAILABLE_RESULT_STATES = (
     RESULT_STATE_NOT_APPLICABLE,
 )
 
+# M14 owner correction: the "learning_style" Branch-comparison metric is
+# REMOVED as of M14. It computed the arithmetic mean of the four
+# ``learning_style_*_percentage`` columns (ADR 0042) across a Branch
+# population - semantically wrong under the corrected model, where
+# "percentage" means population/aggregate distribution over the single
+# categorical ``learning_style`` field, never a mean of per-Student scores.
+# A request for this metric now falls through to the existing
+# ``invalid_filter``/400 handling below, the same as any other unrecognized
+# metric value, rather than silently returning a wrong number. A categorical
+# distribution replacement (if any) for this Branch-comparison surface is
+# out of M14 scope and is left for a later, separately governed milestone.
+#
+# M18a: ``learning_style_branch_aggregate``/``_learning_style_values_by_branch``
+# (kept unreferenced since M14, purely so the deprecated-column mean
+# computation was not silently mutated) are now confirmed genuinely
+# unreachable from any current endpoint/service path - the Branch-comparison
+# dispatcher below (the only caller of any Branch-comparison metric) has
+# rejected "learning_style" since M14 - and have been removed outright,
+# along with their stale direct-call tests. The four
+# ``learning_style_*_percentage`` columns remain on ``models.Student``,
+# untouched, for separately-gated historical/physical-removal decisions.
+#
+# M18b-1: the ``learning_style_dimension`` query parameter/keyword argument
+# on ``routers/talent_evaluation_progress.py``'s ``branch_comparison`` route
+# and this function's signature is REMOVED. It was a no-op since M14: the
+# "learning_style" metric it existed to parameterize is not, and never was
+# after M14, a member of ``APPROVED_BRANCH_METRICS`` above, so
+# ``branch_comparison_metric`` always raised ``invalid_filter`` before the
+# argument's value could ever be read - confirmed genuinely unreferenced
+# inside this function's own body prior to removal (audited directly, not
+# assumed). No current Talent Branch-comparison metric consumes a Learning
+# Style dimension; the correct Family 1 Learning Style backend contract
+# (categorical distribution, never a per-dimension mean) is
+# ``student_learning_style_analytics.py``/``talent_results_analytics_service.py``.
 APPROVED_BRANCH_METRICS = (
     "evaluation_period_result",
     "current_overall_progress",
@@ -130,10 +165,7 @@ APPROVED_BRANCH_METRICS = (
     "assessments_started",
     "meets_program_criteria",
     "officially_confirmed",
-    "learning_style",
 )
-
-LEARNING_STYLE_DIMENSIONS = ("verbal", "non_verbal", "quantitative", "spatial")
 
 
 def _mean_percent(values) -> Optional[float]:
@@ -438,63 +470,6 @@ def build_organization_progress(db: Session, ctx: "svc.AnalyticsContext", *, vis
 
 
 # ---------------------------------------------------------------------------
-# Learning Style Branch aggregate (ADR 0031 / ADR 0042 privacy contract)
-# ---------------------------------------------------------------------------
-
-_LEARNING_STYLE_COLUMNS = {
-    "verbal": models.Student.learning_style_verbal_percentage,
-    "non_verbal": models.Student.learning_style_non_verbal_percentage,
-    "quantitative": models.Student.learning_style_quantitative_percentage,
-    "spatial": models.Student.learning_style_spatial_percentage,
-}
-
-
-def _learning_style_values_by_branch(db: Session, pop_query, dimension: str):
-    if dimension not in LEARNING_STYLE_DIMENSIONS:
-        raise EvaluationProgressError("invalid_filter", "dimension must be one of verbal, non_verbal, quantitative, spatial.")
-    column = _LEARNING_STYLE_COLUMNS[dimension]
-    # Learning Style is a per-Student profile attribute, not a per-Cycle
-    # membership fact (unlike M9's own `frozen_membership` grain metrics,
-    # which intentionally count once per Cycle a Student was frozen into).
-    # DISTINCT on (branch_id, student_id, value) collapses a Student who was
-    # frozen into more than one open/closed Cycle within this Program+Year
-    # (e.g. Term 1 and Term 2) to one contribution per Branch context they
-    # were legitimately part of, instead of silently double-weighting their
-    # value once per Cycle.
-    rows = pop_query.join(
-        models.Student, models.Student.id == models.TalentAssessmentCyclePopulationMember.student_id,
-    ).with_entities(
-        models.TalentAssessmentCyclePopulationMember.branch_id,
-        models.TalentAssessmentCyclePopulationMember.student_id,
-        column,
-    ).distinct().all()
-    per_branch = defaultdict(list)
-    for branch_id, _student_id, value in rows:
-        if value is not None:
-            # 0 is a real valid value and must never be excluded like null.
-            per_branch[branch_id].append(int(value))
-    return dict(per_branch)
-
-
-def learning_style_branch_aggregate(db: Session, ctx: "svc.AnalyticsContext", pop_query, *, dimension: str, policy) -> dict:
-    per_branch_values = _learning_style_values_by_branch(db, pop_query, dimension)
-    branch_ids = {
-        row[0] for row in pop_query.with_entities(models.TalentAssessmentCyclePopulationMember.branch_id).distinct().all()
-    }
-    group, converged = _privacy_safe_branch_mean_group(
-        name=f"learning_style:{dimension}", per_branch_values=per_branch_values,
-        branch_ids=branch_ids, privacy_class="P3", policy=policy,
-    )
-    rows = []
-    for cell in group.children:
-        branch_id = cell.key[2]
-        payload = _cell_mean_payload(cell, converged, per_branch_values.get(branch_id, []))
-        rows.append({"branch_id": branch_id, **payload})
-    org_payload = _cell_mean_payload(group.total, converged, [value for values in per_branch_values.values() for value in values])
-    return {"dimension": dimension, "rows": rows, "organization": org_payload}
-
-
-# ---------------------------------------------------------------------------
 # Bounded Branch comparison metric dispatcher (7 approved metrics only).
 # Reuses existing M9 coverage/candidate/identification breakdown providers;
 # never extends the frozen M10 MetricCode registry.
@@ -509,10 +484,9 @@ def _breakdown_percentage(cell, total_cell):
 
 def branch_comparison_metric(db: Session, ctx: "svc.AnalyticsContext", *, metric: str,
                               visible_branch_ids, has_candidate_permission: bool,
-                              has_identification_permission: bool, policy,
-                              learning_style_dimension: Optional[str] = None) -> dict:
+                              has_identification_permission: bool, policy) -> dict:
     if metric not in APPROVED_BRANCH_METRICS:
-        raise EvaluationProgressError("invalid_filter", "metric is not one of the seven approved Branch comparison metrics.")
+        raise EvaluationProgressError("invalid_filter", "metric is not one of the six approved Branch comparison metrics.")
 
     if metric == "evaluation_period_result":
         active = _all_active_period_results(db, ctx, visible_branch_ids, policy)
@@ -541,11 +515,6 @@ def branch_comparison_metric(db: Session, ctx: "svc.AnalyticsContext", *, metric
 
     filters = svc.ResolvedFilters()
     pop_query = svc.population_query(db, ctx, filters, visible_branch_ids)
-
-    if metric == "learning_style":
-        if learning_style_dimension is None:
-            raise EvaluationProgressError("invalid_filter", "learning_style_dimension is required for the learning_style metric.")
-        return {"metric": metric, **learning_style_branch_aggregate(db, ctx, pop_query, dimension=learning_style_dimension, policy=policy)}
 
     coverage_by_dim = svc.raw_coverage_by_dimension(db, pop_query, "branch")
     branch_ids = sorted(coverage_by_dim.keys(), key=lambda v: (v is None, v))

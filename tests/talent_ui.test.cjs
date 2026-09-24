@@ -74,7 +74,7 @@ test('Talent Map matrix renders a protected (suppressed) cell as a distinct cate
   const html = matrixCellHtml(sampleCells[1], 'Arts', 'South', null);
   assert.match(html, /tp-protected-cell/);
   assert.doesNotMatch(html, /tp-heat-[1-5]/);
-  assert.match(html, /Protected for privacy/);
+  assert.match(html, /Unavailable/);
   assert.doesNotMatch(html, /width:|title=/);
 });
 

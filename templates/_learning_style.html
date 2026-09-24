@@ -1,11 +1,17 @@
 {% from "_app_icons.html" import icon %}
 {#
-  Learning Style V1 (ADR 0031) shared display/edit markup.
+  Learning Style V1 (ADR 0031, amended by M14) shared display/edit markup.
 
   Student-domain learner-profile context only - never a Talent score. Reused
   by the Student create/edit forms and the Student Profile display so the
-  four approved values, their compact icon/accent treatment, and the
-  "Not specified" neutral fallback are defined in exactly one place.
+  eight approved values, their compact icon/accent treatment, and the
+  "Not assigned" neutral fallback are defined in exactly one place.
+
+  M14 owner correction: extended from four values (Visual, Auditory,
+  Read/Write, Kinesthetic) to eight (adding Verbal, Non-verbal, Quantitative,
+  Spatial), replacing the prior independent four-percentage profile
+  (ADR 0042, now operationally deprecated) with four more categorical values
+  on this single-select field - exactly like the original four.
 
   Icon coverage: Visual -> "eye" and Read/Write -> "exam" (document/text
   page) and Kinesthetic -> "activity" (movement/pulse line, already reused
@@ -14,10 +20,21 @@
   existing canonical icon set. Auditory has NO semantically fitting canonical
   icon in templates/_app_icons.html (no ear/sound/speaker glyph exists) - this
   is a real, reported icon-system gap, not an invented asset; Auditory is
-  rendered with the text label only.
+  rendered with the text label only. The four newly added values (Verbal,
+  Non-verbal, Quantitative, Spatial) have no semantically fitting canonical
+  icon either and are rendered with the text label only, for the same reason.
+  Their accent colors reuse the existing four semantic design tokens via
+  ``color-mix`` rather than inventing new raw color values, since only one
+  unused semantic token (``--app-danger``) remains.
 #}
 {% set ls_icon = {'Visual': 'eye', 'Read/Write': 'exam', 'Kinesthetic': 'activity'} %}
-{% set ls_accent = {'Visual': 'var(--app-brand)', 'Auditory': 'var(--app-accent)', 'Read/Write': 'var(--app-success)', 'Kinesthetic': 'var(--app-warning)'} %}
+{% set ls_accent = {
+  'Visual': 'var(--app-brand)', 'Auditory': 'var(--app-accent)', 'Read/Write': 'var(--app-success)', 'Kinesthetic': 'var(--app-warning)',
+  'Verbal': 'var(--app-danger)',
+  'Non-verbal': 'color-mix(in srgb, var(--app-brand) 50%, var(--app-warning) 50%)',
+  'Quantitative': 'color-mix(in srgb, var(--app-success) 50%, var(--app-accent) 50%)',
+  'Spatial': 'color-mix(in srgb, var(--app-danger) 50%, var(--app-brand) 50%)',
+} %}
 
 {% macro learning_style_field(options, selected) %}
 {% set selected = selected or '' %}
@@ -26,7 +43,7 @@
   <label class="stu-ls-option{% if selected == option %} is-selected{% endif %}" style="{% if option %}--stu-ls-accent:{{ ls_accent[option] }};{% endif %}">
     <input type="radio" name="learning_style" value="{{ option }}" {% if selected == option %}checked{% endif %}>
     {% if option and ls_icon.get(option) %}{{ icon(ls_icon[option], 'stu-ls-icon') }}{% endif %}
-    <span>{{ option or 'Not specified' }}</span>
+    <span>{{ option or 'Not assigned' }}</span>
   </label>
   {% endfor %}
 </div>
@@ -35,44 +52,6 @@
 {% macro learning_style_badge(value) %}
 <span class="stu-chip stu-ls-badge{% if not value %} stu-ls-badge-unset{% endif %}"{% if value %} style="--stu-ls-accent:{{ ls_accent[value] }};"{% endif %}>
   {% if value and ls_icon.get(value) %}{{ icon(ls_icon[value], 'stu-ls-icon') }}{% endif %}
-  {{ value or 'Not specified' }}
+  {{ value or 'Not assigned' }}
 </span>
-{% endmacro %}
-
-{% macro learning_style_percentage_fields(dimensions, values, error_code='') %}
-<fieldset class="stu-ls-dimensions"{% if error_code == 'invalid_learning_style_percentage' %} aria-describedby="learning-style-error"{% endif %}>
-  <legend>Learning Style profile <span class="stu-hint">(optional)</span></legend>
-  <p class="stu-hint" id="learning-style-help">Each dimension is independent. Enter a whole percentage from 0 to 100, or leave it blank if unavailable.</p>
-  <div class="stu-form-grid">
-    {% for key, label, field in dimensions %}
-    <div class="stu-field">
-      <label for="{{ field }}">{{ label }}</label>
-      <div class="stu-percent-input">
-        <input id="{{ field }}" name="{{ field }}" type="text" inputmode="numeric" pattern="(?:100|[0-9]{1,2})" maxlength="3" autocomplete="off"
-               aria-describedby="learning-style-help{% if error_code == 'invalid_learning_style_percentage' %} learning-style-error{% endif %}"
-               value="{{ values[field] if values and values[field] is not none else '' }}">
-        <span aria-hidden="true">%</span>
-      </div>
-    </div>
-    {% endfor %}
-  </div>
-</fieldset>
-{% endmacro %}
-
-{% macro learning_style_profile(dimensions, student) %}
-<div class="stu-ls-profile" aria-label="Learning Style profile">
-  {% for key, label, field in dimensions %}
-  {% set value = student[field] %}
-  <div class="stu-ls-dimension">
-    <div class="stu-ls-dimension-label"><span>{{ label }}</span><strong>{{ value ~ '%' if value is not none else 'Not available' }}</strong></div>
-    {% if value is not none %}
-    <div class="stu-ls-profile-track" role="progressbar" aria-label="{{ label }}: {{ value }} percent" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ value }}">
-      <span style="width: {{ value }}%"></span>
-    </div>
-    {% else %}
-    <div class="stu-ls-profile-track is-unavailable" role="img" aria-label="{{ label }}: not available"></div>
-    {% endif %}
-  </div>
-  {% endfor %}
-</div>
 {% endmacro %}

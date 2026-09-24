@@ -69,11 +69,24 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
     group_id = getattr(user, "scope_school_group_id", None) or auth.get_user_school_group_id(db, user)
     if not group_id:
         return HTMLResponse("Select an organization scope to open Talent & Potential.", status_code=403)
-    context = build_shell_context(request, db, user, page_key="talent")
+    allowed_keys = frozenset(request.state.allowed_permission_keys)
+    context = build_shell_context(
+        request,
+        db,
+        user,
+        page_key="talent",
+        permission_keys=allowed_keys,
+    )
     years = db.query(models.AcademicYear).filter_by(school_group_id=int(group_id)).order_by(models.AcademicYear.id).all()
-    allowed = {key: auth.has_permission(db, user, key, school_group_id=group_id)
+    allowed = {key: key in allowed_keys
                for key in {entry[1] for entry in VIEWS.values()} | {
                    "talent_analytics.view_students", "talent_official_identifications.view",
+                   # M18b-2: the Results & Analytics page gates its new
+                   # Learning Style distribution section on the same
+                   # permission the /api/talent/results-analytics/.../
+                   # learning-style route itself requires (student-domain-
+                   # wide, never Program-bound) - see routers/talent_results_analytics.py.
+                   "students.view",
                    "talent_assessment_cycles.view", "talent_assessment_cycles.view_population",
                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                    "talent_programs.manage", "talent_programs.govern",

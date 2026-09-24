@@ -103,20 +103,26 @@
   <div class="stu-panel stu-ls-panel">
     <h2>Learning Style distribution</h2>
     <p class="stu-lede">{{ icon('insights', 'shell-icon') }}Learner context only - not a Talent score and never part of rubric results, Program Criteria, Review, or Official Identification. Reflects the Branch/Grade/Section filters above.</p>
-    {% set ls_accent_map = {'Visual':'var(--app-brand)','Auditory':'var(--app-accent)','Read/Write':'var(--app-success)','Kinesthetic':'var(--app-warning)'} %}
+    {% set ls_accent_map = {
+      'Visual':'var(--app-brand)','Auditory':'var(--app-accent)','Read/Write':'var(--app-success)','Kinesthetic':'var(--app-warning)',
+      'Verbal':'var(--app-danger)',
+      'Non-verbal':'color-mix(in srgb, var(--app-brand) 50%, var(--app-warning) 50%)',
+      'Quantitative':'color-mix(in srgb, var(--app-success) 50%, var(--app-accent) 50%)',
+      'Spatial':'color-mix(in srgb, var(--app-danger) 50%, var(--app-brand) 50%)',
+    } %}
     {% if learning_style_distribution.state == 'unavailable' %}
     <div class="stu-protected stu-protected-panel" role="status">
       {{ icon('shield', 'shell-icon') }}
       <div><strong>Learning Style statistics unavailable</strong><p>The governed analytics privacy configuration is not available yet. Individual Learning Style values remain visible where authorized, but aggregate statistics stay hidden.</p></div>
     </div>
     {% elif learning_style_distribution.state == 'restricted' %}
-    <p class="stu-protected">Protected for privacy; this distribution is not shown for the current selection.</p>
+    <p class="stu-protected">Unavailable for the current selection.</p>
     {% elif learning_style_distribution.levels %}
     {% set visible_level_count = learning_style_distribution.levels | selectattr('state', 'equalto', 'visible') | list | length %}
     {% if visible_level_count == 0 %}
     <div class="stu-protected stu-protected-panel" role="status">
       {{ icon('shield', 'shell-icon') }}
-      <div><strong>Distribution protected for privacy</strong><p>Too few Students match this selection to show magnitudes safely. Learning Style categories remain visible below without counts or proportional bar lengths.</p></div>
+      <div><strong>Distribution unavailable</strong><p>Too few Students match this selection to show magnitudes safely. Learning Style categories remain visible below without counts or proportional bar lengths.</p></div>
     </div>
     {% endif %}
     <div class="stu-ls-chart" role="group" aria-label="Learning Style distribution">
@@ -127,8 +133,8 @@
         <div class="stu-ls-track" role="img" aria-label="{{ level.label }}: {{ level.percentage }} percent"><span style="width:{{ level.percentage }}%"></span></div>
         <strong>{{ level.percentage }}%</strong><small>{{ level.count }}</small>
         {% else %}
-        <div class="stu-ls-track stu-ls-track-state" role="img" aria-label="{{ level.label }}: protected for privacy"></div>
-        <span class="stu-protected">Protected for privacy</span>
+        <div class="stu-ls-track stu-ls-track-state" role="img" aria-label="{{ level.label }}: unavailable"></div>
+        <span class="stu-protected">Unavailable</span>
         {% endif %}
       </div>
       {% endfor %}

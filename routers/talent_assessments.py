@@ -13,6 +13,7 @@ import models
 from auth import get_current_user
 from dependencies import get_db
 from student_academic_service import resolve_placement
+from talent_classification_service import assessment_classification
 from talent_operational_context import authorized_contexts, authorized_payload
 from talent_review_candidate_service import evaluate_review_candidate
 from talent_student_assessment_service import (
@@ -59,6 +60,21 @@ def _with_actions(db, user, row, payload):
 def _display_payload(db, user, row):
     payload = authorized_payload(db, row, assessment_payload)
     payload["overall_result"] = overall_program_result(db, row)
+    # M17: automatic classification is a backend-computed consequence of a
+    # Completed Assessment's authoritative Overall Program Result (ADR 0037,
+    # 2026-09-23 amendment). A draft/in-progress Assessment carries no
+    # classification. The frontend only ever displays this backend value; it
+    # never derives or spoofs its own band.
+    classification = assessment_classification(db, row)
+    payload["classification"] = (
+        classification.get("classification") if classification and classification.get("available") else None
+    )
+    payload["classification_score"] = (
+        classification.get("classification_score") if classification and classification.get("available") else None
+    )
+    payload["is_talented"] = bool(
+        classification and classification.get("available") and classification.get("is_talented")
+    )
     return _with_actions(db, user, row, payload)
 
 

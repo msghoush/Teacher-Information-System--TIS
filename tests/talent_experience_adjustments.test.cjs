@@ -71,7 +71,7 @@ test('rubric empty state names the selected Program and restricted rows remain p
   const protectedHtml=experience.rubricDistributionHtml({distributions:[{
     competency_label:'Mental Calculation',rubric_name:'KPI 1',state:'restricted',levels:[]
   }]},'Mental Math');
-  assert.match(protectedHtml,/Protected for privacy/);
+  assert.match(protectedHtml,/not available for this selection/);
   assert.doesNotMatch(protectedHtml,/percentage|width:/);
 });
 

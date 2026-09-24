@@ -538,6 +538,7 @@ def build_shell_context(
     intro: str | None = None,
     icon: str | None = None,
     notice: str = "",
+    permission_keys: frozenset[str] | set[str] | None = None,
 ):
     scoped_branch_id = getattr(current_user, "scope_branch_id", current_user.branch_id)
     scoped_academic_year_id = getattr(
@@ -594,7 +595,7 @@ def build_shell_context(
         models.AcademicYear.id == scoped_academic_year_id
     ).first()
 
-    permission_keys = frozenset(
+    permission_keys = frozenset(permission_keys) if permission_keys is not None else frozenset(
         auth.get_allowed_permission_keys(
             db,
             current_user,
@@ -631,8 +632,11 @@ def build_shell_context(
             academic_year_id=scoped_academic_year_id,
         )
 
-    can_manage_system_settings = auth.can_manage_system_settings(db, current_user)
-    can_manage_users = auth.can_manage_users(db, current_user)
+    can_manage_system_settings = any(
+        key.startswith(auth.SYSTEM_CONFIGURATION_PERMISSION_PREFIXES)
+        for key in permission_keys
+    )
+    can_manage_users = can("users.view")
     can_manage_school_branding = can_any(
         "branding.view",
         "branding.manage_school_logos",
@@ -731,7 +735,7 @@ def build_shell_context(
         visual_design_config = build_visual_design_config(page_key, {})
 
     return {
-        "can": _build_permission_checker(db, current_user, scoped_school_group_id),
+        "can": can,
         "shell": {
             "page_key": page_key,
             "page_title": title or meta.get("title", "Teacher Information System"),

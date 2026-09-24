@@ -7,6 +7,7 @@ from collections import defaultdict
 import models
 from academic_grade import format_section_display
 from student_academic_service import placement_payload
+from talent_classification_service import assessment_classification
 from talent_educator_input_service import input_payload
 from talent_official_identification_service import identification_payload
 from talent_review_candidate_service import candidate_payload
@@ -35,6 +36,33 @@ def _branch_filter(rows, visible_branch_ids, branch_getter):
 def _event(event_type, occurred_at, stable_id, **context):
     return {"event_type": event_type, "occurred_at": occurred_at.isoformat() if occurred_at else None,
             "id": stable_id, **context}
+
+
+def _assessment_payload_with_classification(db, assessment):
+    """M18a: the Learner Profile's per-Assessment item now carries the same
+    backend-authoritative M17 classification (ADR 0037, 2026-09-23
+    amendment) already exposed on the Talent Assessment detail API
+    (``routers/talent_assessments.py._display_payload``) - reusing the exact
+    same single classification authority (``talent_classification_service
+    .assessment_classification``), never a second/duplicated derivation.
+    ``None``/``False`` for a not-yet-Completed Assessment or one whose
+    Program rubric scale is not classification-compatible, matching the
+    existing router convention exactly. This never overrides, rewrites, or
+    reads from the separately preserved legacy Review Candidate/Official
+    Identification history recorded elsewhere in this same profile item.
+    """
+    payload = assessment_payload(assessment)
+    classification = assessment_classification(db, assessment)
+    payload["classification"] = (
+        classification.get("classification") if classification and classification.get("available") else None
+    )
+    payload["classification_score"] = (
+        classification.get("classification_score") if classification and classification.get("available") else None
+    )
+    payload["is_talented"] = bool(
+        classification and classification.get("available") and classification.get("is_talented")
+    )
+    return payload
 
 
 def build_learner_profile(db, *, school_group_id, student_id, visible_branch_ids=None,
@@ -167,7 +195,7 @@ def build_learner_profile(db, *, school_group_id, student_id, visible_branch_ids
             },
             "framework_version": {"id": assessment.framework_version_id, "version_number": framework.version_number if framework else None,
                                   "title": framework.title if framework else None},
-            "assessment": assessment_payload(assessment),
+            "assessment": _assessment_payload_with_classification(db, assessment),
         }
         if include_review_candidates:
             item["review_candidate"] = candidate_payload(candidate_by_assessment[assessment.id]) if assessment.id in candidate_by_assessment else None

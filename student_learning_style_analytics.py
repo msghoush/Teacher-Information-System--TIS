@@ -28,10 +28,17 @@ from student_academic_service import list_students
 from talent_analytics_privacy import apply_primary_privacy, run_complementary_suppression
 from talent_analytics_service import build_breakdown_group, percentage
 
-LEARNING_STYLES = ("Visual", "Auditory", "Read/Write", "Kinesthetic")
+LEARNING_STYLES = (
+    "Visual", "Auditory", "Read/Write", "Kinesthetic",
+    "Verbal", "Non-verbal", "Quantitative", "Spatial",
+)
 NOT_SPECIFIED = "not_specified"
 
-_LABELS = {**{style: style for style in LEARNING_STYLES}, NOT_SPECIFIED: "Not specified"}
+# M14 owner correction (task G/H): the aggregate distribution's eighth
+# "no value assigned" bucket is labeled "Unassigned" and is always part of
+# the denominator, never silently excluded, alongside the eight categorical
+# values above (extended from the original four).
+_LABELS = {**{style: style for style in LEARNING_STYLES}, NOT_SPECIFIED: "Unassigned"}
 _ORDER = {key: index for index, key in enumerate((*LEARNING_STYLES, NOT_SPECIFIED))}
 
 

@@ -5,6 +5,12 @@ exists yet - these tests exercise the ORM model and migration function
 directly, proving the four independent percentages are nullable, bounded
 0-100 with no sum rule, and that the legacy categorical ``learning_style``
 column is completely preserved and untouched.
+
+OPERATIONALLY DEPRECATED as of M14 (see ADR 0042's M14 amendment section):
+these columns are no longer written/exposed/read anywhere in the product,
+but remain schema-present and are preserved completely untouched - this
+file's schema/migration/ORM-level coverage below remains accurate and is
+left unchanged.
 """
 
 from datetime import datetime

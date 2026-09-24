@@ -55,13 +55,14 @@ def _parse_datetime(value, field):
 
 
 def _student_json(db, row):
+    # M18a: the four Learning Style percentage fields (ADR 0042) are fully
+    # removed from the current normal API projection (M14 already deprecated
+    # them operationally; this completes that deprecation for read exposure).
+    # The stored columns themselves are untouched - only this projection no
+    # longer serializes them. Never Learning Style authority anywhere.
     return {"id": row.id, "school_group_id": row.school_group_id, "first_name": row.first_name,
             "father_name": row.father_name, "last_name": row.last_name, "gender": row.gender,
             "status": row.status, "learning_style": row.learning_style,
-            "learning_style_verbal_percentage": row.learning_style_verbal_percentage,
-            "learning_style_non_verbal_percentage": row.learning_style_non_verbal_percentage,
-            "learning_style_quantitative_percentage": row.learning_style_quantitative_percentage,
-            "learning_style_spatial_percentage": row.learning_style_spatial_percentage,
             "student_number": current_student_number(db, school_group_id=row.school_group_id, student_id=row.id),
             "created_at": row.created_at, "updated_at": row.updated_at}
 
@@ -102,12 +103,14 @@ def student_create(request: Request, payload: dict = Body(...), db: Session = De
     user, group_id, denied = _authorize(request, db, current_user, "students.create")
     if denied: return denied
     try:
+        # M14 owner correction: the four Learning Style percentage fields
+        # (ADR 0042) are operationally deprecated and are no longer accepted
+        # as create input - only the single categorical ``learning_style``
+        # value is written.
         row = create_student_with_number(
             db, school_group_id=group_id, actor=user, student_number=payload.get("student_number"),
             **{key: payload.get(key) for key in (
                 "first_name", "father_name", "last_name", "gender", "learning_style",
-                "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
-                "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
             )},
         )
         db.commit(); db.refresh(row)
@@ -178,10 +181,12 @@ def student_update(student_id: int, request: Request, payload: dict = Body(...),
     keys = ("students.activate_deactivate",) if set(payload) == {"status"} else ("students.edit",)
     user, group_id, denied = _authorize(request, db, current_user, *keys)
     if denied: return denied
+    # M14 owner correction: the four Learning Style percentage fields
+    # (ADR 0042) are operationally deprecated and are no longer accepted as
+    # update input - a pre-existing stored value is left completely
+    # untouched by an unrelated Student edit.
     allowed = {key: payload[key] for key in (
         "first_name", "father_name", "last_name", "gender", "learning_style", "status",
-        "learning_style_verbal_percentage", "learning_style_non_verbal_percentage",
-        "learning_style_quantitative_percentage", "learning_style_spatial_percentage",
     ) if key in payload}
     try:
         row = update_student(db, school_group_id=group_id, student_id=student_id, actor=user, **allowed)

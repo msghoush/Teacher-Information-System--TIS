@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
-{% from "_learning_style.html" import learning_style_percentage_fields, learning_style_profile %}
+{% from "_learning_style.html" import learning_style_field, learning_style_badge %}
 {% block title %}{{ student.display_name }} | TIS{% endblock %}
 {% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}">{% endblock %}
 {% block content %}
@@ -50,12 +50,8 @@
       <div class="stu-field"><label>Father's name</label><span>{{ student.father_name or '—' }}</span></div>
       <div class="stu-field"><label>Gender</label><span>{{ student.gender or '—' }}</span></div>
       <div class="stu-field"><label>TIS Student ID</label><span>{{ student.student_number or 'Not assigned' }}</span></div>
+      <div class="stu-field"><label>Learning Style</label><span>{{ learning_style_badge(student.learning_style) }}</span></div>
     </div>
-    <section class="stu-ls-profile-section" aria-labelledby="learning-style-heading">
-      <h3 id="learning-style-heading">Learning Style profile</h3>
-      <p class="stu-hint">Independent dimensions; these values do not need to total 100%.</p>
-      {{ learning_style_profile(learning_style_dimensions, student) }}
-    </section>
     {% if can_manage_identifiers %}
     <details style="margin-top: 16px;">
       <summary class="stu-btn stu-btn-sm">{{ icon('edit', 'shell-icon') }}{{ 'Change' if student.student_number else 'Assign' }} TIS Student ID</summary>
@@ -81,7 +77,10 @@
             <select id="gender" name="gender">{% for option in gender_options %}<option value="{{ option }}" {% if student.gender == option %}selected{% endif %}>{{ option or '—' }}</option>{% endfor %}</select>
           </div>
         </div>
-        {{ learning_style_percentage_fields(learning_style_dimensions, student) }}
+        <div class="stu-field stu-field-full">
+          <span class="stu-hint" id="learning-style-help">Learning Style <span class="stu-hint">(optional)</span></span>
+          {{ learning_style_field(learning_style_options, student.learning_style) }}
+        </div>
         <div class="stu-form-actions"><button class="stu-btn stu-btn-primary" type="submit">{{ icon('save', 'shell-icon') }}Save</button></div>
       </form>
     </details>
@@ -198,7 +197,7 @@
   <div class="stu-panel">
     <h2>Talent &amp; Potential</h2>
     <p class="stu-lede">{{ icon('sparkles', 'shell-icon') }}The student's evaluation history across Programs, shown in its original historical context. Nothing here is inferred or predicted.</p>
-    <div class="stu-ls-context"><span class="stu-hint">Learner context (not a Talent signal):</span>{{ learning_style_profile(learning_style_dimensions, student) }}</div>
+    <div class="stu-ls-context"><span class="stu-hint">Learner context (not a Talent signal):</span>{{ learning_style_badge(student.learning_style) }}</div>
     {% if talent_profile and talent_profile.programs %}
       {% for prog in talent_profile.programs %}
       <section class="stu-panel" style="box-shadow: none; border-color: var(--app-line);">

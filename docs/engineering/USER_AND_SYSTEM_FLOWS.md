@@ -1,11 +1,83 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.7
-last_updated: 2026-09-09
+documentation_version: 3.9
+last_updated: 2026-09-23
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Results & Analytics Final Flow And Request Behavior (M18b-3 closeout, 2026-09-24)
+
+An authorized user opens Results & Analytics (`/talent/analytics`); one batch of
+requests loads the analytics payloads (each endpoint once, including Learning
+Style, Classification, and Talented for the same context; Classification and
+Talented only with a Program). Changing a filter is debounced (250 ms), updates
+the URL with `history.replaceState`, aborts any in-flight batch, and ignores
+stale responses. Selecting a Program reveals the narrow-only Classification
+filter; clearing the Program hides and clears it. Every visible value comes from
+the backend; suppressed cells show a neutral unavailable state with no numbers
+in markup, ARIA, or datasets. Organization totals are raw-count sums. Legacy
+Review/Identification remain reachable as history/legacy workflow only. This
+flow is verified structurally (no browser-visual verification) and is not
+deployed.
+
+## Automatic Assessment Classification Flow (M17)
+
+1. A Teacher opens a Student Assessment, records rubric evidence/scores per
+   competency, and saves as needed while the Assessment is In Progress. No
+   classification exists yet - a draft/In Progress Assessment never carries
+   a final automatic classification.
+2. The Teacher selects Complete/Submit. The backend independently validates
+   completeness (every Grade-applicable competency has a valid saved
+   result, and every applicable rubric shares the same ordered level count)
+   before accepting completion, exactly as ADR 0037 already requires.
+3. On successful completion the backend computes the ADR 0037 Overall
+   Program Result, then deterministically projects it onto the governed
+   1.00-5.00 classification scale and assigns exactly one fixed band (Needs
+   Improvement / Developing / Meets Expectations / Advanced / Exceptional).
+   Only Exceptional sets `Talented = true`. This never runs client-side and
+   is never influenced by any client-supplied classification value.
+4. The result is immediately visible in the authorized Assessment view and
+   the legacy Review workspace - no manual Review Candidate nomination or
+   Official Identification decision is required for the Student to appear
+   Talented.
+5. Existing Review Candidate policy evaluation still runs (idempotent,
+   deterministic) for legacy/history continuity, and Official Identification
+   remains available as a separate, permission-gated human decision surface
+   for legacy/history purposes; neither is required by the current normal
+   workflow and neither can override or rewrite the automatic
+   classification.
+6. A completed Assessment's rubric evidence and Framework Version remain
+   immutable (ADR 0037); its classification is therefore exactly as stable
+   as its Overall Program Result already is.
+
+## Learning Style Correction + Aggregate Distribution Flow (M14)
+
+1. Student create/edit shows exactly one Learning Style selector with eight
+   options (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
+   Quantitative, Spatial) plus a blank "Not assigned" choice; the browser
+   submits the one selected categorical value, never a percentage.
+2. The server independently validates the submitted value against the same
+   eight-value authority server-side; an unsupported value is rejected even
+   if a client bypasses the selector.
+3. The Student profile displays the one selected value (or "Not assigned"),
+   never four percentage bars. The Talent tab's learner-context line reads
+   the same current categorical value directly - no historical snapshot, no
+   effect on rubric/Assessment/Overall Result/Evaluation Progress/
+   classification/Candidate-Identification.
+4. The four legacy percentage fields are no longer collected or displayed
+   anywhere; if a stray client still submits them, the server silently
+   ignores them rather than writing or erroring - a pre-existing stored
+   value is left completely untouched by an unrelated edit.
+5. The Students page's existing Learning Style distribution panel now shows
+   all eight categories plus "Unassigned," each row driven by one
+   backend-authoritative count/percentage for both bar and text; the
+   denominator always includes Unassigned Students. Privacy suppression,
+   scope, and permission behavior are unchanged from ADR 0031.
+6. Organization Overview's Branch-comparison metric selector (M10, below) no
+   longer offers "Learning Style" - requesting it now receives the same
+   `invalid_filter` response as any other unrecognized metric.
 
 ## Student Roster Import / Export Frontend Flow (M11)
 
@@ -32,6 +104,14 @@ ownership, authorizes itself, performs partial apply, or transforms M5
 `section_display` into canonical input. The first release is create-only and
 `.xlsx` only, with no persistent batch or background job.
 
+**M15 round-trip.** The exported workbook is now re-uploadable: `section_display`
+is accepted-but-ignored and the `STD` prefix is normalized on import. Preview
+classifies each row as CREATE (new), NO_CHANGE (unchanged existing), or a blocked
+conflict (mutated existing). Apply writes only CREATE rows, skips NO_CHANGE rows
+with zero mutation, and stays atomic. The browser renders these three states from
+the backend-provided row status and enables apply only when at least one CREATE
+row is present and error-free.
+
 ## Results & Analytics Branch Comparison Flow (M10)
 
 1. An authorized user opens Organization Overview and selects an Academic Year
@@ -39,8 +119,10 @@ ownership, authorizes itself, performs partial apply, or transforms M5
 2. The metric selector offers the exact backend allowlist, omitting Meets
    Program Criteria or Officially Confirmed when their independent permissions
    are absent.
-3. Selecting Learning Style reveals only Verbal, Non-verbal, Quantitative, and
-   Spatial; the selected dimension is sent as `learning_style_dimension`.
+3. Originally, selecting Learning Style revealed only Verbal, Non-verbal,
+   Quantitative, and Spatial, sent as `learning_style_dimension`. **Current
+   state (M14 correction): the Learning Style metric option is removed** -
+   see "Learning Style Correction + Aggregate Distribution Flow (M14)" above.
 4. A selector change requests the existing M4 Branch comparison endpoint. The
    backend performs frozen historical Branch attribution, metric calculation,
    privacy closure, and Framework comparability.
@@ -56,8 +138,9 @@ ownership, authorizes itself, performs partial apply, or transforms M5
 The browser does not calculate or average Branch/Organization values, derive a
 metric, normalize Learning Style, evaluate thresholds, reconstruct hidden
 values, regroup by current Placement, or calculate across Framework versions.
-The comparison contract has no uniform Organization summary across all seven
-metrics, so this M10 surface adds none.
+The comparison contract has no uniform Organization summary across all
+metrics (seven originally, six as of the M14 correction above), so this M10
+surface adds none.
 
 ## Student Evaluation Progress Frontend Flow (M9)
 
@@ -103,8 +186,12 @@ M10 comparison charts, and M11 roster UI are not part of this flow.
 ## Students M7 Create/Edit/Profile Flow
 
 1. New Student entry shows a fixed `STD` prefix and accepts exactly ten text
-   digits, plus optional independent Verbal, Non-verbal, Quantitative, and
-   Spatial whole percentages from 0 through 100.
+   digits. Originally, it also offered optional independent Verbal,
+   Non-verbal, Quantitative, and Spatial whole percentages from 0 through
+   100. **Current state (M14 correction): those four percentage fields are
+   removed from create/edit** - see "Learning Style Correction + Aggregate
+   Distribution Flow (M14)" above for the current one-selector, eight-value
+   categorical flow.
 2. The server validates and atomically creates the Student plus managed number;
    the browser never authorizes, canonicalizes the prefix, or resolves conflicts.
 3. A duplicate response uses the shared privacy-safe conflict projection: an
@@ -113,8 +200,12 @@ M10 comparison charts, and M11 roster UI are not part of this flow.
 4. Legacy Students without a managed number display a neutral missing state and
    may edit other Student fields. Number assignment/replacement is a separate
    `students.manage_identifiers` action.
-5. Blank Learning Style dimensions remain null, zero remains `0%`, dimensions
-   are not normalized, and deprecated categorical data is not auto-converted.
+5. Originally: blank Learning Style dimensions remained null, zero remained
+   `0%`, dimensions were not normalized, and the (then-)deprecated
+   categorical data was not auto-converted. **Current state (M14
+   correction):** those four percentage dimensions are themselves now the
+   deprecated data (preserved, untouched, no longer collected); the
+   categorical field is the current, editable Learning Style value.
 6. Profile/current Placement/history continue to consume server-projected M5
    `section_display`; canonical Placement and Planning Section identity remain
    unchanged and are still used for requests.
