@@ -4,6 +4,14 @@
   const rubricVisual = typeof module !== 'undefined' && module.exports
     ? require('./talent-rubric-visual.js')
     : window.TalentRubricVisual;
+  // Shared Student identity presentation (loaded on every Talent view). Resolved
+  // defensively: without it a Student still renders as an escaped name.
+  const studentIdentity = typeof module !== 'undefined' && module.exports
+    ? require('./talent-student-identity.js')
+    : (typeof window !== 'undefined' && window.TalentStudentIdentity) || null;
+  const identityHtml = options => studentIdentity
+    ? studentIdentity.identityHtml(options)
+    : `<span class="tp-identity"><span class="tp-identity-name">${String(options?.name || 'Student name unavailable').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span></span>`;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const words = value => String(value ?? '').replaceAll('_', ' ');
   const badge = value => `<span class="tp-badge">${esc(words(value))}</span>`;
@@ -15,14 +23,6 @@
     const percent=Number.isFinite(Number(result.normalized_percent))?Math.max(0,Math.min(100,Number(result.normalized_percent))):Math.round(average/scaleMax*100);
     const value=average.toFixed(1);
     return `<span class="tp-overall-result" style="--tp-overall-score:${percent}" aria-label="Overall Program Result ${value} out of ${scaleMax}"><strong>${value}</strong><span>/${scaleMax}</span><span class="tp-overall-result-track" aria-hidden="true"><i style="width:${percent}%"></i></span></span>`;
-  };
-  // M17: renders the backend-computed automatic classification only. Never
-  // derives or recomputes a band client-side - `payload.classification` and
-  // `payload.is_talented` are backend-authoritative fields.
-  const classificationVisual = payload => {
-    if(!payload || !payload.classification) return '';
-    const talented = !!payload.is_talented;
-    return `<div class="tp-classification ${talented?'tp-classification-talented':''}"><span>Classification</span><strong>${esc(payload.classification)}</strong>${talented?'<span class="tp-badge tp-badge-talented">Talented</span>':''}</div>`;
   };
   const note = value => `<aside class="tp-note">${esc(value)}</aside>`;
   const button = (action, label, extra='') => action==='reload' ? '' : `<button type="button" data-action="${action}" ${extra}>${esc(label)}</button>`;
@@ -110,27 +110,26 @@
       };
       if(reviewId) {
         const r=rows.find(x=>String(x.id)===String(reviewId));
-        if(!r){mount(note('This Student is not available in the current Talent Review context.')+`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Talent Review</a></p>`);return;}
+        if(!r){mount(note('This Student is not available in the current legacy history context.')+`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Legacy Review &amp; Identification History</a></p>`);return;}
         const candidate=r.candidate;
         const d=decisionFor(r);
-        mount(`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Talent Review</a></p>
+        mount(`<p class="tp-actions"><a href="${esc(url('reviews',{}))}">&larr; Back to Legacy Review &amp; Identification History</a></p>
           <article class="tp-card tp-review-detail">
-            <div class="tp-review-student-head"><div><p class="tp-eyebrow">Talent review</p><h3>${programLogo(programById.get(String(r.program_id)))} ${esc(r.context?.student_name || 'Student name unavailable')}</h3></div><span class="tp-status-chip">${esc(candidateLabel(r))}</span></div>
+            <div class="tp-review-student-head"><div><p class="tp-eyebrow">Legacy history record</p><h3 class="tp-identity-heading">${programLogo(programById.get(String(r.program_id)))} ${identityHtml({name:r.context?.student_name,learningStyle:r.context?.student_learning_style,classification:r.classification,isTalented:r.is_talented})}</h3></div><span class="tp-status-chip">Legacy review: ${esc(candidateLabel(r))}</span></div>
             ${context(r)}
             ${r.reassessment?.required?note('A newer rubric requires re-evaluation. This completed result remains historical evidence until the replacement assessment is completed.'):''}
             <div class="tp-review-overall"><span>Overall Program Result</span>${overallResultVisual(r.overall_result)}</div>
-            ${classificationVisual(r)}
             <div class="tp-review-state-grid">
-              <div><small>Review status</small><strong>${esc(candidateLabel(r))}</strong></div>
-              <div><small>Official Identification</small><strong>${esc(d?words(d.decision):'Not yet decided')}</strong></div>
+              <div><small>Legacy review status</small><strong>${esc(candidateLabel(r))}</strong></div>
+              <div><small>Legacy Official Identification</small><strong>${esc(d?words(d.decision):'Not yet decided')}</strong></div>
             </div>
-            <p>The Program result and competency evidence support educator review. Official Identification remains a separate authorized human decision, preserved here as legacy history and no longer required to make a Student Talented - Talented status is now automatic from the backend classification above.</p>
+            <p>This is preserved legacy history for audit only. The current workflow ends in the automatic Classification shown above; Talented status is automatic (Exceptional only) and is never determined by these legacy records.</p>
             <div class="tp-actions">${can('talent_assessments.view')?link('assessments','Open assessment evidence',{assessment_id:r.id}):''}${candidate?.status==='pending_review'&&can('talent_review_candidates.manage')?button('review','Mark reviewed',`data-id="${candidate.id}"`):''}</div>
-            ${d?`<h4>Official Identification</h4>${badge(d.decision)}<p>${esc(d.rationale || '')}</p>`:''}
+            ${d?`<h4>Legacy Official Identification</h4>${badge(d.decision)}<p>${esc(d.rationale || '')}</p>`:''}
             ${candidate?.status==='reviewed'&&!d&&can('talent_official_identifications.record')?form(`decision-${candidate.id}`,note('Record one permanent decision. It cannot be edited or replaced.')+select('Decision','decision',[['','Choose a decision'],['identified','Officially identified'],['not_identified','Not identified']])+area('Rationale','rationale'),'Record official decision'):''}
           </article>`);
         on('review',async el=>{if(dirtyForms.size)throw new Error('Save or cancel your unsaved changes first.');if(!window.confirm('Mark this Student reviewed? This does not record an Official Identification.'))return;await api(`/api/talent/review-candidates/${el.dataset.id}/review`,{method:'POST'});await reload();notify('Review recorded.');});
-        if(candidate) bindForm(`decision-${candidate.id}`,async(data,el)=>{if(!data.decision){feedback(el,'Choose a decision.',true);return;}if(!window.confirm(`Record “${data.decision==='identified'?'Officially identified':'Not identified'}” permanently? This decision cannot be changed.`))return;const recorded=await api('/api/talent/official-identifications',{method:'POST',body:{review_candidate_id:candidate.id,...data}});dirtyForms.delete(el);if(can('talent_official_identifications.view'))await reload();else el.outerHTML=`<section><h4>Official Identification</h4>${badge(recorded.decision)}<p>${esc(recorded.rationale||'Decision recorded.')}</p></section>`;notify('Official decision recorded.');});
+        if(candidate) bindForm(`decision-${candidate.id}`,async(data,el)=>{if(!data.decision){feedback(el,'Choose a decision.',true);return;}if(!window.confirm(`Record “${data.decision==='identified'?'Officially identified':'Not identified'}” permanently? This decision cannot be changed.`))return;const recorded=await api('/api/talent/official-identifications',{method:'POST',body:{review_candidate_id:candidate.id,...data}});dirtyForms.delete(el);if(can('talent_official_identifications.view'))await reload();else el.outerHTML=`<section><h4>Legacy Official Identification</h4>${badge(recorded.decision)}<p>${esc(recorded.rationale||'Decision recorded.')}</p></section>`;notify('Official decision recorded.');});
         return;
       }
       const completedCount=rows.length;
@@ -141,16 +140,16 @@
       const kpis=`<div class="tp-kpi-grid tp-review-kpis">
         <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✓</span><span class="tp-kpi-label">Completed Assessments</span><div class="tp-kpi-value">${completedCount}</div></article>
         <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">◎</span><span class="tp-kpi-label">Average Program Result</span><div class="tp-kpi-value">${avg!=null&&commonScale?`${avg.toFixed(1)}<small>/${commonScale}</small>`:'—'}</div></article>
-        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✦</span><span class="tp-kpi-label">Officially Identified</span><div class="tp-kpi-value">${identifiedCount}</div></article>
+        <article class="tp-kpi"><span class="tp-kpi-icon" aria-hidden="true">✦</span><span class="tp-kpi-label">Legacy: Officially Identified</span><div class="tp-kpi-value">${identifiedCount}</div></article>
       </div>`;
       const tableRows=rows.map(r=>{
         const c=r.context || {};
         const candidate=r.candidate;
         const d=decisionFor(r);
         const status=r.reassessment?.required?'Re-evaluation required':candidateLabel(r);
-        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${esc(c.student_name || 'Student name unavailable')}<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small></span></span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td>${r.classification?`<span class="tp-status-chip ${r.is_talented?'is-positive':'is-neutral'}">${esc(r.classification)}${r.is_talented?' · Talented':''}</span>`:'<span class="tp-status-chip is-neutral">Not classified</span>'}</td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open Review →</a></td></tr>`;
+        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span>${identityHtml({name:c.student_name,learningStyle:c.student_learning_style,classification:r.classification,isTalented:r.is_talented,notAssessed:true,extra:`<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small>`})}</span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open legacy record →</a></td></tr>`;
       }).join('');
-      mount(`${kpis}${note('Talent Review shows every current Completed Assessment for legacy/history review context. Talented status is now automatic from the backend Classification (Exceptional only) - Review status and Official Identification are preserved legacy states and are no longer required for a Student to become Talented.')}${!rows.length?note('No completed Student Assessments are available in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table tp-review-table"><thead><tr><th>Student</th><th>Program / Evaluation</th><th>Overall result</th><th>Classification</th><th>Review status</th><th>Official Identification</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`}`);
+      mount(`${kpis}${note('Legacy Review & Identification History is preserved for audit only and is not part of the current workflow. The current workflow ends in the automatic Classification (only Exceptional is Talented), shown with each Student. Legacy review status and Official Identification decisions never determine a Student current Talent state.')}${!rows.length?note('No completed Student Assessments are available in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table tp-review-table"><caption class="tp-sr-status">Legacy Review &amp; Identification History</caption><thead><tr><th>Student</th><th>Program / Evaluation</th><th>Overall result</th><th>Legacy review status</th><th>Legacy identification decision</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`}`);
       return;
     }
     if(params.get('assessment_id')) {
@@ -179,7 +178,7 @@
         canViewPrograms?api(base):Promise.resolve(null),
         canViewPrograms?api(`${base}/configuration`):Promise.resolve(null),
       ]);
-      if(!canViewPrograms) {mount(`<article class="tp-card"><h3>${programLogo(assessmentProgram)} ${esc(assessment.context?.student_name || 'Student name unavailable')}</h3>${context(assessment)}</article>`+note('Program viewing permission is needed to display the competency and rubric labels. Ask your administrator for access.'));return;}
+      if(!canViewPrograms) {mount(`<article class="tp-card"><h3 class="tp-identity-heading">${programLogo(assessmentProgram)} ${identityHtml({name:assessment.context?.student_name,learningStyle:assessment.context?.student_learning_style,classification:assessment.status==='completed'&&assessment.is_current!==false?assessment.classification:null,isTalented:assessment.is_talented})}</h3>${context(assessment)}</article>`+note('Program viewing permission is needed to display the competency and rubric labels. Ask your administrator for access.'));return;}
       const editable=assessment.status==='in_progress';
       const saved=new Map(results.map(r=>[r.framework_competency_id,r]));
       const legacyLevels=configuration.levels || [];
@@ -227,7 +226,7 @@
         cycle_id:assessment.evaluation_context_cycle_id||assessment.cycle_id,
       });
       const backToStudents=`<a class="tp-back-link" href="${esc(backToStudentsUrl)}">← Back to Students</a>`;
-      mount(`<p>${backToStudents}</p><article class="tp-card"><p class="tp-eyebrow">Student assessment</p><h3>${esc(assessment.context?.student_name || 'Student name unavailable')} ${badge(assessment.status)}</h3>${context(assessment)}${assessment.overall_result?`<div class="tp-assessment-overall"><span>Overall Program Result</span>${overallResultVisual(assessment.overall_result)}</div>`:''}${classificationVisual(assessment)}${assessment.kpi?`<p class="tp-note">Configured KPI result: ${esc(assessment.kpi.result)} <span class="tp-badge">Scale ${esc(assessment.kpi.result_scale_min)}–${esc(assessment.kpi.result_scale_max)}</span></p>`:''}<p>This assessment uses the competencies and rubric saved for this evaluation. Later placement or Program changes do not change this evidence.</p>${reassessmentNotice}</article><form id="assessment-editor" class="tp-op-form tp-assessment-editor"><div class="tp-actions"><div class="tp-progress" id="assessment-progress"><div class="tp-progress-head"><span>Assessment progress</span><strong>${results.length} of ${competencies.length}</strong></div><div class="tp-progress-track" role="progressbar" aria-label="Assessment progress" aria-valuemin="0" aria-valuemax="${competencies.length}" aria-valuenow="${results.length}"><span style="width:${competencies.length?Math.round(results.length/competencies.length*100):0}%"></span></div></div>${button('reload','Reload Saved Rubric')}</div>${gradeCriteriaNotice}<div class="tp-assessment-grid">${competencies.map((c,index)=>{const r=saved.get(c.id),levels=levelsForCompetency(c.id),rubric=rubricForCompetency(c.id);return `<fieldset class="tp-card tp-assessment-competency" data-competency="${c.id}" ${!editable||!can('talent_assessments.manage')?'disabled':''}><legend><span class="tp-assessment-index" aria-hidden="true">${index+1}</span><span>${esc(c.label)}</span></legend><p>${esc(c.description || '')}</p>${rubric?`<div class="tp-assessment-kpi"><span class="tp-assessment-kpi-label">KPI</span><strong>${esc(rubric.name || c.label || 'KPI')}</strong></div>`:''}<div class="tp-level-options tp-assessment-levels" role="radiogroup" aria-label="Select a Level">${levels.map(l=>`<label class="tp-level-option tp-rubric-choice"><input type="radio" name="level-${c.id}" value="${l.id}" ${r?.rubric_level_id===l.id?'checked':''}>${rubricVisual.badge(l,levels,{selected:r?.rubric_level_id===l.id,suffix:descriptor(c.id,l.id)||l.description||''})}</label>`).join('')}</div>${area('Evidence',`evidence-${c.id}`,r?.evidence || '')}<p data-save-state>${r?'Saved':'Not yet assessed'}</p>${r&&editable&&can('talent_assessments.manage')?button('clear-result','Clear Result',`data-competency="${c.id}"`):''}</fieldset>`;}).join('')}</div>${editable&&can('talent_assessments.manage')?'<button type="submit" class="tp-primary">Save assessment</button><button type="reset">Cancel assessment changes</button>':''}<p class="tp-op-feedback" role="status" aria-live="polite"></p></form>${!editable?note('This assessment is read-only. Final outcomes cannot be reopened.'):''}<div class="tp-actions">${editable&&can('talent_assessments.complete')?button('complete','Complete assessment')+button('incomplete','Mark incomplete')+button('insufficient-evidence','Mark insufficient evidence'):''}${can('talent_review_candidates.view')?link('reviews','Legacy Review & Identification history',{cycle_id:assessment.cycle_id,program_id:assessment.program_id}):''}</div>${can('talent_educator_inputs.view')||can('talent_educator_inputs.add')?`<section class="tp-card"><h3>Educator Input</h3>${note('Separate observations and context. This input does not change rubric results, Talent Review, or Official Identification.')}${can('talent_educator_inputs.add')?form('educator-add',educatorFields(),'Add educator input'):''}${inputs.map(r=>`<article class="tp-card">${badge(r.category)}<p>${esc(r.content)}</p><p>Observed ${esc(r.observed_at)}</p>${button('input-history','View amendment history',`data-id="${r.id}"`)}<div data-history="${r.id}"></div>${can('talent_educator_inputs.amend')?`<details><summary>Amend input</summary>${form(`educator-amend-${r.id}`,educatorFields(r),'Save amendment')}</details>`:''}</article>`).join('')}${!inputs.length&&can('talent_educator_inputs.view')?'<p>No educator input recorded for this assessment.</p>':''}</section>`:''}`);
+      mount(`<p>${backToStudents}</p><article class="tp-card"><p class="tp-eyebrow">Student assessment</p><h3 class="tp-identity-heading">${identityHtml({name:assessment.context?.student_name,learningStyle:assessment.context?.student_learning_style,classification:assessment.status==='completed'&&assessment.is_current!==false?assessment.classification:null,isTalented:assessment.is_talented})} ${badge(assessment.status)}</h3>${context(assessment)}${assessment.status==='completed'&&assessment.overall_result?`<div class="tp-assessment-overall"><span>Overall Program Result</span>${overallResultVisual(assessment.overall_result)}</div>`:''}${assessment.kpi?`<p class="tp-note">Configured KPI result: ${esc(assessment.kpi.result)} <span class="tp-badge">Scale ${esc(assessment.kpi.result_scale_min)}–${esc(assessment.kpi.result_scale_max)}</span></p>`:''}<p>This assessment uses the competencies and rubric saved for this evaluation. Later placement or Program changes do not change this evidence.</p>${reassessmentNotice}</article><form id="assessment-editor" class="tp-op-form tp-assessment-editor"><div class="tp-actions"><div class="tp-progress" id="assessment-progress"><div class="tp-progress-head"><span>Assessment progress</span><strong>${results.length} of ${competencies.length}</strong></div><div class="tp-progress-track" role="progressbar" aria-label="Assessment progress" aria-valuemin="0" aria-valuemax="${competencies.length}" aria-valuenow="${results.length}"><span style="width:${competencies.length?Math.round(results.length/competencies.length*100):0}%"></span></div></div>${button('reload','Reload Saved Rubric')}</div>${gradeCriteriaNotice}<div class="tp-assessment-grid">${competencies.map((c,index)=>{const r=saved.get(c.id),levels=levelsForCompetency(c.id),rubric=rubricForCompetency(c.id);return `<fieldset class="tp-card tp-assessment-competency" data-competency="${c.id}" ${!editable||!can('talent_assessments.manage')?'disabled':''}><legend><span class="tp-assessment-index" aria-hidden="true">${index+1}</span><span>${esc(c.label)}</span></legend><p>${esc(c.description || '')}</p>${rubric?`<div class="tp-assessment-kpi"><span class="tp-assessment-kpi-label">KPI</span><strong>${esc(rubric.name || c.label || 'KPI')}</strong></div>`:''}<div class="tp-level-options tp-assessment-levels" role="radiogroup" aria-label="Select a Level">${levels.map(l=>`<label class="tp-level-option tp-rubric-choice"><input type="radio" name="level-${c.id}" value="${l.id}" ${r?.rubric_level_id===l.id?'checked':''}>${rubricVisual.badge(l,levels,{selected:r?.rubric_level_id===l.id,suffix:descriptor(c.id,l.id)||l.description||''})}</label>`).join('')}</div>${area('Evidence',`evidence-${c.id}`,r?.evidence || '')}<p data-save-state>${r?'Saved':'Not yet assessed'}</p>${r&&editable&&can('talent_assessments.manage')?button('clear-result','Clear Result',`data-competency="${c.id}"`):''}</fieldset>`;}).join('')}</div>${editable&&can('talent_assessments.manage')?'<button type="submit" class="tp-primary">Save assessment</button><button type="reset">Cancel assessment changes</button>':''}<p class="tp-op-feedback" role="status" aria-live="polite"></p></form>${!editable?note('This assessment is read-only. Final outcomes cannot be reopened.'):''}<div class="tp-actions">${editable&&can('talent_assessments.complete')?button('complete','Complete assessment')+button('incomplete','Mark incomplete')+button('insufficient-evidence','Mark insufficient evidence'):''}${can('talent_review_candidates.view')?`<span class="tp-legacy-link">${link('reviews','Legacy Review & Identification History',{cycle_id:assessment.cycle_id,program_id:assessment.program_id})}</span>`:''}</div>${can('talent_educator_inputs.view')||can('talent_educator_inputs.add')?`<section class="tp-card"><h3>Educator Input</h3>${note('Separate observations and context. This input does not change rubric results, Talent Review, or Official Identification.')}${can('talent_educator_inputs.add')?form('educator-add',educatorFields(),'Add educator input'):''}${inputs.map(r=>`<article class="tp-card">${badge(r.category)}<p>${esc(r.content)}</p><p>Observed ${esc(r.observed_at)}</p>${button('input-history','View amendment history',`data-id="${r.id}"`)}<div data-history="${r.id}"></div>${can('talent_educator_inputs.amend')?`<details><summary>Amend input</summary>${form(`educator-amend-${r.id}`,educatorFields(r),'Save amendment')}</details>`:''}</article>`).join('')}${!inputs.length&&can('talent_educator_inputs.view')?'<p>No educator input recorded for this assessment.</p>':''}</section>`:''}`);
       on('reassess',async()=>{
         if(!window.confirm('Start a new re-evaluation using the updated rubric? The prior completed result will remain preserved.'))return;
         const replacement=await api(`/api/talent/assessments/${assessment.id}/reassess`,{method:'POST'});
@@ -293,8 +292,11 @@
 
     const eligibleRows=eligible?eligible.members.map(m=>{
       const a=assessmentFor(m.student_id,cycle);
-      const studentName=esc(m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ') || 'Student name unavailable');
-      const statusLabel=a?.reassessment?.required?'Re-evaluation required':a?words(a.status):'Not started';
+      const titled=value=>words(value).replace(/^./,c=>c.toUpperCase());
+      const statusLabel=a?.reassessment?.required?'Re-evaluation required':a?titled(a.status):'Not started';
+      // Current automatic Classification only for a current Completed assessment
+      // (backend-computed; never fabricated for not-started / in-progress rows).
+      const current=a&&a.status==='completed'&&a.is_current!==false?a:null;
       const resetAllowed=a?.status==='completed'&&(a.actions||[]).includes('reset_for_reassessment');
       const action=a?.reassessment?.required&&(a.actions||[]).includes('reassess')
         ?button('reassess-row','Re-evaluate Student',`data-id="${a.id}"`)
@@ -304,7 +306,13 @@
           ?button('start','Start Assessment',`data-student="${m.student_id}"`)
           :'<span>Not started</span>';
       const sectionDisplay=m.section_display||m.section_name;
-      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span><span>${studentName}<small>${esc(m.branch_name||'')} · ${esc(sectionDisplay||'')}</small></span></span></th><td>${esc(m.grade_level)}</td><td>${esc(sectionDisplay)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${action}</td></tr>`;
+      const fullName=m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ');
+      const identity=identityHtml({name:fullName,learningStyle:m.learning_style,classification:current?.classification,isTalented:current?.is_talented,showClassification:false,extra:`<small>${esc(m.branch_name||'')}</small>`});
+      const talented=studentIdentity?studentIdentity.talentedBadge(current?.classification,current?.is_talented):'';
+      const classificationCell=current&&current.classification&&studentIdentity
+        ?`<span class="tp-identity-meta">${studentIdentity.classificationChip(current.classification)}${talented}</span>`
+        :current?'<span class="tp-muted">Not available for this rubric</span>':'<span class="tp-muted">Not assessed</span>';
+      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span>${identity}</span></th><td>${esc(m.grade_level)}</td><td>${esc(sectionDisplay)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${classificationCell}</td><td>${action}</td></tr>`;
     }).join(''):'';
 
     // Evaluation Period -> unique Programs. Planned Periods are the display
@@ -378,7 +386,7 @@
     // The selected real Evaluation is marked in place on its own card above
     // (is-selected class + aria-current) rather than repeated in a separate
     // duplicated "Selected Evaluation" panel here.
-    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
 
     on('select-planned-evaluation',async el=>{
       const programId=Number(el.dataset.program), periodId=Number(el.dataset.period);

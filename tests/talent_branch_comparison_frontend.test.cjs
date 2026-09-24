@@ -25,14 +25,13 @@ test('suppressed and no-data Branches remain distinct and never expose supplied 
   assert.doesNotMatch(html,/>91<|>73<|>4<|>0%<|width:/);
 });
 
-test('all seven and only approved metrics are offered with secondary permission projection',()=>{
-  assert.deepEqual(branchComparisonMetricOptions(true,true).map(([value])=>value),[
-    'evaluation_period_result','current_overall_progress','assessment_completion','assessments_started',
-    'meets_program_criteria','officially_confirmed','learning_style',
-  ]);
-  assert.deepEqual(branchComparisonMetricOptions(false,false).map(([value])=>value),[
-    'evaluation_period_result','current_overall_progress','assessment_completion','assessments_started','learning_style',
-  ]);
+test('only the four current Branch-comparison metrics are offered; legacy Review/Identification metrics are never a normal option',()=>{
+  // Acceptance B (deliberate pinned-expectation update): the former secondary
+  // meets_program_criteria / officially_confirmed options (and the M14-removed
+  // learning_style option this stale test still listed) are not current metrics.
+  const current=['evaluation_period_result','current_overall_progress','assessment_completion','assessments_started'];
+  assert.deepEqual(branchComparisonMetricOptions(true,true).map(([value])=>value),current);
+  assert.deepEqual(branchComparisonMetricOptions(false,false).map(([value])=>value),current);
 });
 
 test('metric families consume only their backend-authoritative value field',()=>{

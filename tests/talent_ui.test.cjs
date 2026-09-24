@@ -100,8 +100,9 @@ test('Assessment evidence and Learner Profile never render raw competency/rubric
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
   assert.doesNotMatch(source, /esc\(r\.framework_competency_id\)/);
   assert.doesNotMatch(source, /esc\(r\.rubric_level_id\)/);
-  assert.match(source, /Recorded competency evidence/);
-  assert.match(source, /Rubric level recorded/);
+  // Acceptance B: the unreachable id-based assessments/reviews fallback renderer was removed; the Learner Profile renders labels only.
+  assert.match(source, /competency_label\|\|'Competency'/);
+  assert.match(source, /rubricBadge\(r\.rubric_level\)/);
 });
 
 // M11 stakeholder smoke fix: the B10-B longitudinal contract serializes Academic

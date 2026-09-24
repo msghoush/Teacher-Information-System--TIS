@@ -1,11 +1,28 @@
 ---
 title: TIS Change History
-documentation_version: 5.10
+documentation_version: 5.11
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-24 - Deployment Acceptance Correction B: Student identity, automatic Classification, current Talent workflow
+
+- Current Talent workflow now presents Student -> Program -> Assessment ->
+  automatic Classification (Exceptional only = Talented). Review Candidate /
+  Official Identification moved out of primary navigation and every normal
+  Student surface; preserved as labeled "Legacy Review & Identification History".
+- New shared `static/js/talent-student-identity.js`; Learning Style and current
+  Classification added to the Student Assessments roster, Assessment header,
+  Students Across Programs, dashboard Student preview, Learner Profile, and
+  Student Drill via smallest authorized projection extensions (no schema, no
+  persistence, no new permission, no widened Student access).
+- Fixed a Student Drill `TypeError` (unhashable nested `overall_result` in the
+  context de-duplication key).
+- Deliberately updated pinned expectations (Talent nav, branch-comparison
+  metrics, Student Drill approved fields, removed legacy filter/columns).
+- Web Service only; not deployed; `tis.db` unchanged; Acceptance C/D not started.
 
 ## 2026-09-24 - Deployment Acceptance Correction A: Talent & Potential runtime loading reliability
 

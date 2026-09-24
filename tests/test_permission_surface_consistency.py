@@ -283,7 +283,9 @@ def test_talent_multikey_any_gate_and_overview(world, key):
 TALENT_SUBNAV = (
     ("talent_programs.view", "/talent/programs"),
     ("talent_assessments.view", "/talent/assessments"),
-    ("talent_review_candidates.view", "/talent/reviews"),
+    # Acceptance B (deliberate pinned-expectation update): Talent Review is Legacy Review &
+    # Identification History and is no longer a primary Talent sidebar entry; the route itself
+    # keeps its talent_review_candidates.view gate (asserted below).
     ("talent_analytics.view", "/talent/analytics"),
     ("students.view", "/students/"),
 )
@@ -296,6 +298,13 @@ def test_talent_subnav_matches_route_for_deny_and_allow(world, key, href):
     world.school_override(ADMIN, remove=(key,))
     assert href not in world.sidebar("admin")
     assert world.route_allowed("admin", "GET", href) is False
+
+
+def test_legacy_review_history_is_not_in_sidebar_but_route_keeps_its_permission_gate(world):
+    assert "/talent/reviews" not in world.sidebar("admin")
+    assert world.route_allowed("admin", "GET", "/talent/reviews") is True
+    world.school_override(ADMIN, remove=("talent_review_candidates.view",))
+    assert world.route_allowed("admin", "GET", "/talent/reviews") is False
 
 
 def test_dashboard_reports_tab_gated_by_view_reports(world):

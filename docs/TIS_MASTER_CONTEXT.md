@@ -1,11 +1,28 @@
 ---
 title: TIS Master Context
-documentation_version: 4.10
+documentation_version: 4.11
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Current Talent Workflow And Student Identity (Deployment Acceptance Correction B, 2026-09-24)
+
+Current normal workflow: Student -> Program -> Teacher Assessment -> Complete
+Assessment -> deterministic backend Automatic Classification
+(`talent_classification_service`, ADR 0037 2026-09-23 amendment). Only
+`Exceptional` (4.50-5.00 on the fixed classification scale) is Talented; the
+other bands are Needs Improvement, Developing, Meets Expectations, Advanced.
+Review Candidate and Official Identification are legacy historical data
+(preserved, permission-gated, audit-only, never current Talent state) reachable
+only as "Legacy Review & Identification History". Wherever an identifiable
+Student appears in Talent the shared identity presentation
+(`static/js/talent-student-identity.js`) shows name, canonical
+`Student.learning_style` (eight categories, "Unassigned" if none) and, for a
+`completed` + `is_current` assessment only, the backend Classification and (for
+Exceptional) a Talented badge. No classification is persisted or derived in the
+browser; there is no schema change. Not deployed.
 
 ## Talent & Potential Runtime Loading Contract (Deployment Acceptance Correction A, 2026-09-24)
 

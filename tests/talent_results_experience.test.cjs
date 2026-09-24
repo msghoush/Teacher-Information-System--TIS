@@ -108,7 +108,8 @@ test('analytics source wires supported filters and keeps secondary totals compac
   assert.match(source,/Open Talent Map/);
   assert.match(source,/Assessment progress by Grade/);
   assert.match(source,/Detailed totals/);
-  assert.match(source,/Meets Program Criteria:<\/strong>/);
+  // Acceptance B: Review Candidate / Meets Program Criteria is no longer a current Student status.
+  assert.doesNotMatch(source,/Meets Program Criteria/);
 });
 
 test('the shared Grade filter is Planning-driven, not a blanket hardcoded KG-12 catalog', () => {
@@ -125,12 +126,14 @@ test('Talent module expands as a permission-aware sidebar tree using the shared 
   const shellSource = fs.readFileSync(path.join(__dirname, '..', 'ui_shell.py'), 'utf8');
   const base = fs.readFileSync(path.join(__dirname, '..', 'templates', 'base.html'), 'utf8');
   const shellCss = fs.readFileSync(path.join(__dirname, '..', 'static', 'css', 'app-shell.css'), 'utf8');
-  for (const destination of ['/talent/overview','/talent/programs','/talent/assessments','/talent/reviews','/talent/analytics']) {
+  // Acceptance B: Talent Review is legacy history and no longer a primary sidebar peer.
+  assert.doesNotMatch(shellSource, /"label": "Talent Review"/);
+  assert.doesNotMatch(shellSource, /"href": "\/talent\/reviews"/);
+  for (const destination of ['/talent/overview','/talent/programs','/talent/assessments','/talent/analytics']) {
     assert.match(shellSource, new RegExp(destination.replaceAll('/','\\/')));
   }
   assert.match(shellSource, /talent_programs\.view/);
   assert.match(shellSource, /talent_assessments\.view/);
-  assert.match(shellSource, /talent_review_candidates\.view/);
   assert.match(shellSource, /talent_analytics\.view/);
   // The Talent entry uses the shared inline-SVG icon macro like every other
   // module (no per-item brand image), and its visible label is never suppressed.
@@ -362,9 +365,10 @@ test('Classification filter is real (narrows the classification route only, neve
   assert.match(source, /show=config\.view==='analytics' && Boolean\(program\.value\)/);
 });
 
-test('candidate_membership_count is explicitly relabeled Legacy on the Results & Analytics summary strip and is never conflated with the current Talented count', () => {
+test('legacy Review/Identification metrics are absent from the Results & Analytics summary strip and never conflated with the current Talented count', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /candidate_membership_count:'Legacy: Meets Program Criteria'/);
+  // Acceptance B: no legacy metric label remains, so no generic card/summary renderer can surface it.
+  assert.doesNotMatch(source, /candidate_membership_count:|candidate_count:|identified_count:|meets_program_criteria:|officially_confirmed:/);
   // The separate current-Talented summary fact is sourced only from the
   // already-fetched backend Talented family (never a second client-derived
   // gauge/percentage) and is explicitly labeled with its Exceptional relation.

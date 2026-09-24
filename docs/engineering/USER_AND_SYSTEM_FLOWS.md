@@ -1,11 +1,25 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.9
-last_updated: 2026-09-23
+documentation_version: 3.10
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Current Talent Assessment Flow (Deployment Acceptance Correction B, 2026-09-24)
+
+A teacher opens Student Assessments, selects an Evaluation Period and Program,
+sees the eligible Student roster (name, Learning Style, Grade, Section,
+assessment status, and - for completed current assessments - the automatic
+Classification with a Talented badge for Exceptional), starts or continues an
+assessment, and completes it. The backend deterministically computes the
+Classification; there is no Review or Official Identification step. Legacy
+Review Candidate / Official Identification records remain viewable as
+"Legacy Review & Identification History" for authorized users, separate from the
+current Classification. Learner Profile presents current history (result,
+Classification, competency evidence) first and legacy history in a distinct
+secondary section.
 
 ## Results & Analytics Final Flow And Request Behavior (M18b-3 closeout, 2026-09-24)
 

@@ -1,11 +1,31 @@
 ---
 title: TIS Module Map
-documentation_version: 4.5
+documentation_version: 4.6
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent Student identity presentation and legacy history boundary (Deployment Acceptance Correction B, 2026-09-24)
+
+`static/js/talent-student-identity.js` is the single shared presentation for
+Talent Student identity (name, Learning Style, Classification, Talented); it is
+loaded on every Talent view before `talent.js` and is presentation only (no
+classification arithmetic). Data authorities: Learning Style =
+`Student.learning_style` via `talent_operational_context.authorized_contexts`
+(`student_learning_style`), `routers/talent_assessment_cycles.py`
+eligible-students (`learning_style`, sourced from
+`talent_operational_context.student_identity_metadata`, a tenant-bound bulk read;
+the ADR 0031 guard keeps scoring/eligibility modules free of Learning Style), `talent_learner_profile_service`
+(`student.learning_style`, per-assessment `overall_result`), and
+`talent_org_student_drill` (`learning_style`); Classification =
+`talent_classification_service.assessment_classification` surfaced by
+`routers/talent_assessments.py` (list adds classification for current Completed
+rows using `overall=`), the learner profile and the Student Drill. The
+`reviews` view (`routers/talent_ui.py` VIEWS, still gated by
+`talent_review_candidates.view`) is the Legacy Review & Identification History
+surface and is no longer in the primary sidebar (`ui_shell.py`).
 
 ## Talent workspace client lifecycle ownership (Deployment Acceptance Correction A, 2026-09-24)
 

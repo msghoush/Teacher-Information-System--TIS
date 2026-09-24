@@ -715,7 +715,8 @@ def organization_student_drill(
             authorized_program_ids=authorized,
         )
         selected = filters.program_ids or authorized
-        field_count = 6 + sum((
+        # 6 base fields + Acceptance B ``learning_style`` = 7.
+        field_count = 7 + sum((
             context.candidate_projection_allowed, context.identification_projection_allowed,
             context.learner_profile_action_allowed,
         ))

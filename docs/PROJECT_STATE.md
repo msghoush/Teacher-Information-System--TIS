@@ -1,11 +1,87 @@
 ---
 title: TIS Project State
-documentation_version: 5.19
+documentation_version: 5.20
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Deployment Acceptance Correction B - Student Identity + Automatic Classification + Current Talent Workflow (2026-09-24)
+
+**Status: implemented on `dev` only; not deployed and not merged to `master`.
+Whether production shows the corrected experience needs production verification
+after a deploy. Web Service only - the separate `tis-timetable-workflow` revision
+is unaffected. Structurally verified with a DOM-stub harness and Python
+projection tests; not exercised in a real browser.**
+
+Owner-observed production screenshots showed the old Review Candidate / Official
+Identification concepts still presented as the current Talent workflow. The
+owner-approved current workflow is: Student -> Program -> Teacher Assessment ->
+Complete Assessment -> deterministic backend Automatic Classification. The five
+bands are 1.00-1.99 Needs Improvement, 2.00-2.99 Developing, 3.00-3.74 Meets
+Expectations, 3.75-4.49 Advanced, 4.50-5.00 Exceptional; **Exceptional is the
+only Talented classification**. The authority is unchanged and remains
+`talent_classification_service.py` (ADR 0037 2026-09-23 amendment); the frontend
+never computes a band. Review Candidate and Official Identification are
+**preserved legacy historical data only** (no record deleted, no schema change,
+no API removed, no permission relaxed) and are never current Student status,
+current Classification, a normal filter/column/action, or the Talented state.
+
+What changed:
+
+- **Student identity in Talent.** Every identifiable Student rendered in Talent
+  now uses ONE shared presentation (`static/js/talent-student-identity.js`,
+  loaded on every Talent view): name, canonical `Student.learning_style`
+  (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal, Quantitative,
+  Spatial; "Unassigned" when none, never fabricated), and - only where an
+  applicable current result exists - the backend Classification, plus a
+  Talented badge when and only when the classification is Exceptional. Applicable
+  current result = `completed` AND `is_current`. Surfaces: Student Assessments
+  roster, Assessment detail header, Students Across Programs (matrix + cards,
+  per-Program classification, never one universal label), the dashboard Student
+  preview, Learner Profile (Talent section of the Student Profile and the Talent
+  `learner-profile` view), legacy history view, Student Drill.
+- **Backend projections (smallest extensions, no persistence).**
+  `talent_operational_context.authorized_contexts` adds `student_learning_style`
+  from its already-batched Student lookup; the assessments list adds
+  `classification`/`classification_score`/`is_talented` for current Completed
+  rows (reusing the already computed Overall Program Result via
+  `assessment_classification(..., overall=)`); eligible-students members carry
+  `learning_style`; the learner profile exposes `student.learning_style` and a
+  per-assessment `overall_result`; the Student Drill row exposes `learning_style`
+  (its approved-field set and breadth accounting were extended by one field).
+  No new classification column or table; no new permission; Student visibility is
+  never widened (values ride projections that already contained the Student).
+- **Legacy removed from the current experience.** "Talent Review" left the
+  primary Talent sidebar and the Overview action cards; the route
+  `/talent/reviews` remains (same `talent_review_candidates.view` gate) titled
+  "Legacy Review & Identification History", with legacy-labeled columns, and is
+  reachable from a secondary "Legacy Review & Identification History" link.
+  Removed from normal UX: roster Review Status / Official Identification / Open
+  Review, the Identification Classification filter, Review/Identification
+  states on Students Across Programs, the dashboard Student "Review /
+  Identification" column, candidate/identified metrics as normal Talent Map,
+  branch-comparison and summary figures, and "Meets Program Criteria" as a
+  current status. Learner Profile / Student Profile keep legacy records only in a
+  distinct, labeled "Legacy Review & Identification History" section, and only
+  when the actor already holds the legacy permission.
+- **Fixed defect found on the way.** The Student Drill deduplication key used a
+  tuple that could hold the nested `overall_result` dict, raising `TypeError` for
+  any Student with a completed Program result; it now uses a canonical JSON key.
+- Performance: no per-Student API call, permission query or classification
+  endpoint call was added. The assessments list still issues the same per-row
+  statements it did before this change (a pre-existing cost, measured at 36 per
+  Student at b7e3c6a and unchanged); Acceptance B adds none.
+- Pinned expectations deliberately updated: Talent nav no longer includes
+  Talent Review, branch-comparison metric options (four current metrics), the
+  Student Drill approved identity-field set (+`learning_style`), and the
+  removed legacy filter/column assertions.
+
+Open follow-ups: Learning Style aggregate/privacy correction (Acceptance C) and
+the Assessment entry editor body (Acceptance D) were intentionally not started;
+the Student-domain badge still renders its existing "Not assigned" wording on
+the Student Profile page.
 
 ## Deployment Acceptance Correction A - Talent & Potential Runtime Loading Reliability (2026-09-24)
 

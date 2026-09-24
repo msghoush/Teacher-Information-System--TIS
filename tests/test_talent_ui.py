@@ -74,19 +74,19 @@ def test_talent_views_load_only_their_required_script_bundles(db, client, view, 
 # four views, so every other view threw at load time and stayed on the
 # server-rendered "Loading your authorized workspace" placeholder forever.
 REQUIRED_SCRIPTS_BY_VIEW = {
-    'overview': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'programs': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-program-workspace.js'),
-    'evaluation-plans': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
-    'assessments': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-operations.js'),
-    'reviews': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-operations.js'),
-    'learner-profile': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'analytics': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'talent-map': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'portfolio': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'branch': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'overlap': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'students': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
-    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js'),
+    'overview': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'programs': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-program-workspace.js'),
+    'evaluation-plans': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
+    'assessments': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-operations.js'),
+    'reviews': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-operations.js'),
+    'learner-profile': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'analytics': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'talent-map': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'portfolio': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'branch': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'overlap': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'students': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
 }
 
 
@@ -277,7 +277,9 @@ def test_evaluation_plan_is_no_longer_a_standalone_primary_nav_entry(db, client)
     nav = client.get('/talent/overview').text
     assert 'href="/talent/programs"' in nav
     assert 'href="/talent/assessments"' in nav
-    assert 'href="/talent/reviews"' in nav
+    # Acceptance B (deliberate update of a pinned expectation): Talent Review is
+    # legacy history and is no longer a primary navigation peer.
+    assert 'href="/talent/reviews"' not in nav
     assert 'href="/talent/analytics"' in nav
 
 
@@ -329,3 +331,34 @@ def test_students_is_first_child_of_talent_nav_and_gated_by_students_view(db, cl
     overview_index = body.index('href="/talent/overview"')
     programs_index = body.index('href="/talent/programs"')
     assert students_index < overview_index < programs_index
+
+
+def test_talent_review_is_legacy_history_not_a_primary_navigation_peer(db, client):
+    """Acceptance B: Review Candidate / Official Identification are legacy history. The sidebar and the
+    Talent Overview never present "Talent Review" as a current workflow peer; the legacy route stays
+    reachable (same permission gate, same permission enforcement) under an explicit Legacy title."""
+    permissions(db, *set(item[1] for item in talent_ui.VIEWS.values()))
+    for view in ('overview', 'programs', 'assessments', 'analytics'):
+        html = client.get(f'/talent/{view}').text
+        assert 'Talent Review' not in html, view
+        assert 'href="/talent/reviews"' not in html, view
+    assert talent_ui.VIEWS['reviews'][0] == 'Legacy Review & Identification History'
+    assert talent_ui.VIEWS['reviews'][1] == 'talent_review_candidates.view'
+    legacy = client.get('/talent/reviews')
+    assert legacy.status_code == 200
+    assert 'Legacy Review &amp; Identification History' in legacy.text
+
+
+def test_legacy_history_route_still_requires_its_permission(db, client):
+    permissions(db, 'talent_programs.view')
+    assert client.get('/talent/reviews').status_code == 403
+
+
+def test_primary_talent_navigation_lists_only_current_workflow_views():
+    import ui_shell
+    import inspect
+    source = inspect.getsource(ui_shell)
+    assert '"label": "Talent Review"' not in source
+    assert '"href": "/talent/reviews"' not in source
+    for label in ('Student Assessments', 'Results & Analytics', 'Programs', 'Overview'):
+        assert f'"label": "{label}"' in source

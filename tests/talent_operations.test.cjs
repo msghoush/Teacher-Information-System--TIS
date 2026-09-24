@@ -74,7 +74,9 @@ test('Talent Review includes every completed assessment and keeps Candidate sepa
   assert.match(root.innerHTML,/Omar/);
   assert.match(root.innerHTML,/Overall Program Result 4\.2 out of 5/);
   assert.doesNotMatch(root.innerHTML,/Meets criteria|No candidate/);
-  assert.match(root.innerHTML,/Review status/);
+  // Acceptance B: this route is now the explicitly labeled legacy history view.
+  assert.match(root.innerHTML,/Legacy review status/);
+  assert.match(root.innerHTML,/Legacy Review &amp; Identification History/);
   assert.match(root.innerHTML,/review_id=9/);
   assert.match(root.innerHTML,/review_id=10/);
 });
@@ -91,11 +93,11 @@ test('opening one Talent Review assessment shows result and separate human decis
     }};
   await withWindow(()=>render(ctx));
   assert.doesNotMatch(root.innerHTML,/<table class="tp-compact-table/);
-  assert.match(root.innerHTML,/Back to Talent Review/);
+  assert.match(root.innerHTML,/Back to Legacy Review &amp; Identification History/);
   assert.match(root.innerHTML,/Overall Program Result 4\.4 out of 5/);
   assert.doesNotMatch(root.innerHTML,/Meets configured criteria/);
-  assert.match(root.innerHTML,/Review status/);
-  assert.match(root.innerHTML,/Official Identification remains a separate authorized human decision/);
+  assert.match(root.innerHTML,/Legacy review status/);
+  assert.match(root.innerHTML,/preserved legacy history for audit only/);
 });
 
 function assessmentApi(overrides={}) {

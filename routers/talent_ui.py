@@ -20,9 +20,12 @@ VIEWS = {
     "programs": ("Programs", "talent_programs.view"),
     "evaluation-plans": ("Evaluation Plan", "talent_evaluation_plans.view"),
     "assessments": ("Student Assessments", "talent_assessments.view"),
-    # User-facing label is "Talent Review"; backend permission key and route
-    # segment stay "review_candidates"/"reviews" for deterministic/audit continuity.
-    "reviews": ("Talent Review", "talent_review_candidates.view"),
+    # Acceptance B: Review Candidate / Official Identification are legacy history,
+    # no longer part of the current workflow (Student -> Program -> Assessment ->
+    # automatic Classification). The route stays reachable (same permission gate)
+    # for audit, labeled as legacy history and removed from primary navigation;
+    # the backend permission key and "reviews" route segment are unchanged.
+    "reviews": ("Legacy Review & Identification History", "talent_review_candidates.view"),
     "learner-profile": ("Learner Profile", "talent_learner_profiles.view"),
     "analytics": ("Organization Overview", "talent_analytics.view"),
     "talent-map": ("Talent Map", "talent_analytics.view"),

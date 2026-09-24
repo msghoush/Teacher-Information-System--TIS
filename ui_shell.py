@@ -477,7 +477,6 @@ def _build_nav_items(
                 {"label": "Overview", "href": "/talent/overview", "icon": "dashboard", "allowed": True},
                 {"label": "Programs", "href": "/talent/programs", "icon": "degree", "allowed": can("talent_programs.view")},
                 {"label": "Student Assessments", "href": "/talent/assessments", "icon": "exam", "allowed": can("talent_assessments.view")},
-                {"label": "Talent Review", "href": "/talent/reviews", "icon": "clipboard-check", "allowed": can("talent_review_candidates.view")},
                 {"label": "Results & Analytics", "href": "/talent/analytics", "icon": "insights", "allowed": can("talent_analytics.view")},
             ]
             nav_item["children"] = [

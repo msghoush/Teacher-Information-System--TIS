@@ -1,11 +1,28 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.7
+documentation_version: 4.8
 last_updated: 2026-09-24
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Current Workflow Correction (Deployment Acceptance Correction B, 2026-09-24)
+
+Read before touching Talent Student surfaces. The current workflow ends in the
+automatic backend Classification; Exceptional is the only Talented state.
+Review Candidate / Official Identification are legacy history: do not
+reintroduce them as navigation peers, roster columns/actions, filters, current
+Student status, or Talented determinants (use "Legacy Review & Identification
+History", `/talent/reviews`, only). Render Students through
+`TalentStudentIdentity` (name + Learning Style + Classification + Talented) -
+never re-derive a band client-side, never call a per-Student Learning Style or
+classification endpoint, and take Learning Style from the existing authorized
+projection (`context.student_learning_style`, eligible-students
+`learning_style`, learner-profile `student.learning_style`, Student Drill
+`learning_style`). Applicable current result = `completed` AND `is_current`.
+Web Service only; not deployed. Acceptance C (Learning Style aggregates) and D
+(assessment entry editor) remain open.
 
 ## Talent & Potential Runtime Loading Reliability (Deployment Acceptance Correction A, 2026-09-24)
 

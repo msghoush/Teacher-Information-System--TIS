@@ -270,11 +270,25 @@ def assessments_list(request: Request, cycle_id: int | None = Query(None), db: S
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
     contexts = authorized_contexts(db, group_id, rows)
-    return [_with_actions(db, user, row, {
-        **assessment_payload(row),
-        "context": contexts[row.id],
-        "overall_result": overall_program_result(db, row),
-    }) for row in rows]
+    payloads = []
+    for row in rows:
+        overall = overall_program_result(db, row)
+        payload = {**assessment_payload(row), "context": contexts[row.id], "overall_result": overall}
+        # Acceptance B: the roster shows the backend automatic Classification for
+        # the current Completed Assessment. The Overall Program Result computed
+        # above is reused (overall=) so it is never recomputed per row; the band
+        # authority stays talent_classification_service. Historical (non-current),
+        # in-progress and not-started rows carry no classification.
+        classification = (
+            assessment_classification(db, row, overall=overall)
+            if row.status == "completed" and bool(getattr(row, "is_current", True)) else None
+        )
+        available = bool(classification and classification.get("available"))
+        payload["classification"] = classification.get("classification") if available else None
+        payload["classification_score"] = classification.get("classification_score") if available else None
+        payload["is_talented"] = bool(available and classification.get("is_talented"))
+        payloads.append(_with_actions(db, user, row, payload))
+    return payloads
 
 
 @router.get("/{assessment_id}")

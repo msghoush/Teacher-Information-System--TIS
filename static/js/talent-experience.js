@@ -163,18 +163,6 @@
     wrap.addEventListener('change',apply); apply();
   }
 
-  function addReviewIdentificationFilter(scope) {
-    if(!scope?.querySelector||document.getElementById('tp-identification-filter')) return;
-    const table=[...scope.querySelectorAll('table')].find(node=>/Official Identification/i.test(node.querySelector('thead')?.textContent||'')); if(!table)return;
-    const heads=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim().toLowerCase()),index=heads.findIndex(v=>v.includes('official identification')); if(index<0)return;
-    const rows=[...table.querySelectorAll('tbody tr')];
-    rows.forEach(row=>{const text=row.children[index]?.textContent?.trim().toLowerCase()||'';row.dataset.identificationClass=/not identified/.test(text)?'not_identified':/identified/.test(text)?'identified':'undecided';});
-    const wrap=document.createElement('div');wrap.id='tp-identification-filter';wrap.className='tp-local-filterbar tp-review-identification-filter';
-    wrap.innerHTML='<label>Identification Classification<select><option value="">All Classifications</option><option value="identified">Identified</option><option value="not_identified">Not Identified</option><option value="undecided">Not yet decided</option></select></label><span class="tp-local-filter-count" aria-live="polite"></span>';
-    table.closest('.tp-table-wrap')?.before(wrap);const select=wrap.querySelector('select');
-    const apply=()=>{let visible=0;rows.forEach(row=>{const show=!select.value||row.dataset.identificationClass===select.value;row.hidden=!show;if(show)visible++;});wrap.querySelector('.tp-local-filter-count').textContent=`${visible} Student${visible===1?'':'s'} shown`;};select.addEventListener('change',apply);apply();
-  }
-
   function magnitudeBucket(value) {
     const n=Number(value); if(!Number.isFinite(n)) return 0;
     const p=Math.max(0,Math.min(100,n)); return p<20?1:p<40?2:p<60?3:p<80?4:5;
@@ -190,30 +178,12 @@
     });
   }
 
-  function clarifyAnalyticsEmptyStates(scope) {
-    if (!scope?.querySelector) return;
-    const identified = scope.querySelector('.tp-primary-indicator');
-    const identifiedState = identified?.querySelector('.tp-radial-state .tp-protected');
-    if (identifiedState && /no data/i.test(identifiedState.textContent || '')) {
-      identifiedState.textContent = 'No Official Identification result yet';
-      const bodyCopy = identified.querySelector('.tp-primary-indicator-body > p');
-      if (bodyCopy && !bodyCopy.dataset.tpClarified) {
-        bodyCopy.dataset.tpClarified = 'true';
-        bodyCopy.insertAdjacentText(
-          'beforeend',
-          ' Assessed Students are not automatically Officially Identified; that decision is recorded separately in Talent Review.'
-        );
-      }
-    }
-
-    scope.querySelectorAll('.tp-fact-strip > span').forEach(item => {
-      if (!/Meets Program Criteria/i.test(item.textContent || '')) return;
-      const value = item.querySelector('b .tp-protected, b');
-      if (value && /no data/i.test(value.textContent || '')) {
-        value.textContent = 'No Program Criteria result yet';
-      }
-    });
-  }
+  // Acceptance B: the former legacy Review/Identification
+  // empty-state rewrites are removed - those legacy concepts are no longer part of
+  // the current Talent workflow, and the current Talented section carries its own
+  // explicit backend-driven copy. Kept as a no-op so existing callers and the
+  // exported surface stay stable.
+  function clarifyAnalyticsEmptyStates(_scope) {}
 
   function programOptionsFromGlobalSelect() {
     if (typeof document === 'undefined') return [];
@@ -410,7 +380,6 @@
       restoreDisclosureState(scope, rememberedDisclosureState);
       cleanupAssessmentContexts(scope);
       addAssessmentRosterFilters(scope);
-      addReviewIdentificationFilter(scope);
       clarifyAnalyticsEmptyStates(scope);
       applyAnalyticsMagnitudeColors(scope);
       ensureRubricSection(scope).catch(() => {});
