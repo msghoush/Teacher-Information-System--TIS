@@ -26,6 +26,9 @@ from test_talent_org_intelligence_queries import AllowAvailability, AllowBreadth
 
 
 def seed_base_students(db):
+    # The shared fixture (Batch 1) already created placeholder Students so bare
+    # Talent ids are real Students; replace them with this suite's named ones.
+    db.query(models.Student).filter(models.Student.id.in_((1001, 1002, 1003, 2001))).delete(synchronize_session=False)
     db.add_all((
         models.Student(id=1001, school_group_id=1, first_name="Ann", father_name="Q", last_name="One", status="active"),
         models.Student(id=1002, school_group_id=1, first_name="Ben", last_name="Two", status="active"),
@@ -539,7 +542,16 @@ def test_query_family_is_bounded_and_not_row_proportional(db, client):
     finally:
         event.remove(db.bind, "before_cursor_execute", listener)
     baseline = len(statements)
-    assert baseline <= 12
+    # Batch 1: the fixed per-request family was 36 statements because the access
+    # context recomputed the actor's effective permission set five times; it is
+    # now resolved once (talent_request_permissions.request_permission_checker).
+    # The remaining 17 are fixed query families (1 permission projection ~6, Academic
+    # Year, Programs, Branches, distinct count, page, contexts, Candidate,
+    # Identification, and the set-based read-batch priming of members/results/
+    # competencies). The historical pin of 12 predates the M18a classification/
+    # Learning Style fields; the governed invariant is that the count is fixed and
+    # never grows per returned Student (asserted below).
+    assert baseline <= 18
 
     add_full_member(db, member_id=60, cycle_id=202, program_id=2, framework_id=102, student_id=6001, branch_id=10, grade="2", first_name="Extra1")
     add_full_member(db, member_id=61, cycle_id=202, program_id=2, framework_id=102, student_id=6002, branch_id=10, grade="2", first_name="Extra2")

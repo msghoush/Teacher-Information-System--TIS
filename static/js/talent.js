@@ -26,8 +26,12 @@
     : (typeof window !== 'undefined' && window.TalentStudentIdentity) || null;
   const labels = {
     programs_configured:'Programs configured', active_programs:'Active Programs',
-    frozen_eligible_memberships:'Students participating', frozen_eligible:'Students participating',
-    completed:'Assessed', completion_coverage:'Assessment completion',
+    // Batch 1: "Students participating" is DISTINCT current Students only (the
+    // backend `distinct_students` figure). The frozen-membership counts are one row
+    // per Student per Cycle/Program, so they are labelled as participations.
+    distinct_students:'Students participating',
+    frozen_eligible_memberships:'Program participations', frozen_eligible:'Program participations',
+    completed:'Assessments completed', completion_coverage:'Assessment completion',
     assessment_started:'Assessments started', started_coverage:'Assessments started coverage',
     required_period_execution:'Required evaluations run',
     // Acceptance B: the legacy Review Candidate / Official Identification metric
@@ -324,7 +328,7 @@
         return `<div class="tp-matrix-cell tp-overlap-cell${diagonal?' tp-overlap-diagonal':''}${cls}" role="gridcell" tabindex="0" aria-label="${esc(meaning)}. ${state==='visible'?'Visible count':states[state]||'Not available'}">${metric(cell)}<small>${esc(diagonal?'In this Program':'In both Programs')}</small>${diagonal&&programHref?programHref(program):''}</div>`;
       }).join('')}</div>`;
     }).join('');
-    return `<div class="tp-matrix-wrap"><div class="tp-matrix" role="grid" aria-label="Students participating across Programs" style="grid-template-columns:190px repeat(${count-1},minmax(150px,1fr))">${header}${rows}</div></div>`;
+    return `<div class="tp-matrix-wrap"><div class="tp-matrix" role="grid" aria-label="Distinct Students participating across Programs" style="grid-template-columns:190px repeat(${count-1},minmax(150px,1fr))">${header}${rows}</div></div>`;
   }
   function periodVisual(data) {
     const path=data.points?.length?`<div class="tp-period-path" role="list" aria-label="Evaluation sequence">${data.points.map((point,index)=>`${index?'<span aria-hidden="true">→</span>':''}<strong role="listitem">${esc(point.evaluation_period.label)}</strong>`).join('')}</div>`:'';
@@ -452,7 +456,7 @@
     const branchSection = branchRows.length
       ? `<div class="tp-section-heading"><div><p class="tp-eyebrow">Branches</p><h3>Talented rate by Branch</h3></div><p>Each Branch value is the backend's own raw Talented/applicable count. The Organization value above sums every Branch's raw counts - it is never an average of these Branch rates.</p></div>${branchChart}`
       : '';
-    return `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) Students</h3></div></div><div class="tp-primary-indicator-body">${gauge}${context}<p>Talented is the current, automatic Exceptional classification of a completed assessment. Preserved Legacy Review &amp; Identification History is separate audit history and is not part of this current figure.</p></div>${branchSection}${data.not_currently_classifiable_count ? note(`${data.not_currently_classifiable_count} completed assessment(s) use a Program rubric that cannot currently be classified and are excluded from this rate.`) : ''}</section>`;
+    return `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) results</h3></div></div><div class="tp-primary-indicator-body">${gauge}${context}<p>Talented is the current, automatic Exceptional classification of a completed assessment. Preserved Legacy Review &amp; Identification History is separate audit history and is not part of this current figure.</p></div>${branchSection}${data.not_currently_classifiable_count ? note(`${data.not_currently_classifiable_count} completed assessment(s) use a Program rubric that cannot currently be classified and are excluded from this rate.`) : ''}</section>`;
   }
   // Small pure boundary exported for privacy and injection regression tests.
   if (typeof module !== 'undefined' && module.exports) module.exports = {metric, esc, heatBucket, matrix, matrixCellHtml, matrixLegend, lede, initials, badge, table, cards, progressVisual, kpiCard, radialGauge, gradeBars, gradeGauges, branchBars, branchComparisonMetricOptions, branchMetricValue, branchComparisonChart, rubricDistribution, rubricLevelIntensity, friendlyReason, overlapMatrix, periodVisual, errorPanel, resolveProgramSelection, bucketBars, bucketTable, distributionSection, learningStyleDistributionSection, talentedSection, boundedRequest, safeMessage, sectionErrorHtml, sectionLoadingHtml, slotHtml, REQUEST_TIMEOUT_MS};
@@ -487,6 +491,27 @@
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map(), activeSections = null;
   const can = key => permissions[key] === true;
   const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
+  // Batch 1 (global Branch context). The sidebar "Change Branch / Campus" selector
+  // sets the active application Branch; the server validates it and renders it as
+  // config.branch. It is the workspace's DEFAULT Branch scope on every Student-data
+  // view. Only a convenience: each API still authorizes its own explicit branch_id.
+  const activeBranch = config.branch!=null && config.branch!=='' ? String(config.branch) : '';
+  const BRANCH_SCOPED_VIEWS = ['overview','assessments','reviews','analytics','talent-map','portfolio','branch','overlap','students','longitudinal'];
+  function reconcileBranchScope() {
+    if(!BRANCH_SCOPED_VIEWS.includes(config.view)) return;
+    // A URL minted under a DIFFERENT active Branch (another tab, restored history,
+    // bookmark) must never override the current global Branch: drop its Branch and
+    // every Branch-dependent selection (Grade, Section) so no stale scope survives.
+    const marker=params.get('scope_branch_id');
+    if(marker!==null && marker!==activeBranch) ['branch_id','grade_level','planning_section_id','branch_scope','offset'].forEach(key=>params.delete(key));
+    if(activeBranch) params.set('scope_branch_id',activeBranch); else params.delete('scope_branch_id');
+    // Default to the active Branch unless the user explicitly chose "All Branches".
+    if(params.get('branch_id')) params.delete('branch_scope');
+    else if(activeBranch && params.get('branch_scope')!=='all') params.set('branch_id',activeBranch);
+    // Persist the reconciled scope so every consumer that reads the URL (for
+    // example talent-experience.js) sees the same Branch this script requests.
+    try { history.replaceState(null,'',`${location.pathname}?${params}${location.hash||''}`); } catch { /* bookkeeping only */ }
+  }
   const link = (view, text, extra={}) => `<a target="_self" href="/talent/${view}?${esc(qs({academic_year_id:year.value,...extra}))}">${esc(text)} →</a>`;
   function syncNavigation() {
     // Top-level Talent navigation is a context reset boundary. Moving from a
@@ -508,6 +533,7 @@
         academic_year_id:year.value,
         program_id:params.get('program_id'),
         branch_id:params.get('branch_id'),
+        branch_scope:params.get('branch_scope'),
         grade_level:params.get('grade_level'),
         planning_section_id:params.get('planning_section_id'),
         metric:params.get('metric'),
@@ -629,18 +655,21 @@
       // a second top-level entry point duplicating that configuration.
       const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
       const yearLabel=esc(year.options[year.selectedIndex]?.textContent || '');
+      const scopedBranchId=params.get('branch_id');
+      const scopedBranchName=scopedBranchId&&String(scopedBranchId)===activeBranch?config.branchName:(branch.options?.find?.(o=>String(o.value)===String(scopedBranchId))?.textContent||'');
+      const branchLabel=scopedBranchId&&scopedBranchName?` · ${esc(scopedBranchName)}`:'';
       // The page shell (hero copy + action cards) never waits on organization
       // analytics: the headline figures are an independent section with their own
       // loading, empty, unavailable and error states.
       const headlineHtml=can('talent_analytics.view')
         ? slotHtml('tp-hero-stats','headline figures','tp-hero-stats')
         : '<div class="tp-hero-stats"><p class="tp-empty">Headline analytics require the Organization Analytics permission.</p></div>';
-      const hero=`<div class="tp-hero"><p class="tp-eyebrow">Academic Year ${yearLabel}</p><h3>Where Talent &amp; Potential stands right now</h3><p>A privacy-safe, factual snapshot of configured Programs and authorized analytics for this Academic Year. Every figure below is exactly what the backend returns - nothing is inferred or estimated here.</p>${headlineHtml}</div>`;
+      const hero=`<div class="tp-hero"><p class="tp-eyebrow">Academic Year ${yearLabel}${branchLabel}</p><h3>Where Talent &amp; Potential stands right now</h3><p>A privacy-safe, factual snapshot of configured Programs and authorized analytics for this Academic Year. Every figure below is exactly what the backend returns - nothing is inferred or estimated here.</p>${headlineHtml}</div>`;
       if (can('talent_analytics.view')) {
         const sections=createSections(run,signal);
         sections.add({id:'tp-hero-stats',label:'headline figures',keys:['overview'],build:async()=>{
-          const overview=await sections.request('overview',`organization-analytics/overview?${qs({academic_year_id:ay})}`);
-          const headline=['programs_configured','active_programs','frozen_eligible_memberships','completion_coverage'].filter(k=>overview.metrics && Object.hasOwn(overview.metrics,k));
+          const overview=await sections.request('overview',`organization-analytics/overview?${qs({academic_year_id:ay,branch_id:params.get('branch_id')})}`);
+          const headline=['programs_configured','active_programs','distinct_students','frozen_eligible_memberships','completion_coverage'].filter(k=>overview.metrics && Object.hasOwn(overview.metrics,k));
           return headline.length ? headline.map(k=>`<div class="tp-hero-stat"><span class="tp-stat-label">${esc(labels[k]||human(k))}</span><span class="tp-stat-value">${metric(overview.metrics[k])}</span></div>`).join('') : '<p class="tp-empty">No headline figures are available for this Academic Year yet.</p>';
         }});
         registerSections(sections);
@@ -710,7 +739,9 @@
       const mapReq=()=>request('map',`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_branch'})}`);
       const gradeMapReq=()=>request('gradeMap',`${base}talent-map?${qs({...common,metric:overviewMetric,dimension:'program_grade'})}`);
       const rubricReq=()=>{
-        const pending=request('rubric',`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?assessment_state=completed`);
+        const rubricBranch=params.get('branch_id');
+        if(rubricRequest && typeof rubricRequest.setBranch==='function') rubricRequest.setBranch(rubricBranch);
+        const pending=request('rubric',`analytics/programs/${encodeURIComponent(pid)}/academic-years/${encodeURIComponent(ay)}/rubric-distribution?${qs({assessment_state:'completed',branch_id:rubricBranch})}`);
         // Publish the single authoritative read so talent-experience.js reuses it
         // for the same Program + Academic Year + assessment_state context instead of
         // issuing a duplicate request. talent.js remains the sole request owner.
@@ -743,7 +774,7 @@
       }});
       const talentedIndicator=pid
         ? slotHtml('tp-talented-slot','current Talent results')
-        : `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) Students</h3></div></div>${empty('Choose one Program to see its current Talented (Exceptional) rate.')}</section>`;
+        : `<section aria-labelledby="tp-talented-title" class="tp-primary-indicator"><div class="tp-section-heading"><div><p class="tp-eyebrow">Current Talent</p><h3 id="tp-talented-title">Talented (Exceptional) results</h3></div></div>${empty('Choose one Program to see its current Talented (Exceptional) rate.')}</section>`;
       if(pid)sections.add({id:'tp-talented-slot',label:'current Talent results',keys:['talented'],build:async()=>{
         const talentedData=await talentedReq();
         const branchNames=await branchNamesFrom();
@@ -807,7 +838,7 @@
         // page - see the talentedSection() below for the full rate/denominator/
         // per-Branch detail.
         const talentedSummary=pid&&talentedData&&talentedData.organization&&talentedData.organization.distribution&&talentedData.organization.distribution.state==='visible'&&typeof talentedData.organization.summary?.talented_count==='number'
-          ? `<span><b>${number(talentedData.organization.summary.talented_count)}</b>Talented (Exceptional) Students</span>` : '';
+          ? `<span><b>${number(talentedData.organization.summary.talented_count)}</b>Talented (Exceptional) results</span>` : '';
         return `<div class="tp-kpi-grid">${rateKpis.map(k=>kpiCard(k,m[k],k==='completion_coverage'?`/talent/portfolio?${qs({academic_year_id:ay})}`:'' )).join('')}</div><div class="tp-fact-strip">${talentedSummary}${factKpis.map(k=>`<span><b>${metric(m[k])}</b>${esc(labels[k]||human(k))}</span>`).join('')}</div>`;
       }});
       const branchVisual=pid?slotHtml('tp-branch-comparison-slot','Branch comparison'):empty('Choose one Program to compare its Branch results.');
@@ -972,7 +1003,12 @@
     try {
       params.set('academic_year_id',year.value);
       if(!program.parentElement.hidden){program.value?params.set('program_id',program.value):params.delete('program_id');}
-      if(!branch.parentElement.hidden){branch.value?params.set('branch_id',branch.value):params.delete('branch_id');}
+      if(!branch.parentElement.hidden){
+        // A chosen Branch replaces the default; the blank option is an explicit "All Branches".
+        if(branch.value){params.set('branch_id',branch.value);params.delete('branch_scope');}
+        else{params.delete('branch_id');params.set('branch_scope','all');}
+      }
+      if(BRANCH_SCOPED_VIEWS.includes(config.view)){if(activeBranch)params.set('scope_branch_id',activeBranch);else params.delete('scope_branch_id');}
       if(!grade.parentElement.hidden){grade.value?params.set('grade_level',grade.value):params.delete('grade_level');}
       if(!section.parentElement.hidden){section.value?params.set('planning_section_id',section.value):params.delete('planning_section_id');}
       if(!metricSelect.parentElement.hidden)params.set('metric',metricSelect.value);
@@ -1062,6 +1098,7 @@
     if(!grade.parentElement.hidden)await refreshPlanningGrades();
   }
   async function init() {
+    reconcileBranchScope();
     if(config.view==='learner-profile'||params.has('assessment_id'))form.hidden=true;
     if (params.has('academic_year_id') && [...year.options].some(o=>o.value===params.get('academic_year_id'))) year.value=params.get('academic_year_id');
     const metricViews=['talent-map','longitudinal'];
@@ -1086,7 +1123,7 @@
     // individually bounded and boot proceeds after INIT_CONTEXT_DEADLINE_MS at the
     // latest. A lookup that fails simply leaves its selector at its neutral default.
     const planningContext=async()=>{
-      if(['talent-map','overlap','longitudinal','students','reviews'].includes(config.view)) {
+      if(['overview','assessments','analytics','portfolio','talent-map','overlap','longitudinal','students','reviews'].includes(config.view)) {
         document.getElementById('tp-branch-field').hidden=false;
         await refreshPlanningBranches();
       }

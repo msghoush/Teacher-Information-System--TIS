@@ -228,7 +228,10 @@ test('talentedSection renders the backend Talented (Exceptional) rate and count,
   // The proof case from M18b-1: Branch A 50% + Branch B 10% must never be
   // averaged into 30% anywhere in this rendered Organization figure.
   assert.doesNotMatch(html, />30%|width:30%/);
-  assert.match(html, /Talented \(Exceptional\) Students/);
+  // Batch 1: the count is current completed assessment RESULTS (one per Student per
+  // Evaluation Period), not distinct Students, so the card never calls it Students.
+  assert.match(html, /Talented \(Exceptional\) results/);
+  assert.doesNotMatch(html, /Talented \(Exceptional\) Students/);
   assert.doesNotMatch(html, /Officially Identified|Official Identification is a separate/);
 });
 
@@ -372,7 +375,7 @@ test('legacy Review/Identification metrics are absent from the Results & Analyti
   // The separate current-Talented summary fact is sourced only from the
   // already-fetched backend Talented family (never a second client-derived
   // gauge/percentage) and is explicitly labeled with its Exceptional relation.
-  assert.match(source, /Talented \(Exceptional\) Students<\/span>/);
+  assert.match(source, /Talented \(Exceptional\) results<\/span>/);
   assert.doesNotMatch(source, /talentedSummary[\s\S]{0,200}radialGauge/);
 });
 

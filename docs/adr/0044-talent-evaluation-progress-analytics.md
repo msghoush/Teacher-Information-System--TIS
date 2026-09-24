@@ -244,3 +244,16 @@ Learning Style distribution only: it is authorized Student-domain aggregation,
 denominator including Unassigned, with no Talent small-cell suppression. This
 ADR's own Evaluation Progress metrics and their Cell/Group suppression are
 unchanged.
+
+## Batch 1 Amendment (2026-09-24): Distinct-Student Headline And Current-Student Reads
+
+Owner rule: current Talent figures use only Students that currently exist. This ADR's
+population queries (`population_query`, and the M10 `frozen_membership_query`) now
+require the Student to exist in the same SchoolGroup, and the Evaluation Progress
+Branch/Organization result reads do the same. The Overview headline for "Students" is
+the DISTINCT-Student count published through the existing B2 pipeline at class P2 using
+the existing `student_drill_population`/`count`/`distinct_student` coordinate in the
+`overview` projection family only (no new `MetricCode`, no new `MembershipGrain`; the
+B9 P7 Student Drill gate and its identification rules are unchanged). Membership-grain
+metrics (`frozen_eligible`, `completed`, coverage) keep their definitions and
+denominators; only their user-facing labels changed to state their grain.

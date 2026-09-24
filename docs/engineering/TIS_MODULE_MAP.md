@@ -7,6 +7,26 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent current-Student, read-batch and permission helpers (Deployment Acceptance Batch 1, 2026-09-24)
+
+- `talent_current_students.py`: `current_student_exists` (correlated EXISTS, same
+  SchoolGroup) composed into `talent_analytics_service.population_query`,
+  `talent_org_intelligence_service.frozen_membership_query`, the Evaluation Progress
+  Branch reads and `list_assessments`.
+- `talent_read_batch.py`: opt-in request-scoped memoization (`read_batch(db)`,
+  `memo`, `prime`) stored in `Session.info`; used by the Assessments list,
+  classification/Talented families, Student Drill rows and Evaluation Progress
+  Branch results via `talent_student_assessment_service.prime_assessment_batch`.
+- `talent_request_permissions.py`: `request_permission_checker` (effective permission
+  set resolved once per request; used by the M10 access context, the Assessments list
+  and Evaluation Plans) and `branch_in_authorized_scope`.
+- `student_academic_service.STUDENT_OWNED_MODELS`: the ten Student-owned tables
+  deleted by `force_delete_student_history`, locked to ORM metadata by
+  `tests/test_student_delete_completeness_batch1.py`.
+- `routers/talent_ui.py`: renders `tp-config.branch` (validated active Branch) and
+  `talent_asset_version` content-hash asset URLs; `templates/talent/workspace.html`
+  carries the inline loader watchdog.
+
 ## Learning Style distribution boundary (Deployment Acceptance Correction C, 2026-09-24)
 
 `student_learning_style_analytics.py` is the single engine for the Learning Style

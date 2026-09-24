@@ -279,21 +279,28 @@
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
+    // The roster is scoped to the selected/active Branch (Batch 1); with no Branch
+    // scope the URL is exactly the pre-existing organization-wide roster URL.
+    const rosterBranchQuery=query({branch_id:params.get('branch_id')});
+    const eligibleUrl=id=>`/api/talent/assessment-cycles/${id}/eligible-students${rosterBranchQuery?`?${rosterBranchQuery}`:''}`;
     const [allRows,cycles,programs,plans,explicitEligible]=await Promise.all([
-      api(`/api/talent/assessments?${query({})}`),
+      // Server-side Academic Year + Program scope: the Student Assessments page only
+      // ever renders this Year/Program, so it must not download and derive results
+      // for every Assessment in the organization (Batch 1 loading root cause).
+      api(`/api/talent/assessments?${query({academic_year_id:year,program_id:pid})}`),
       api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`),
       can('talent_programs.view')?api('/api/talent/programs').catch(()=>[]):Promise.resolve([]),
       can('talent_evaluation_plans.view')
         ?api(`/api/talent/evaluation-plans?${query({program_id:pid,academic_year_id:year})}`).catch(()=>[])
         :Promise.resolve([]),
-      cycleId?api(`/api/talent/assessment-cycles/${cycleId}/eligible-students`).catch(()=>null):Promise.resolve(null),
+      cycleId?api(eligibleUrl(cycleId)).catch(()=>null):Promise.resolve(null),
     ]);
     const rows=allRows.filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
     const currentRows=rows.filter(r=>r.is_current!==false);
     const programById=new Map(programs.map(item=>[String(item.id),item]));
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
     const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
-    const eligible=explicitEligible || (cycle&&!cycleId?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null);
+    const eligible=explicitEligible || (cycle&&!cycleId?await api(eligibleUrl(cycle.id)):null);
     const assessmentFor=(studentId,context)=>{
       if(!context)return null;
       const matches=currentRows.filter(r=>{

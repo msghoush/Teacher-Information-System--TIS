@@ -155,7 +155,7 @@ test('9/13. Results & Analytics: one secondary failure never erases or blocks th
   assert.match(text, /Loading grade results/);
   // unrelated sections rendered from their own successful requests
   assert.match(text, /Classification Distribution/);
-  assert.match(text, /Talented \(Exceptional\) Students/);
+  assert.match(text, /Talented \(Exceptional\) results/);
   assert.match(text, /Organization snapshot/);
   assert.match(text, /Branch comparison/);
   assert.equal(env.busy(), 'true', 'the hung grade section is still pending within its bound');

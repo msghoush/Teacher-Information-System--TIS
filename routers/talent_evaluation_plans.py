@@ -8,6 +8,7 @@ import auth
 import authorization
 from auth import get_current_user
 from dependencies import get_db
+from talent_request_permissions import request_permission_checker
 from talent_evaluation_plan_service import (
     TalentEvaluationPlanError, activate_plan, add_period, cancel_period,
     close_plan, closure_preflight, create_plan, delete_period, eligible_periods,
@@ -77,15 +78,18 @@ def _run(db, work, *, created=False):
         return JSONResponse({"detail": "Invalid evaluation planning payload.", "code": "invalid_input"}, status_code=400)
 
 
-def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=False):
+def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=False, permitted=None):
     if not _organization(user):
         return []
-    manage = auth.has_permission(db, user, "talent_evaluation_plans.manage")
-    govern = auth.has_permission(db, user, "talent_evaluation_plans.govern")
-    manage_timeline = auth.has_permission(db, user, "talent_evaluation_plans.manage_timeline")
-    select_period = auth.has_permission(db, user, "talent_evaluation_plans.select_period")
-    delete_period_perm = auth.has_permission(db, user, "talent_evaluation_plans.delete_period")
-    cycle_manage = auth.has_permission(db, user, "talent_assessment_cycles.manage")
+    # ``permitted`` is a per-serialization checker (talent_request_permissions):
+    # the effective-permission set is resolved once instead of six times per Period.
+    has = permitted or (lambda key: auth.has_permission(db, user, key))
+    manage = has("talent_evaluation_plans.manage")
+    govern = has("talent_evaluation_plans.govern")
+    manage_timeline = has("talent_evaluation_plans.manage_timeline")
+    select_period = has("talent_evaluation_plans.select_period")
+    delete_period_perm = has("talent_evaluation_plans.delete_period")
+    cycle_manage = has("talent_assessment_cycles.manage")
     if period is None:
         actions = []
         if manage and plan.status in {"draft", "active"}:
@@ -120,14 +124,16 @@ def _capabilities(db, user, plan, period=None, cycle=None, *, cycle_disclosed=Fa
     return actions
 
 
-def _serialize(db, user, plan):
-    cycle_view = auth.has_permission(db, user, "talent_assessment_cycles.view")
+def _serialize(db, user, plan, permitted=None):
+    permitted = permitted or request_permission_checker(db, user)
+    cycle_view = permitted("talent_assessment_cycles.view")
     return {
         **plan_payload(
             db, plan, include_cycles=cycle_view,
-            action_resolver=lambda p, period, cycle: _capabilities(db, user, p, period, cycle, cycle_disclosed=cycle_view),
+            action_resolver=lambda p, period, cycle: _capabilities(
+                db, user, p, period, cycle, cycle_disclosed=cycle_view, permitted=permitted),
         ),
-        "actions": _capabilities(db, user, plan),
+        "actions": _capabilities(db, user, plan, permitted=permitted),
     }
 
 
@@ -136,7 +142,8 @@ def plans_list(request: Request, program_id: int | None = Query(None), academic_
     user, group_id, denied = _authorize(request, db, current_user, "talent_evaluation_plans.view")
     if denied:
         return denied
-    return [_serialize(db, user, row) for row in list_plans(db, school_group_id=group_id, program_id=program_id, academic_year_id=academic_year_id)]
+    permitted = request_permission_checker(db, user)
+    return [_serialize(db, user, row, permitted) for row in list_plans(db, school_group_id=group_id, program_id=program_id, academic_year_id=academic_year_id)]
 
 
 @router.post("/evaluation-plans")

@@ -11,6 +11,7 @@ import authorization
 import models
 from academic_grade import format_section_display
 from talent_operational_context import student_identity_metadata
+from talent_request_permissions import branch_in_authorized_scope
 from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
@@ -155,7 +156,7 @@ def cycles_update(cycle_id: int, request: Request, payload: dict = Body(...), db
 
 
 @router.get("/{cycle_id}/eligible-students")
-def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def cycles_eligible_students(cycle_id: int, request: Request, branch_id: int | None = Query(None, gt=0), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Current assessable Students for an Evaluation context (ADR 0035).
 
     This is live Academic Placement eligibility, not a frozen roster and not a
@@ -174,6 +175,13 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
     if not organization:
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
+    if branch_id is not None:
+        # Explicit Branch scope (the Talent workspace defaults to the global active
+        # Branch). Authorized by the same backend authority as every other Branch
+        # filter: never a Branch outside the actor's tenant/authorized set.
+        if not branch_in_authorized_scope(db, user, group_id, branch_id):
+            return JSONResponse({"detail": "Branch is outside your authorized scope.", "code": "invalid_filter"}, status_code=403)
+        population = [row for row in population if row["branch_id"] == branch_id]
     names = _student_names(db, group_id, [row["student_id"] for row in population])
     identity_metadata = student_identity_metadata(db, group_id, [row["student_id"] for row in population])
     branches = _branch_names(db, group_id, [row["branch_id"] for row in population])

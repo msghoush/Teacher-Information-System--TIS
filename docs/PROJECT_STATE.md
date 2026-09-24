@@ -8,6 +8,171 @@ source_of_truth: true
 # TIS Project State
 
 
+## Deployment Acceptance Batch 1 - Data Correctness, Scope Integrity, Student Deletion And Loading (2026-09-24)
+
+**Status: implemented on `dev` only; not deployed and not merged to `master`.
+Whether production now shows the corrected figures and loads reliably needs
+production verification after a deploy; production infrastructure cannot be
+measured from the development environment. Web Service only (no worker
+contract, no timetable change) - the separate `tis-timetable-workflow`
+revision is unaffected. No schema, migration, permission or `tis.db` change.
+Frontend verified only with a DOM-stub harness and Python route/template tests;
+not exercised in a real browser.**
+
+Owner rule that governs this batch: **Talent & Potential operates from the
+Students that currently exist in TIS.** Only current Students and their valid
+current Talent data may contribute to any current Talent figure (counts,
+participation, completion, Classification, Talented, distributions,
+percentages, denominators, trends). This supersedes the M15 reading that the
+Student-vs-Talent count difference was purely a population-scope distinction:
+the headline was a different *grain*, and orphan/historical rows must never
+count.
+
+**Root cause of "Students participating = 63 while 9 Students exist".** The
+Overview headline `frozen_eligible_memberships` (labelled "Students
+participating" in `static/js/talent.js`) is the frozen-membership row count:
+`talent_org_intelligence_service.frozen_membership_query` returns one
+`TalentAssessmentCyclePopulationMember` row per Student per Cycle/Program (open
+or closed), so, for example, 9 Students spread over 7 open or closed
+Program/Cycle contexts is 63 rows (the exact production composition cannot be
+observed from the development environment; the mechanism is reproduced by
+`tests/test_talent_batch1_data_scope.py`). `MetricCode.FROZEN_ELIGIBLE` has always been defined at
+`MembershipGrain.FROZEN_MEMBERSHIP`; only the label called it Students. The
+population query also never checked that the Student still exists.
+
+**Fix.** (1) `talent_current_students.current_student_exists` (correlated
+EXISTS on the same SchoolGroup) is composed into every governed Talent
+population read: `talent_analytics_service.population_query`,
+`talent_org_intelligence_service.frozen_membership_query`, the Evaluation
+Progress Branch/Organization reads and `list_assessments`, so an orphan or
+deleted Student's row can never inflate a count, denominator or result. Student
+`status` (active/inactive) is not a Talent population filter (ADR 0039 keeps
+eligibility independent of it). (2) `/api/talent/organization-analytics/overview`
+adds `distinct_students`: DISTINCT current Students in the authorized scope
+(`talent_org_student_drill.count_distinct_students`, the existing distinct-Student
+authority, published through the same B2 privacy pipeline at class P2 using the
+existing `student_drill_population`/`count`/`distinct_student` coordinate - no new
+MetricCode or MembershipGrain; see ADR 0044 Batch 1 amendment). The overview also
+accepts an authorized `branch_id`. (3) Labels: "Students participating" is bound
+only to `distinct_students`; the membership figures are "Program
+participations"; `completed` is "Assessments completed"; the Talented card counts
+current completed assessment results, so it reads "Talented (Exceptional)
+results" (a Talented *Student* rule across several Periods would need a governed
+Period-selection rule and is not invented here).
+
+**Metric grain table** (A = distinct current Students, B = participation/
+membership rows, C = assessment/result rows):
+
+| Metric | Label before | Grain before | Label after | Grain after | Authority |
+| --- | --- | --- | --- | --- | --- |
+| Overview headline Students | "Students participating" (63) | B | "Students participating" (9) | A | `organization_overview` -> `count_distinct_students` |
+| `frozen_eligible_memberships` | "Students participating" | B | "Program participations" | B | `coverage_organization_total` |
+| `frozen_eligible` (Program card, Talent Map, Longitudinal) | "Students participating" | B | "Program participations" | B | `coverage_by_program_*`, `talent_org_talent_map` |
+| `completed` | "Assessed" | B | "Assessments completed" | B | coverage rows |
+| `completion_coverage`, `assessment_started`, `started_coverage` | unchanged | ratio/count of B | unchanged | B | valid membership denominators, deliberately unchanged |
+| `participation_overlap` diagonal | "Distinct participating Students" | A | unchanged | A | `participation_overlap_counts` |
+| Student drill list | Students | A | unchanged | A | `fetch_student_rows` |
+| Classification / Talented | "Talented (Exceptional) Students" | C | "Talented (Exceptional) results" | C | `talent_results_analytics_service` |
+| Learning Style distribution | Students | A | unchanged | A | `student_learning_style_analytics` |
+| Evaluation Period / Branch comparison | results | C | unchanged | C | `talent_evaluation_progress_service` |
+| Rubric / competency distribution | results | C | unchanged | C | `routers/talent_analytics.py` |
+
+**Student deletion completeness (exhaustive FK audit).** Ten tables carry a
+`student_id` or a foreign key to `students`: `student_academic_placements`,
+`student_audits`, `student_external_identifiers`,
+`talent_assessment_cycle_population_members`, `talent_student_assessments`,
+`talent_student_competency_results`, `talent_assessment_audits`,
+`talent_review_candidates`, `talent_official_identifications`,
+`talent_educator_inputs`; no other table reaches a Student even transitively.
+`force_delete_student_history` already removed all ten in one FK-safe transaction;
+the list is now the exported `STUDENT_OWNED_MODELS` and is locked to the ORM
+metadata by `tests/test_student_delete_completeness_batch1.py`, so a future
+Student-owned table cannot be added without being deleted. Nothing is retained
+(no historical retention store) and nothing orphaned can feed current analytics
+(the defensive EXISTS above). The permission model is unchanged: normal Delete and
+Bulk Delete stay blocked while Placement/Talent history exists
+(`students.delete`/`students.bulk_delete`); only `students.force_delete_history`
+removes Talent history. Deleting 2 of 10 Students recomputes distinct Students,
+memberships, Classification, Talented, Learning Style, roster, drill, Branch and
+Grade projections from the remaining 8 (`tests/test_talent_batch1_data_scope.py`).
+The historical `test_student_academic_foundation` ObjectDeletedError was a test
+defect (reading `.id` of a just-deleted instance), fixed in the test.
+
+**Global Branch context.** Root cause: the sidebar Branch selector only sets the
+session scope Branch; Talent never read it. All-Branch (Organization) actors got
+every Branch's Students on every Talent page unless a per-view Branch filter was
+chosen, and `/program-portfolio` silently ignored the `branch_id` the Results
+view sent. Fix: `routers/talent_ui.py` validates the active Branch (a Branch of
+the actor's tenant that they can access) and renders it as `tp-config.branch`;
+`static/js/talent.js` `reconcileBranchScope` makes it the default Branch scope of
+every Student-data view, drops any Branch/Grade/Section carried by a URL minted
+under a different active Branch (`scope_branch_id` marker), and honors an explicit
+"All Branches" choice (`branch_scope=all`). The Branch selector is available on
+Overview, Assessments, Results, Program Results, Talent Map, Students Across
+Programs, Students and Progress Over Time. Backend authority is unchanged and
+authoritative: every Branch filter is validated (a foreign-tenant or unauthorized
+Branch is rejected, never widened) - added `branch_id` to the Overview, Program
+Results (`/program-portfolio`, same authority as `/branches/{id}`) and the
+eligible-students roster, and the rubric read now carries the Branch. Residual
+risk: another already-open tab keeps its own URL scope until reloaded.
+
+**Loading / performance (fresh investigation, measured).** Confirmed causes:
+(1) per-Assessment-row N+1: `/api/talent/assessments` (no filter) re-derived
+`overall_program_result`, classification, `reassessment_requirement` and its
+Framework/rubric/descriptor snapshots, permission sets and delete probes for
+every row - 982 SQL statements for 20 rows (about 49 per row; 1,294 with 6 more
+Students) - and the Student Assessments page requested every Assessment in the
+organization then filtered client-side; (2) Results/Student Drill/Evaluation
+Progress repeated the same per-row derivation (drill 136, classification and
+Talented 74 each, branch comparison 84); (3) the access context recomputed the
+actor's permission set five times per request (overview 33, every Organization
+route 31-34 fixed statements); (4) Evaluation Plans recomputed permissions six
+times per Period (140); (5) `/api/talent/programs/summaries` raised HTTP 500 for
+any Program with an annual configuration (`annual.eligible_grade_levels` does not
+exist; the Programs page silently fell back); (6) Talent static assets had no
+cache-busting and `/static` sends no Cache-Control, so a browser could pair the
+freshly rendered no-store page with a script copy from an earlier deployment (the
+mixed-version state the earlier loader hardening cannot cover). After the fix
+(same dataset): assessments 111, drill 24, classification 20, Talented 20, branch
+comparison 30, overview 15, evaluation plans 20 statements, and the counts no
+longer change when Students are added (guarded by
+`test_talent_list_endpoints_do_not_scale_with_the_number_of_assessment_rows`,
+which fails on the pre-fix code: 982 -> 1,294). Fix: `talent_read_batch.py`
+(opt-in, request-scoped memoization inside `with read_batch(db)` on one
+request-owned Session; inactive by default so write paths are untouched;
+discarded on exit so it can never serve data across requests or after a Student
+deletion), set-based priming of Assessment members/results,
+`talent_request_permissions.request_permission_checker` (effective permission set
+resolved once per request; per-request only, decisions identical to
+`auth.has_permission`), server-side Academic Year/Program filters on the
+Assessments list, the `summaries` fix, content-hash `?v=` versions on every
+Talent script/style, and an inline 15-second watchdog that turns a still-untouched
+server-rendered loader into an explicit "could not finish loading" error with a
+Reload button (so a script that never runs, fails to parse or is stale cannot
+leave a generic loader indefinitely). The previously known over-budget tests
+(overview 31 vs 16, Student Drill 36 vs 12) are resolved (drill's pinned ceiling
+is now 18 (fixed family of 17) with the never-row-proportional invariant kept).
+**Render capacity is not shown to be implicated:** locally each handler now costs
+tens of milliseconds and a bounded statement count; the confirmed causes are
+code-level (row-proportional queries, stale-asset mixing, one crashing route),
+and the 512 MB / 1 CPU service cannot be measured from here. Production timing
+must be confirmed after deploy.
+
+**Open owner decisions (not changed here).** (a) Non-force Delete and Bulk Delete
+remain blocked whenever Talent history exists; making an authorized delete remove
+Talent data would be a permission-model change (options: keep, add force to Bulk
+Delete under `students.force_delete_history`, or let `students.delete` cascade).
+(b) Inactive Students still count as current Students (Talent eligibility is
+status-independent, ADR 0039). (c) A distinct-Student "Talented Students" headline
+would need a governed rule for which Evaluation Period counts.
+
+Tests: `tests/test_talent_batch1_data_scope.py`,
+`tests/test_student_delete_completeness_batch1.py`,
+`tests/talent_branch_scope_and_metrics.test.cjs`, additions to
+`tests/test_talent_ui.py`, plus the shared fixture helper
+`tests/talent_test_students.py` (Talent fixtures now create real Students; older
+fixtures used bare integer ids, which are orphans under the new rule).
+
 ## Deployment Acceptance Correction D - Professional Student Assessment Editor Redesign (2026-09-24)
 
 **Status: implemented on `dev` only; frontend/CSS + tests only. Not deployed

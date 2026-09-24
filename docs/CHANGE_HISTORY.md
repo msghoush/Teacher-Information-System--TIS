@@ -7,6 +7,32 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-24 - Deployment Acceptance Batch 1: data correctness, scope integrity, Student deletion, loading
+
+- **63 vs 9.** The Overview "Students participating" figure was the frozen
+  membership row count (one per Student per Cycle/Program) and the population
+  query did not check that the Student still exists. `distinct_students` (distinct
+  current Students, existing distinct-Student authority, class P2) now backs
+  "Students participating"; membership counts are "Program participations". Every
+  governed Talent population read now requires the Student to exist
+  (`talent_current_students.py`).
+- **Student deletion.** Exhaustive FK audit: ten Student-owned tables, all removed
+  by `force_delete_student_history` (now `STUDENT_OWNED_MODELS`, locked to ORM
+  metadata by test). Permission model unchanged (normal/bulk Delete stay blocked by
+  history). Fixed the ObjectDeletedError test defect.
+- **Global Branch.** The active Branch is now the default Talent Branch scope
+  (`tp-config.branch`, `reconcileBranchScope`, stale-scope marker, explicit All
+  Branches); Overview, Program Results and the eligible-students roster accept an
+  authorized `branch_id`; backend authorization unchanged and authoritative.
+- **Loading.** Row-proportional N+1 (assessments list 982 statements for 20 rows)
+  replaced by request-scoped `read_batch` memoization and set-based priming;
+  permission set resolved once per request; Assessments page requests only its
+  Year/Program; `/programs/summaries` 500 fixed; Talent assets cache-busted by
+  content hash; inline 15 s loader watchdog. Render capacity not shown to be
+  implicated (production cannot be measured here).
+- Tests and KMS: see PROJECT_STATE. No schema, migration, permission or `tis.db`
+  change. Web Service only; not deployed.
+
 ## 2026-09-24 - Deployment Acceptance Correction D: Professional Student Assessment editor redesign
 
 - Owner-observed production screenshot: the Student Assessment editor was cramped

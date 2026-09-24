@@ -163,7 +163,7 @@ def test_3_participation_overlap_logs_pair_count_not_pair_values(db, client, cap
 
 def test_4_student_drill_telemetry_contains_no_student_identifiers(db, client, caplog):
     caplog.set_level(logging.INFO, logger=OBS_LOGGER)
-    db.add(models.Student(id=1001, school_group_id=1, first_name="Ann", last_name="One", status="active"))
+    db.merge(models.Student(id=1001, school_group_id=1, first_name="Ann", last_name="One", status="active"))
     db.commit()
     permissions(db, "talent_analytics.view", "talent_analytics.view_students")
     response = students(client[0])
@@ -177,7 +177,10 @@ def test_4_student_drill_telemetry_contains_no_student_identifiers(db, client, c
     event = events(caplog)[-1]
     assert event["outcome"] == "success"
     assert event["page_limit"] == 25
-    assert event["page_returned_count"] == 1
+    # Batch 1: the shared fixture now makes every frozen member a real Student (1001-1003),
+    # so all three distinct Students are returned (previously 1002/1003 were orphans dropped
+    # by the Student join and only 1001 was counted).
+    assert event["page_returned_count"] == 3
     assert event["has_more"] is False
     assert "total_count" not in event
 
@@ -395,7 +398,7 @@ def test_19_observability_helper_failure_cannot_release_analytics_values(db, cli
 
 def test_20_telemetry_never_contains_prohibited_fields(db, client, caplog):
     caplog.set_level(logging.INFO, logger=OBS_LOGGER)
-    db.add(models.Student(id=1001, school_group_id=1, first_name="Ann", last_name="One", status="active"))
+    db.merge(models.Student(id=1001, school_group_id=1, first_name="Ann", last_name="One", status="active"))
     db.commit()
     permissions(db, "talent_analytics.view", "talent_review_candidates.view", "talent_official_identifications.view", "talent_analytics.view_students")
     overview(client[0])

@@ -235,7 +235,9 @@ def programs_summaries(
         payload["annual"] = None if annual is None else {
             "academic_year_id": annual.academic_year_id,
             "is_enabled": annual.is_enabled,
-            "eligible_grade_levels": annual.eligible_grade_levels or [],
+            # The model stores the Grade list as a CSV column; there is no
+            # ``eligible_grade_levels`` attribute (this raised AttributeError -> 500).
+            "eligible_grade_levels": [grade for grade in (annual.eligible_grade_levels_csv or "").split(",") if grade],
         }
         payload["assessment_type"] = (
             "Numeric + rubric" if framework is not None and framework.id in numeric_frameworks

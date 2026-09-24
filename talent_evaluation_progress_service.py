@@ -86,6 +86,7 @@ from sqlalchemy.orm import Session
 
 import models
 import talent_analytics_service as svc
+from talent_current_students import current_student_exists
 from talent_analytics_privacy import (
     COARSENED,
     NO_DATA,
@@ -95,7 +96,8 @@ from talent_analytics_privacy import (
     apply_primary_privacy,
     run_complementary_suppression,
 )
-from talent_student_assessment_service import overall_program_result
+from talent_read_batch import read_batch
+from talent_student_assessment_service import overall_program_result, prime_assessment_batch
 
 
 class EvaluationProgressError(ValueError):
@@ -327,22 +329,27 @@ def _cycle_branch_results(db: Session, school_group_id: int, cycle_id: int, visi
             models.TalentStudentAssessment.evaluation_context_cycle_id,
             models.TalentStudentAssessment.cycle_id,
         ) == cycle_id,
+        current_student_exists(),  # Batch 1: never an orphan/deleted Student's result
     )
     if visible_branch_ids is not None:
         query = query.filter(models.TalentAssessmentCyclePopulationMember.branch_id.in_(visible_branch_ids or {-1}))
     per_branch = defaultdict(list)
-    for assessment, member in query.all():
-        overall = overall_program_result(db, assessment)
-        if overall is None or overall.get("available") is False:
-            continue
-        per_branch[member.branch_id].append(overall["normalized_percent"])
+    pairs = query.all()
+    # Request-scoped read memoization + set-based priming (talent_read_batch.py).
+    with read_batch(db):
+        prime_assessment_batch(db, [assessment for assessment, _ in pairs])
+        for assessment, member in pairs:
+            overall = overall_program_result(db, assessment)
+            if overall is None or overall.get("available") is False:
+                continue
+            per_branch[member.branch_id].append(overall["normalized_percent"])
     return dict(per_branch)
 
 
 def _member_branch_ids_for_cycle(db: Session, school_group_id: int, cycle_id: int, visible_branch_ids):
     rows = db.query(models.TalentAssessmentCyclePopulationMember.branch_id).filter_by(
         school_group_id=school_group_id, cycle_id=cycle_id,
-    ).distinct().all()
+    ).filter(current_student_exists()).distinct().all()
     branch_ids = {row[0] for row in rows}
     if visible_branch_ids is not None:
         branch_ids &= set(visible_branch_ids)

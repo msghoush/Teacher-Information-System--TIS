@@ -198,6 +198,17 @@
   // 25 s is far above normal latency yet ends a hung request in a visible,
   // retryable state instead of an indefinite "Loading ... rubric results" line.
   const RUBRIC_TIMEOUT_MS = 25000;
+  // Batch 1: the rubric read carries the same Branch scope talent.js resolved (the
+  // global active Branch by default, persisted in the URL by talent.js), so a
+  // Branch-scoped Results page never renders organization-wide rubric data.
+  function currentBranchId() {
+    if (rubricRequest && typeof rubricRequest.currentBranch === 'function') return rubricRequest.currentBranch() || '';
+    try { return new URLSearchParams(location.search).get('branch_id') || ''; } catch { return ''; }
+  }
+  function rubricBranchQuery() {
+    const branchId = currentBranchId();
+    return branchId ? `&branch_id=${encodeURIComponent(branchId)}` : '';
+  }
   function fetchRubric(programId, year, signal, timeoutMs = RUBRIC_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
       const local = new AbortController();
@@ -216,7 +227,7 @@
       }
       if (timeoutMs > 0) timer = setTimeout(() => { local.abort(); finish(reject, Object.assign(new Error('timeout'), {name:'TimeoutError', userSafe:true})); }, timeoutMs);
       Promise.resolve().then(() => fetch(
-        `/api/talent/analytics/programs/${encodeURIComponent(programId)}/academic-years/${encodeURIComponent(year)}/rubric-distribution?assessment_state=completed`,
+        `/api/talent/analytics/programs/${encodeURIComponent(programId)}/academic-years/${encodeURIComponent(year)}/rubric-distribution?assessment_state=completed${rubricBranchQuery()}`,
         {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal: local.signal}
       )).then(async response => {
         if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
@@ -335,7 +346,7 @@
       // section's own filter is a different context and fetches independently.
       const requestKey = (rubricRequest && typeof rubricRequest.key === 'function')
         ? rubricRequest.key(selectedId, year)
-        : `${selectedId}|${year}|completed`;
+        : `${selectedId}|${year}|completed${currentBranchId() ? `|${currentBranchId()}` : ''}`;
       const shared = !force && rubricRequest && typeof rubricRequest.get === 'function'
         ? rubricRequest.get(requestKey)
         : null;

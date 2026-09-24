@@ -29,7 +29,8 @@ from typing import Optional
 
 import models
 from talent_classification_service import assessment_classification
-from talent_student_assessment_service import overall_program_result
+from talent_read_batch import read_batch
+from talent_student_assessment_service import overall_program_result, prime_assessment_batch
 from talent_analytics_privacy import Cell, VISIBLE
 from talent_analytics_privacy_closure import apply_primary_privacy_and_close
 from talent_analytics_relationship_graph import PrivacyRelationshipGraph
@@ -284,46 +285,51 @@ def fetch_student_rows(
 
     contexts_by_student = {student.id: [] for student in students}
     seen_contexts = {student.id: set() for student in students}
-    for member, assessment in context_rows:
-        current_completed = (
-            assessment is not None
-            and assessment.status == "completed"
-            and bool(getattr(assessment, "is_current", True))
-        )
-        overall = overall_program_result(db, assessment) if current_completed else None
-        overall_present = bool(overall and overall.get("available") is True)
-        kpi_present = current_completed and assessment.kpi_result is not None
-        classification = assessment_classification(db, assessment, overall=overall) if current_completed else None
-        classification_present = bool(classification and classification.get("available") is True)
-        candidate = candidates_by_member.get(member.id) if has_candidate else None
-        identification = identifications_by_member.get(member.id) if has_identification else None
-        context = StudentDrillContext(
-            program_id=member.program_id, cycle_id=member.cycle_id,
-            branch_id=member.branch_id, grade_level=member.grade_level,
-            section_name=member.section_name,
-            assessment_state=assessment.status if assessment is not None else "unassessed",
-            overall_result_average=overall.get("average") if overall_present else None,
-            overall_result_scale_max=overall.get("scale_max") if overall_present else None,
-            overall_result_percent=overall.get("normalized_percent") if overall_present else None,
-            has_overall_result=overall_present,
-            kpi_result=assessment.kpi_result if kpi_present else None,
-            has_kpi_result=kpi_present,
-            classification=classification.get("classification") if classification_present else None,
-            classification_score=classification.get("classification_score") if classification_present else None,
-            is_talented=bool(classification_present and classification.get("is_talented")),
-            has_classification_field=classification_present,
-            candidate_state=candidate.status if candidate is not None else None,
-            has_candidate_field=has_candidate,
-            identification_state=identification.decision if identification is not None else None,
-            has_identification_field=has_identification,
-        )
-        # Acceptance B: the payload can carry nested dicts (overall_result), which are
-        # unhashable inside a tuple key and raised TypeError for any Student with a
-        # completed Program result. A canonical JSON string is a stable hashable key.
-        key = json.dumps(context.to_payload(), sort_keys=True, default=str)
-        if key not in seen_contexts[member.student_id]:
-            seen_contexts[member.student_id].add(key)
-            contexts_by_student[member.student_id].append(context)
+    # Request-scoped read memoization + set-based priming: per-row overall result /
+    # classification derivation otherwise re-reads the same Framework/rubric
+    # configuration for every context row (talent_read_batch.py).
+    with read_batch(db):
+        prime_assessment_batch(db, [assessment for _, assessment in context_rows if assessment is not None])
+        for member, assessment in context_rows:
+            current_completed = (
+                assessment is not None
+                and assessment.status == "completed"
+                and bool(getattr(assessment, "is_current", True))
+            )
+            overall = overall_program_result(db, assessment) if current_completed else None
+            overall_present = bool(overall and overall.get("available") is True)
+            kpi_present = current_completed and assessment.kpi_result is not None
+            classification = assessment_classification(db, assessment, overall=overall) if current_completed else None
+            classification_present = bool(classification and classification.get("available") is True)
+            candidate = candidates_by_member.get(member.id) if has_candidate else None
+            identification = identifications_by_member.get(member.id) if has_identification else None
+            context = StudentDrillContext(
+                program_id=member.program_id, cycle_id=member.cycle_id,
+                branch_id=member.branch_id, grade_level=member.grade_level,
+                section_name=member.section_name,
+                assessment_state=assessment.status if assessment is not None else "unassessed",
+                overall_result_average=overall.get("average") if overall_present else None,
+                overall_result_scale_max=overall.get("scale_max") if overall_present else None,
+                overall_result_percent=overall.get("normalized_percent") if overall_present else None,
+                has_overall_result=overall_present,
+                kpi_result=assessment.kpi_result if kpi_present else None,
+                has_kpi_result=kpi_present,
+                classification=classification.get("classification") if classification_present else None,
+                classification_score=classification.get("classification_score") if classification_present else None,
+                is_talented=bool(classification_present and classification.get("is_talented")),
+                has_classification_field=classification_present,
+                candidate_state=candidate.status if candidate is not None else None,
+                has_candidate_field=has_candidate,
+                identification_state=identification.decision if identification is not None else None,
+                has_identification_field=has_identification,
+            )
+            # Acceptance B: the payload can carry nested dicts (overall_result), which are
+            # unhashable inside a tuple key and raised TypeError for any Student with a
+            # completed Program result. A canonical JSON string is a stable hashable key.
+            key = json.dumps(context.to_payload(), sort_keys=True, default=str)
+            if key not in seen_contexts[member.student_id]:
+                seen_contexts[member.student_id].add(key)
+                contexts_by_student[member.student_id].append(context)
 
     built = []
     for student in students:

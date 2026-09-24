@@ -82,6 +82,16 @@ def _student(db, group=1, first="Maya", learning_style=None):
     return row
 
 
+def _without_fixture_students(db):
+    """Batch 1: the shared Talent fixture now creates placeholder Students for its bare
+    integer Talent ids; the Students-page tests assert an exact population of only the
+    Students they seed, so drop the placeholders first."""
+    db.query(models.Student).filter(
+        models.Student.first_name == "Test", models.Student.last_name.like("Student%")
+    ).delete(synchronize_session=False)
+    db.commit()
+
+
 def _place_all(db, ids):
     # The Students page is Branch-scoped by default, so the fixture Students need a current placement.
     for student_id in ids:
@@ -412,6 +422,7 @@ def test_html_students_page_renders_the_distribution_panel(db):
     from routers import students_ui
 
     permissions(db, "students.view")
+    _without_fixture_students(db)
     db.add_all([
         models.Student(id=5001, school_group_id=1, first_name="Vis", last_name="One", status="active", learning_style="Visual"),
         models.Student(id=5002, school_group_id=1, first_name="Aud", last_name="Two", status="active", learning_style="Auditory"),
@@ -474,6 +485,7 @@ def test_html_students_page_small_cohort_is_never_suppressed_and_has_no_privacy_
     from routers import students_ui
 
     permissions(db, "students.view")
+    _without_fixture_students(db)
     db.add_all([
         models.Student(id=6001, school_group_id=1, first_name="A", last_name="One", status="active", learning_style="Visual"),
         models.Student(id=6002, school_group_id=1, first_name="B", last_name="Two", status="active", learning_style="Visual"),
@@ -506,6 +518,7 @@ def test_html_students_page_empty_selection_shows_empty_state_not_zero_percent(d
     from routers import students_ui
 
     permissions(db, "students.view")
+    _without_fixture_students(db)
     app = FastAPI()
     app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(students_ui.router)

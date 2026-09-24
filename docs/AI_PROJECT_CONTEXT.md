@@ -8,6 +8,35 @@ recommended_first_read: true
 # TIS AI Project Context
 
 
+## Talent Current-Student Data Integrity, Branch Scope And Loading Cost (Deployment Acceptance Batch 1, 2026-09-24)
+
+Read before changing any Talent population query, analytics label, Student
+deletion path or the Talent workspace Branch/loader code.
+
+- **Grain discipline.** "Students" means DISTINCT current Students in the
+  authorized scope. `frozen_eligible*` counts are participations (one row per
+  Student per Cycle/Program) and are labelled "Program participations"; assessment/
+  result counts (completion, started, Classification, Talented, Period results)
+  keep their own denominators and honest labels. Never label a membership or
+  result count as Students. The 63-vs-9 defect was exactly this.
+- **Current-Student rule.** Compose `talent_current_students.current_student_exists`
+  into any new Talent population read (it is already in `population_query`,
+  `frozen_membership_query`, Evaluation Progress reads and `list_assessments`).
+  Student `status` is deliberately not a filter (ADR 0039).
+- **Deletion.** `force_delete_student_history` deletes `STUDENT_OWNED_MODELS` (ten
+  tables) in one transaction and retains nothing; a metadata test fails if a new
+  Student-referencing table is not listed. Permission gates are unchanged.
+- **Branch scope.** The active global Branch is only the workspace DEFAULT
+  (`tp-config.branch`); every API still authorizes its own `branch_id` and a foreign
+  or unauthorized Branch is rejected. `reconcileBranchScope` drops stale Branch/
+  Grade/Section from a URL minted under another active Branch.
+- **Per-row cost.** Inside `talent_read_batch.read_batch(db)` (list/aggregate
+  endpoints only) Student-independent configuration reads are memoized per request;
+  never enter it in write paths and never cache across requests. Resolve permissions
+  once per request with `talent_request_permissions.request_permission_checker`.
+- **Loader.** Talent assets are `?v=<content hash>`; an inline watchdog ends a
+  still-untouched server loader in an explicit error after 15 s.
+
 ## Student Assessment Editor Redesign (Deployment Acceptance Correction D, 2026-09-24)
 
 Read before touching `static/js/talent-operations.js` or
@@ -21,8 +50,6 @@ selected state). Presentation only: scoring, automatic Classification
 (Exceptional-only Talented), authorization and persistence are unchanged and
 still come from the backend. Structural verification only; browser visual
 acceptance is still pending.
-
-## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
 
 ## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
 

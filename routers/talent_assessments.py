@@ -15,13 +15,15 @@ from dependencies import get_db
 from student_academic_service import resolve_placement
 from talent_classification_service import assessment_classification
 from talent_operational_context import authorized_contexts, authorized_payload
+from talent_read_batch import read_batch
+from talent_request_permissions import request_permission_checker
 from talent_review_candidate_service import evaluate_review_candidate
 from talent_student_assessment_service import (
     TalentStudentAssessmentError, assessment_payload, can_delete_assessment,
     continue_empty_assessment_on_current_rubric,
     complete_assessment, competency_result_payload, delete_assessment,
-    get_assessment, list_assessments, list_competency_results,
-    mark_non_complete, overall_program_result, reassessment_requirement, remove_competency_result,
+    assessment_ids_with_dependents, get_assessment, list_assessments, list_competency_results,
+    mark_non_complete, overall_program_result, prime_assessment_batch, reassessment_requirement, remove_competency_result,
     reset_completed_assessment_for_reassessment, set_competency_result,
     start_assessment, start_assessment_for_evaluation, start_reassessment,
 )
@@ -29,14 +31,23 @@ from talent_student_assessment_service import (
 router = APIRouter(prefix="/api/talent/assessments", tags=["Talent Student Assessments"])
 
 
-def _with_actions(db, user, row, payload):
+def _with_actions(db, user, row, payload, *, permitted=None, delete_blocked_ids=None):
     """Attach a real backend-computed capability list; never a client-side guess.
 
     ADR 0034: "delete" is only offered when the Assessment actually has zero
     dependent evidence/history rows AND the actor holds talent_assessments.delete.
+
+    List callers pass a request-scoped ``permitted`` checker and a pre-computed
+    ``delete_blocked_ids`` set so the per-row cost is not 3 permission-set
+    recomputations + 4 dependent-row probes (Batch 1 loading root cause).
     """
+    if permitted is None:
+        permitted = lambda key: auth.has_permission(db, user, key)
     actions = []
-    if auth.has_permission(db, user, "talent_assessments.delete") and can_delete_assessment(db, assessment_id=row.id):
+    if permitted("talent_assessments.delete") and (
+        row.id not in delete_blocked_ids if delete_blocked_ids is not None
+        else can_delete_assessment(db, assessment_id=row.id)
+    ):
         actions.append("delete")
     newer_framework = reassessment_requirement(db, row)
     payload["reassessment"] = {
@@ -45,12 +56,12 @@ def _with_actions(db, user, row, payload):
         "framework_version_number": newer_framework.version_number if newer_framework is not None else None,
         "historical": not bool(getattr(row, "is_current", True)),
     }
-    if newer_framework is not None and auth.has_permission(db, user, "talent_assessments.manage"):
+    if newer_framework is not None and permitted("talent_assessments.manage"):
         actions.append("reassess")
     if (
         row.status == "completed"
         and bool(getattr(row, "is_current", True))
-        and auth.has_permission(db, user, "talent_assessments.reset_for_reassessment")
+        and permitted("talent_assessments.reset_for_reassessment")
     ):
         actions.append("reset_for_reassessment")
     payload["actions"] = actions
@@ -257,11 +268,16 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
 
 
 @router.get("")
-def assessments_list(request: Request, cycle_id: int | None = Query(None), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def assessments_list(request: Request, cycle_id: int | None = Query(None),
+                     academic_year_id: int | None = Query(None), program_id: int | None = Query(None),
+                     db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     user, group_id, denied = _authorize(request, db, current_user, "talent_assessments.view")
     if denied:
         return denied
-    rows = list_assessments(db, school_group_id=group_id, cycle_id=cycle_id)
+    rows = list_assessments(
+        db, school_group_id=group_id, cycle_id=cycle_id,
+        academic_year_id=academic_year_id, program_id=program_id,
+    )
     if not auth.can_access_all_branches(user):
         visible = _visible_branch_ids(db, user)
         member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
@@ -270,6 +286,16 @@ def assessments_list(request: Request, cycle_id: int | None = Query(None), db: S
         ).all()}
         rows = [row for row in rows if row.cycle_population_member_id in member_ids]
     contexts = authorized_contexts(db, group_id, rows)
+    permitted = request_permission_checker(db, user)
+    delete_blocked_ids = assessment_ids_with_dependents(db, [row.id for row in rows]) if rows else set()
+    # Request-scoped read memoization: per-row result derivation re-reads the same
+    # Framework/rubric/descriptor configuration for every row (talent_read_batch.py).
+    with read_batch(db):
+        prime_assessment_batch(db, rows)
+        return _assessment_list_payloads(db, user, rows, contexts, permitted, delete_blocked_ids)
+
+
+def _assessment_list_payloads(db, user, rows, contexts, permitted, delete_blocked_ids):
     payloads = []
     for row in rows:
         overall = overall_program_result(db, row)
@@ -287,7 +313,7 @@ def assessments_list(request: Request, cycle_id: int | None = Query(None), db: S
         payload["classification"] = classification.get("classification") if available else None
         payload["classification_score"] = classification.get("classification_score") if available else None
         payload["is_talented"] = bool(available and classification.get("is_talented"))
-        payloads.append(_with_actions(db, user, row, payload))
+        payloads.append(_with_actions(db, user, row, payload, permitted=permitted, delete_blocked_ids=delete_blocked_ids))
     return payloads
 
 

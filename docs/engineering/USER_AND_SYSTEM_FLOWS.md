@@ -7,6 +7,24 @@ source_of_truth: true
 
 # TIS User And System Flows
 
+## Student Deletion, Branch Scope And Talent Loading Flows (Deployment Acceptance Batch 1, 2026-09-24)
+
+1. **Permanent Student deletion.** `students.delete` (Organization scope) previews
+   blockers; without history the Student is deleted with its identifiers/audit.
+   With Placement/Talent history normal and bulk Delete are blocked (409); an actor
+   who also holds `students.force_delete_history` and confirms deletes the Student
+   plus all ten Student-owned tables in one transaction. Talent surfaces recompute
+   from the remaining Students; nothing is retained.
+2. **Global Branch -> Talent.** Sidebar Branch switch (`/scope/branch`, session
+   scope) -> `/talent/{view}` renders the validated active Branch as `tp-config.branch`
+   -> `reconcileBranchScope` sets `branch_id` (default), clears a stale Branch/Grade/
+   Section from a URL minted under another Branch, honors explicit `branch_scope=all`
+   -> each API validates its own `branch_id` (foreign/unauthorized rejected).
+3. **Talent page load.** Server loader (`data-server-loader`) is replaced as soon as
+   `talent.js` boots; if it is still present after 15 s the inline watchdog shows an
+   explicit error with Reload. Assets are `?v=<content hash>`. Lookups are bounded
+   (15 s each, 20 s deadline) and independent sections terminate on their own.
+
 ## Learning Style Distribution Flow (Deployment Acceptance Correction C, 2026-09-24)
 
 1. An actor with `students.view` opens the Students page panel or Results & Analytics

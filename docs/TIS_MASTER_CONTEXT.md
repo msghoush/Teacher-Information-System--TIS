@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Talent Current-Student Integrity, Branch Scope And Loading (Deployment Acceptance Batch 1, 2026-09-24)
+
+Talent & Potential counts only Students that currently exist. The Overview
+"Students participating" figure is the DISTINCT current-Student count
+(`distinct_students`); the previous 63-vs-9 discrepancy was the frozen-membership
+row count (one per Student per Cycle/Program) labelled as Students. Membership
+figures are "Program participations". Permanent Student deletion removes every
+Student-owned Talent row (ten tables, one transaction) and every current analytics
+read additionally requires the Student to exist, so an orphan can never inflate a
+figure. The active global Branch is the default Branch scope of Talent (backend
+authorization unchanged); Talent list endpoints no longer scale per Assessment row;
+Talent assets are cache-busted and a loader watchdog prevents an endless generic
+loader. See PROJECT_STATE for the metric grain table, the FK audit, measurements and
+the open owner decisions (delete permission model, inactive Students, Talented
+Student headline). Supersedes the M15 reading that the Student-vs-Talent count
+difference was only a population-scope distinction.
+
 ## Learning Style Distribution (Deployment Acceptance Correction C, 2026-09-24)
 
 Learning Style is Student-domain categorical profile data (one of eight values,

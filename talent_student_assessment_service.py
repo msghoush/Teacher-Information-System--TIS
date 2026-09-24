@@ -9,6 +9,8 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 import models
+from talent_current_students import current_student_exists
+from talent_read_batch import memo as _batch_memo, prime as _batch_prime
 from talent_assessment_cycle_service import create_cycle, population_fingerprint, population_member_payload
 
 
@@ -285,6 +287,16 @@ def start_assessment(db: Session, *, school_group_id, cycle_id,
 
 
 def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy=True):
+    # Depends only on (Framework, Grade, allow_legacy), never on a Student, so a
+    # list request that opted into ``read_batch`` derives it once per Framework/
+    # Grade instead of once per Assessment row (see talent_read_batch.py).
+    return _batch_memo(
+        db, ("semantic_snapshot", framework.id, framework.school_group_id, framework.program_id, grade, bool(allow_legacy)),
+        lambda: _assessment_semantic_snapshot_uncached(db, framework=framework, grade=grade, allow_legacy=allow_legacy),
+    )
+
+
+def _assessment_semantic_snapshot_uncached(db: Session, *, framework, grade, allow_legacy=True):
     """Student-facing assessment structure for one Framework and historical Grade.
 
     Deliberately excludes Framework version/title/supersession metadata so a
@@ -313,6 +325,23 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy
             models.TalentRubric.framework_competency_id.is_(None),
         ).one_or_none()
 
+    # Descriptors are read set-based (one query each per Framework/Grade) instead
+    # of two point lookups per Level per Competency; the (competency, level) key
+    # is unique per Framework (and Grade), so the mapping is exactly equivalent.
+    grade_descriptors = {}
+    if grade:
+        grade_descriptors = {
+            (row.framework_competency_id, row.rubric_level_id): row
+            for row in db.query(models.TalentGradeCompetencyRubricDescriptor).filter_by(
+                framework_version_id=framework.id, grade_level=grade,
+            ).all()
+        }
+    generic_descriptors = {
+        (row.framework_competency_id, row.rubric_level_id): row
+        for row in db.query(models.TalentCompetencyRubricDescriptor).filter_by(
+            framework_version_id=framework.id,
+        ).all()
+    }
     result = []
     for member in members:
         rubric = db.query(models.TalentRubric).filter_by(
@@ -328,23 +357,8 @@ def _assessment_semantic_snapshot(db: Session, *, framework, grade, allow_legacy
                 models.TalentRubricLevel.display_order,
                 models.TalentRubricLevel.id,
             ):
-                grade_descriptor = None
-                if grade:
-                    grade_descriptor = db.query(
-                        models.TalentGradeCompetencyRubricDescriptor
-                    ).filter_by(
-                        framework_version_id=framework.id,
-                        framework_competency_id=member.id,
-                        rubric_level_id=level.id,
-                        grade_level=grade,
-                    ).one_or_none()
-                generic_descriptor = db.query(
-                    models.TalentCompetencyRubricDescriptor
-                ).filter_by(
-                    framework_version_id=framework.id,
-                    framework_competency_id=member.id,
-                    rubric_level_id=level.id,
-                ).one_or_none()
+                grade_descriptor = grade_descriptors.get((member.id, level.id)) if grade else None
+                generic_descriptor = generic_descriptors.get((member.id, level.id))
                 levels.append({
                     "order": level.display_order,
                     "label": level.label,
@@ -558,52 +572,56 @@ def _same_framework_results_are_stale(db: Session, assessment, framework, grade)
     the current result must be re-evaluated even though the version number did
     not change.
     """
-    members = [
-        row for row in db.query(models.FrameworkCompetency).filter_by(
-            school_group_id=assessment.school_group_id,
-            program_id=assessment.program_id,
-            framework_version_id=framework.id,
-        ).order_by(models.FrameworkCompetency.display_order, models.FrameworkCompetency.id)
-        if not row.grade_level or str(row.grade_level) == str(grade or "")
-    ]
-    if not members:
-        return False
-
-    # Only a complete current competency-owned rubric can supersede the
-    # completed legacy binding. A still-legacy or partially configured
-    # Framework is not a valid reassessment target and must not create a false
-    # "Re-evaluation required" state.
-    current_rubrics = {}
-    current_level_ids = {}
-    for member in members:
-        rubric = db.query(models.TalentRubric).filter_by(
-            school_group_id=assessment.school_group_id,
-            program_id=assessment.program_id,
-            framework_version_id=framework.id,
-            framework_competency_id=member.id,
-        ).one_or_none()
-        if rubric is None:
-            return False
-        level_ids = {
-            row.id for row in db.query(models.TalentRubricLevel).filter_by(
+    def load_structure():
+        members = [
+            row for row in db.query(models.FrameworkCompetency).filter_by(
                 school_group_id=assessment.school_group_id,
                 program_id=assessment.program_id,
                 framework_version_id=framework.id,
-                rubric_id=rubric.id,
-            ).all()
-        }
-        if not level_ids:
-            return False
-        current_rubrics[member.id] = rubric
-        current_level_ids[member.id] = level_ids
+            ).order_by(models.FrameworkCompetency.display_order, models.FrameworkCompetency.id)
+            if not row.grade_level or str(row.grade_level) == str(grade or "")
+        ]
+        if not members:
+            return None
 
-    results = {
-        row.framework_competency_id: row
-        for row in db.query(models.TalentStudentCompetencyResult).filter_by(
-            school_group_id=assessment.school_group_id,
-            assessment_id=assessment.id,
-        ).all()
-    }
+        # Only a complete current competency-owned rubric can supersede the
+        # completed legacy binding. A still-legacy or partially configured
+        # Framework is not a valid reassessment target and must not create a false
+        # "Re-evaluation required" state.
+        current_rubrics = {}
+        current_level_ids = {}
+        for member in members:
+            rubric = db.query(models.TalentRubric).filter_by(
+                school_group_id=assessment.school_group_id,
+                program_id=assessment.program_id,
+                framework_version_id=framework.id,
+                framework_competency_id=member.id,
+            ).one_or_none()
+            if rubric is None:
+                return None
+            level_ids = {
+                row.id for row in db.query(models.TalentRubricLevel).filter_by(
+                    school_group_id=assessment.school_group_id,
+                    program_id=assessment.program_id,
+                    framework_version_id=framework.id,
+                    rubric_id=rubric.id,
+                ).all()
+            }
+            if not level_ids:
+                return None
+            current_rubrics[member.id] = rubric
+            current_level_ids[member.id] = level_ids
+        return members, current_rubrics, current_level_ids
+
+    # The Framework/Grade structure is Student-independent (memoized in a batch).
+    structure = _batch_memo(
+        db, ("stale_structure", assessment.school_group_id, assessment.program_id, framework.id, grade), load_structure,
+    )
+    if structure is None:
+        return False
+    members, current_rubrics, current_level_ids = structure
+
+    results = _assessment_results(db, assessment)
     member_ids = {row.id for row in members}
     if set(results) != member_ids:
         return True
@@ -664,14 +682,19 @@ def _framework_semantically_changed_after_completion(db: Session, assessment, fr
     if completed_at is None:
         return False
 
-    audits = db.query(models.TalentConfigurationAudit).filter(
-        models.TalentConfigurationAudit.school_group_id == assessment.school_group_id,
-        models.TalentConfigurationAudit.program_id == assessment.program_id,
-        models.TalentConfigurationAudit.created_at > completed_at,
-        models.TalentConfigurationAudit.resource_type.in_(
-            _SAME_VERSION_SEMANTIC_AUDIT_RESOURCES
-        ),
-    ).order_by(models.TalentConfigurationAudit.created_at.asc(), models.TalentConfigurationAudit.id.asc()).all()
+    all_audits = _batch_memo(
+        db, ("semantic_audits", assessment.school_group_id, assessment.program_id),
+        lambda: db.query(models.TalentConfigurationAudit).filter(
+            models.TalentConfigurationAudit.school_group_id == assessment.school_group_id,
+            models.TalentConfigurationAudit.program_id == assessment.program_id,
+            models.TalentConfigurationAudit.resource_type.in_(
+                _SAME_VERSION_SEMANTIC_AUDIT_RESOURCES
+            ),
+        ).order_by(models.TalentConfigurationAudit.created_at.asc(), models.TalentConfigurationAudit.id.asc()).all(),
+    )
+    # ``created_at > completed_at`` is evaluated here (the audit set above is
+    # Student-independent and memoized per Program inside a batch).
+    audits = [audit for audit in all_audits if audit.created_at is not None and audit.created_at > completed_at]
 
     for audit in audits:
         if audit.resource_type == "framework_version":
@@ -680,12 +703,16 @@ def _framework_semantically_changed_after_completion(db: Session, assessment, fr
             continue
 
         if audit.resource_type == "framework_competency":
-            member = db.query(models.FrameworkCompetency.id).filter_by(
-                id=audit.resource_id,
-                school_group_id=assessment.school_group_id,
-                program_id=assessment.program_id,
-                framework_version_id=framework.id,
-            ).first()
+            member = _batch_memo(
+                db, ("framework_competency_exists", audit.resource_id, assessment.school_group_id,
+                     assessment.program_id, framework.id),
+                lambda audit=audit: db.query(models.FrameworkCompetency.id).filter_by(
+                    id=audit.resource_id,
+                    school_group_id=assessment.school_group_id,
+                    program_id=assessment.program_id,
+                    framework_version_id=framework.id,
+                ).first(),
+            )
             if member is not None:
                 return True
             continue
@@ -715,24 +742,26 @@ def reassessment_requirement(db: Session, assessment):
     """
     if assessment.status != "completed" or not bool(getattr(assessment, "is_current", True)):
         return None
-    current_framework = db.query(models.TalentProgramFrameworkVersion).filter_by(
-        id=assessment.framework_version_id,
-        school_group_id=assessment.school_group_id,
-        program_id=assessment.program_id,
-    ).one_or_none()
+    current_framework = _batch_memo(
+        db, ("framework_version", assessment.framework_version_id, assessment.school_group_id, assessment.program_id),
+        lambda: db.query(models.TalentProgramFrameworkVersion).filter_by(
+            id=assessment.framework_version_id,
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+        ).one_or_none(),
+    )
     if current_framework is None:
         return None
-    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
-        id=assessment.cycle_population_member_id,
-        school_group_id=assessment.school_group_id,
-        student_id=assessment.student_id,
-    ).one_or_none()
+    member = _assessment_member(db, assessment)
     grade = member.grade_level if member is not None else None
-    candidates = db.query(models.TalentProgramFrameworkVersion).filter(
-        models.TalentProgramFrameworkVersion.school_group_id == assessment.school_group_id,
-        models.TalentProgramFrameworkVersion.program_id == assessment.program_id,
-        models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
-    ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all()
+    candidates = _batch_memo(
+        db, ("newer_frameworks", assessment.school_group_id, assessment.program_id, current_framework.version_number),
+        lambda: db.query(models.TalentProgramFrameworkVersion).filter(
+            models.TalentProgramFrameworkVersion.school_group_id == assessment.school_group_id,
+            models.TalentProgramFrameworkVersion.program_id == assessment.program_id,
+            models.TalentProgramFrameworkVersion.version_number > current_framework.version_number,
+        ).order_by(models.TalentProgramFrameworkVersion.version_number.desc()).all(),
+    )
     current_snapshot = _assessment_semantic_snapshot(
         db, framework=current_framework, grade=grade, allow_legacy=True
     )
@@ -847,8 +876,11 @@ def get_assessment(db, *, school_group_id, assessment_id):
     return row
 
 
-def list_assessments(db, *, school_group_id, cycle_id=None):
-    query = db.query(models.TalentStudentAssessment).filter_by(school_group_id=school_group_id)
+def list_assessments(db, *, school_group_id, cycle_id=None, academic_year_id=None, program_id=None):
+    query = db.query(models.TalentStudentAssessment).filter_by(school_group_id=school_group_id).filter(
+        # Batch 1: an orphan Assessment whose Student no longer exists is never a current product row.
+        current_student_exists(models.TalentStudentAssessment)
+    )
     if cycle_id is not None:
         query = query.filter(
             (models.TalentStudentAssessment.evaluation_context_cycle_id == cycle_id)
@@ -857,6 +889,10 @@ def list_assessments(db, *, school_group_id, cycle_id=None):
                 & (models.TalentStudentAssessment.cycle_id == cycle_id)
             )
         )
+    if academic_year_id is not None:
+        query = query.filter(models.TalentStudentAssessment.academic_year_id == academic_year_id)
+    if program_id is not None:
+        query = query.filter(models.TalentStudentAssessment.program_id == program_id)
     return query.order_by(models.TalentStudentAssessment.id).all()
 
 
@@ -1013,28 +1049,91 @@ def _calculate_kpi(db, assessment):
     return {**payload, "calculation_fingerprint": hashlib.sha256(_json(payload).encode()).hexdigest()}
 
 
+def _assessment_member(db, assessment):
+    """The Assessment's frozen population member (memoized inside ``read_batch``)."""
+    return _batch_memo(
+        db, ("assessment_member", assessment.cycle_population_member_id, assessment.school_group_id, assessment.student_id),
+        lambda: db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
+            id=assessment.cycle_population_member_id,
+            school_group_id=assessment.school_group_id,
+            student_id=assessment.student_id,
+        ).one_or_none(),
+    )
+
+
 def _assessment_grade(db, assessment):
-    member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
-        id=assessment.cycle_population_member_id,
-        school_group_id=assessment.school_group_id,
-        student_id=assessment.student_id,
-    ).one_or_none()
+    member = _assessment_member(db, assessment)
     return member.grade_level if member is not None else None
 
 
 def _applicable_competencies(db, assessment):
-    query = db.query(models.FrameworkCompetency).filter_by(
-        school_group_id=assessment.school_group_id,
-        program_id=assessment.program_id,
-        framework_version_id=assessment.framework_version_id,
-    )
     grade = _assessment_grade(db, assessment)
-    if grade:
-        query = query.filter(
-            (models.FrameworkCompetency.grade_level.is_(None))
-            | (models.FrameworkCompetency.grade_level == grade)
+
+    def load():
+        query = db.query(models.FrameworkCompetency).filter_by(
+            school_group_id=assessment.school_group_id,
+            program_id=assessment.program_id,
+            framework_version_id=assessment.framework_version_id,
         )
-    return query.all()
+        if grade:
+            query = query.filter(
+                (models.FrameworkCompetency.grade_level.is_(None))
+                | (models.FrameworkCompetency.grade_level == grade)
+            )
+        return query.all()
+
+    return _batch_memo(
+        db, ("applicable_competencies", assessment.school_group_id, assessment.program_id,
+             assessment.framework_version_id, grade), load,
+    )
+
+
+def prime_assessment_batch(db, assessments):
+    """Bulk-load per-row inputs for ``assessments`` into the active ``read_batch``.
+
+    Two set-based queries (frozen members, competency results) replace two
+    per-row queries. A no-op unless the caller entered ``read_batch(db)``.
+    """
+    from talent_read_batch import active as _batch_active
+    rows = list(assessments)
+    if not rows or not _batch_active(db):
+        return
+    member_ids = {row.cycle_population_member_id for row in rows}
+    members = {
+        member.id: member for member in db.query(models.TalentAssessmentCyclePopulationMember).filter(
+            models.TalentAssessmentCyclePopulationMember.id.in_(member_ids)
+        ).all()
+    }
+    for row in rows:
+        member = members.get(row.cycle_population_member_id)
+        if member is not None and (member.school_group_id != row.school_group_id or member.student_id != row.student_id):
+            member = None
+        _batch_prime(db, ("assessment_member", row.cycle_population_member_id, row.school_group_id, row.student_id), member)
+    results_by_assessment = {row.id: {} for row in rows}
+    for result in db.query(models.TalentStudentCompetencyResult).filter(
+        models.TalentStudentCompetencyResult.assessment_id.in_(list(results_by_assessment))
+    ).all():
+        results_by_assessment[result.assessment_id][result.framework_competency_id] = result
+    for row in rows:
+        by_competency = {
+            key: value for key, value in results_by_assessment[row.id].items()
+            if value.school_group_id == row.school_group_id
+        }
+        _batch_prime(db, ("assessment_results", row.id, row.school_group_id), by_competency)
+
+
+def _assessment_results(db, assessment):
+    """``{framework_competency_id: result}`` for one Assessment (primed in a batch)."""
+    return _batch_memo(
+        db, ("assessment_results", assessment.id, assessment.school_group_id),
+        lambda: {
+            row.framework_competency_id: row
+            for row in db.query(models.TalentStudentCompetencyResult).filter_by(
+                school_group_id=assessment.school_group_id,
+                assessment_id=assessment.id,
+            ).all()
+        },
+    )
 
 
 def overall_program_result(db: Session, assessment):
@@ -1048,13 +1147,7 @@ def overall_program_result(db: Session, assessment):
     competencies = _applicable_competencies(db, assessment)
     if not competencies:
         return None
-    results = {
-        row.framework_competency_id: row
-        for row in db.query(models.TalentStudentCompetencyResult).filter_by(
-            school_group_id=assessment.school_group_id,
-            assessment_id=assessment.id,
-        ).all()
-    }
+    results = _assessment_results(db, assessment)
     if any(item.id not in results for item in competencies):
         return None
 
@@ -1063,15 +1156,19 @@ def overall_program_result(db: Session, assessment):
     scale_max = None
     for competency in competencies:
         result = results[competency.id]
-        levels = db.query(models.TalentRubricLevel).filter_by(
-            school_group_id=assessment.school_group_id,
-            program_id=assessment.program_id,
-            framework_version_id=assessment.framework_version_id,
-            rubric_id=result.rubric_id,
-        ).order_by(
-            models.TalentRubricLevel.display_order,
-            models.TalentRubricLevel.id,
-        ).all()
+        levels = _batch_memo(
+            db, ("rubric_levels", assessment.school_group_id, assessment.program_id,
+                 assessment.framework_version_id, result.rubric_id),
+            lambda result=result: db.query(models.TalentRubricLevel).filter_by(
+                school_group_id=assessment.school_group_id,
+                program_id=assessment.program_id,
+                framework_version_id=assessment.framework_version_id,
+                rubric_id=result.rubric_id,
+            ).order_by(
+                models.TalentRubricLevel.display_order,
+                models.TalentRubricLevel.id,
+            ).all(),
+        )
         if not levels:
             return None
         if scale_max is None:
@@ -1179,6 +1276,21 @@ def assessment_delete_blockers(db, *, assessment_id):
     """
     return [label for model, label in _ASSESSMENT_DELETE_BLOCKER_TABLES
             if db.query(model.id).filter_by(assessment_id=assessment_id).first() is not None]
+
+
+def assessment_ids_with_dependents(db, assessment_ids):
+    """Set of Assessment ids that have any dependent evidence/history row (ADR 0034).
+
+    Set-based equivalent of calling ``assessment_delete_blockers`` per Assessment:
+    one bounded query per dependent table regardless of how many Assessments.
+    """
+    ids = list(assessment_ids)
+    blocked = set()
+    if not ids:
+        return blocked
+    for model, _label in _ASSESSMENT_DELETE_BLOCKER_TABLES:
+        blocked.update(row[0] for row in db.query(model.assessment_id).filter(model.assessment_id.in_(ids)).distinct().all())
+    return blocked
 
 
 def can_delete_assessment(db, *, assessment_id):
