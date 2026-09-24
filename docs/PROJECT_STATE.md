@@ -7,6 +7,48 @@ source_of_truth: true
 
 # TIS Project State
 
+
+## Deployment Acceptance Correction D - Professional Student Assessment Editor Redesign (2026-09-24)
+
+**Status: implemented on `dev` only; frontend/CSS + tests only. Not deployed
+and not merged to `master`. Web Service only - the separate
+`tis-timetable-workflow` revision is unaffected. No schema, migration,
+permission, scoring, Classification, authorization or `tis.db` change.**
+
+Owner-observed production screenshot showed the Student Assessment editor as
+cramped and hard to scan: multiple narrow competency columns with rubric
+descriptions wrapping into near-vertical text. The editor is redesigned as a
+serious professional assessment workflow (presentation only; every mutation and
+result still comes from the real API):
+
+- **One competency per row.** `static/js/talent-operations.js` and
+  `static/css/talent-experience.css` replace the auto-fit multi-column
+  `.tp-assessment-grid` with a single-column layout, so every competency card
+  spans the available width and its description/rubric reads naturally.
+- **Readable rubric tiles.** Each rubric choice is a full-width selectable tile
+  (`.tp-rubric-tile`) showing a clear rank ("1 / N"), the level title, and the
+  descriptor/description on its own horizontal line - never compressed. The
+  tile grid adapts (`repeat(auto-fit, minmax(200px,1fr))`) so up to five levels
+  sit in one row on wide desktop, fewer as width shrinks, and stack to one
+  column on mobile. The whole tile is the `<label>` radio target with native
+  keyboard/focus semantics; a visible focus ring, a check marker and a strong
+  border/background selected state (never colour-only) are preserved.
+- **Evidence entry.** Evidence remains a labelled `<textarea>` bound to its
+  competency (`name="evidence-{id}"`), now full-width under the rubric with
+  more vertical space; a read-only/completed assessment disables the editor.
+- **Progress, save and finalize unchanged.** The progress bar ("N of M
+  competencies"), sequential save and the Complete/Incomplete/Insufficient
+  outcome actions keep the existing backend semantics; completion still shows
+  the backend Overall Program Result and automatic Classification with a
+  Talented badge only for Exceptional. Review Candidate / Official
+  Identification are not shown as current status.
+
+Tests: `tests/talent_operations.test.cjs` (rubric-tile structure, evidence
+binding, single-column/adaptive CSS) plus the existing
+`talent_operations`/`talent_runtime_loading`/`talent_student_identity` suites.
+Structural HTML/CSS verification only; browser visual acceptance is still
+pending.
+
 ## Deployment Acceptance Correction C - Learning Style Distribution (2026-09-24)
 
 **Status: implemented on `dev` only; not deployed and not merged to `master`.
@@ -139,7 +181,8 @@ What changed:
 
 Open follow-ups: Learning Style aggregate/privacy correction (Acceptance C, since implemented - see the
 Acceptance C section above) and
-the Assessment entry editor body (Acceptance D) were intentionally not started;
+the Assessment entry editor body (Acceptance D, since implemented - see the
+Acceptance D section above);
 the Student-domain Learning Style badge now renders "Unassigned" (normalized to
 match Talent surfaces by the follow-up remediation below).
 

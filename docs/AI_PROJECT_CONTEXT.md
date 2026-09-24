@@ -7,6 +7,23 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+
+## Student Assessment Editor Redesign (Deployment Acceptance Correction D, 2026-09-24)
+
+Read before touching `static/js/talent-operations.js` or
+`static/css/talent-experience.css` assessment rules. The Student Assessment
+editor is one competency per row (single-column `.tp-assessment-grid`), each with
+adaptive, full-width selectable rubric tiles (`tp-rubric-tile`: rank "1 / N",
+level title, readable descriptor on its own line) and a full-width Evidence
+textarea bound to its competency. The whole tile is the radio `<label>` target
+(native keyboard/focus, visible focus ring, check marker, non-colour-only
+selected state). Presentation only: scoring, automatic Classification
+(Exceptional-only Talented), authorization and persistence are unchanged and
+still come from the backend. Structural verification only; browser visual
+acceptance is still pending.
+
+## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
+
 ## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
 
 Read before touching `student_learning_style_analytics.py`, the Students Learning
@@ -42,7 +59,7 @@ projection (`context.student_learning_style`, eligible-students
 `learning_style`, learner-profile `student.learning_style`, Student Drill
 `learning_style`). Applicable current result = `completed` AND `is_current`.
 Web Service only; not deployed. Acceptance C (Learning Style aggregates) and D
-(assessment entry editor) remain open.
+(assessment entry editor) have since been implemented (see their sections).
 
 Follow-up ClinePass remediation (same day): the legacy-history projection claim
 was overbroad - `talent_review_workspace` did not actually return the current

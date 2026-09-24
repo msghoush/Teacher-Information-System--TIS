@@ -121,7 +121,8 @@ test('an editable assessment shows Clear Result only for competencies with a sav
   assert.match(root.innerHTML,/data-action="clear-result"[^>]*data-competency="101"/);
   assert.doesNotMatch(root.innerHTML,/data-competency="102"[\s\S]{0,400}?data-action="clear-result"/);
   assert.match(root.innerHTML,/role="progressbar"/);
-  assert.match(root.innerHTML,/tp-rubric-level/);
+  assert.match(root.innerHTML,/tp-rubric-tile/);
+  assert.match(root.innerHTML,/tp-rubric-rank/);
 });
 
 test('M8 removes Reload Saved Rubric and Educator Input from normal assessment UX',async()=>{
@@ -560,4 +561,59 @@ test('Student roster prefers newest current attempt so Completed is not masked b
   assert.match(root.innerHTML,/Completed/);
   assert.match(root.innerHTML,/assessment_id=502[^"]*">View Assessment/);
   assert.doesNotMatch(root.innerHTML,/assessment_id=501[^"]*">Continue Assessment/);
+});
+
+
+// ---------------------------------------------------------------------------
+// Acceptance D: professional Student Assessment editor.
+// ---------------------------------------------------------------------------
+
+test('rubric choices render as readable selectable tiles with rank, title, description, and radio',async()=>{
+  const root=domRoot();
+  const base=assessmentApi();
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},
+    api:async(path,options)=>{
+      if(path==='/api/talent/programs/11/frameworks/21/configuration'){
+        return {levels:[
+          {id:201,label:'Beginning',description:'First steps toward the competency'},
+          {id:202,label:'Proficient',description:'Fully demonstrated the competency'}
+        ],descriptors:[],rubrics:[]};
+      }
+      return base(path,options);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/tp-rubric-tile/);
+  assert.match(root.innerHTML,/tp-rubric-rank/);
+  assert.match(root.innerHTML,/1 \/ 2/);  // rank is "position / total" (clear score)
+  assert.match(root.innerHTML,/2 \/ 2/);
+  assert.match(root.innerHTML,/Beginning/);
+  assert.match(root.innerHTML,/First steps toward the competency/);
+  assert.match(root.innerHTML,/Proficient/);
+  assert.match(root.innerHTML,/Fully demonstrated the competency/);
+  assert.match(root.innerHTML,/type="radio"/);  // native radio semantics preserved
+  assert.match(root.innerHTML,/name="level-101"/);  // one named group per competency
+});
+
+test('evidence field stays bound to its competency with a full-width label',async()=>{
+  const root=domRoot();
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('assessment_id=9'),can:()=>true,notify(){},api:assessmentApi()};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/name="evidence-101"/);
+  assert.match(root.innerHTML,/name="evidence-102"/);
+  assert.match(root.innerHTML,/<textarea name="evidence-101"/);
+});
+
+test('assessment editor CSS uses a single-column competency layout and readable adaptive rubric tiles',()=>{
+  const css=fs.readFileSync(path.join(__dirname,'..','static','css','talent-experience.css'),'utf8');
+  // One competency per row; the old 3-column auto-fit grid is gone.
+  assert.match(css,/\.tp-assessment-grid\{display:grid;grid-template-columns:1fr/);
+  assert.doesNotMatch(css,/minmax\(min\(100%,420px\)/);
+  // Rubric levels use an adaptive tile grid, never 5 cramped cards.
+  assert.match(css,/\.tp-assessment-levels\{grid-template-columns:repeat\(auto-fit,minmax\(200px,1fr\)\)/);
+  // Descriptions flow horizontally with a comfortable line length.
+  assert.match(css,/\.tp-rubric-tile-desc\{font-size:var\(--tp-text-sm\);line-height:1\.55;[^}]*overflow-wrap:anywhere/);
+  // Keyboard focus is visible on the tile.
+  assert.match(css,/input:focus-visible\+\.tp-rubric-tile/);
+  // Mobile stacks rubric choices to a single column.
+  assert.match(css,/\.tp-assessment-levels\{grid-template-columns:1fr\}/);
 });

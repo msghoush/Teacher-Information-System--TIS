@@ -7,6 +7,29 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-24 - Deployment Acceptance Correction D: Professional Student Assessment editor redesign
+
+- Owner-observed production screenshot: the Student Assessment editor was cramped
+  (multiple narrow competency columns with rubric descriptions wrapping into
+  near-vertical text). Redesigned as a professional assessment workflow; every
+  mutation and result still comes from the real API (no scoring, Classification,
+  authorization or schema change).
+- `static/js/talent-operations.js` now renders one competency per row, each with
+  a full-width, adaptive set of selectable rubric tiles (`tp-rubric-tile`: clear
+  "1 / N" rank, level title, and the descriptor/description on its own horizontal
+  line) and a full-width Evidence textarea bound to its competency. The whole
+  tile is the `<label>` radio target with native keyboard/focus semantics, a
+  visible focus ring, a check marker and a non-colour-only selected state.
+- `static/css/talent-experience.css` replaces the multi-column `.tp-assessment-grid`
+  with `grid-template-columns:1fr` and the rubric tile grid adapts
+  (`repeat(auto-fit, minmax(200px,1fr))`, stacking to one column on mobile).
+- Progress/save/Complete/Incomplete/Insufficient actions are unchanged; a
+  completed assessment still shows the backend Overall Program Result and
+  automatic Classification with a Talented badge only for Exceptional.
+- Tests: `tests/talent_operations.test.cjs` (rubric-tile structure, evidence
+  binding, single-column/adaptive CSS). Structural verification only; browser
+  visual acceptance is still pending. Web Service only; not deployed.
+
 ## 2026-09-24 - Deployment Acceptance Correction C: Learning Style distribution
 
 - Root cause of "all Unavailable": the Learning Style distribution ran through the
@@ -22,7 +45,7 @@ source_of_truth: true
 - Results & Analytics and the Students panel render count, percentage and a bar per
   category from backend values. Replaced the suppression/privacy-unavailable tests
   (retiring the stale failing panel-message test); no schema, migration, permission
-  or `tis.db` change. Web Service only; not deployed; Acceptance D not started.
+  or `tis.db` change. Web Service only; not deployed; Acceptance D follows.
 
 ## 2026-09-24 - Deployment Acceptance Correction B: Student identity, automatic Classification, current Talent workflow
 
