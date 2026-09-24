@@ -94,8 +94,9 @@ test('owner adjustment source keeps the selected Term in-place and adds one-Prog
   assert.match(source,/rememberedDisclosureState/);
   assert.match(source,/rubricSelectedProgramId/);
   assert.match(source,/assessment_state=completed/);
-  assert.match(source,/No Official Identification result yet/);
-  assert.match(source,/No Program Criteria result yet/);
+  // Acceptance B: the legacy Official Identification / Program Criteria empty-state rewrites are removed.
+  assert.doesNotMatch(source,/No Official Identification result yet/);
+  assert.doesNotMatch(source,/No Program Criteria result yet/);
 });
 
 test('phase-2 owner package wires roster and identification filters plus ordered magnitude colors',()=>{
@@ -103,9 +104,10 @@ test('phase-2 owner package wires roster and identification filters plus ordered
   const css=fs.readFileSync(path.join(__dirname,'..','static','css','talent-experience.css'),'utf8');
   const api=require('../static/js/talent-experience.js');
   assert.match(experience,/tp-assessment-roster-filters/);
-  assert.match(experience,/Identification Classification/);
+  // Acceptance B: the Identification Classification filter and the roster Official Identification column are removed from the normal workflow.
+  assert.doesNotMatch(experience,/Identification Classification/);
   const operations=fs.readFileSync(path.join(__dirname,'..','static','js','talent-operations.js'),'utf8');
-  assert.match(operations,/<th>Official Identification<\/th>/);
+  assert.doesNotMatch(operations,/<th>Official Identification<\/th>/);
   assert.match(experience,/tp-overview-branding/);
   assert.equal(api.magnitudeBucket(5),1);assert.equal(api.magnitudeBucket(45),3);assert.equal(api.magnitudeBucket(95),5);
   assert.match(css,/ghars-full-wordmark-dark\.png/);assert.doesNotMatch(css,/talent-ghars-logo\.svg/);assert.match(css,/body\.tp-overview-branding \.page-title/);assert.match(css,/tp-magnitude-5/);
@@ -118,9 +120,10 @@ test('phase-2 assessment editor never falls back across Grade and has profession
   assert.doesNotMatch(source,/^\s*on\('reload'/m);
   assert.match(source,/tp-assessment-grid/);assert.match(source,/tp-assessment-kpi-label/);
 });
-test('phase-2 Students keeps protected style categories and removes nested vertical table scrolling',()=>{
+test('phase-2 Students shows every Learning Style category with count and percentage (Acceptance C) and removes nested vertical table scrolling',()=>{
   const template=fs.readFileSync(path.join(__dirname,'..','templates','students.html'),'utf8');
   const css=fs.readFileSync(path.join(__dirname,'..','static','css','students.css'),'utf8');
-  assert.match(template,/Learning Style categories remain visible below without counts or proportional bar lengths/);
+  assert.doesNotMatch(template,/without counts or proportional bar lengths|Too few Students match this selection/);
+  assert.match(template,/in this selection, including Unassigned/);
   assert.match(css,/overflow-y: visible/);assert.match(css,/stu-ls-row-label::before/);
 });

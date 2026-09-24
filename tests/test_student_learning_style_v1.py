@@ -14,6 +14,12 @@ distribution "percentage" means population/aggregate share, never a
 per-Student dimension percentage; the eighth bucket for Students with no
 value assigned is labeled "Unassigned" and is always part of the
 denominator.
+
+Deployment Acceptance Correction C amendment: the aggregate distribution is
+authorized Student-domain aggregation and is NO LONGER subject to the Talent
+small-cell/complementary suppression pipeline (the suppression tests that
+used to live here were deliberately replaced; the full new distribution
+coverage is in test_student_learning_style_distribution_acceptance_c.py).
 """
 
 import pathlib
@@ -32,7 +38,10 @@ from auth import get_current_user
 from database import Base
 from dependencies import get_db
 from routers.students import router as students_router
+from datetime import datetime
+
 from student_academic_service import (
+    create_placement,
     LEARNING_STYLES,
     StudentAcademicError,
     create_student,
@@ -40,7 +49,6 @@ from student_academic_service import (
     update_student,
 )
 from student_learning_style_analytics import build_distribution, raw_learning_style_counts
-from talent_analytics_privacy import AllowAllTestPolicy, DeterministicSuppressionTestPolicy, resolve_privacy_policy_provider
 from test_talent_org_intelligence_queries import actor, db, permissions
 
 
@@ -72,6 +80,14 @@ def _student(db, group=1, first="Maya", learning_style=None):
     )
     db.commit()
     return row
+
+
+def _place_all(db, ids):
+    # The Students page is Branch-scoped by default, so the fixture Students need a current placement.
+    for student_id in ids:
+        create_placement(db, school_group_id=1, student_id=student_id, academic_year_id=100, branch_id=10,
+                         grade_level="1", section_name="A", effective_from=datetime(2026, 9, 1))
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -182,10 +198,7 @@ def test_learning_style_is_tenant_scoped_like_every_other_student_field(database
 # API layer (server-side validation is enforced regardless of UI restriction)
 # ---------------------------------------------------------------------------
 
-_UNSET = object()
-
-
-def _admin_client(db, policy=_UNSET, scope="BRANCH"):
+def _admin_client(db, scope="BRANCH"):
     user = models.User(
         user_id="1000000001", username="student.admin", first_name="Admin", last_name="One",
         role="Administrator", user_type="TENANT", access_scope=scope, school_group_id=1,
@@ -199,8 +212,6 @@ def _admin_client(db, policy=_UNSET, scope="BRANCH"):
     app.include_router(students_router)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
-    if policy is not _UNSET:
-        app.dependency_overrides[resolve_privacy_policy_provider] = lambda: policy
     return TestClient(app)
 
 
@@ -256,7 +267,7 @@ def test_editing_learning_style_reuses_students_edit_permission_not_a_new_one(da
         assert denied.status_code == 403
 
 
-def test_api_distribution_route_returns_visible_privacy_safe_counts(database):
+def test_api_distribution_route_returns_visible_authorized_counts(database):
     # Org-scoped actor: the distribution population is "current effective
     # placement" scoped only when a Branch/Grade/Section filter narrows it;
     # with none given here, an org-wide actor sees every active Student in
@@ -265,7 +276,7 @@ def test_api_distribution_route_returns_visible_privacy_safe_counts(database):
     _, db = database
     for style in ("Visual", "Visual", "Auditory", None):
         _student(db, first=f"S-{style}-{id(object())}", learning_style=style)
-    client = _admin_client(db, policy=AllowAllTestPolicy(), scope="ORGANIZATION")
+    client = _admin_client(db, scope="ORGANIZATION")
     response = client.get("/api/students/analytics/learning-style-distribution")
     assert response.status_code == 200
     payload = response.json()
@@ -275,13 +286,17 @@ def test_api_distribution_route_returns_visible_privacy_safe_counts(database):
     assert by_label["Unassigned"]["count"] == 1
 
 
-def test_api_distribution_route_fails_closed_when_policy_unavailable(database):
+def test_api_distribution_route_needs_no_privacy_policy_and_never_suppresses_a_small_cohort(database):
+    # Acceptance C: authorized Student-domain aggregation, not Talent scoring
+    # output - a tiny cohort still returns real authorized counts.
     _, db = database
-    _student(db)
-    client = _admin_client(db, policy=None)
+    _student(db, first="Solo", learning_style="Visual")
+    client = _admin_client(db, scope="ORGANIZATION")
     response = client.get("/api/students/analytics/learning-style-distribution")
-    assert response.status_code == 503
-    assert response.json()["code"] == "analytics_unavailable"
+    assert response.status_code == 200
+    by_label = {level["label"]: level for level in response.json()["levels"]}
+    assert by_label["Visual"]["count"] == 1 and by_label["Visual"]["percentage"] == 100.0
+    assert by_label["Spatial"]["count"] == 0 and by_label["Spatial"]["state"] == "visible"
 
 
 def test_new_student_form_shows_the_eight_value_categorical_selector_m14(db):
@@ -356,7 +371,7 @@ def test_edit_details_form_shows_not_assigned_when_learning_style_is_null(db):
         response = client.get("/students/6002?section=overview")
     assert response.status_code == 200
     html = response.text
-    assert "Not assigned" in html
+    assert "Unassigned" in html
     assert 'name="learning_style"' in html
 
 
@@ -392,7 +407,7 @@ def test_learning_style_selector_options_are_unique_and_no_duplicate_ids(db):
     assert not duplicates, f"duplicate id attribute(s) on the page: {duplicates}"
 
 
-def test_html_students_page_renders_the_distribution_panel_when_policy_is_available(db, monkeypatch):
+def test_html_students_page_renders_the_distribution_panel(db):
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
@@ -402,7 +417,7 @@ def test_html_students_page_renders_the_distribution_panel_when_policy_is_availa
         models.Student(id=5002, school_group_id=1, first_name="Aud", last_name="Two", status="active", learning_style="Auditory"),
     ])
     db.commit()
-    monkeypatch.setattr("routers.students_ui.resolve_privacy_policy_provider", lambda: AllowAllTestPolicy())
+    _place_all(db, (5001, 5002))
     app = FastAPI()
     app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(students_ui.router)
@@ -413,6 +428,10 @@ def test_html_students_page_renders_the_distribution_panel_when_policy_is_availa
     assert response.status_code == 200
     assert "Learning Style distribution" in response.text
     assert "not a talent score" in response.text.lower()
+    assert "2 Students in this selection, including Unassigned" in response.text
+    assert "50.0%" in response.text and "1 Student</small>" in response.text
+    assert "Unassigned" in response.text and "0.0%" in response.text  # zero + Unassigned rows stay visible
+    assert "Unavailable" not in response.text
 
 
 def test_learning_style_badge_and_distribution_bar_use_the_same_accent_color_token():
@@ -445,41 +464,16 @@ def test_learning_style_badge_and_distribution_bar_use_the_same_accent_color_tok
         )
 
 
-def test_html_students_page_explains_when_privacy_policy_is_unavailable(db, monkeypatch):
+def test_html_students_page_small_cohort_is_never_suppressed_and_has_no_privacy_banner(db):
+    """Acceptance C: replaces the former "one panel-level protected message
+    when every category is suppressed" and "privacy policy unavailable" tests
+    (the stale/failing panel-message test is deliberately superseded). Five
+    Students that used to be fully suppressed now render real counts and
+    percentages on the shared full denominator, with no protected copy."""
     from fastapi.staticfiles import StaticFiles
     from routers import students_ui
 
     permissions(db, "students.view")
-    monkeypatch.setattr("routers.students_ui.resolve_privacy_policy_provider", lambda: None)
-    app = FastAPI()
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-    app.include_router(students_ui.router)
-    app.dependency_overrides[get_db] = lambda: db
-    app.dependency_overrides[get_current_user] = lambda: actor()
-    with TestClient(app) as client:
-        response = client.get("/students/")
-    assert response.status_code == 200
-    assert "Learning Style distribution" in response.text
-    assert "Learning Style statistics unavailable" in response.text
-    assert "governed analytics privacy configuration is not available" in response.text
-    assert 'class="stu-ls-chart"' not in response.text
-
-
-def test_html_students_page_shows_one_panel_level_protected_message_when_every_category_is_suppressed(db, monkeypatch):
-    """When the whole cohort is small enough that every Learning Style
-    category is individually suppressed, the page must show ONE clear
-    panel-level explanation rather than repeating "Unavailable" (M18a;
-    formerly the literal "Protected for privacy" copy) on every row - while
-    still rendering every category label (categorical protection preserved)
-    and never a count/percentage for a suppressed row."""
-    from fastapi.staticfiles import StaticFiles
-    from routers import students_ui
-
-    permissions(db, "students.view")
-    # A small population below the deterministic suppression threshold for
-    # every individual category, but above it in total, mirroring the real
-    # sanctioned local test cohort shape (total visible, every category cell
-    # suppressed).
     db.add_all([
         models.Student(id=6001, school_group_id=1, first_name="A", last_name="One", status="active", learning_style="Visual"),
         models.Student(id=6002, school_group_id=1, first_name="B", last_name="Two", status="active", learning_style="Visual"),
@@ -488,10 +482,7 @@ def test_html_students_page_shows_one_panel_level_protected_message_when_every_c
         models.Student(id=6005, school_group_id=1, first_name="E", last_name="Five", status="active", learning_style=None),
     ])
     db.commit()
-    monkeypatch.setattr(
-        "routers.students_ui.resolve_privacy_policy_provider",
-        lambda: DeterministicSuppressionTestPolicy(minimum_cohort=5),
-    )
+    _place_all(db, (6001, 6002, 6003, 6004, 6005))
     app = FastAPI()
     app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(students_ui.router)
@@ -500,17 +491,31 @@ def test_html_students_page_shows_one_panel_level_protected_message_when_every_c
     with TestClient(app) as client:
         response = client.get("/students/")
     assert response.status_code == 200
-    # Exactly one panel-level protected explanation, not one per row.
-    assert response.text.count("stu-protected-panel") == 1
-    assert response.text.lower().count("distribution unavailable") == 1
-    # M18a: the literal "Protected for privacy" phrase is fully removed from
-    # visible Talent & Potential / Learning Style copy.
-    assert "protected for privacy" not in response.text.lower()
-    # Fully protected data renders no chart rows or category-by-category fake bars.
-    assert 'class="stu-ls-chart"' not in response.text
-    assert 'class="stu-ls-row"' not in response.text
-    # No raw count or percentage for any protected category leaks through.
-    assert "66.7" not in response.text and "40.0" not in response.text and "20.0" not in response.text
+    text = response.text
+    assert "5 Students in this selection, including Unassigned" in text
+    assert text.count('class="stu-ls-track"') == 9
+    for expected in ("40.0%", "20.0%", "0.0%"):
+        assert expected in text
+    assert "stu-protected-panel" not in text
+    assert "Distribution unavailable" not in text and "statistics unavailable" not in text
+    assert "protected for privacy" not in text.lower()
+
+
+def test_html_students_page_empty_selection_shows_empty_state_not_zero_percent(db):
+    from fastapi.staticfiles import StaticFiles
+    from routers import students_ui
+
+    permissions(db, "students.view")
+    app = FastAPI()
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+    app.include_router(students_ui.router)
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: actor()
+    with TestClient(app) as client:
+        response = client.get("/students/")
+    assert response.status_code == 200
+    assert "No Students in the current authorized selection." in response.text
+    assert 'class="stu-ls-row' not in response.text
 
 
 # ---------------------------------------------------------------------------
@@ -561,11 +566,11 @@ def test_raw_counts_bucket_unset_and_unknown_values_as_not_specified():
     assert counts["Auditory"] == 0
 
 
-def test_build_distribution_visible_with_allow_all_policy():
+def test_build_distribution_visible_and_deterministic():
     rows = [_Row("Visual"), _Row("Visual"), _Row("Auditory"), _Row(None)]
-    result = build_distribution(rows, AllowAllTestPolicy())
+    result = build_distribution(rows)
     assert result["state"] == "visible"
-    assert result["total"]["value"] == 4
+    assert result["total"]["value"] == result["total_population"] == 4
     by_label = {level["label"]: level for level in result["levels"]}
     assert by_label["Visual"]["count"] == 2
     assert by_label["Visual"]["percentage"] == 50.0
@@ -579,43 +584,15 @@ def test_build_distribution_visible_with_allow_all_policy():
     # The denominator (total) always includes Unassigned Students (task H).
     unassigned_and_categories = sum(level["count"] for level in result["levels"])
     assert unassigned_and_categories == result["total"]["value"] == 4
+    assert build_distribution(rows) == result
 
 
-def test_build_distribution_suppresses_small_protected_cohort_and_its_reconstructible_sibling():
-    # 1 Visual, 4 Auditory, 0 everything else, total 5. With minimum_cohort=2,
-    # Visual (1) is suppressed. If Auditory (4) and the total (5) both stayed
-    # visible, the hidden Visual count could be reconstructed by subtraction
-    # (5 - 4 = 1) - complementary suppression must hide exactly one more
-    # sibling (or the total) instead of allowing that reconstruction.
-    rows = [_Row("Visual")] + [_Row("Auditory")] * 4
-    policy = DeterministicSuppressionTestPolicy(minimum_cohort=2)
-    result = build_distribution(rows, policy)
+def test_build_distribution_never_suppresses_a_small_cohort():
+    # Acceptance C: the former suppression/complementary-suppression tests for
+    # this distribution were replaced - 1 Visual + 4 Auditory is fully visible.
+    result = build_distribution([_Row("Visual")] + [_Row("Auditory")] * 4)
     assert result["state"] == "visible"
-    states = {level["label"]: level["state"] for level in result["levels"]}
-    assert states["Visual"] == "suppressed"
-    visible_children_sum = sum(
-        level["count"] for level in result["levels"] if level["state"] == "visible" and level["count"] is not None
-    )
-    # The visible children must never sum to the visible total when at least
-    # one child is hidden - that would let the hidden value be reconstructed.
-    if result["total"]["state"] == "visible":
-        assert visible_children_sum != result["total"]["value"] or any(
-            level["state"] != "visible" for level in result["levels"]
-        )
-    # No suppressed/coarsened level ever carries a leftover count or percentage.
-    for level in result["levels"]:
-        if level["state"] != "visible":
-            assert level["count"] is None
-            assert level["percentage"] is None
-
-
-def test_build_distribution_fails_closed_when_no_policy_is_configured_at_the_route_layer():
-    # The route itself (routers/students.py) returns 503 analytics_unavailable
-    # when Depends(resolve_privacy_policy_provider) yields None; this proves
-    # build_distribution is never even reached with an unresolved policy.
-    from routers import students as students_router_module
-    import inspect as _inspect
-
-    source = _inspect.getsource(students_router_module.student_learning_style_distribution)
-    assert "policy is None" in source
-    assert "503" in source
+    assert all(level["state"] == "visible" for level in result["levels"])
+    by_label = {level["label"]: level for level in result["levels"]}
+    assert by_label["Visual"]["count"] == 1 and by_label["Visual"]["percentage"] == 20.0
+    assert by_label["Auditory"]["count"] == 4 and by_label["Auditory"]["percentage"] == 80.0

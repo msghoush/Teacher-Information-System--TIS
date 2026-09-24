@@ -2,7 +2,7 @@
 {% from "_app_icons.html" import icon %}
 {% from "_learning_style.html" import learning_style_field, learning_style_badge %}
 {% block title %}{{ student.display_name }} | TIS{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/students.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}">{% endblock %}
 {% block content %}
 <section class="stu">
   <a class="stu-btn stu-btn-sm" href="/students/">{{ icon('chevron-right', 'shell-icon') }}All Students</a>
@@ -197,7 +197,7 @@
   <div class="stu-panel">
     <h2>Talent &amp; Potential</h2>
     <p class="stu-lede">{{ icon('sparkles', 'shell-icon') }}The student's evaluation history across Programs, shown in its original historical context. Nothing here is inferred or predicted.</p>
-    <div class="stu-ls-context"><span class="stu-hint">Learner context (not a Talent signal):</span>{{ learning_style_badge(student.learning_style) }}</div>
+    <div class="stu-ls-context"><span class="stu-hint">Learning Style:</span>{{ learning_style_badge(student.learning_style) }}</div>
     {% if talent_profile and talent_profile.programs %}
       {% for prog in talent_profile.programs %}
       <section class="stu-panel" style="box-shadow: none; border-color: var(--app-line);">
@@ -213,16 +213,15 @@
         </div>
         {% for c in yr.cycles %}
         <details style="margin-bottom: 8px;">
-          <summary>{{ c.cycle.title }} · {{ c.assessment.status | replace('_', ' ') }}</summary>
+          <summary>{{ c.cycle.title }} · {{ (c.assessment.status | replace('_', ' ')) | capitalize }}{% if c.assessment.status == 'completed' and c.assessment.is_current and c.assessment.classification %} · {{ c.assessment.classification }}{% endif %}</summary>
           <div style="padding: 8px 0 0 16px;">
             <p><strong>Framework</strong> {{ c.framework_version.title }} · Version {{ c.framework_version.version_number }}</p>
             {% if c.frozen_context %}
               {% set fb = branches | selectattr('id', 'equalto', c.frozen_context.branch_id) | list | first %}
               <p><strong>Historical context</strong> {{ fb.name if fb else 'Branch' }} · Grade {{ c.frozen_context.grade_level }} · {{ c.frozen_context.section_display }}</p>
             {% endif %}
-            {% if c.assessment.kpi_result != None %}<p><strong>Result</strong> {{ c.assessment.kpi_result }}</p>{% endif %}
-            {% if c.review_candidate is defined and c.review_candidate %}<p><strong>Talent Review</strong> {{ c.review_candidate.status | replace('_', ' ') }}</p>{% endif %}
-            {% if c.official_identification is defined and c.official_identification %}<p><strong>Identification</strong> {{ c.official_identification.decision | replace('_', ' ') }}</p>{% endif %}
+            {% if c.assessment.status == 'completed' and c.assessment.overall_result and c.assessment.overall_result.available != false %}<p><strong>Program result</strong> {{ '%.1f' | format(c.assessment.overall_result.average) }} / {{ c.assessment.overall_result.scale_max }}</p>{% elif c.assessment.kpi_result != None %}<p><strong>Result</strong> {{ c.assessment.kpi_result }}</p>{% endif %}
+            {% if c.assessment.status == 'completed' and c.assessment.is_current and c.assessment.classification %}<p class="stu-talent-classification"><strong>Classification</strong> <span class="tp-class-chip tp-class-{{ c.assessment.classification | lower | replace(' ', '-') }}" data-classification="{{ c.assessment.classification }}">{{ c.assessment.classification }}</span>{% if c.assessment.is_talented %} <span class="tp-badge tp-badge-talented">Talented</span>{% endif %}</p>{% endif %}
             {% if c.competency_results %}
             <p><strong>Competency evidence</strong></p>
             <ul>{% for r in c.competency_results %}<li><strong>{{ r.competency_label or 'Competency' }}</strong> <span data-rubric-level='{{ r.rubric_level | tojson | forceescape }}'>{{ r.rubric_level.label if r.rubric_level else 'No rubric level recorded' }}</span><p>{{ r.evidence or 'Recorded evidence' }}</p></li>{% endfor %}</ul>
@@ -233,6 +232,22 @@
         {% endfor %}
       </section>
       {% endfor %}
+      {% set legacy_ns = namespace(rows=[]) %}
+      {% for prog in talent_profile.programs %}{% for yr in prog.academic_years %}{% for c in yr.cycles %}
+        {% if (c.review_candidate is defined and c.review_candidate) or (c.official_identification is defined and c.official_identification) %}{% set legacy_ns.rows = legacy_ns.rows + [(prog.program.name, c)] %}{% endif %}
+      {% endfor %}{% endfor %}{% endfor %}
+      {% if legacy_ns.rows %}
+      <details class="tp-legacy-history">
+        <summary>Legacy Review &amp; Identification History</summary>
+        <p class="stu-hint">Preserved historical records for audit only. They are not this Student's current Classification or Talented state.</p>
+        <ul>{% for program_name, c in legacy_ns.rows %}
+          <li><strong>{{ program_name }} · {{ c.cycle.title }}</strong>
+            {% if c.review_candidate is defined and c.review_candidate %}<p>Legacy review status: {{ c.review_candidate.status | replace('_', ' ') }}</p>{% endif %}
+            {% if c.official_identification is defined and c.official_identification %}<p>Legacy Official Identification decision: {{ c.official_identification.decision | replace('_', ' ') }}</p>{% endif %}
+          </li>{% endfor %}
+        </ul>
+      </details>
+      {% endif %}
     {% else %}
     <div class="stu-empty">{{ icon('sparkles', 'shell-icon') }}<h3>No Talent history yet</h3><p>Evaluation evidence will appear here once the student participates in a Talent Program.</p></div>
     {% endif %}

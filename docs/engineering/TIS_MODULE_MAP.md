@@ -1,11 +1,65 @@
 ---
 title: TIS Module Map
-documentation_version: 4.5
+documentation_version: 4.7
 last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Learning Style distribution boundary (Deployment Acceptance Correction C, 2026-09-24)
+
+`student_learning_style_analytics.py` is the single engine for the Learning Style
+aggregate: `resolve_population` (unchanged authorized Student population) and
+`build_distribution(students)` (nine categories, count/percentage/`total_population`,
+denominator includes Unassigned, no Talent suppression, no `talent_analytics_privacy`
+import). Consumers: `routers/students.py`
+(`/api/students/analytics/learning-style-distribution`), `routers/students_ui.py` +
+`templates/students.html` (panel) and `routers/talent_results_analytics.py`
+(`/learning-style`, still `students.view`-gated); none uses the privacy provider for
+this distribution, while the Classification and Talented routes in the same router
+still do. Frontend: `static/js/talent.js` `learningStyleDistributionSection`
+(backend values only) with `static/css/talent.css` `.tp-ls-*` and
+`static/css/students.css` responsive rows. See ADR 0031 "Acceptance C Amendment".
+
+## Talent Student identity presentation and legacy history boundary (Deployment Acceptance Correction B, 2026-09-24)
+
+`static/js/talent-student-identity.js` is the single shared presentation for
+Talent Student identity (name, Learning Style, Classification, Talented); it is
+loaded on every Talent view before `talent.js` and is presentation only (no
+classification arithmetic). Data authorities: Learning Style =
+`Student.learning_style` via `talent_operational_context.authorized_contexts`
+(`student_learning_style`), `routers/talent_assessment_cycles.py`
+eligible-students (`learning_style`, sourced from
+`talent_operational_context.student_identity_metadata`, a tenant-bound bulk read;
+the ADR 0031 guard keeps scoring/eligibility modules free of Learning Style), `talent_learner_profile_service`
+(`student.learning_style`, per-assessment `overall_result`), and
+`talent_org_student_drill` (`learning_style`); Classification =
+`talent_classification_service.assessment_classification` surfaced by
+`routers/talent_assessments.py` (list adds classification for current Completed
+rows using `overall=`), `routers/talent_review_candidates.py`
+(`talent_review_workspace`, same `overall=` reuse), the learner profile and the
+Student Drill. The
+`reviews` view (`routers/talent_ui.py` VIEWS, still gated by
+`talent_review_candidates.view`) is the Legacy Review & Identification History
+surface and is no longer in the primary sidebar (`ui_shell.py`).
+
+## Talent workspace client lifecycle ownership (Deployment Acceptance Correction A, 2026-09-24)
+
+`static/js/talent.js` owns boot, request bounding (`boundedRequest`), the
+generation/stale guard, and independent section scheduling (`createSections`)
+for every view; delegates (`TalentOperations`, `TalentProgramWorkspace`,
+`TalentEvaluationWorkspace`) render inside that lifecycle and their failures
+surface through it. `templates/talent/workspace.html` must load every global a
+view's render path needs before `talent.js` (`talent-rubric-visual.js`,
+`talent-api-errors.js`, `talent-rubric-request.js` on all views; operational
+bundles per surface). `static/js/talent-experience.js` owns the Program-filtered
+rubric section UI (bounded request, Retry). `static/js/talent-api-errors.js`
+owns curated user-facing error copy (HTTP status + stable code; never raw
+`detail`). `static/js/talent-rubric-request.js` owns the single-flight
+rubric-distribution read (keyed by Program + Academic Year + assessment_state;
+`talent.js` publishes, `talent-experience.js` consumes). No backend module,
+route or schema was added.
 
 ## M14-M18 Correction Program Closeout Ownership Notes (M18b-3, 2026-09-24)
 
@@ -109,10 +163,11 @@ module, route, or schema was added by M18b-3.
   Learning Style selector on create/edit; the profile shows the one
   selected value (or "Not assigned"), never four percentage bars; the
   Talent context line reads the current categorical value directly.
-- `student_learning_style_analytics.py`: the existing privacy-safe
+- `student_learning_style_analytics.py`: the existing
   categorical distribution engine (reused, not parallel-built), extended to
-  all eight values plus an "Unassigned" bucket; unchanged scope/permission/
-  privacy contract from ADR 0031.
+  all eight values plus an "Unassigned" bucket; scope/permission unchanged from
+  ADR 0031; its privacy/suppression contract was superseded 2026-09-24 (Acceptance C):
+  authorized aggregation, no Talent small-cell suppression.
 - `talent_evaluation_progress_service.py`: `APPROVED_BRANCH_METRICS` is six
   metrics (the "learning_style" Branch-comparison metric is removed);
   `static/js/talent.js` and `templates/talent/workspace.html` no longer

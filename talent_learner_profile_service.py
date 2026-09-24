@@ -11,7 +11,7 @@ from talent_classification_service import assessment_classification
 from talent_educator_input_service import input_payload
 from talent_official_identification_service import identification_payload
 from talent_review_candidate_service import candidate_payload
-from talent_student_assessment_service import assessment_payload, competency_result_payload
+from talent_student_assessment_service import assessment_payload, competency_result_payload, overall_program_result
 
 
 class TalentLearnerProfileError(ValueError):
@@ -26,6 +26,8 @@ def _student_payload(row):
         "id": row.id, "school_group_id": row.school_group_id, "first_name": row.first_name,
         "father_name": row.father_name, "last_name": row.last_name, "gender": row.gender,
         "status": row.status,
+        # Acceptance B: canonical Student.learning_style for the profile identity header.
+        "learning_style": row.learning_style,
     }
 
 
@@ -52,7 +54,13 @@ def _assessment_payload_with_classification(db, assessment):
     Identification history recorded elsewhere in this same profile item.
     """
     payload = assessment_payload(assessment)
-    classification = assessment_classification(db, assessment)
+    # Acceptance B: the Overall Program Result is computed once per Completed
+    # Assessment and reused for the classification (overall=) so the profile shows
+    # "Program result + Classification" without a second derivation. A draft /
+    # in-progress Assessment carries no overall result or classification.
+    overall = overall_program_result(db, assessment) if assessment.status == "completed" else None
+    payload["overall_result"] = overall
+    classification = assessment_classification(db, assessment, overall=overall)
     payload["classification"] = (
         classification.get("classification") if classification and classification.get("available") else None
     )

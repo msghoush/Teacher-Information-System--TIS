@@ -198,7 +198,7 @@ def test_m7_duplicate_student_id_disclosure_is_tenant_safe(db, client):
 
 def test_m7_profile_shows_the_categorical_value_and_preserves_deprecated_percentages(db, client):
     # M14 owner correction: profile shows one categorical Learning Style
-    # value (or "Not assigned"), never four percentage bars. Pre-existing
+    # value (or "Unassigned"), never four percentage bars. Pre-existing
     # stored percentage values (ADR 0042, operationally deprecated) survive
     # completely untouched through an unrelated Student edit.
     permissions(db, "students.view", "students.edit", "students.manage_identifiers")
@@ -415,6 +415,57 @@ def test_profile_sections_render(db, client):
     assert "Talent" in talent.text
 
 
+def _synthetic_talent_profile(with_legacy):
+    def cycle(title, status, classification, talented, average, legacy):
+        item = {
+            "cycle": {"id": 1, "title": title}, "frozen_context": None,
+            "framework_version": {"title": "Rubric", "version_number": 1},
+            "assessment": {"status": status, "is_current": True, "kpi_result": None, "classification": classification,
+                           "is_talented": talented,
+                           "overall_result": {"available": True, "average": average, "scale_max": 5} if average else None},
+            "competency_results": [],
+        }
+        if legacy:
+            item["review_candidate"] = {"status": "reviewed"}
+            item["official_identification"] = {"decision": "identified"}
+        return item
+    return {"student": {"id": 1001}, "placements": [], "timeline": [], "programs": [{
+        "program": {"id": 5, "name": "Arts"},
+        "academic_years": [{"academic_year": {"id": 100, "year_name": "2026-2027"}, "cycles": [
+            cycle("Term 1", "completed", "Exceptional", True, 4.8, with_legacy),
+            cycle("Term 2", "in_progress", None, False, None, with_legacy),
+        ]}]}]}
+
+
+def test_student_profile_talent_section_shows_current_classification_and_isolates_legacy_history(db, client, monkeypatch):
+    """Acceptance B: the Student Profile Talent section leads with Learning Style, Program result,
+    automatic Classification and Talented; legacy Review/Identification history is confined to one
+    explicitly labeled secondary section and is absent without legacy permission."""
+    db.query(models.Student).filter_by(id=1001).one().learning_style = "Kinesthetic"
+    db.commit()
+    permissions(db, "students.view", "talent_learner_profiles.view",
+                "talent_review_candidates.view", "talent_official_identifications.view")
+    monkeypatch.setattr(students_ui, "build_learner_profile", lambda *a, **k: _synthetic_talent_profile(True))
+    html = client.get("/students/1001?section=talent").text
+    assert "Learning Style:" in html and "Kinesthetic" in html
+    assert "Program result" in html and "4.8 / 5" in html
+    assert 'data-classification="Exceptional"' in html
+    assert "tp-badge-talented" in html and html.count("tp-badge-talented") == 1
+    legacy_at = html.index("tp-legacy-history")
+    current, legacy = html[:legacy_at], html[legacy_at:]
+    assert "Legacy Review &amp; Identification History" in legacy
+    assert "Legacy Official Identification decision: identified" in legacy
+    for stale in ("Official Identification", "Talent Review", "Meets Program Criteria", "Identification</strong>"):
+        assert stale not in current
+    # The in-progress cycle shows no classification (one Classification line only).
+    assert html.count('class="stu-talent-classification"') == 1
+
+    monkeypatch.setattr(students_ui, "build_learner_profile", lambda *a, **k: _synthetic_talent_profile(False))
+    plain = client.get("/students/1001?section=talent").text
+    assert "tp-legacy-history" not in plain and "Legacy Review" not in plain
+    assert 'data-classification="Exceptional"' in plain
+
+
 def test_foreign_student_is_not_found(db, client):
     permissions(db, "students.view")
     assert client.get("/students/2001").status_code == 404
@@ -512,7 +563,11 @@ def test_list_shows_student_id_and_does_not_promote_legacy_learning_style(db, cl
     assert response.status_code == 200
     assert response.text.count("STD0000001001") >= 2  # desktop row and mobile card
     assert response.text.count("TIS Student ID not assigned") >= 1
-    assert "Read/Write" not in response.text
+    # Acceptance C: the aggregate Learning Style distribution panel legitimately
+    # lists every category label, so the "not promoted" rule is asserted on the
+    # Student list itself (rows/cards), i.e. everything after the panel.
+    student_list_html = response.text.split("stu-list-table", 1)[1]
+    assert "Read/Write" not in student_list_html
     assert "<th>Talent score</th>" not in response.text
     assert "<th>Talent status</th>" not in response.text
 

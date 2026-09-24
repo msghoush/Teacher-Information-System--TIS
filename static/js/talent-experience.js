@@ -7,6 +7,16 @@
 })(typeof window !== 'undefined' ? window : globalThis, root => {
   'use strict';
 
+  // Shared helpers loaded by the template before this script (and require()'d
+  // under Node). Resolved defensively so a missing module degrades instead of
+  // aborting the page.
+  const apiErrors = (typeof require === 'function' && typeof module !== 'undefined' && module.exports)
+    ? require('./talent-api-errors.js')
+    : (root && root.TalentApiErrors) || null;
+  const rubricRequest = (typeof require === 'function' && typeof module !== 'undefined' && module.exports)
+    ? require('./talent-rubric-request.js')
+    : (root && root.TalentRubricRequest) || null;
+
   const PRIVATE_EVALUATION_SUFFIXES = [' · Current rubric', ' · Re-assessment'];
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
     '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
@@ -153,18 +163,6 @@
     wrap.addEventListener('change',apply); apply();
   }
 
-  function addReviewIdentificationFilter(scope) {
-    if(!scope?.querySelector||document.getElementById('tp-identification-filter')) return;
-    const table=[...scope.querySelectorAll('table')].find(node=>/Official Identification/i.test(node.querySelector('thead')?.textContent||'')); if(!table)return;
-    const heads=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim().toLowerCase()),index=heads.findIndex(v=>v.includes('official identification')); if(index<0)return;
-    const rows=[...table.querySelectorAll('tbody tr')];
-    rows.forEach(row=>{const text=row.children[index]?.textContent?.trim().toLowerCase()||'';row.dataset.identificationClass=/not identified/.test(text)?'not_identified':/identified/.test(text)?'identified':'undecided';});
-    const wrap=document.createElement('div');wrap.id='tp-identification-filter';wrap.className='tp-local-filterbar tp-review-identification-filter';
-    wrap.innerHTML='<label>Identification Classification<select><option value="">All Classifications</option><option value="identified">Identified</option><option value="not_identified">Not Identified</option><option value="undecided">Not yet decided</option></select></label><span class="tp-local-filter-count" aria-live="polite"></span>';
-    table.closest('.tp-table-wrap')?.before(wrap);const select=wrap.querySelector('select');
-    const apply=()=>{let visible=0;rows.forEach(row=>{const show=!select.value||row.dataset.identificationClass===select.value;row.hidden=!show;if(show)visible++;});wrap.querySelector('.tp-local-filter-count').textContent=`${visible} Student${visible===1?'':'s'} shown`;};select.addEventListener('change',apply);apply();
-  }
-
   function magnitudeBucket(value) {
     const n=Number(value); if(!Number.isFinite(n)) return 0;
     const p=Math.max(0,Math.min(100,n)); return p<20?1:p<40?2:p<60?3:p<80?4:5;
@@ -180,30 +178,12 @@
     });
   }
 
-  function clarifyAnalyticsEmptyStates(scope) {
-    if (!scope?.querySelector) return;
-    const identified = scope.querySelector('.tp-primary-indicator');
-    const identifiedState = identified?.querySelector('.tp-radial-state .tp-protected');
-    if (identifiedState && /no data/i.test(identifiedState.textContent || '')) {
-      identifiedState.textContent = 'No Official Identification result yet';
-      const bodyCopy = identified.querySelector('.tp-primary-indicator-body > p');
-      if (bodyCopy && !bodyCopy.dataset.tpClarified) {
-        bodyCopy.dataset.tpClarified = 'true';
-        bodyCopy.insertAdjacentText(
-          'beforeend',
-          ' Assessed Students are not automatically Officially Identified; that decision is recorded separately in Talent Review.'
-        );
-      }
-    }
-
-    scope.querySelectorAll('.tp-fact-strip > span').forEach(item => {
-      if (!/Meets Program Criteria/i.test(item.textContent || '')) return;
-      const value = item.querySelector('b .tp-protected, b');
-      if (value && /no data/i.test(value.textContent || '')) {
-        value.textContent = 'No Program Criteria result yet';
-      }
-    });
-  }
+  // Acceptance B: the former legacy Review/Identification
+  // empty-state rewrites are removed - those legacy concepts are no longer part of
+  // the current Talent workflow, and the current Talented section carries its own
+  // explicit backend-driven copy. Kept as a no-op so existing callers and the
+  // exported surface stay stable.
+  function clarifyAnalyticsEmptyStates(_scope) {}
 
   function programOptionsFromGlobalSelect() {
     if (typeof document === 'undefined') return [];
@@ -214,19 +194,53 @@
       .map(option => ({id:String(option.value), name:String(option.textContent || '').trim()}));
   }
 
-  async function fetchRubric(programId, year, signal) {
-    const response = await fetch(
-      `/api/talent/analytics/programs/${encodeURIComponent(programId)}/academic-years/${encodeURIComponent(year)}/rubric-distribution?assessment_state=completed`,
-      {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal}
-    );
-    if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
-      throw new Error('Your session may have ended. Sign in again and reopen Results & Analytics.');
-    }
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(typeof data?.detail === 'string' ? data.detail : 'Unable to load rubric distributions.');
-    }
-    return data;
+  // Bounded like every other Talent read (see REQUEST_TIMEOUT_MS in talent.js):
+  // 25 s is far above normal latency yet ends a hung request in a visible,
+  // retryable state instead of an indefinite "Loading ... rubric results" line.
+  const RUBRIC_TIMEOUT_MS = 25000;
+  function fetchRubric(programId, year, signal, timeoutMs = RUBRIC_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+      const local = new AbortController();
+      let settled = false, timer = null;
+      const finish = (settle, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal?.removeEventListener?.('abort', onParentAbort);
+        settle(value);
+      };
+      function onParentAbort() { local.abort(); finish(reject, Object.assign(new Error('Request cancelled.'), {name:'AbortError'})); }
+      if (signal) {
+        if (signal.aborted) { reject(Object.assign(new Error('Request cancelled.'), {name:'AbortError'})); return; }
+        signal.addEventListener('abort', onParentAbort, {once:true});
+      }
+      if (timeoutMs > 0) timer = setTimeout(() => { local.abort(); finish(reject, Object.assign(new Error('timeout'), {name:'TimeoutError', userSafe:true})); }, timeoutMs);
+      Promise.resolve().then(() => fetch(
+        `/api/talent/analytics/programs/${encodeURIComponent(programId)}/academic-years/${encodeURIComponent(year)}/rubric-distribution?assessment_state=completed`,
+        {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal: local.signal}
+      )).then(async response => {
+        if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
+          throw Object.assign(new Error('Your session may have ended. Sign in again and reopen Results & Analytics.'), {userSafe:true});
+        }
+        const data = await response.json();
+        if (!response.ok) {
+          throw (apiErrors && typeof apiErrors.httpError === 'function')
+            ? apiErrors.httpError(response.status, data?.code)
+            : Object.assign(new Error('Unable to load rubric distributions.'), {userSafe:true});
+        }
+        return data;
+      }).then(value => finish(resolve, value), error => finish(reject, error));
+    });
+  }
+
+  // Concise, non-technical failure state with a real Retry button. Only messages
+  // authored here or mapped from an HTTP response (userSafe) are shown; any other
+  // exception text is replaced by the generic sentence.
+  function rubricErrorHtml(programName, error) {
+    const detail = error?.name === 'TimeoutError'
+      ? 'This is taking longer than expected. Check your connection, then retry.'
+      : (error?.userSafe === true && error.message) ? error.message : '';
+    return `<div class="tp-section-state tp-section-error" role="group" aria-label="Rubric results unavailable"><strong>${esc(programName)} rubric results could not finish loading.</strong>${detail ? `<span>${esc(detail)}</span>` : ''}<button type="button" data-tp-rubric-retry>Retry</button></div>`;
   }
 
   function rubricDistributionHtml(data, programName) {
@@ -315,14 +329,27 @@
     rubricController = new AbortController();
     const serial = ++rubricRequestSerial;
     try {
-      const data = await fetchRubric(selectedId, year, rubricController.signal);
+      // Reuse talent.js's authoritative rubric read for the same Program + Year +
+      // assessment_state context (cross-module deduplication). Retry (force) always
+      // re-issues its own bounded request. A different Program selected in this
+      // section's own filter is a different context and fetches independently.
+      const requestKey = (rubricRequest && typeof rubricRequest.key === 'function')
+        ? rubricRequest.key(selectedId, year)
+        : `${selectedId}|${year}|completed`;
+      const shared = !force && rubricRequest && typeof rubricRequest.get === 'function'
+        ? rubricRequest.get(requestKey)
+        : null;
+      const data = shared ? await shared : await fetchRubric(selectedId, year, rubricController.signal);
       if (serial !== rubricRequestSerial || !section.isConnected) return;
       const target = section.querySelector('[data-tp-rubric-results]');
       if (target) target.innerHTML = rubricDistributionHtml(data, selectedProgram.name);
     } catch (error) {
       if (error?.name === 'AbortError' || serial !== rubricRequestSerial || !section.isConnected) return;
       const target = section.querySelector('[data-tp-rubric-results]');
-      if (target) target.innerHTML = `<p class="tp-empty">Unable to load ${esc(selectedProgram.name)} rubric results: ${esc(error?.message || 'Unknown error')}</p>`;
+      if (target) {
+        target.innerHTML = rubricErrorHtml(selectedProgram.name, error);
+        target.querySelector('[data-tp-rubric-retry]')?.addEventListener('click', () => ensureRubricSection(scope, {force:true}));
+      }
     }
   }
 
@@ -353,7 +380,6 @@
       restoreDisclosureState(scope, rememberedDisclosureState);
       cleanupAssessmentContexts(scope);
       addAssessmentRosterFilters(scope);
-      addReviewIdentificationFilter(scope);
       clarifyAnalyticsEmptyStates(scope);
       applyAnalyticsMagnitudeColors(scope);
       ensureRubricSection(scope).catch(() => {});
@@ -374,6 +400,8 @@
     cleanupAssessmentContexts,
     clarifyAnalyticsEmptyStates,
     rubricDistributionHtml,
+    fetchRubric,
+    rubricErrorHtml,
     assessmentStatusKey,
     magnitudeBucket,
   };

@@ -40,13 +40,16 @@
     <button type="submit" title="Selections apply automatically. Use Refresh only if a view does not update on its own." aria-label="Refresh now (selections apply automatically)">{{ icon('check-circle') }}Refresh</button>
   </form>
   <div id="tp-status" role="status" aria-live="polite" class="tp-sr-status"></div>
-  <div id="tp-content" aria-busy="true"><p class="tp-empty">Loading your authorized workspace…</p></div>
+  <div id="tp-content" aria-busy="true"><p class="tp-empty" data-initial-loading>Loading your authorized workspace…</p><noscript><p class="tp-empty">JavaScript is required to use Talent &amp; Potential. Enable it and reload this page.</p></noscript></div>
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
 <script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
-{% if talent_view in ['programs', 'evaluation-plans', 'assessments', 'reviews'] %}
+{# talent.js and talent-experience.js render rubric/competency visuals on every Talent view (Results & Analytics, Learner Profile, ...), so the tiny shared rubric visual module must always be present. The shared error-mapping and rubric-read-ownership helpers below are also loaded on every view (never gated) so no view can miss a global its render path needs. It is not a heavy bundle; the operational/workspace bundles below stay surface-specific (M16). #}
 <script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
-{% endif %}
+<script src="{{ url_for('static', path='js/talent-api-errors.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-rubric-request.js') }}" defer></script>
+{# Shared Student identity presentation (name / Learning Style / Classification / Talented): every Talent view that renders an identifiable Student needs it, so it is loaded everywhere like the other tiny shared helpers. #}
+<script src="{{ url_for('static', path='js/talent-student-identity.js') }}" defer></script>
 {% if talent_view in ['assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>
 {% endif %}

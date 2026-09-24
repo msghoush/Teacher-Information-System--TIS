@@ -33,6 +33,11 @@ def authorized_contexts(db, school_group_id, rows):
         branch = branches.get(member.branch_id) if member else None
         result[row.id] = {
             "student_name": " ".join(filter(None, (student.first_name, student.father_name, student.last_name))) if student else None,
+            # Acceptance B: canonical Student.learning_style (Student-domain
+            # current learner-profile context, never a Talent copy) rides the
+            # already-authorized, already-batched Student lookup above - no
+            # extra query and no Student not already on this projection.
+            "student_learning_style": student.learning_style if student else None,
             "program_name": program.name if program else None,
             "academic_year_name": year.year_name if year else None,
             "cycle_title": cycle.title if cycle else None,
@@ -48,3 +53,21 @@ def authorized_contexts(db, school_group_id, rows):
 
 def authorized_payload(db, row, serializer):
     return {**serializer(row), "context": authorized_contexts(db, row.school_group_id, [row])[row.id]}
+
+
+def student_identity_metadata(db, school_group_id, student_ids):
+    """Presentation-only Student identity metadata for an already-authorized Student set.
+
+    Acceptance B: returns ``{student_id: {"learning_style": <canonical
+    Student.learning_style or None>}}`` from ONE tenant-bound bulk read. It is
+    display metadata only - never an input to scoring, eligibility, review or
+    classification (ADR 0031) - and it only ever describes Students the caller
+    already selected on an authorized projection.
+    """
+    ids = {int(student_id) for student_id in student_ids if student_id is not None}
+    if not ids:
+        return {}
+    rows = db.query(models.Student.id, models.Student.learning_style).filter(
+        models.Student.school_group_id == school_group_id, models.Student.id.in_(ids),
+    ).all()
+    return {row[0]: {"learning_style": row[1]} for row in rows}

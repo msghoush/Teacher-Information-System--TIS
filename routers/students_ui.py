@@ -53,7 +53,6 @@ from student_academic_service import (
 )
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
-from talent_analytics_privacy import resolve_privacy_policy_provider
 from talent_assessment_cycle_service import (
     TalentAssessmentCycleError,
     eligible_open_cycles_for_placement_scope,
@@ -377,24 +376,19 @@ def students_home(request: Request, db: Session = Depends(get_db), current_user=
 
     # Learning Style V1 (ADR 0031, Sections 6-8): Branch/Organization
     # distribution, reusing the SAME Branch/Grade/Section context filters
-    # already applied above rather than a separate filter UI. Privacy
-    # suppression reuses the governed Talent privacy contract; a
-    # misconfigured/unavailable policy fails closed to "restricted" instead
-    # of publishing raw counts. Search/status are intentionally not applied
-    # here - the distribution reflects the Branch/Grade/Section scope, not
-    # an incidental text search.
-    learning_style_distribution = {
-        "state": "unavailable",
-        "reason": "privacy_policy_unavailable",
-    }
-    policy = resolve_privacy_policy_provider()
-    if policy is not None:
-        ls_population = resolve_learning_style_population(
-            db, school_group_id=group_id, user=user, branch_id=branch_id,
-            grade_level=grade_level, section_name=section_name,
-        )
-        if ls_population is not None:
-            learning_style_distribution = build_learning_style_distribution(ls_population, policy)
+    # already applied above rather than a separate filter UI. Acceptance C:
+    # authorized Student-domain aggregation - no Talent small-cell suppression;
+    # the denominator is the whole authorized selection including Unassigned.
+    # An out-of-scope Branch yields the restricted state. Search/status are
+    # intentionally not applied here - the distribution reflects the
+    # Branch/Grade/Section scope, not an incidental text search.
+    learning_style_distribution = {"state": "restricted", "levels": []}
+    ls_population = resolve_learning_style_population(
+        db, school_group_id=group_id, user=user, branch_id=branch_id,
+        grade_level=grade_level, section_name=section_name,
+    )
+    if ls_population is not None:
+        learning_style_distribution = build_learning_style_distribution(ls_population)
 
     return _render(request, db, current_user, "students.html", {
         "request": request,

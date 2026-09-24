@@ -23,7 +23,6 @@ from student_academic_service import (
 import student_roster_service
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
-from talent_analytics_privacy import resolve_privacy_policy_provider
 
 router = APIRouter(prefix="/api/students", tags=["Students"])
 
@@ -142,30 +141,30 @@ def student_list(request: Request, search: str = Query(""), status: str | None =
 def student_learning_style_distribution(
     request: Request, branch_id: int | None = Query(None), grade_level: str | None = Query(None),
     section_name: str | None = Query(None), db: Session = Depends(get_db),
-    current_user=Depends(get_current_user), policy=Depends(resolve_privacy_policy_provider),
+    current_user=Depends(get_current_user),
 ):
-    """Branch/Organization Learning Style distribution (ADR 0031, Sections 6-8).
+    """Branch/Organization Learning Style distribution (ADR 0031, Acceptance C).
 
     Population: Students with a current effective academic placement in the
     actor's authorized Branch scope, optionally narrowed to one Branch/Grade/
     Section via the same filters the Students list already supports - never
     filtered by Talent Program/Cycle participation. Gated by the same
     ``students.view`` permission the Students list itself already requires
-    (no new permission). A misconfigured/unavailable privacy policy fails
-    closed rather than publishing raw counts.
+    (no new permission). Authorized Student-domain profile aggregation: the
+    Talent small-cell suppression pipeline is intentionally NOT applied to this
+    distribution (Acceptance C); only aggregate counts/percentages over the
+    authorized population (denominator includes Unassigned) are returned.
     """
     user, group_id, denied = _authorize(request, db, current_user, "students.view")
     if denied:
         return denied
-    if policy is None:
-        return JSONResponse({"detail": "Analytics is unavailable.", "code": "analytics_unavailable"}, status_code=503)
     rows = resolve_learning_style_population(
         db, school_group_id=group_id, user=user, branch_id=branch_id,
         grade_level=grade_level, section_name=section_name,
     )
     if rows is None:
         return JSONResponse({"detail": "Branch is outside your authorized scope."}, status_code=403)
-    return jsonable_encoder(build_learning_style_distribution(rows, policy))
+    return jsonable_encoder(build_learning_style_distribution(rows))
 
 
 @router.get("/{student_id}")

@@ -1,11 +1,42 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.9
-last_updated: 2026-09-23
+documentation_version: 3.11
+last_updated: 2026-09-24
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Learning Style Distribution Flow (Deployment Acceptance Correction C, 2026-09-24)
+
+1. An actor with `students.view` opens the Students page panel or Results & Analytics
+   (Learning Style section, Student-domain-wide, never Program-bound).
+2. The backend resolves the authorized Student population for the selected
+   Branch/Grade (SchoolGroup, Branch scope and tenant isolation enforced; an
+   out-of-scope Branch is refused).
+3. It counts one categorical Learning Style per Student in memory; Students with no
+   value are Unassigned. The denominator is the whole authorized population
+   including Unassigned.
+4. The UI shows all nine categories with count, percentage and a bar drawn from the
+   backend percentage, plus "N Students in this selection, including Unassigned".
+   Zero categories show `0` / `0%`. An empty selection shows "No Students in the
+   current authorized selection". No Talent small-cell suppression applies to this
+   distribution (owner decision, ADR 0031 Acceptance C Amendment); a request failure
+   or 403 keeps the section's own error/retry state.
+
+## Current Talent Assessment Flow (Deployment Acceptance Correction B, 2026-09-24)
+
+A teacher opens Student Assessments, selects an Evaluation Period and Program,
+sees the eligible Student roster (name, Learning Style, Grade, Section,
+assessment status, and - for completed current assessments - the automatic
+Classification with a Talented badge for Exceptional), starts or continues an
+assessment, and completes it. The backend deterministically computes the
+Classification; there is no Review or Official Identification step. Legacy
+Review Candidate / Official Identification records remain viewable as
+"Legacy Review & Identification History" for authorized users, separate from the
+current Classification. Learner Profile presents current history (result,
+Classification, competency evidence) first and legacy history in a distinct
+secondary section.
 
 ## Results & Analytics Final Flow And Request Behavior (M18b-3 closeout, 2026-09-24)
 
@@ -56,12 +87,12 @@ deployed.
 
 1. Student create/edit shows exactly one Learning Style selector with eight
    options (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
-   Quantitative, Spatial) plus a blank "Not assigned" choice; the browser
+   Quantitative, Spatial) plus a blank "Unassigned" choice; the browser
    submits the one selected categorical value, never a percentage.
 2. The server independently validates the submitted value against the same
    eight-value authority server-side; an unsupported value is rejected even
    if a client bypasses the selector.
-3. The Student profile displays the one selected value (or "Not assigned"),
+3. The Student profile displays the one selected value (or "Unassigned"),
    never four percentage bars. The Talent tab's learner-context line reads
    the same current categorical value directly - no historical snapshot, no
    effect on rubric/Assessment/Overall Result/Evaluation Progress/
@@ -225,7 +256,7 @@ M10 comparison charts, and M11 roster UI are not part of this flow.
 1. Add Student, Delete selected, per-row Open, and per-row Delete are compact icon-only controls with accessible names/tooltips.
 2. Cross-Branch Students browsing requires `students.view_all_branches` **and** organization/global access scope. The managed-role policy keeps this permission Administrator-only.
 3. Without that authority the list is fixed to the actor's assigned authorized Branch, the Branch selector is replaced by a read-only Branch context, and **All branches** is not offered.
-4. Learning Style distribution continues to use the ADR 0031 privacy provider. If that provider is unavailable, the page explains that aggregate statistics are unavailable and emits no chart/count/percentage. If the selected cohort is suppressed, the privacy-protected state remains the only aggregate presentation.
+4. Learning Style distribution formerly used the ADR 0031 privacy provider; **superseded 2026-09-24 (Acceptance C)**: it is authorized aggregation with no provider dependency or suppression (see the Learning Style Distribution Flow above).
 
 ## Talent Selected Evaluation And Recovery Flow
 

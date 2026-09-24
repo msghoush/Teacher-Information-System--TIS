@@ -262,6 +262,11 @@
 .tp-grade-track span {display: block; height: 100%; background: linear-gradient(90deg, var(--app-brand), var(--app-brand-deep)); border-radius: 999px}
 .tp-grade-row > strong {font-variant-numeric: tabular-nums; text-align: right; font-size: var(--tp-text-sm)}
 .tp-grade-state {grid-column: 2 / -1}
+.tp-ls-context {margin: 0 0 var(--tp-space-3); font-weight: 650}
+.tp-ls-chart .tp-grade-row {grid-template-columns: 120px 1fr 56px 96px}
+.tp-ls-chart .tp-grade-row > small {font-variant-numeric: tabular-nums; color: var(--app-muted); white-space: nowrap}
+.tp-ls-chart .tp-ls-unassigned .tp-grade-track span {background: var(--app-muted)}
+.tp-ls-chart .tp-ls-unassigned .tp-grade-label {font-style: italic}
 .tp-grade-gauges {display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px}
 .tp-grade-gauge {display:grid;justify-items:center;padding:10px 8px;border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface-strong)}
 .tp-grade-gauge-label {font-size:var(--tp-text-sm);font-weight:750;color:var(--app-brand-deep)}
@@ -335,6 +340,8 @@
 
 @media (max-width: 680px) {
   .tp-grade-row {grid-template-columns: 92px 1fr 46px; gap: 8px}
+  .tp-ls-chart .tp-grade-row {grid-template-columns: 1fr auto auto; gap: 4px 8px}
+  .tp-ls-chart .tp-grade-row .tp-grade-track {grid-column: 1 / -1; grid-row: 2}
   .tp-radial {width: 92px; height: 92px}
   .tp-radial-center strong {font-size: 19px}
   .tp-branch-row {grid-template-columns:92px 1fr 46px;gap:8px}
@@ -438,3 +445,38 @@
 }
 .tp-content.is-refreshing,#tp-content.is-refreshing{opacity:.72;pointer-events:none;transition:opacity 120ms ease}
 #tp-content[aria-busy="true"]{cursor:progress}
+
+/* ---- Deployment Acceptance Correction A: section-local loading / error states ---- */
+/* Independent page regions load and fail on their own (see static/js/talent.js).
+   A subtle skeleton, no decorative animation; reduced-motion is already global. */
+.tp-slot[hidden]{display:none}
+.tp-section-state{display:block;padding:var(--tp-space-4);border:1px dashed var(--app-line);border-radius:12px;background:var(--app-surface);color:var(--app-ink)}
+.tp-section-loading .tp-skel{display:block;height:10px;margin-bottom:var(--tp-space-2);border-radius:6px;background:var(--app-line);opacity:.7;animation:tp-skel-pulse 1.4s ease-in-out infinite}
+.tp-section-loading .tp-skel-short{width:55%}
+.tp-section-loading-text{display:block;margin-top:var(--tp-space-2);font-size:var(--tp-text-sm);color:var(--app-muted,var(--app-ink))}
+.tp-section-error{border-style:solid;border-left:4px solid var(--app-danger)}
+.tp-section-error strong,.tp-section-error span{display:block}
+.tp-section-error button{margin-top:var(--tp-space-3);background:var(--app-brand);color:#fff;border-color:var(--app-brand)}
+@keyframes tp-skel-pulse{0%,100%{opacity:.45}50%{opacity:.85}}
+
+/* Deployment Acceptance Correction B: shared Talent Student identity (name,
+   Learning Style, current automatic Classification, Talented). Text always
+   accompanies colour; long names wrap instead of breaking table/card layout. */
+.tp-identity{display:grid;gap:4px;min-width:0}
+.tp-identity-name{font-weight:800;color:var(--app-ink);overflow-wrap:anywhere;word-break:break-word}
+.tp-identity-meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 6px;min-width:0}
+.tp-ls-chip,.tp-class-chip{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:1px 8px;border:1px solid var(--app-line);border-radius:999px;font-size:var(--tp-text-xs,12px);line-height:1.5;white-space:nowrap;background:var(--app-surface)}
+.tp-ls-chip{color:var(--app-muted);font-weight:600}
+.tp-ls-chip.is-unassigned{font-style:italic}
+.tp-ls-chip-label,.tp-class-chip-label{font-weight:600;opacity:.85}
+.tp-class-chip{font-weight:800;color:var(--app-brand-deep);border-color:color-mix(in srgb,var(--app-brand) 35%,var(--app-line))}
+.tp-class-chip.tp-class-needs-improvement{border-color:color-mix(in srgb,var(--app-warning) 45%,var(--app-line));background:color-mix(in srgb,var(--app-warning) 10%,var(--app-surface))}
+.tp-class-chip.tp-class-advanced{background:color-mix(in srgb,var(--app-brand) 9%,var(--app-surface))}
+.tp-class-chip.tp-class-exceptional{border-color:var(--app-success, #1f8a4c);background:color-mix(in srgb,var(--app-success, #1f8a4c) 12%,var(--app-surface))}
+.tp-class-chip.is-none{color:var(--app-muted);font-weight:600}
+.tp-identity-meta .tp-badge-talented{padding:1px 8px;font-size:var(--tp-text-xs,12px)}
+.tp-identity-heading{display:flex;flex-wrap:wrap;align-items:flex-start;gap:8px 12px}
+/* Legacy Review & Identification history is visually secondary to current Classification. */
+.tp-legacy-history{margin:16px 0 0;padding:10px 14px;border:1px dashed var(--app-line);border-radius:12px;background:transparent;color:var(--app-muted)}
+.tp-legacy-history>summary{cursor:pointer;font-weight:700}
+.tp-legacy-link{color:var(--app-muted);font-size:var(--tp-text-sm,13px)}

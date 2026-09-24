@@ -18,7 +18,8 @@ def test_context_uses_frozen_membership_and_tenant_bound_labels(db):
     session.flush()
     context = authorized_contexts(session, 1, [assessment])[assessment.id]
     assert context == {
-        "student_name": "Student One", "program_name": program.name,
+        # Acceptance B: canonical Student Learning Style rides the same tenant-bound lookup (None = Unassigned).
+        "student_name": "Student One", "student_learning_style": None, "program_name": program.name,
         "academic_year_name": "2026-2027", "cycle_title": "Cycle",
         "cycle_status": "open", "framework_title": "Framework",
         "framework_version_number": framework.version_number,

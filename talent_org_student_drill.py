@@ -23,6 +23,7 @@ correct closed-wrapper type.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Optional
 
@@ -160,11 +161,16 @@ class StudentDrillRow:
     contexts: tuple[StudentDrillContext, ...]
     can_view_learner_profile: Optional[bool] = None
     has_learner_profile_field: bool = False
+    # Acceptance B: canonical Student.learning_style read from the same page-bounded
+    # Student rows already loaded for display_name (no extra query). ``None`` means
+    # the Student has no assigned Learning Style; it never reveals a new Student.
+    learning_style: Optional[str] = None
 
     def to_payload(self) -> dict:
         payload = {
             "student_id": self.student_id,
             "display_name": self.display_name,
+            "learning_style": self.learning_style,
             "contexts": [context.to_payload() for context in self.contexts],
         }
         if self.has_learner_profile_field:
@@ -311,7 +317,10 @@ def fetch_student_rows(
             identification_state=identification.decision if identification is not None else None,
             has_identification_field=has_identification,
         )
-        key = tuple(sorted(context.to_payload().items()))
+        # Acceptance B: the payload can carry nested dicts (overall_result), which are
+        # unhashable inside a tuple key and raised TypeError for any Student with a
+        # completed Program result. A canonical JSON string is a stable hashable key.
+        key = json.dumps(context.to_payload(), sort_keys=True, default=str)
         if key not in seen_contexts[member.student_id]:
             seen_contexts[member.student_id].add(key)
             contexts_by_student[member.student_id].append(context)
@@ -321,6 +330,7 @@ def fetch_student_rows(
         built.append(StudentDrillRow(
             student_id=student.id,
             display_name=_display_name(student),
+            learning_style=student.learning_style,
             contexts=tuple(contexts_by_student[student.id]),
             can_view_learner_profile=(True if has_learner_profile else None), has_learner_profile_field=has_learner_profile,
         ))

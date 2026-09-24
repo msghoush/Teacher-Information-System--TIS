@@ -265,7 +265,10 @@ def test_identity_fields_are_minimized_to_the_approved_set(db, client):
     api, state = client
     permissions(db, "talent_analytics.view", "talent_analytics.view_students")
     item = by_id(get(api).json(), 1002)
-    assert set(item.keys()) == {"student_id", "display_name", "contexts"}
+    # Acceptance B (deliberate approved-set extension): canonical Student.learning_style
+    # joins the minimized identity fields; it rides the already-authorized page-bounded
+    # Student rows and never reveals a Student outside the gated cohort.
+    assert set(item.keys()) == {"student_id", "display_name", "learning_style", "contexts"}
     assert set(item["contexts"][0]) == {
         "program_id", "cycle_id", "branch_id", "grade_level", "section_name", "assessment_state",
     }

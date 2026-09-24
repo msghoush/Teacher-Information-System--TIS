@@ -260,10 +260,25 @@ def talent_review_workspace(
     for assessment in rows:
         candidate = candidate_by_assessment.get(assessment.id)
         newer = reassessment_requirement(db, assessment)
+        overall = overall_program_result(db, assessment)
+        # Acceptance B remediation: the legacy-history Student identity shows the
+        # Student's CURRENT automatic Classification (M17
+        # talent_classification_service) for the current Completed Assessment,
+        # exactly like the assessments list. The already-computed Overall Program
+        # Result is reused (overall=) so no extra derivation occurs; legacy Review
+        # Candidate / Official Identification never influence classification.
+        classification = (
+            assessment_classification(db, assessment, overall=overall)
+            if assessment.status == "completed" and bool(getattr(assessment, "is_current", True)) else None
+        )
+        available = bool(classification and classification.get("available"))
         result.append({
             **assessment_payload(assessment),
             "context": contexts[assessment.id],
-            "overall_result": overall_program_result(db, assessment),
+            "overall_result": overall,
+            "classification": classification.get("classification") if available else None,
+            "classification_score": classification.get("classification_score") if available else None,
+            "is_talented": bool(available and classification.get("is_talented")),
             "reassessment": {
                 "required": newer is not None,
                 "framework_version_id": newer.id if newer is not None else None,

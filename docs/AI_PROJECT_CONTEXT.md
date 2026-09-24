@@ -1,11 +1,95 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.7
+documentation_version: 4.9
 last_updated: 2026-09-24
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+
+## Student Assessment Editor Redesign (Deployment Acceptance Correction D, 2026-09-24)
+
+Read before touching `static/js/talent-operations.js` or
+`static/css/talent-experience.css` assessment rules. The Student Assessment
+editor is one competency per row (single-column `.tp-assessment-grid`), each with
+adaptive, full-width selectable rubric tiles (`tp-rubric-tile`: rank "1 / N",
+level title, readable descriptor on its own line) and a full-width Evidence
+textarea bound to its competency. The whole tile is the radio `<label>` target
+(native keyboard/focus, visible focus ring, check marker, non-colour-only
+selected state). Presentation only: scoring, automatic Classification
+(Exceptional-only Talented), authorization and persistence are unchanged and
+still come from the backend. Structural verification only; browser visual
+acceptance is still pending.
+
+## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
+
+## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
+
+Read before touching `student_learning_style_analytics.py`, the Students Learning
+Style panel or the Results & Analytics Learning Style section. The distribution is
+authorized Student-domain aggregation, **not** Talent scoring output: it has no
+Talent P3/small-cell or complementary suppression and no privacy-provider
+dependency (`build_distribution(students)` takes no policy). Denominator = every
+authorized Student in the selection including Unassigned; nine categories in stable
+order (eight values then Unassigned) with key/label/count/percentage plus
+`total_population`; zero is `0`/`0%`; empty selection is state `empty`. There is no
+per-Student percentage and the four `learning_style_*_percentage` columns are
+operationally deprecated and excluded from current Learning Style analytics and
+normal product presentation (legacy compatibility paths may still read/write the
+stored values for preservation, never as analytics authority). Authorization is
+unchanged (`resolve_population`,
+`students.view`, SchoolGroup/Branch/Grade scope). Never extend this exception to
+Classification, Talented, competency or organization metrics - their suppression
+is unchanged. The Results frontend renders backend `levels` and never computes a
+percentage. See ADR 0031 "Acceptance C Amendment".
+
+## Talent Current Workflow Correction (Deployment Acceptance Correction B, 2026-09-24)
+
+Read before touching Talent Student surfaces. The current workflow ends in the
+automatic backend Classification; Exceptional is the only Talented state.
+Review Candidate / Official Identification are legacy history: do not
+reintroduce them as navigation peers, roster columns/actions, filters, current
+Student status, or Talented determinants (use "Legacy Review & Identification
+History", `/talent/reviews`, only). Render Students through
+`TalentStudentIdentity` (name + Learning Style + Classification + Talented) -
+never re-derive a band client-side, never call a per-Student Learning Style or
+classification endpoint, and take Learning Style from the existing authorized
+projection (`context.student_learning_style`, eligible-students
+`learning_style`, learner-profile `student.learning_style`, Student Drill
+`learning_style`). Applicable current result = `completed` AND `is_current`.
+Web Service only; not deployed. Acceptance C (Learning Style aggregates) and D
+(assessment entry editor) have since been implemented (see their sections).
+
+Follow-up ClinePass remediation (same day): the legacy-history projection claim
+was overbroad - `talent_review_workspace` did not actually return the current
+Classification until it was added from
+`assessment_classification(..., overall=)` (reusing the computed Overall Result).
+Learning Style absence copy was also normalized to "Unassigned" in
+`templates/_learning_style.html` to match Talent surfaces.
+
+## Talent & Potential Runtime Loading Reliability (Deployment Acceptance Correction A, 2026-09-24)
+
+Frontend reliability fix on `dev` (not deployed). Root cause: M16's per-view
+script gating omitted `talent-rubric-visual.js` on most views while `talent.js`
+dereferenced its global at evaluation time, so those views never initialized and
+kept the "Loading your authorized workspace" placeholder. Fixed by loading the
+module everywhere, resolving it defensively, and adding an outermost `boot()`
+guard, bounded requests (25 s / 15 s / 20 s deadline), and independent
+per-section loading, error and Retry states for Organization Overview and
+Results & Analytics. When changing Talent client code, keep each view's script
+dependencies in `tests/test_talent_ui.py` accurate and use the stub harness in
+`tests/talent_runtime_harness.cjs`. No backend, schema, permission, privacy or
+analytics-semantics change; Web Service only.
+
+Follow-up ClinePass remediation (same day): the Acceptance A closeout overclaimed
+"no duplicate requests" and "sanitized errors" - at 507dc59 raw backend
+`data.detail` could reach users and the rubric-distribution endpoint was fetched
+by both `talent.js` and `talent-experience.js`. Fixed via shared curated error
+mapping (`static/js/talent-api-errors.js`) and shared rubric read ownership
+(`static/js/talent-rubric-request.js`); the runtime harness now executes both
+`talent.js` and `talent-experience.js` together to prove single-request
+deduplication.
 
 ## M14-M18 Correction Program Closeout (M18b-3, 2026-09-24)
 

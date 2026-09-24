@@ -10,6 +10,7 @@ import auth
 import authorization
 import models
 from academic_grade import format_section_display
+from talent_operational_context import student_identity_metadata
 from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
@@ -174,6 +175,7 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
     names = _student_names(db, group_id, [row["student_id"] for row in population])
+    identity_metadata = student_identity_metadata(db, group_id, [row["student_id"] for row in population])
     branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
     school_group = db.get(models.SchoolGroup, group_id)
     workspace_uuid = school_group.workspace_uuid if school_group else None
@@ -181,6 +183,9 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         {
             **row,
             **names.get(row["student_id"], {}),
+            # Acceptance B: presentation-only Student identity metadata (the canonical
+            # Student-domain Learning Style) from the shared operational-context helper.
+            **identity_metadata.get(row["student_id"], {}),
             "branch_name": branches.get(row["branch_id"]),
             # ADR 0045: bounded presentation projection - the canonical
             # grade_level/section_name above remain unchanged.

@@ -1,7 +1,7 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.2
-last_updated: 2026-09-23
+documentation_version: 1.3
+last_updated: 2026-09-24
 status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
 
@@ -233,3 +233,14 @@ before M18a. M18a's `talent_classification_service.assessment_classification`
 integrations (Learner Profile, B9 Student Drill) use exactly this same
 `status == 'completed' AND is_current == True` predicate - no new business
 rule was introduced, and this ADR is not reopened.
+
+## Acceptance C Note (2026-09-24): Learning Style Aggregate Privacy
+
+The "Learning Style Branch aggregate" section above (already removed by M14)
+cited ADR 0031's requirement that the aggregate distribution go through the
+Talent privacy/suppression contract. ADR 0031's "Acceptance C Amendment"
+(2026-09-24, owner decision) supersedes that requirement for the categorical
+Learning Style distribution only: it is authorized Student-domain aggregation,
+denominator including Unassigned, with no Talent small-cell suppression. This
+ADR's own Evaluation Progress metrics and their Cell/Group suppression are
+unchanged.
