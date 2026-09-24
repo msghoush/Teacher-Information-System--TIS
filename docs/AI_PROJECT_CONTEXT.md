@@ -7,6 +7,20 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Talent & Potential Runtime Loading Reliability (Deployment Acceptance Correction A, 2026-09-24)
+
+Frontend reliability fix on `dev` (not deployed). Root cause: M16's per-view
+script gating omitted `talent-rubric-visual.js` on most views while `talent.js`
+dereferenced its global at evaluation time, so those views never initialized and
+kept the "Loading your authorized workspace" placeholder. Fixed by loading the
+module everywhere, resolving it defensively, and adding an outermost `boot()`
+guard, bounded requests (25 s / 15 s / 20 s deadline), and independent
+per-section loading, error and Retry states for Organization Overview and
+Results & Analytics. When changing Talent client code, keep each view's script
+dependencies in `tests/test_talent_ui.py` accurate and use the stub harness in
+`tests/talent_runtime_harness.cjs`. No backend, schema, permission, privacy or
+analytics-semantics change; Web Service only.
+
 ## M14-M18 Correction Program Closeout (M18b-3, 2026-09-24)
 
 Read this first for Talent work: the M14-M18 correction program is functionally

@@ -438,3 +438,16 @@
 }
 .tp-content.is-refreshing,#tp-content.is-refreshing{opacity:.72;pointer-events:none;transition:opacity 120ms ease}
 #tp-content[aria-busy="true"]{cursor:progress}
+
+/* ---- Deployment Acceptance Correction A: section-local loading / error states ---- */
+/* Independent page regions load and fail on their own (see static/js/talent.js).
+   A subtle skeleton, no decorative animation; reduced-motion is already global. */
+.tp-slot[hidden]{display:none}
+.tp-section-state{display:block;padding:var(--tp-space-4);border:1px dashed var(--app-line);border-radius:12px;background:var(--app-surface);color:var(--app-ink)}
+.tp-section-loading .tp-skel{display:block;height:10px;margin-bottom:var(--tp-space-2);border-radius:6px;background:var(--app-line);opacity:.7;animation:tp-skel-pulse 1.4s ease-in-out infinite}
+.tp-section-loading .tp-skel-short{width:55%}
+.tp-section-loading-text{display:block;margin-top:var(--tp-space-2);font-size:var(--tp-text-sm);color:var(--app-muted,var(--app-ink))}
+.tp-section-error{border-style:solid;border-left:4px solid var(--app-danger)}
+.tp-section-error strong,.tp-section-error span{display:block}
+.tp-section-error button{margin-top:var(--tp-space-3);background:var(--app-brand);color:#fff;border-color:var(--app-brand)}
+@keyframes tp-skel-pulse{0%,100%{opacity:.45}50%{opacity:.85}}

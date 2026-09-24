@@ -214,19 +214,51 @@
       .map(option => ({id:String(option.value), name:String(option.textContent || '').trim()}));
   }
 
-  async function fetchRubric(programId, year, signal) {
-    const response = await fetch(
-      `/api/talent/analytics/programs/${encodeURIComponent(programId)}/academic-years/${encodeURIComponent(year)}/rubric-distribution?assessment_state=completed`,
-      {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal}
-    );
-    if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
-      throw new Error('Your session may have ended. Sign in again and reopen Results & Analytics.');
-    }
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(typeof data?.detail === 'string' ? data.detail : 'Unable to load rubric distributions.');
-    }
-    return data;
+  // Bounded like every other Talent read (see REQUEST_TIMEOUT_MS in talent.js):
+  // 25 s is far above normal latency yet ends a hung request in a visible,
+  // retryable state instead of an indefinite "Loading ... rubric results" line.
+  const RUBRIC_TIMEOUT_MS = 25000;
+  function fetchRubric(programId, year, signal, timeoutMs = RUBRIC_TIMEOUT_MS) {
+    return new Promise((resolve, reject) => {
+      const local = new AbortController();
+      let settled = false, timer = null;
+      const finish = (settle, value) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        signal?.removeEventListener?.('abort', onParentAbort);
+        settle(value);
+      };
+      function onParentAbort() { local.abort(); finish(reject, Object.assign(new Error('Request cancelled.'), {name:'AbortError'})); }
+      if (signal) {
+        if (signal.aborted) { reject(Object.assign(new Error('Request cancelled.'), {name:'AbortError'})); return; }
+        signal.addEventListener('abort', onParentAbort, {once:true});
+      }
+      if (timeoutMs > 0) timer = setTimeout(() => { local.abort(); finish(reject, Object.assign(new Error('timeout'), {name:'TimeoutError', userSafe:true})); }, timeoutMs);
+      Promise.resolve().then(() => fetch(
+        `/api/talent/analytics/programs/${encodeURIComponent(programId)}/academic-years/${encodeURIComponent(year)}/rubric-distribution?assessment_state=completed`,
+        {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}, signal: local.signal}
+      )).then(async response => {
+        if (response.redirected || !response.headers.get('content-type')?.includes('application/json')) {
+          throw Object.assign(new Error('Your session may have ended. Sign in again and reopen Results & Analytics.'), {userSafe:true});
+        }
+        const data = await response.json();
+        if (!response.ok) {
+          throw Object.assign(new Error(typeof data?.detail === 'string' ? data.detail : 'Unable to load rubric distributions.'), {userSafe:true});
+        }
+        return data;
+      }).then(value => finish(resolve, value), error => finish(reject, error));
+    });
+  }
+
+  // Concise, non-technical failure state with a real Retry button. Only messages
+  // authored here or mapped from an HTTP response (userSafe) are shown; any other
+  // exception text is replaced by the generic sentence.
+  function rubricErrorHtml(programName, error) {
+    const detail = error?.name === 'TimeoutError'
+      ? 'This is taking longer than expected. Check your connection, then retry.'
+      : (error?.userSafe === true && error.message) ? error.message : '';
+    return `<div class="tp-section-state tp-section-error" role="group" aria-label="Rubric results unavailable"><strong>${esc(programName)} rubric results could not finish loading.</strong>${detail ? `<span>${esc(detail)}</span>` : ''}<button type="button" data-tp-rubric-retry>Retry</button></div>`;
   }
 
   function rubricDistributionHtml(data, programName) {
@@ -322,7 +354,10 @@
     } catch (error) {
       if (error?.name === 'AbortError' || serial !== rubricRequestSerial || !section.isConnected) return;
       const target = section.querySelector('[data-tp-rubric-results]');
-      if (target) target.innerHTML = `<p class="tp-empty">Unable to load ${esc(selectedProgram.name)} rubric results: ${esc(error?.message || 'Unknown error')}</p>`;
+      if (target) {
+        target.innerHTML = rubricErrorHtml(selectedProgram.name, error);
+        target.querySelector('[data-tp-rubric-retry]')?.addEventListener('click', () => ensureRubricSection(scope, {force:true}));
+      }
     }
   }
 
@@ -374,6 +409,8 @@
     cleanupAssessmentContexts,
     clarifyAnalyticsEmptyStates,
     rubricDistributionHtml,
+    fetchRubric,
+    rubricErrorHtml,
     assessmentStatusKey,
     magnitudeBucket,
   };

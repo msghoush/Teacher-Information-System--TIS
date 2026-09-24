@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Talent workspace client lifecycle ownership (Deployment Acceptance Correction A, 2026-09-24)
+
+`static/js/talent.js` owns boot, request bounding (`boundedRequest`), the
+generation/stale guard, and independent section scheduling (`createSections`)
+for every view; delegates (`TalentOperations`, `TalentProgramWorkspace`,
+`TalentEvaluationWorkspace`) render inside that lifecycle and their failures
+surface through it. `templates/talent/workspace.html` must load every global a
+view's render path needs before `talent.js` (rubric visual on all views;
+operational bundles per surface). `static/js/talent-experience.js` owns the
+Program-filtered rubric section (bounded request, Retry). No module, route or
+schema was added.
+
 ## M14-M18 Correction Program Closeout Ownership Notes (M18b-3, 2026-09-24)
 
 Final module ownership after the correction program (functionally implemented

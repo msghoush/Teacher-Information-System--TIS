@@ -30,7 +30,10 @@ def test_navigation_and_html_use_actual_shared_shell(db, client):
     assert '/static/js/talent-program-workspace.js' not in response.text
     assert '/static/js/talent-evaluation-workspace.js' not in response.text
     assert '/static/js/talent-operations.js' not in response.text
-    assert '/static/js/talent-rubric-visual.js' not in response.text
+    # Deployment Acceptance Correction A: the tiny shared rubric visual module is
+    # required by talent.js on EVERY view (Results & Analytics rubric sections and
+    # Learner Profile badges); only the operational/workspace bundles are gated.
+    assert '/static/js/talent-rubric-visual.js' in response.text
     assert '/static/css/talent-program-workspace.css' in response.text
     assert response.headers['cache-control'] == 'no-store'
     assert 'href="/talent/programs"' in response.text
@@ -48,8 +51,10 @@ def test_navigation_and_html_use_actual_shared_shell(db, client):
          ('talent-program-workspace.js', 'talent-evaluation-workspace.js')),
         ('reviews', ('talent-rubric-visual.js', 'talent-operations.js'),
          ('talent-program-workspace.js', 'talent-evaluation-workspace.js')),
-        ('analytics', (), ('talent-rubric-visual.js', 'talent-operations.js',
-                           'talent-program-workspace.js', 'talent-evaluation-workspace.js')),
+        ('analytics', ('talent-rubric-visual.js',), ('talent-operations.js',
+                                                      'talent-program-workspace.js', 'talent-evaluation-workspace.js')),
+        ('overview', ('talent-rubric-visual.js',), ('talent-operations.js',
+                                                     'talent-program-workspace.js', 'talent-evaluation-workspace.js')),
     ),
 )
 def test_talent_views_load_only_their_required_script_bundles(db, client, view, present, absent):
@@ -61,6 +66,52 @@ def test_talent_views_load_only_their_required_script_bundles(db, client, view, 
         assert asset in response.text
     for asset in absent:
         assert asset not in response.text
+
+
+# Every script global that static/js/talent.js (or its delegate modules) needs at
+# script-evaluation or render time, per view. talent.js used to dereference
+# window.TalentRubricVisual eagerly while the template only loaded that script on
+# four views, so every other view threw at load time and stayed on the
+# server-rendered "Loading your authorized workspace" placeholder forever.
+REQUIRED_SCRIPTS_BY_VIEW = {
+    'overview': ('talent-rubric-visual.js',),
+    'programs': ('talent-rubric-visual.js', 'talent-program-workspace.js'),
+    'evaluation-plans': ('talent-rubric-visual.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
+    'assessments': ('talent-rubric-visual.js', 'talent-operations.js'),
+    'reviews': ('talent-rubric-visual.js', 'talent-operations.js'),
+    'learner-profile': ('talent-rubric-visual.js',),
+    'analytics': ('talent-rubric-visual.js',),
+    'talent-map': ('talent-rubric-visual.js',),
+    'portfolio': ('talent-rubric-visual.js',),
+    'branch': ('talent-rubric-visual.js',),
+    'overlap': ('talent-rubric-visual.js',),
+    'students': ('talent-rubric-visual.js',),
+    'longitudinal': ('talent-rubric-visual.js',),
+}
+
+
+@pytest.mark.parametrize('view', list(talent_ui.VIEWS))
+def test_every_view_loads_each_script_global_its_render_path_needs_before_talent_js(db, client, view):
+    import re
+
+    permissions(db, *set(item[1] for item in talent_ui.VIEWS.values()), 'talent_analytics.view_students')
+    response = client.get(f'/talent/{view}')
+    assert response.status_code == 200
+    scripts = re.findall(r'<script src="[^"]*/static/js/([^"?]+)"', response.text)
+    assert view in REQUIRED_SCRIPTS_BY_VIEW, f'declare the required script globals for the {view} view'
+    # `defer` scripts execute in document order, so every dependency must precede talent.js.
+    for asset in REQUIRED_SCRIPTS_BY_VIEW[view]:
+        assert asset in scripts, f'{view} does not load {asset}'
+        assert scripts.index(asset) < scripts.index('talent.js'), f'{asset} must execute before talent.js on {view}'
+
+
+def test_server_rendered_loader_is_marked_for_deterministic_replacement(db, client):
+    permissions(db, 'talent_programs.view')
+    html = client.get('/talent/overview').text
+    assert 'id="tp-content" aria-busy="true"' in html
+    assert 'data-initial-loading>Loading your authorized workspace' in html
+    assert '<noscript>' in html
+    assert 'role="status" aria-live="polite" class="tp-sr-status"' in html
 
 
 def test_talent_page_bounds_authorized_permission_projection_reuse(db, client, monkeypatch):

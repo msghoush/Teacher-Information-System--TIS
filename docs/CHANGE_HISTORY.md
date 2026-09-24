@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-24 - Deployment Acceptance Correction A: Talent & Potential runtime loading reliability
+
+- Fixed views stuck on "Loading your authorized workspace...": M16 gated
+  `talent-rubric-visual.js` to four views while `talent.js` dereferenced its
+  global at evaluation time, aborting initialization on every other view. The
+  module now loads on all views and is resolved defensively.
+- Added an outermost guarded `boot()` (error state + Retry, missing-delegate
+  state), bounded read requests (25 s; 15 s selector lookups; 20 s boot context
+  deadline) with explicit timeout state, and independent section loading/error/
+  Retry states for Organization Overview and Results & Analytics (no more
+  all-or-nothing `Promise.all`; no duplicate requests; analytics semantics
+  unchanged). Error text is sanitized; `aria-busy`/status reach a terminal state.
+- Tests: stub-harness `tests/talent_runtime_loading.test.cjs`, per-view script
+  dependency checks in `tests/test_talent_ui.py`. Not a real-browser test.
+- No schema, migration, authorization, tenant, or privacy change. Web Service
+  only; not deployed.
+
 ## 2026-09-24 - M18b-3 M14-M18 correction program closeout (final regression / performance / privacy verification)
 
 - Verification and KMS closeout only; no product semantics, analytics family,

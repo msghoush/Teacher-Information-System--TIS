@@ -7,6 +7,90 @@ source_of_truth: true
 
 # TIS Project State
 
+## Deployment Acceptance Correction A - Talent & Potential Runtime Loading Reliability (2026-09-24)
+
+**Status: implemented on `dev` only (frontend/template/CSS; no backend, schema,
+migration, authorization, tenant, privacy-policy, or analytics-semantics
+change). Not deployed and not merged to `master`; whether production shows the
+defect fixed still needs production verification after a deploy. Web Service
+only - the separate `tis-timetable-workflow` revision is unaffected.**
+
+Defect (owner-observed on a deployment): Organization Overview / Results &
+Analytics, Talent Review and normal navigation/filter actions stayed on the
+server-rendered "Loading your authorized workspace..." placeholder.
+
+Confirmed root cause (reproduced with a stub harness that runs the real script
+against a scripted DOM/fetch): M16 made `templates/talent/workspace.html` load
+`talent-rubric-visual.js` only on Programs / Evaluation Plans / Assessments /
+Talent Review, but `static/js/talent.js` still dereferenced
+`window.TalentRubricVisual.intensity` at script-evaluation time. On every other
+view (Talent Overview, Organization Overview / Results & Analytics, Talent Map,
+Program Results, Branch Results, Students Across Programs, Students, Progress
+Over Time, Learner Profile) the script threw a TypeError before `init()` ran, so
+no request was ever made and the placeholder and `aria-busy="true"` never
+changed. Node unit tests `require()` the module directly and could never see it.
+Independent lifecycle weaknesses also fixed: `init()` ran outside any
+try/catch (a synchronous exception left the loader and produced an unhandled
+rejection); no fetch had a completion bound (a hung connection meant an
+indefinite loader); Results & Analytics used one all-or-nothing `Promise.all`
+(one rejected request replaced the whole page and a slow one held every
+section); the operational delegates (`TalentOperations`,
+`TalentProgramWorkspace`, `TalentEvaluationWorkspace`) were dereferenced without
+a presence check, showing a raw TypeError message; sequential Branch/Grade/
+Program selector lookups could stack unbounded waits before the first data
+request. Talent Review's own path was not affected by the missing-script defect
+(it loads the rubric module); its exposure was the unbounded request/all-or-
+nothing behavior, which is fixed generically (inference: a slow/hung request is
+the only remaining way it could have stayed on the loader).
+
+Runtime lifecycle now (page shell -> bounded essential context -> independent
+sections):
+
+- The rubric visual module loads on every Talent view (it is tiny and shared);
+  `talent.js` additionally resolves it defensively so a missing module degrades
+  a helper instead of aborting the script. Operational/workspace bundles remain
+  surface-specific (M16 preserved).
+- `boot()` is the outermost guard: it replaces the server placeholder
+  immediately, wires events, runs `init()`, and turns any failure (including a
+  synchronous exception) into an error panel with a real Retry button. A missing
+  delegate script shows a "required page component did not load" state whose
+  Retry reloads the page. `pageshow` (bfcache restore) reloads content.
+- Every read request is bounded: 25 s (`REQUEST_TIMEOUT_MS`) - far above normal
+  latency, short enough to end a hung request visibly - and 15 s for the small
+  selector lookups (Branch/Grade/Section/Program lists), which run in parallel
+  and never delay first load past a 20 s deadline. The bound also covers reading
+  the response body and settles even if `fetch` ignores abort. Mutations issued
+  by the operational workspaces are deliberately not client-timed-out (aborting a
+  write that may already be committed would mislead). The AbortController,
+  generation/stale-response guard and `cache: no-store` are unchanged; only a
+  superseded generation returns silently, the current generation always reaches
+  success, empty, unavailable or error.
+- Organization Overview (Talent landing) renders its copy and action cards
+  immediately; the headline figures are an independent section with local
+  loading, empty, error/timeout and Retry states. Results & Analytics replaces
+  `Promise.all` with independent sections (snapshot, Learning Style,
+  Classification, Current Talent, Program result, competency averages, rubric,
+  Grade results, Evaluation progression, Branch comparison, Student results),
+  each ending independently with its own Retry; every request is still issued
+  exactly once (memoized, including the shared Talent Map/Branch-name lookup)
+  and metric semantics, endpoints and debounce (250 ms) are unchanged. Program
+  Results / Branch Results gate the page on their primary payload only; their
+  grade/Branch breakdowns are an independent section.
+- Errors show only messages authored by the UI or mapped from an HTTP status;
+  any other exception text is replaced by "This section could not finish
+  loading."; no stack, database or endpoint detail is shown. `#tp-status`
+  (`role=status`) and `aria-busy` are updated on every terminal state.
+- `talent-experience.js` rubric section: bounded request and a concise Retry
+  state instead of raw error text.
+
+Verification: `tests/talent_runtime_loading.test.cjs` (23 tests, stub harness in
+`tests/talent_runtime_harness.cjs`) and HTML-level per-view script-dependency
+tests in `tests/test_talent_ui.py`. These are structural/stub verification, not
+a real browser. Not implemented here (later acceptance batches): Learning Style
+privacy/distribution correction, Learning Style and Classification beside every
+Student, removal of Review/Official Identification from normal UX, Assessment
+editor redesign.
+
 ## M14-M18 Correction Program Closeout - M18b-3 Final Regression / Performance / Privacy Verification (2026-09-24)
 
 **Status: the five-milestone correction program (M14, M15, M16, M17, M18) is
