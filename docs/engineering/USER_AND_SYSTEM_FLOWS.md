@@ -70,12 +70,12 @@ deployed.
 
 1. Student create/edit shows exactly one Learning Style selector with eight
    options (Visual, Auditory, Read/Write, Kinesthetic, Verbal, Non-verbal,
-   Quantitative, Spatial) plus a blank "Not assigned" choice; the browser
+   Quantitative, Spatial) plus a blank "Unassigned" choice; the browser
    submits the one selected categorical value, never a percentage.
 2. The server independently validates the submitted value against the same
    eight-value authority server-side; an unsupported value is rejected even
    if a client bypasses the selector.
-3. The Student profile displays the one selected value (or "Not assigned"),
+3. The Student profile displays the one selected value (or "Unassigned"),
    never four percentage bars. The Talent tab's learner-context line reads
    the same current categorical value directly - no historical snapshot, no
    effect on rubric/Assessment/Overall Result/Evaluation Progress/

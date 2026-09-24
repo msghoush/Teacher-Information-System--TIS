@@ -24,6 +24,24 @@ source_of_truth: true
   metrics, Student Drill approved fields, removed legacy filter/columns).
 - Web Service only; not deployed; `tis.db` unchanged; Acceptance C/D not started.
 
+## 2026-09-24 - Deployment Acceptance Correction B Remediation (ClinePass Precision Remediation)
+
+- Independent Codex audit found the Legacy Review & Identification History
+  backend projection did not actually return `classification`/`is_talented`
+  (the frontend rendered fields the backend never provided). Fixed
+  `talent_review_workspace` to return them from
+  `talent_classification_service.assessment_classification(..., overall=)`,
+  reusing the already-computed Overall Program Result (no N+1). Classification
+  stays M17-authoritative; legacy Review/Official Identification never drive it;
+  Exceptional only = Talented.
+- Normalized Learning Style absence wording to "Unassigned" in
+  `templates/_learning_style.html` (Student Profile + edit selector), matching
+  Talent surfaces; unrelated "Not assigned" copy is unchanged.
+- Added a Student Drill dedupe regression test proving the canonical JSON key
+  survives a nested `overall_result` and preserves distinct contexts.
+- Backend/template/tests + KMS only; no schema/migration/tis.db change; Web
+  Service only; not deployed.
+
 ## 2026-09-24 - Deployment Acceptance Correction A: Talent & Potential runtime loading reliability
 
 - Fixed views stuck on "Loading your authorized workspace...": M16 gated

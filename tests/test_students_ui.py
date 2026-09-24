@@ -198,7 +198,7 @@ def test_m7_duplicate_student_id_disclosure_is_tenant_safe(db, client):
 
 def test_m7_profile_shows_the_categorical_value_and_preserves_deprecated_percentages(db, client):
     # M14 owner correction: profile shows one categorical Learning Style
-    # value (or "Not assigned"), never four percentage bars. Pre-existing
+    # value (or "Unassigned"), never four percentage bars. Pre-existing
     # stored percentage values (ADR 0042, operationally deprecated) survive
     # completely untouched through an unrelated Student edit.
     permissions(db, "students.view", "students.edit", "students.manage_identifiers")

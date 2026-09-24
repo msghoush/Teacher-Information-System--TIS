@@ -20,10 +20,13 @@ from auth import get_current_user
 from dependencies import get_db
 from routers.talent_assessment_cycles import router as cycles_router
 from routers.talent_assessments import router as assessments_router
+from routers.talent_review_candidates import router as review_router
 from student_academic_service import create_placement, create_student
-from talent_assessment_cycle_service import synchronize_placement_to_open_cycles
+from talent_assessment_cycle_service import create_cycle, open_cycle, synchronize_placement_to_open_cycles
 from talent_learner_profile_service import build_learner_profile
+from talent_official_identification_service import record_decision
 from talent_org_student_drill import fetch_student_rows
+from talent_review_candidate_service import evaluate_review_candidate, mark_reviewed
 from talent_student_assessment_service import start_assessment
 
 # Reuse the M17 fixtures (in-memory two-tenant database and Program builder).
@@ -34,6 +37,7 @@ def _client(db, user):
     app = FastAPI()
     app.include_router(assessments_router)
     app.include_router(cycles_router)
+    app.include_router(review_router)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
     return TestClient(app)
@@ -273,3 +277,114 @@ def test_list_projection_query_count_does_not_grow_per_student_for_identity_fiel
     # That pre-existing cost is NOT introduced by Acceptance B; this guard pins
     # that the identity fields (Learning Style, Classification) add zero.
     assert per_student <= 36, f"per-Student statement growth {per_student} exceeds the b7e3c6a baseline of 36"
+
+
+# -------------------------------------------------- Acceptance B remediation: legacy review workspace
+
+def test_review_workspace_returns_current_classification_and_talented_for_exceptional(db):
+    """The real production legacy-review workspace projection returns the current
+    automatic Classification (M17) for a completed/current Assessment."""
+    _, _, cycle, member, fw, levels, student = build_program(db, level_count=5)
+    _set_style(db, student, "Visual")
+    complete_with_level(db, member, fw, levels[-1])
+    with _client(db, _admin(db)) as client:
+        rows = client.get("/api/talent/review-candidates/workspace", params={"cycle_id": cycle.id}).json()
+    assert len(rows) == 1
+    row = rows[0]
+    assert row["classification"] == "Exceptional"
+    assert row["is_talented"] is True
+    assert row["classification_score"] == "5.00"
+    assert row["context"]["student_learning_style"] == "Visual"
+
+
+def test_review_workspace_advanced_is_never_talented(db):
+    _, _, cycle, member, fw, levels, _ = build_program(db, level_count=5)
+    complete_with_level(db, member, fw, levels[3])  # position 4/5 -> Advanced
+    with _client(db, _admin(db)) as client:
+        row = client.get("/api/talent/review-candidates/workspace", params={"cycle_id": cycle.id}).json()[0]
+    assert row["classification"] == "Advanced"
+    assert row["is_talented"] is False
+
+
+def test_review_workspace_in_progress_never_fabricates_classification(db):
+    _, _, cycle, member, fw, levels, _ = build_program(db, level_count=5)
+    start_assessment(db, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id)
+    with _client(db, _admin(db)) as client:
+        assert client.get("/api/talent/review-candidates/workspace", params={"cycle_id": cycle.id}).json() == []
+
+
+def test_review_workspace_historical_non_current_never_fabricates_classification(db):
+    _, _, cycle, member, fw, levels, _ = build_program(db, level_count=5)
+    completed = complete_with_level(db, member, fw, levels[-1])
+    completed.is_current = False
+    db.commit()
+    with _client(db, _admin(db)) as client:
+        assert client.get("/api/talent/review-candidates/workspace", params={"cycle_id": cycle.id}).json() == []
+
+
+def test_review_workspace_legacy_identified_status_never_creates_talented(db):
+    """A legacy Review Candidate / Official Identification record is separate from
+    the current automatic Classification. A non-Exceptional Student with a legacy
+    'identified' record stays not-Talented in the legacy-history surface."""
+    program, framework, cycle, member, fw, levels, _ = build_program(db, level_count=5, review_policy=True)
+    completed = complete_with_level(db, member, fw, levels[3])  # Advanced -> NOT Talented
+    policy = db.query(models.TalentReviewCandidatePolicy).filter_by(
+        framework_version_id=framework.id, program_id=program.id).one()
+    db.add(models.TalentReviewCandidate(
+        id=9101, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id,
+        student_id=member.student_id, program_id=program.id, academic_year_id=100,
+        framework_version_id=framework.id, assessment_id=completed.id, policy_id=policy.id,
+        match_mode="all", evaluation_fingerprint="e" * 64, evaluation_snapshot_json="{}",
+        status="reviewed",
+    ))
+    db.flush()
+    db.add(models.TalentOfficialIdentification(
+        id=9201, school_group_id=1, cycle_id=cycle.id, cycle_population_member_id=member.id,
+        student_id=member.student_id, program_id=program.id, academic_year_id=100,
+        framework_version_id=framework.id, assessment_id=completed.id, review_candidate_id=9101,
+        decision="identified",
+    ))
+    db.commit()
+    with _client(db, _admin(db)) as client:
+        row = client.get("/api/talent/review-candidates/workspace", params={"cycle_id": cycle.id}).json()[0]
+    assert row["classification"] == "Advanced"
+    assert row["is_talented"] is False
+    assert row["review_status"] == "reviewed"  # the legacy record is present but separate
+
+
+
+# -------------------------------------------------- Acceptance B remediation: Student Drill dedupe key
+
+def test_student_drill_dedupe_key_handles_nested_overall_result_and_preserves_distinct_contexts(db):
+    """Regression: the per-Student context dedupe key must be a canonical JSON
+    string, not a tuple of payload items. A completed/current context carries a
+    nested ``overall_result`` dict, so the former
+    ``tuple(sorted(context.to_payload().items()))`` key raised
+    ``TypeError: unhashable type: 'dict'`` for any Student with a Program result.
+    ``json.dumps(..., sort_keys=True, default=str)`` both survives nested dicts
+    and still keeps genuinely distinct contexts separate."""
+    program, framework, cycle, member, fw, levels, student = build_program(db, level_count=5)
+    complete_with_level(db, member, fw, levels[-1])  # nested overall_result + classification
+
+    # A second distinct context for the SAME Student: a second open Cycle in the
+    # same Program. Opening it re-derives the eligible population and adds a second
+    # membership that must NOT be collapsed into the first.
+    cycle2 = create_cycle(db, school_group_id=1, program_id=program.id, academic_year_id=100,
+                          framework_version_id=framework.id, title="Second Cycle",
+                          population_effective_at=datetime(2026, 11, 1))
+    open_cycle(db, school_group_id=1, cycle_id=cycle2.id, expected_revision=cycle2.revision,
+               organization_authorized=True)
+    db.commit()
+
+    population = db.query(models.TalentAssessmentCyclePopulationMember).filter(
+        models.TalentAssessmentCyclePopulationMember.school_group_id == 1,
+        models.TalentAssessmentCyclePopulationMember.student_id == student.id,
+    )
+    rows, has_more = fetch_student_rows(db, population, limit=10, offset=0, has_candidate=False,
+                                        has_identification=False, has_learner_profile=False)
+    payload = rows[0].to_payload()
+    # Both distinct contexts survive the JSON key (the second cycle is unassessed).
+    assert len(payload["contexts"]) == 2
+    by_cycle = {ctx["cycle_id"]: ctx for ctx in payload["contexts"]}
+    assert by_cycle[cycle.id]["overall_result"]["average"] == 5.0  # nested dict survives
+    assert "overall_result" not in by_cycle[cycle2.id]  # unassessed -> no fabricated result

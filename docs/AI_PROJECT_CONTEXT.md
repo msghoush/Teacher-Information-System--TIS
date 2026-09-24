@@ -24,6 +24,13 @@ projection (`context.student_learning_style`, eligible-students
 Web Service only; not deployed. Acceptance C (Learning Style aggregates) and D
 (assessment entry editor) remain open.
 
+Follow-up ClinePass remediation (same day): the legacy-history projection claim
+was overbroad - `talent_review_workspace` did not actually return the current
+Classification until it was added from
+`assessment_classification(..., overall=)` (reusing the computed Overall Result).
+Learning Style absence copy was also normalized to "Unassigned" in
+`templates/_learning_style.html` to match Talent surfaces.
+
 ## Talent & Potential Runtime Loading Reliability (Deployment Acceptance Correction A, 2026-09-24)
 
 Frontend reliability fix on `dev` (not deployed). Root cause: M16's per-view

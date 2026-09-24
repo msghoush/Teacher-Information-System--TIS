@@ -21,8 +21,12 @@ Student appears in Talent the shared identity presentation
 (`static/js/talent-student-identity.js`) shows name, canonical
 `Student.learning_style` (eight categories, "Unassigned" if none) and, for a
 `completed` + `is_current` assessment only, the backend Classification and (for
-Exceptional) a Talented badge. No classification is persisted or derived in the
-browser; there is no schema change. Not deployed.
+Exceptional) a Talented badge. The legacy-history review workspace
+(`routers/talent_review_candidates.py` `talent_review_workspace`) includes this
+same current Classification via `assessment_classification(..., overall=)`,
+reusing the already-computed Overall Program Result; Classification never comes
+from Review Candidate / Official Identification. No classification is persisted
+or derived in the browser; there is no schema change. Not deployed.
 
 ## Talent & Potential Runtime Loading Contract (Deployment Acceptance Correction A, 2026-09-24)
 

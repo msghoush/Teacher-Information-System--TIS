@@ -356,7 +356,7 @@ def test_edit_details_form_shows_not_assigned_when_learning_style_is_null(db):
         response = client.get("/students/6002?section=overview")
     assert response.status_code == 200
     html = response.text
-    assert "Not assigned" in html
+    assert "Unassigned" in html
     assert 'name="learning_style"' in html
 
 

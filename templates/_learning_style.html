@@ -5,7 +5,7 @@
   Student-domain learner-profile context only - never a Talent score. Reused
   by the Student create/edit forms and the Student Profile display so the
   eight approved values, their compact icon/accent treatment, and the
-  "Not assigned" neutral fallback are defined in exactly one place.
+  "Unassigned" neutral fallback are defined in exactly one place.
 
   M14 owner correction: extended from four values (Visual, Auditory,
   Read/Write, Kinesthetic) to eight (adding Verbal, Non-verbal, Quantitative,
@@ -43,7 +43,7 @@
   <label class="stu-ls-option{% if selected == option %} is-selected{% endif %}" style="{% if option %}--stu-ls-accent:{{ ls_accent[option] }};{% endif %}">
     <input type="radio" name="learning_style" value="{{ option }}" {% if selected == option %}checked{% endif %}>
     {% if option and ls_icon.get(option) %}{{ icon(ls_icon[option], 'stu-ls-icon') }}{% endif %}
-    <span>{{ option or 'Not assigned' }}</span>
+    <span>{{ option or 'Unassigned' }}</span>
   </label>
   {% endfor %}
 </div>
@@ -52,6 +52,6 @@
 {% macro learning_style_badge(value) %}
 <span class="stu-chip stu-ls-badge{% if not value %} stu-ls-badge-unset{% endif %}"{% if value %} style="--stu-ls-accent:{{ ls_accent[value] }};"{% endif %}>
   {% if value and ls_icon.get(value) %}{{ icon(ls_icon[value], 'stu-ls-icon') }}{% endif %}
-  {{ value or 'Not assigned' }}
+  {{ value or 'Unassigned' }}
 </span>
 {% endmacro %}

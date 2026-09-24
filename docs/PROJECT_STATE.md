@@ -80,8 +80,42 @@ What changed:
 
 Open follow-ups: Learning Style aggregate/privacy correction (Acceptance C) and
 the Assessment entry editor body (Acceptance D) were intentionally not started;
-the Student-domain badge still renders its existing "Not assigned" wording on
-the Student Profile page.
+the Student-domain Learning Style badge now renders "Unassigned" (normalized to
+match Talent surfaces by the follow-up remediation below).
+
+## Deployment Acceptance Correction B Remediation - ClinePass Precision Remediation (2026-09-24)
+
+**Status: implemented on `dev` only; backend/template/tests + KMS correction. No
+schema/migration/tis.db change, no new permission, no new Student-discovery path.
+Web Service only; not deployed and not merged to `master`.**
+
+An independent Codex audit of Acceptance B found two blocking defects plus two
+small follow-ups, now corrected:
+
+1. **Legacy-history projection gap.** Acceptance B stated the Legacy Review &
+   Identification History surface renders the current automatic Classification,
+   but `routers/talent_review_candidates.py`'s `talent_review_workspace` did NOT
+   return `classification`/`classification_score`/`is_talented`. Fixed by adding
+   those fields from the canonical `talent_classification_service`
+   `assessment_classification(db, assessment, overall=overall)` (reusing the
+   already-computed Overall Program Result, so no per-Student classification or
+   Learning Style query is added). The legacy history surface now shows the
+   Student's current Learning Style and current automatic Classification where
+   applicable. That Classification comes only from the M17 result, never from
+   legacy Review Candidate / Official Identification; Exceptional remains the
+   only Talented band.
+2. **Terminology.** The Student Profile Learning Style badge used "Not assigned"
+   while Talent surfaces used "Unassigned"; `templates/_learning_style.html` now
+   uses "Unassigned" for Learning Style absence everywhere. Unrelated "Not
+   assigned" copy for other concepts (Student ID, Branch, Teacher) is unchanged.
+3. **Student Drill dedupe regression test.** A dedicated test now proves the
+   canonical JSON dedupe key survives a nested `overall_result` (the former
+   unhashable-tuple key raised `TypeError`) and still preserves distinct contexts.
+
+New tests: `tests/test_talent_student_identity_projection.py` (real backend
+`/api/talent/review-candidates/workspace` classification tests and the Student
+Drill nested-result dedupe test), `tests/test_student_learning_style_v1.py`
+("Unassigned"). `tis.db` unchanged.
 
 ## Deployment Acceptance Correction A - Talent & Potential Runtime Loading Reliability (2026-09-24)
 

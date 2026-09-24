@@ -22,7 +22,9 @@ the ADR 0031 guard keeps scoring/eligibility modules free of Learning Style), `t
 `talent_org_student_drill` (`learning_style`); Classification =
 `talent_classification_service.assessment_classification` surfaced by
 `routers/talent_assessments.py` (list adds classification for current Completed
-rows using `overall=`), the learner profile and the Student Drill. The
+rows using `overall=`), `routers/talent_review_candidates.py`
+(`talent_review_workspace`, same `overall=` reuse), the learner profile and the
+Student Drill. The
 `reviews` view (`routers/talent_ui.py` VIEWS, still gated by
 `talent_review_candidates.view`) is the Legacy Review & Identification History
 surface and is no longer in the primary sidebar (`ui_shell.py`).
