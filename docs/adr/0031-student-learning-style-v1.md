@@ -217,9 +217,11 @@ route returned `levels`, so even a visible distribution rendered no bars.
 
 - Learning Style is Student-domain categorical profile data (one of eight
   values, or Unassigned). There is **no per-Student Learning Style
-  percentage**; the four `learning_style_*_percentage` columns stay deprecated,
-  untouched and never read. The aggregate percentage exists only as a
-  population statistic.
+  percentage**; the four `learning_style_*_percentage` columns stay operationally
+  deprecated and excluded from current Learning Style analytics and normal
+  product presentation (legacy compatibility paths may still read/write the
+  stored values for preservation, never as analytics authority). The aggregate
+  percentage exists only as a population statistic.
 - The aggregate distribution is **authorized Student-domain profile
   aggregation, not sensitive Talent scoring/classification output**, and is
   therefore **not subject to Talent small-cell (P3) or complementary

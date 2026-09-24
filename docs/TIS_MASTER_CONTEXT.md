@@ -11,7 +11,10 @@ source_of_truth: true
 
 Learning Style is Student-domain categorical profile data (one of eight values,
 or Unassigned); there is no per-Student percentage and the four deprecated
-`learning_style_*_percentage` columns stay unread. The aggregate distribution
+`learning_style_*_percentage` columns are operationally deprecated and excluded
+from current Learning Style analytics and normal product presentation (legacy
+compatibility paths may still read/write the stored values for preservation,
+never as analytics authority). The aggregate distribution
 (Students panel, `/api/students/analytics/learning-style-distribution`, and
 `/api/talent/results-analytics/academic-years/{id}/learning-style`) is authorized
 Student-domain aggregation: denominator = every authorized Student in the

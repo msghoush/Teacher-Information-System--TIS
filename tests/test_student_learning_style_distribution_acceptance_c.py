@@ -56,12 +56,12 @@ def db():
     session.close()
 
 
-def _seed(db, group, branch, ay, grade, style, n=1, prefix="S"):
+def _seed(db, group, branch, ay, grade, style, n=1, prefix="S", section="A"):
     for i in range(n):
         student = create_student(db, school_group_id=group, first_name=f"{prefix}{style}{i}", father_name="F",
                                  last_name="L", gender="female", learning_style=style)
         create_placement(db, school_group_id=group, student_id=student.id, academic_year_id=ay, branch_id=branch,
-                         grade_level=grade, section_name="A", effective_from=datetime(2026, 9, 1))
+                         grade_level=grade, section_name=section, effective_from=datetime(2026, 9, 1))
     db.commit()
 
 
@@ -250,3 +250,66 @@ def test_classification_and_talented_families_still_use_the_privacy_pipeline():
     assert "apply_primary_privacy" in source and "run_complementary_suppression" in source
     router = (ROOT / "routers" / "talent_results_analytics.py").read_text(encoding="utf-8")
     assert router.count("Depends(resolve_privacy_policy_provider)") >= 2  # classification + talented still policy-gated
+
+
+# ---------------------------------------------------------------------------
+# Acceptance C closeout: Section filter + Students/Results endpoint parity.
+# ---------------------------------------------------------------------------
+
+
+def test_section_filter_limits_population_keeps_order_unassigned_denominator_and_zero_categories(db):
+    # Section A: Visual 2, Auditory 1, Unassigned 1 (population 4)
+    for style, n in (("Visual", 2), ("Auditory", 1), (None, 1)):
+        _seed(db, 1, 10, 100, "1", style, n, section="A")
+    # Section B (same Grade, same Branch): Spatial 3 (population 3)
+    _seed(db, 1, 10, 100, "1", "Spatial", 3, prefix="B", section="B")
+    user = _user(db)
+    section_a = build_distribution(resolve_population(
+        db, school_group_id=1, user=user, branch_id=10, grade_level="1", section_name="A"))
+    assert section_a["total_population"] == 4  # Section B's 3 Spatial students excluded
+    assert [level["label"] for level in section_a["levels"]] == ORDER  # fixed governed order
+    by_a = _by_label(section_a)
+    assert by_a["Visual"]["count"] == 2
+    assert by_a["Auditory"]["count"] == 1
+    assert by_a["Unassigned"]["count"] == 1
+    assert by_a["Unassigned"]["percentage"] == 25.0  # denominator includes Unassigned within the Section
+    assert by_a["Spatial"]["count"] == 0 and by_a["Spatial"]["percentage"] == 0.0  # zero category stays 0/0%
+    assert by_a["Non-verbal"]["count"] == 0 and by_a["Non-verbal"]["percentage"] == 0.0
+    section_b = build_distribution(resolve_population(
+        db, school_group_id=1, user=user, branch_id=10, grade_level="1", section_name="B"))
+    assert section_b["total_population"] == 3
+    assert _by_label(section_b)["Spatial"]["percentage"] == 100.0
+    assert _by_label(section_b)["Visual"]["count"] == 0  # Section A's Visual students excluded
+
+
+def test_section_filter_cannot_widen_branch_scope(db):
+    _seed(db, 1, 10, 100, "1", "Visual", 2, section="A")
+    _seed(db, 1, 11, 100, "1", "Kinesthetic", 3, prefix="B", section="B")  # Branch 11, out of scope
+    branch_user = _user(db, scope="BRANCH", branch_id=10, uid="1000000005")
+    # A branch-scoped actor cannot reach another Branch's Section.
+    assert resolve_population(db, school_group_id=1, user=branch_user, branch_id=11, section_name="B") is None
+    own = build_distribution(resolve_population(db, school_group_id=1, user=branch_user))
+    assert own["total_population"] == 2
+    assert _by_label(own)["Kinesthetic"]["count"] == 0  # Branch 11 Students are never visible
+
+
+def test_students_and_results_endpoints_agree_for_same_section_filter(db):
+    for style, n in (("Visual", 2), ("Auditory", 1), (None, 1)):
+        _seed(db, 1, 10, 100, "1", style, n, section="A")
+    _seed(db, 1, 10, 100, "1", "Spatial", 3, prefix="B", section="B")
+    user = _user(db)
+    query = {"branch_id": 10, "grade_level": "1", "section_name": "A"}
+    with _client(db, user, students_router, results_router) as client:
+        students_payload = client.get("/api/students/analytics/learning-style-distribution", params=query).json()
+        results_payload = client.get(
+            "/api/talent/results-analytics/academic-years/100/learning-style", params=query).json()
+    results_distribution = results_payload["distribution"]
+    assert students_payload["total_population"] == results_distribution["total_population"] == 4
+    assert [level["label"] for level in students_payload["levels"]] == ORDER
+    assert [level["label"] for level in results_distribution["levels"]] == ORDER
+    for label in ORDER:
+        s = _by_label(students_payload)[label]
+        r = _by_label(results_distribution)[label]
+        assert s["count"] == r["count"], label
+        assert s["percentage"] == r["percentage"], label
+    assert _by_label(students_payload)["Unassigned"]["count"] == _by_label(results_distribution)["Unassigned"]["count"] == 1

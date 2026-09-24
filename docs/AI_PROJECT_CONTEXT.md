@@ -17,8 +17,11 @@ dependency (`build_distribution(students)` takes no policy). Denominator = every
 authorized Student in the selection including Unassigned; nine categories in stable
 order (eight values then Unassigned) with key/label/count/percentage plus
 `total_population`; zero is `0`/`0%`; empty selection is state `empty`. There is no
-per-Student percentage and the four `learning_style_*_percentage` columns stay
-deprecated and unread. Authorization is unchanged (`resolve_population`,
+per-Student percentage and the four `learning_style_*_percentage` columns are
+operationally deprecated and excluded from current Learning Style analytics and
+normal product presentation (legacy compatibility paths may still read/write the
+stored values for preservation, never as analytics authority). Authorization is
+unchanged (`resolve_population`,
 `students.view`, SchoolGroup/Branch/Grade scope). Never extend this exception to
 Classification, Talented, competency or organization metrics - their suppression
 is unchanged. The Results frontend renders backend `levels` and never computes a

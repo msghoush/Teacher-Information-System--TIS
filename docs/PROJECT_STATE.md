@@ -29,7 +29,10 @@ is **not subject to Talent small-cell suppression**.
 
 - **Semantics.** `Student.learning_style` stays one categorical value (eight
   values, or Unassigned); there is no per-Student percentage and the four
-  deprecated `learning_style_*_percentage` columns are untouched and unread. The
+  deprecated `learning_style_*_percentage` columns are operationally deprecated
+  and excluded from current Learning Style analytics and normal product
+  presentation (legacy compatibility paths may still read/write the stored
+  values for preservation, never as analytics authority). The
   aggregate returns all nine categories in stable order with key, label, count
   and percentage over one denominator: every authorized Student in the selected
   population **including Unassigned** (`total_population`). Zero categories are
