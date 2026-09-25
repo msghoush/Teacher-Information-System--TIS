@@ -312,6 +312,19 @@ or a fail-closed absent configuration). No rule changed; the UI states one unifo
 explanation. Making small cohorts visible needs an explicit owner decision and an amendment here
 and in ADR 0028.
 
+## Final Closure Part A Amendment (2026-09-25): Start Assessment Eligibility Agrees With The Roster
+
+Dated amendment; no `MetricCode`, privacy, suppression or analytics semantics changed. The Student
+Assessments roster (`GET /api/talent/assessment-cycles/{id}/eligible-students`) keeps listing every
+currently placed Student (ADR 0035/0039), and now also carries, per row, the backend result of the exact
+predicate Start Assessment enforces: `can_start`, `start_block_code` (`assessment_tool_unavailable` when the
+Student's Grade has no saved assessable criteria in the Program per the ADR 0039 Grade-aligned amendment,
+`duplicate_assessment` when a current Assessment already exists in the Evaluation) and a fixed bounded
+`start_block_reason`. The client must render Start only when `can_start` is true. `POST
+/api/talent/assessments` accepts an optional echoed `program_id` / `academic_year_id` and rejects a mismatch
+with the Cycle as 409 `context_mismatch`; the Cycle remains the sole context authority. Authorization,
+tenant, Branch, Academic Year and evidence-immutability rules are unchanged.
+
 ## Part 2 Amendment (2026-09-25): Chart Types, Background Refresh And Progress Over Time (presentation only)
 
 Dated, presentation-only amendment; no `MetricCode`, privacy, suppression, Classification,

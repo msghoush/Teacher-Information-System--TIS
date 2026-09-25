@@ -417,6 +417,42 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
     return None
 
 
+START_BLOCK_REASONS = {
+    "assessment_tool_unavailable": "No assessment criteria are configured for this Grade in this Program.",
+    "duplicate_assessment": "An Assessment already exists for this Student in this Evaluation.",
+}
+
+
+def roster_start_states(db: Session, *, cycle, grades_by_student, students_with_current_assessment):
+    """Per-Student Start Assessment eligibility for one Evaluation roster.
+
+    This is the SAME predicate ``start_assessment_for_evaluation`` enforces, so
+    the roster can never offer a Start that is guaranteed to fail: (1) a current
+    Assessment already exists for the Student in the Evaluation
+    (``duplicate_assessment``), or (2) the Student's Grade has no saved
+    assessable Competency -> KPI -> Level structure in the Program
+    (``assessment_tool_unavailable``; ADR 0039 Grade-aligned criteria), checked
+    in that order like the route. Current Placement itself is what put the
+    Student on the roster. The result is
+    keyed by Student id: ``(can_start, code, reason)``; code/reason are fixed
+    bounded values, never free text.
+    """
+    grade_ready = {}
+    for grade in {grade for grade in grades_by_student.values()}:
+        grade_ready[grade] = _newest_assessable_framework(db, cycle=cycle, grade=grade) is not None
+    states = {}
+    for student_id, grade in grades_by_student.items():
+        # Same evaluation order as the start route: criteria first, then duplicate guard.
+        if not grade_ready.get(grade):
+            code = "assessment_tool_unavailable"
+        elif student_id in students_with_current_assessment:
+            code = "duplicate_assessment"
+        else:
+            code = None
+        states[student_id] = (code is None, code, START_BLOCK_REASONS.get(code))
+    return states
+
+
 def start_assessment_for_evaluation(
     db: Session, *, school_group_id, evaluation_cycle_id, student_id, actor=None
 ):

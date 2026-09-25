@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-25 - Final Production Follow-Up Closure Part A: Start Assessment must actually work
+
+- Root cause: the roster listed every placed Student (Grade-agnostic) but Start required criteria for
+  the Student's Grade, so an enabled Start could be guaranteed to fail (`assessment_tool_unavailable`).
+- Fix: backend per-row `can_start` / `start_block_code` / `start_block_reason` from the same predicate the
+  start route enforces (`roster_start_states`); the browser shows Start only when `can_start` is true and
+  otherwise a bounded reason (Program setup link only with `talent_programs.manage`). `POST
+  /api/talent/assessments` verifies an optional echoed Program/Academic Year against the Cycle
+  (409 `context_mismatch`); the roster is not listed for a stale `cycle_id`.
+- Tests: `test_talent_start_assessment_eligibility.py`, Node additions in `talent_operations.test.cjs`
+  (roster fixtures now carry `can_start`). No schema, migration, permission, privacy or `tis.db` change.
+  Web Service only; not deployed.
+
 ## 2026-09-25 - Production follow-up Part 2: chart types, filter UX, comparisons, Progress Over Time
 
 - Chart selector now switches only distinct visualization types (Bar/Doughnut for full public

@@ -78,10 +78,10 @@ const current = (id, student, status, extra = {}) => ({id, student_id: student, 
 
 test('roster shows Learning Style, backend Classification and Talented only where applicable', async () => {
   const members = [
-    {student_id: 1, student_name: 'Exceptional Ella', learning_style: 'Visual', grade_level: '3', section_name: 'A', branch_name: 'Main'},
-    {student_id: 2, student_name: 'Advanced Adam', learning_style: 'Read/Write', grade_level: '3', section_name: 'A', branch_name: 'Main'},
-    {student_id: 3, student_name: 'Working Wes', learning_style: null, grade_level: '3', section_name: 'B', branch_name: 'Main'},
-    {student_id: 4, student_name: 'Fresh Fay', learning_style: 'Spatial', grade_level: '3', section_name: 'B', branch_name: 'Main'},
+    {student_id: 1, can_start: true, student_name: 'Exceptional Ella', learning_style: 'Visual', grade_level: '3', section_name: 'A', branch_name: 'Main'},
+    {student_id: 2, can_start: true, student_name: 'Advanced Adam', learning_style: 'Read/Write', grade_level: '3', section_name: 'A', branch_name: 'Main'},
+    {student_id: 3, can_start: true, student_name: 'Working Wes', learning_style: null, grade_level: '3', section_name: 'B', branch_name: 'Main'},
+    {student_id: 4, can_start: true, student_name: 'Fresh Fay', learning_style: 'Spatial', grade_level: '3', section_name: 'B', branch_name: 'Main'},
   ];
   const rows = [
     current(11, 1, 'completed', {classification: 'Exceptional', is_talented: true}),
@@ -118,7 +118,7 @@ test('roster shows Learning Style, backend Classification and Talented only wher
 });
 
 test('a historical (non-current) completed assessment never supplies the roster classification', async () => {
-  const members = [{student_id: 1, student_name: 'Hist Hana', learning_style: 'Auditory', grade_level: '3', section_name: 'A'}];
+  const members = [{student_id: 1, can_start: true, student_name: 'Hist Hana', learning_style: 'Auditory', grade_level: '3', section_name: 'A'}];
   const rows = [current(11, 1, 'completed', {is_current: false, classification: 'Exceptional', is_talented: true})];
   const ctx = rosterCtx(rows, members, []);
   await withWindow(() => render(ctx));

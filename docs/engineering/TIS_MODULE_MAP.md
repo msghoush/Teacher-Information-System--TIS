@@ -52,6 +52,13 @@ source_of_truth: true
   no longer installs the retired DOM-only roster filter.
 
 
+## Start Assessment eligibility (Final Closure Part A, 2026-09-25)
+
+- `talent_student_assessment_service.roster_start_states` is the single predicate shared by the roster
+  (`routers/talent_assessment_cycles.py` `cycles_eligible_students`, per-row `can_start`) and
+  `start_assessment_for_evaluation` (`POST /api/talent/assessments`, which also verifies an echoed
+  Program/Academic Year). `static/js/talent-operations.js` renders Start only from the backend flag.
+
 ## Talent chart and refresh modules (Production Follow-up Part 2, 2026-09-25)
 
 - `static/js/talent-charts.js`: shared privacy-safe chart renderer. `modes()` is the single source of

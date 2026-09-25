@@ -30,6 +30,7 @@
     student_not_eligible: 'This Student has no current Academic Placement in the selected Academic Year, so an Assessment cannot be started.',
     invalid_student_context: 'This Student is not available in the selected Evaluation. Reload the Student list and try again.',
     duplicate_assessment: 'An Assessment for this Student already exists in this Evaluation. Reload the Student list.',
+    context_mismatch: 'The selected Program or Academic Year no longer matches this Evaluation. Choose the Evaluation Period and Program again.',
     assessment_conflict: 'This Assessment was just changed elsewhere. Reload the Student list and try again.',
   };
 

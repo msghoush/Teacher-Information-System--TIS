@@ -215,9 +215,9 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const members=[
-    {student_id:101,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'},
-    {student_id:102,student_name:'Mid Way',grade_level:'3',section_name:'A'},
-    {student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'},
+    {student_id:101,can_start:true,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'},
+    {student_id:102,can_start:true,student_name:'Mid Way',grade_level:'3',section_name:'A'},
+    {student_id:103,can_start:true,student_name:'All Done',grade_level:'3',section_name:'A'},
   ];
   const rows=[
     {id:501,student_id:102,cycle_population_member_id:102,status:'in_progress',academic_year_id:'2026',program_id:11},
@@ -241,7 +241,7 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
 test('completed Student with a changed rubric is surfaced as Re-evaluation required',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
-  const members=[{student_id:103,student_name:'Needs Update',grade_level:'3',section_name:'A'}];
+  const members=[{student_id:103,can_start:true,student_name:'Needs Update',grade_level:'3',section_name:'A'}];
   const rows=[{
     id:502,student_id:103,cycle_population_member_id:103,status:'completed',is_current:true,
     academic_year_id:'2026',program_id:11,
@@ -264,7 +264,7 @@ test('completed Student with a changed rubric is surfaced as Re-evaluation requi
 test('completed Student can expose the evidence-preserving Reset for Re-assessment action',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',status:'open'};
-  const members=[{student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
+  const members=[{student_id:103,can_start:true,student_name:'All Done',grade_level:'3',section_name:'A'}];
   const rows=[{id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:11,reassessment:{required:false},actions:['reset_for_reassessment']}];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
@@ -282,7 +282,7 @@ test('completed Student can expose the evidence-preserving Reset for Re-assessme
 test('arriving on Student Assessments with one Evaluation context shows its enrolled Students directly',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
-  const members=[{student_id:501,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
+  const members=[{student_id:501,can_start:true,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
@@ -447,7 +447,7 @@ test('configured Evaluation Periods appear once per Program even before a physic
 test('a Draft legacy Cycle does not block enrolled Students from assessment',async()=>{
   const root=domRoot();
   const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const eligible={cycle_id:71,eligibility_state:'live_academic_placement',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
+  const eligible={cycle_id:71,eligibility_state:'live_academic_placement',count:1,members:[{student_id:501,can_start:true,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
@@ -466,7 +466,7 @@ test('a Draft legacy Cycle does not block enrolled Students from assessment',asy
 test('Start Assessment posts cycle_id plus student_id directly without a population-member prerequisite',async()=>{
   const root=domRoot();
   const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
-  const eligible={cycle_id:71,eligibility_state:'live_academic_placement',count:1,members:[{student_id:501,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
+  const eligible={cycle_id:71,eligibility_state:'live_academic_placement',count:1,members:[{student_id:501,can_start:true,student_name:'Grade 3 Learner',grade_level:'3',section_name:'A'}]};
   let startButton,clickHandler;
   startButton={dataset:{student:'501'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
   root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
@@ -485,14 +485,14 @@ test('Start Assessment posts cycle_id plus student_id directly without a populat
   assert.equal(typeof clickHandler,'function');
   await clickHandler();
   const call=calls.find(item=>item.path==='/api/talent/assessments'&&item.options?.method==='POST');
-  assert.deepEqual(call.options.body,{cycle_id:71,student_id:501});
+  assert.deepEqual(call.options.body,{cycle_id:71,student_id:501,program_id:11,academic_year_id:2026});
   assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:71,academic_year_id:'2026',program_id:11}});
 });
 
 test('starting an assessment carries the current Program forward in the resulting navigation (no ribbon/content mismatch)',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
-  const members=[{id:101,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
+  const members=[{student_id:501,can_start:true,student_name:'No Assessment Yet',grade_level:'3',section_name:'A'}];
   let startButton,clickHandler;
   startButton={dataset:{student:'501'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
   root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
@@ -546,7 +546,7 @@ test('completed assessment shows rubric-scale overall Program result without imp
 test('Student roster prefers newest current attempt so Completed is not masked by older In Progress',async()=>{
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',status:'open'};
-  const members=[{student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
+  const members=[{student_id:103,can_start:true,student_name:'All Done',grade_level:'3',section_name:'A'}];
   const rows=[
     {id:501,student_id:103,status:'in_progress',is_current:true,academic_year_id:'2026',program_id:11,evaluation_context_cycle_id:61},
     {id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:11,evaluation_context_cycle_id:61,reassessment:{required:false},actions:[]},
@@ -626,7 +626,7 @@ test('Start Assessment is a non-submitting button (no form submit, no # navigati
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return [];
       if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
-      if(path.endsWith('/eligible-students'))return {members:[{student_id:501,student_name:'Not Started Learner',grade_level:'3',section_name:'A'}]};
+      if(path.endsWith('/eligible-students'))return {members:[{student_id:501,can_start:true,student_name:'Not Started Learner',grade_level:'3',section_name:'A'}]};
       throw new Error(`Unexpected ${path}`);
     }};
   await withWindow(()=>render(ctx));
@@ -646,7 +646,7 @@ test('Start Assessment: string or number Program/Academic Year ids resolve to th
       api:async(path,options)=>{
         if(path.startsWith('/api/talent/assessments?'))return [];
         if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
-        if(path.includes('/eligible-students'))return {members:[{student_id:501,student_name:'L',grade_level:'3',section_name:'A'}]};
+        if(path.includes('/eligible-students'))return {members:[{student_id:501,can_start:true,student_name:'L',grade_level:'3',section_name:'A'}]};
         if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:returnedYear,program_id:programId};
         throw new Error(`Unexpected ${path}`);
       }};
@@ -676,7 +676,7 @@ test('Start Assessment rejected by the backend keeps the roster, shows the speci
       api:async(path,options)=>{
         if(path.startsWith('/api/talent/assessments?'))return [];
         if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
-        if(path.includes('/eligible-students'))return {members:[{student_id:501,student_name:'L',grade_level:'3',section_name:'A'}]};
+        if(path.includes('/eligible-students'))return {members:[{student_id:501,can_start:true,student_name:'L',grade_level:'3',section_name:'A'}]};
         if(path==='/api/talent/assessments'&&options?.method==='POST')throw apiErrors.httpError(400,'assessment_tool_unavailable');
         throw new Error(`Unexpected ${path}`);
       }};
@@ -693,9 +693,116 @@ test('Start Assessment rejected by the backend keeps the roster, shows the speci
 
 test('curated Start Assessment error codes never echo backend detail and unknown codes stay generic',()=>{
   const apiErrors=require('../static/js/talent-api-errors.js');
-  for(const code of ['assessment_tool_unavailable','student_not_eligible','invalid_student_context','duplicate_assessment','assessment_conflict']) {
+  for(const code of ['assessment_tool_unavailable','student_not_eligible','invalid_student_context','duplicate_assessment','assessment_conflict','context_mismatch']) {
     assert.ok(apiErrors.messageFor(400,code).length>20);
     assert.doesNotMatch(apiErrors.messageFor(400,code),/cannot be displayed/);
   }
   assert.equal(apiErrors.messageFor(400,'some_unknown_code'),apiErrors.STATUS_COPY[400]);
+});
+
+
+// ---- Final Production Follow-Up Closure, Part A: Start Assessment must actually work ----
+function rosterCtx({members,can=()=>true,params='cycle_id=71&program_id=11',cycles,rows=[],year='2026',navigate=()=>{}}){
+  const root=domRoot();
+  const cycle={id:71,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
+  const calls=[];
+  return {root,calls,ctx:{root,year,view:'assessments',params:new URLSearchParams(params),can,notify(){},navigate,
+    api:async(path,options)=>{
+      calls.push({path,options});
+      if(path.startsWith('/api/talent/assessments?'))return rows;
+      if(path.startsWith('/api/talent/assessments/contexts?'))return cycles||[cycle];
+      if(path.includes('/eligible-students'))return {members};
+      throw new Error(`Unexpected ${path}`);
+    }}};
+}
+const BLOCKED={student_id:601,can_start:false,start_block_code:'assessment_tool_unavailable',start_block_reason:'No assessment criteria are configured for this Grade in this Program.',student_name:'Grade Nine Learner',grade_level:'9',section_name:'A'};
+const READY={student_id:602,can_start:true,start_block_code:null,start_block_reason:null,student_name:'Grade Three Learner',grade_level:'3',section_name:'A'};
+
+test('Start is rendered only for rows the backend marks can_start; a blocked Grade shows the bounded reason and no enabled control',async()=>{
+  const {root,ctx}=rosterCtx({members:[READY,BLOCKED]});
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/data-action="start" data-student="602"/);
+  assert.doesNotMatch(root.innerHTML,/data-action="start"[^>]*data-student="601"/);
+  assert.match(root.innerHTML,/data-start-blocked="assessment_tool_unavailable"[^>]*>No assessment criteria are configured for this Grade in this Program\./);
+  assert.equal((root.innerHTML.match(/data-action="start"/g)||[]).length,1);
+});
+
+test('the configuration area is a link only for an actor who can manage Programs; others get text without an action',async()=>{
+  const admin=rosterCtx({members:[BLOCKED],can:()=>true});
+  await withWindow(()=>render(admin.ctx));
+  assert.match(admin.root.innerHTML,/data-start-blocked[\s\S]*<a class="tp-action-link" href="\/talent\/programs\?[^"]*program_id=11[^"]*">Open Program setup/);
+  const teacher=rosterCtx({members:[BLOCKED],can:key=>key!=='talent_programs.manage'});
+  await withWindow(()=>render(teacher.ctx));
+  assert.match(teacher.root.innerHTML,/A Program administrator can configure them in the Program setup\./);
+  assert.doesNotMatch(teacher.root.innerHTML,/Open Program setup|data-action="start"/);
+});
+
+test('a payload without the backend can_start never renders an enabled Start (no client-derived eligibility)',async()=>{
+  const {root,ctx}=rosterCtx({members:[{student_id:603,student_name:'Legacy Payload',grade_level:'3',section_name:'A'}]});
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/data-action="start"/);
+  assert.match(root.innerHTML,/data-start-blocked/);
+});
+
+test('without assessment manage permission there is no Start and no configuration remedy',async()=>{
+  const {root,ctx}=rosterCtx({members:[READY,BLOCKED],can:key=>key!=='talent_assessments.manage'});
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/data-action="start"|data-start-blocked|Open Program setup/);
+});
+
+test('in-progress and completed students open the existing workspace, never a second Start',async()=>{
+  const inProgress={student_id:604,can_start:false,start_block_code:'duplicate_assessment',start_block_reason:'An Assessment already exists for this Student in this Evaluation.',student_name:'Mid',grade_level:'3',section_name:'A'};
+  const done={...inProgress,student_id:605,student_name:'Done'};
+  const rows=[
+    {id:801,student_id:604,status:'in_progress',is_current:true,academic_year_id:'2026',program_id:11,evaluation_context_cycle_id:71,reassessment:{required:false},actions:[]},
+    {id:802,student_id:605,status:'completed',is_current:true,academic_year_id:'2026',program_id:11,evaluation_context_cycle_id:71,reassessment:{required:false},actions:['reset_for_reassessment']},
+  ];
+  const {root,ctx}=rosterCtx({members:[inProgress,done],rows});
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/assessment_id=801[^"]*"[^>]*>Continue Assessment/);
+  assert.match(root.innerHTML,/assessment_id=802[^"]*"[^>]*>View Assessment/);
+  assert.match(root.innerHTML,/Reset for Re-assessment/);
+  assert.doesNotMatch(root.innerHTML,/data-action="start"|data-start-blocked/);
+});
+
+test('a stale cycle_id that is not among the selected Program/Year Evaluation contexts lists no roster and offers no Start',async()=>{
+  const {root,ctx}=rosterCtx({members:[READY],params:'cycle_id=999&program_id=11',cycles:[{id:71,program_id:11,title:'Term 1',status:'open'}]});
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/data-action="start"|Grade Three Learner/);
+  assert.match(root.innerHTML,/data-roster-error="context_mismatch"[\s\S]*no longer matches this Evaluation/);
+});
+
+test('with two Evaluation contexts and none selected there is no roster and therefore no Start',async()=>{
+  const {root,ctx}=rosterCtx({members:[READY],params:'program_id=11',cycles:[{id:71,program_id:11,title:'Term 1',status:'open'},{id:72,program_id:11,title:'Term 2',status:'open'}]});
+  await withWindow(()=>render(ctx));
+  assert.doesNotMatch(root.innerHTML,/data-action="start"/);
+});
+
+test('successful Start posts the displayed context and navigates with the exact server-returned Program/Year and the roster Evaluation',async()=>{
+  const root=domRoot();
+  const cycle={id:71,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
+  let clickHandler,navigated=null,body=null;
+  const startButton={dataset:{student:'602'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
+  root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
+    navigate:(target,extra)=>{navigated={target,extra};},
+    api:async(path,options)=>{
+      if(path.startsWith('/api/talent/assessments?'))return [];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
+      if(path.includes('/eligible-students'))return {members:[READY]};
+      if(path==='/api/talent/assessments'&&options?.method==='POST'){body=options.body;return {id:900,academic_year_id:2026,program_id:11,evaluation_context_cycle_id:71,cycle_id:75};}
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  await clickHandler();
+  assert.deepEqual(body,{cycle_id:71,student_id:602,program_id:11,academic_year_id:2026});
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:900,cycle_id:71,academic_year_id:2026,program_id:11}});
+});
+
+test('a server context_mismatch is curated copy with no backend detail',()=>{
+  const apiErrors=require('../static/js/talent-api-errors.js');
+  const err=apiErrors.httpError(409,'context_mismatch');
+  assert.match(err.message,/no longer matches this Evaluation/);
+  assert.doesNotMatch(err.message,/cannot be displayed/);
+  assert.equal(err.status,409);
 });

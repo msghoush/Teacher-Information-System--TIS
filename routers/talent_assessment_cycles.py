@@ -19,7 +19,7 @@ from talent_results_analytics_service import build_bucket_projection
 from talent_analytics_privacy import resolve_privacy_policy_provider
 from talent_learning_style_privacy import learning_style_projection, classification_cohort_publishable
 from talent_read_batch import read_batch
-from talent_student_assessment_service import prime_assessment_batch
+from talent_student_assessment_service import prime_assessment_batch, roster_start_states
 from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
@@ -261,9 +261,20 @@ def cycles_eligible_students(cycle_id: int, request: Request,
     branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
     school_group = db.get(models.SchoolGroup, group_id)
     workspace_uuid = school_group.workspace_uuid if school_group else None
+    # One backend predicate shared with POST /api/talent/assessments: the client
+    # renders Start only when can_start is true and otherwise shows the bounded reason.
+    with read_batch(db):
+        start_states = roster_start_states(
+            db, cycle=cycle,
+            grades_by_student={row["student_id"]: row.get("grade_level") for row in population},
+            students_with_current_assessment=set(assessment_by_student),
+        )
     members = [
         {
             **row,
+            "can_start": start_states[row["student_id"]][0],
+            "start_block_code": start_states[row["student_id"]][1],
+            "start_block_reason": start_states[row["student_id"]][2],
             **names.get(row["student_id"], {}),
             # Acceptance B: presentation-only Student identity metadata (the canonical
             # Student-domain Learning Style) from the shared operational-context helper.

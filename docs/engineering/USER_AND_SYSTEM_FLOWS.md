@@ -29,6 +29,19 @@ source_of_truth: true
    well as visible charts. Ordered periods do not imply growth.
 
 
+## Start Assessment Flow (Final Closure Part A, 2026-09-25)
+
+1. Choose an Evaluation Period and Program; the roster lists every currently placed authorized Student
+   with its backend `can_start`, `start_block_code` and bounded `start_block_reason`.
+2. Start Assessment appears only where `can_start` is true. A Student whose Grade has no saved
+   assessment criteria in the Program shows the reason instead (Program setup is a link only for an actor
+   who can manage Programs). In-progress or completed Students open the existing workspace or
+   reassessment actions.
+3. The click posts `{cycle_id, student_id}` plus the displayed Program/Academic Year; the server verifies
+   them against the Cycle (409 `context_mismatch` on a stale selection), re-checks placement, Branch scope,
+   Grade-aligned criteria and the duplicate guard, then creates the Assessment and the browser navigates
+   with the server-returned Program/Year and the roster's Evaluation.
+
 ## Results & Analytics Filter Flow (Production Follow-up Part 2, 2026-09-25)
 
 Changing any dashboard filter (Branch, Grade, Section, Program, Evaluation Period, Classification,

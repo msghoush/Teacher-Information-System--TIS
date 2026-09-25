@@ -7,6 +7,46 @@ source_of_truth: true
 
 # TIS Project State
 
+## Final Production Follow-Up Closure, Part A - Start Assessment must actually work (2026-09-25)
+
+Implemented on `dev`; Web Service only; not deployed. No schema, migration, permission, privacy or
+`tis.db` change. Part B (central configuration authority) is separate and not started here.
+
+**Root cause (proven by failing-first tests).** The Student Assessments roster is Grade-agnostic
+(ADR 0035/0039: every currently placed Student in the Academic Year is listed) while Start Assessment
+is Grade-aligned (ADR 0039 amendment 2026-09-12: only criteria for the Student's Grade plus
+intentionally unscoped criteria; another Grade's criteria are never substituted). The roster therefore
+drew an enabled "Start Assessment" for Students whose Start was guaranteed to fail with the safe 400
+code `assessment_tool_unavailable`; Part 1 only curated the copy of that failure. Which exact code
+production returned could not be observed here, but every other realistic cause traced (grade format,
+string/number ids, planned-but-unmaterialized Periods, Draft/legacy Cycle, Branch filter, post-start
+workspace reads) was proven sound; Grade values are DB-constrained to the same canonical set on
+Placement and Competency, so a "Grade 3" versus "3" mismatch cannot exist.
+
+**Fix.** One backend predicate. `talent_student_assessment_service.roster_start_states` reuses
+`_newest_assessable_framework` (the exact check `start_assessment_for_evaluation` enforces, in the same
+order: criteria first, then the duplicate-current-Assessment guard). `GET
+/api/talent/assessment-cycles/{id}/eligible-students` now returns per row `can_start`,
+`start_block_code` (`assessment_tool_unavailable` or `duplicate_assessment`) and a fixed bounded
+`start_block_reason`; roster membership and Branch/Year/tenant scoping are unchanged. The browser
+renders the Start button only when `can_start === true` (never derived client-side); a blocked row shows
+the bounded reason instead, and names the Program setup as an enabled link only for an actor holding
+`talent_programs.manage` (others get text only). `POST /api/talent/assessments` accepts the optional
+displayed `program_id` / `academic_year_id` and answers 409 `context_mismatch` if either differs from the
+Cycle (the Cycle stays the only authority; nothing starts in another Program/Year); the client sends them
+and lists no roster (and offers no Start) when `cycle_id` is not among the server-filtered Evaluation
+contexts of the selected Program/Year. `context_mismatch` has curated copy.
+
+**Unchanged and proven.** Tenant isolation, Branch ceiling (a Branch-limited actor cannot start another
+Branch's Student; an organization actor can start any authorized Branch's Student under any page
+Branch), permission enforcement, immutable evidence, Start on an in-progress or completed Student is a
+409 duplicate (the roster opens the existing workspace / reassessment actions instead). Tests:
+`tests/test_talent_start_assessment_eligibility.py` (per-row `can_start` versus the real route as a
+property over criteria fixtures and three actors), Node additions in `tests/talent_operations.test.cjs`.
+Open decisions: a Closed Cycle is not blocked from Start (existing semantics, ADR 0035; unchanged); each
+Student started on a newer Framework gets a private derived Cycle (existing behavior, unchanged).
+Browser verification not performed.
+
 ## Production follow-up Part 2 - chart types, Results & Analytics filter UX, comparisons, Progress Over Time (2026-09-25)
 
 Implemented on `dev`; Web Service only (static JS/CSS and one template script include); not deployed.
