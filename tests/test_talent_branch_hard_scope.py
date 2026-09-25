@@ -1,18 +1,15 @@
-"""Acceptance Batch 1 CLOSURE: the global Branch is a HARD Talent scope (ceiling).
+"""Talent Branch authority: Branch-limited hard ceiling + organization actor choice.
 
-Real tenants/Branches/Students/Assessments through the real routers (the sanctioned
-local Talent dataset: two Branches, ten Students, three Programs). "Girls" is the
-first Branch of the dataset and "Boys" the second; the assertions are symmetric.
+Owner-directed amendment (Part 1 production follow-up, 2026-09-25) to the Batch 1
+closure. Real tenants/Branches/Students/Assessments through the real routers (the
+sanctioned local Talent dataset: two Branches, ten Students, three Programs).
 
-The ceiling is the INTERSECTION of the actor's authorization and the active global
-scope, enforced server-side from the request user (``user.scope_branch_id`` /
-``user.scope_all_branches``), never from a client parameter:
-
-* single-Branch global scope -> Talent returns/accepts only that Branch, an omitted
-  Branch resolves to it, an explicit other Branch is rejected;
-* explicit global "All Branches" -> Talent Map / Branch comparison / explicit Branch
-  filters stay available exactly as before;
-* Branch-limited actors and tenant isolation are unchanged.
+* organization/global actor: the sidebar Branch is only the DEFAULT page-level Branch,
+  never a ceiling. An omitted branch_id is All Branches; every authorized Branch can
+  be named explicitly; a foreign-tenant Branch is rejected;
+* Branch-limited actor: the ceiling stays their authorized Branch. Any attempt to name,
+  or widen to, another Branch is rejected on every read surface;
+* the legacy branch_scope=all marker cookie is ignored and grants nothing.
 """
 
 from __future__ import annotations
@@ -74,30 +71,25 @@ def read_surfaces(world, branch_query=""):
     }
 
 
-def test_ceiling_is_computed_server_side_from_the_actor_and_active_scope():
-    org = SimpleNamespace(scope_branch_id=7, scope_all_branches=False)
-    assert talent_branch_scope.talent_branch_ceiling.__doc__
-    # The helper needs auth.can_access_all_branches; exercise it with real access scopes.
+def test_sidebar_scope_is_not_a_ceiling_for_org_actor_and_helpers_compose_authorization():
     import auth
 
-    for scope, all_flag, expected in (
-        (auth.ACCESS_SCOPE_ORGANIZATION, False, 7),   # single-Branch global scope -> ceiling
-        (auth.ACCESS_SCOPE_ORGANIZATION, True, None),  # explicit global All Branches
-        (auth.ACCESS_SCOPE_BRANCH, False, None),       # Branch-limited: already confined by authorization
-    ):
-        user = SimpleNamespace(access_scope=scope, user_type="TENANT", scope_branch_id=7, scope_all_branches=all_flag,
+    for scope, all_visible in ((auth.ACCESS_SCOPE_ORGANIZATION, True), (auth.ACCESS_SCOPE_BRANCH, False)):
+        user = SimpleNamespace(access_scope=scope, user_type="TENANT", scope_branch_id=7,
                                is_active=True, platform_role=None, role="Administrator")
-        assert talent_branch_scope.talent_branch_ceiling(user) == expected, (scope, all_flag)
-    assert org.scope_branch_id == 7
+        assert talent_branch_scope.talent_branch_ceiling(user) is None, scope
+        assert talent_branch_scope.branch_scope_unrestricted(user) is all_visible, scope
+        assert talent_branch_scope.branch_within_ceiling(user, 99) is True
     assert talent_branch_scope.talent_branch_ceiling(None) is None
+    assert talent_branch_scope.branch_scope_unrestricted(None) is False
 
 
 @pytest.mark.parametrize("ceiling_name,other_name", [("north", "south"), ("south", "north")])
-def test_single_branch_global_scope_confines_every_read_surface(world, ceiling_name, other_name):
+def test_branch_limited_actor_is_confined_on_every_read_surface(world, ceiling_name, other_name):
     ceiling, other = getattr(world, ceiling_name), getattr(world, other_name)
     own, foreign = students_of(world, ceiling), students_of(world, other)
     assert own and foreign and not (own & foreign)
-    world.as_admin(ceiling)
+    world.branch_limited_user(ceiling)
 
     # (a)/(b)/(g) omitted Branch -> the ceiling Branch only, on every surface.
     assert value(metrics(world)["distinct_students"]) == 5
@@ -158,18 +150,20 @@ def test_single_branch_global_scope_confines_every_read_surface(world, ceiling_n
     assert world.get(f"/api/talent/learner-profiles/{next(iter(own))}").status_code == 200
 
 
-def test_ceiling_branch_comparison_and_map_never_contain_the_other_branch(world):
-    world.as_admin(world.north)
+def test_branch_limited_map_and_comparison_never_contain_the_other_branch(world):
+    world.branch_limited_user(world.north)
     body = world.get(program_path(world, PROGRESS, "/branch-comparison") + "?metric=assessment_completion").json()
-    text = str(body)
     other_name = world.db.get(models.Branch, world.south).name
-    assert other_name not in text
+    assert other_name not in str(body)
     talent_map = world.get(read_surfaces(world)["talent_map"]).json()
     assert other_name not in str(talent_map)
 
 
-def test_global_all_branches_keeps_organization_comparison_and_explicit_filters(world):
-    world.as_admin()  # explicit global "All Branches"
+@pytest.mark.parametrize("sidebar_scope", ["north", "south", None])
+def test_org_actor_may_choose_all_or_any_branch_whatever_the_sidebar_branch(world, sidebar_scope):
+    """The sidebar Branch is only a default: it never narrows an organization actor."""
+    world.as_admin(getattr(world, sidebar_scope) if sidebar_scope else None)
+    # omitted Branch == All Branches
     assert value(metrics(world)["distinct_students"]) == 10
     talent_map = world.get(read_surfaces(world)["talent_map"]).json()
     assert {column["id"] for column in talent_map["columns"]} == {world.north, world.south}
@@ -177,30 +171,32 @@ def test_global_all_branches_keeps_organization_comparison_and_explicit_filters(
     assert world.get(read_surfaces(world)["learning_style"]).json()["distribution"]["total_population"] == 10
     assert {row["id"] for row in world.get(read_surfaces(world)["planning_branches"]).json()} == {world.north, world.south}
     assert world.get(program_path(world, PROGRESS, "/branch-comparison") + "?metric=assessment_completion").status_code == 200
-    # explicit Branch inside the actor's authorization still works, in both directions
+    # every authorized Branch can be selected explicitly, in both directions
     for branch in (world.north, world.south):
         assert value(metrics(world, f"&branch_id={branch}")["distinct_students"]) == 5
         assert world.get(f"{ORG}/branches/{branch}?academic_year_id={world.year}").status_code == 200
+        assert {i["student_id"] for i in world.get(read_surfaces(world, f"&branch_id={branch}")["drill"]).json()["items"]} == students_of(world, branch)
+        assert world.get(read_surfaces(world, f"&branch_id={branch}")["learning_style"]).json()["distribution"]["total_population"] == 5
         assert {m["student_id"] for m in world.get(
             f"/api/talent/assessment-cycles/{world.cycle_b}/eligible-students?branch_id={branch}").json()["members"]} == students_of(world, branch)
 
 
-def test_global_scope_change_takes_effect_on_the_next_request_without_widening(world):
+def test_sidebar_scope_change_never_changes_org_actor_authority_or_widens_limited_actor(world):
     world.as_admin(world.north)
-    assert value(metrics(world)["distinct_students"]) == 5
-    world.as_admin(world.south)
-    assert {i["student_id"] for i in world.get(read_surfaces(world)["drill"]).json()["items"]} == students_of(world, world.south)
-    world.as_admin()
     assert value(metrics(world)["distinct_students"]) == 10
+    world.as_admin(world.south)
+    assert value(metrics(world, f"&branch_id={world.north}")["distinct_students"]) == 5
+    world.branch_limited_user(world.south)
+    assert value(metrics(world)["distinct_students"]) == 5
+    assert world.get(read_surfaces(world, f"&branch_id={world.north}")["overview"]).status_code == 400
 
 
-def test_branch_limited_actor_is_unaffected_by_the_ceiling(world):
+def test_branch_limited_actor_cannot_escape_their_branch(world):
     world.branch_limited_user(world.north)
-    assert talent_branch_scope.talent_branch_ceiling(world.client.app.dependency_overrides[
-        __import__("auth").get_current_user]()) is None
     assert value(metrics(world)["distinct_students"]) == 5
     assert world.get(read_surfaces(world, f"&branch_id={world.south}")["overview"]).status_code == 400
     assert world.get(read_surfaces(world, f"&branch_id={world.north}")["overview"]).status_code == 200
+    assert world.get(f"{ORG}/branches/{world.south}?academic_year_id={world.year}").status_code == 404
 
 
 def test_tenant_isolation_is_preserved_under_the_ceiling(world):
@@ -210,16 +206,19 @@ def test_tenant_isolation_is_preserved_under_the_ceiling(world):
     foreign_branch = models.Branch(school_group_id=other.id, name="Foreign Campus", status=True)
     world.db.add(foreign_branch)
     world.db.commit()
-    for scope in (world.north, None):
-        world.as_admin(scope)
+    for scope in (world.north, None, "limited"):
+        if scope == "limited":
+            world.branch_limited_user(world.north)
+        else:
+            world.as_admin(scope)
         assert world.get(read_surfaces(world, f"&branch_id={foreign_branch.id}")["overview"]).status_code == 400
         assert world.get(f"{ORG}/branches/{foreign_branch.id}?academic_year_id={world.year}").status_code == 404
         assert world.get(f"/api/talent/assessment-cycles/{world.cycle_b}/eligible-students?branch_id={foreign_branch.id}").status_code == 403
         assert world.get(f"{RESULTS}/academic-years/{world.year}/learning-style?branch_id={foreign_branch.id}").status_code == 403
 
 
-def test_workspace_config_and_sidebar_reflect_the_ceiling():
-    """tp-config publishes the locked Branch only for a single-Branch scope; empty for All Branches."""
+def test_workspace_config_and_sidebar_publish_default_branch_and_lock_state():
+    """tp-config publishes the sidebar Branch as the DEFAULT (org actor) or the lock (Branch-limited)."""
     import json
     import re
 
@@ -242,15 +241,19 @@ def test_workspace_config_and_sidebar_reflect_the_ceiling():
     session = sessionmaker(bind=engine)()
     summary = build_dataset(session)
     north, south = summary["branch_ids"]
-    state = {"scope": north, "all": False}
+    state = {"scope": north, "limited": False}
 
     def request_user():
         user = session.query(models.User).filter_by(user_id=summary["local_test_user_id"]).one()
         user.scope_school_group_id = summary["school_group_id"]
         user.scope_branch_id = state["scope"]
-        user.scope_all_branches = state["all"]
         user.scope_academic_year_id = summary["academic_year_id"]
         user.effective_role = "Administrator"
+        if state["limited"]:
+            user.access_scope = auth.ACCESS_SCOPE_BRANCH
+            user.branch_id = state["scope"]
+        else:
+            user.access_scope = auth.ACCESS_SCOPE_ORGANIZATION
         return user
 
     app = FastAPI()
@@ -260,16 +263,21 @@ def test_workspace_config_and_sidebar_reflect_the_ceiling():
     app.dependency_overrides[get_current_user] = request_user
     client = TestClient(app)
 
-    def config():
-        html = client.get("/talent/overview").text
-        return json.loads(re.search(r'<script type="application/json" id="tp-config">(.*?)</script>', html, re.S).group(1))
+    def page():
+        return client.get("/talent/overview").text
 
-    assert config()["branch"] == north
+    def config():
+        return json.loads(re.search(r'<script type="application/json" id="tp-config">(.*?)</script>', page(), re.S).group(1))
+
+    assert config()["branch"] == north and config()["branchLocked"] is False
     state["scope"] = south
-    assert config()["branch"] == south
-    state.update(all=True)
-    assert config()["branch"] is None  # explicit global All Branches: no ceiling published
-    assert auth.can_access_all_branches(request_user())
+    assert config()["branch"] == south and config()["branchLocked"] is False
+    html = page()
+    assert "All Branches (Talent" not in html
+    assert 'value="all"' not in html.split('id="sidebar_scope_branch_id"')[-1].split("</select>")[0]
+    state.update(limited=True)
+    locked = config()
+    assert locked["branchLocked"] is True and locked["branch"] == south
     session.close()
 
 
@@ -287,25 +295,27 @@ def _cookie_request(world, user, cookies):
     })
 
 
-def test_get_current_user_derives_the_ceiling_from_the_session_and_marker_cookie(world):
+def test_legacy_branch_scope_marker_cookie_is_ignored_and_grants_nothing(world):
     import auth
 
     admin = world.db.query(models.User).filter_by(user_id=world.admin_user_id).one()
-    single = auth.get_current_user(_cookie_request(world, admin, []), world.db)
-    assert single.scope_branch_id == world.north and single.scope_all_branches is False
-    assert talent_branch_scope.talent_branch_ceiling(single) == world.north
-    everywhere = auth.get_current_user(_cookie_request(world, admin, ["branch_scope=all"]), world.db)
-    assert everywhere.scope_all_branches is True and everywhere.scope_branch_id == world.north  # other modules unchanged
-    assert talent_branch_scope.talent_branch_ceiling(everywhere) is None
+    plain = auth.get_current_user(_cookie_request(world, admin, []), world.db)
+    marked = auth.get_current_user(_cookie_request(world, admin, ["branch_scope=all"]), world.db)
+    for resolved in (plain, marked):
+        assert resolved.scope_branch_id == world.north
+        assert getattr(resolved, "scope_all_branches", False) is False
+        assert talent_branch_scope.talent_branch_ceiling(resolved) is None
+    assert talent_branch_scope.branch_scope_unrestricted(marked) is talent_branch_scope.branch_scope_unrestricted(plain)
     # The marker never widens a Branch-limited actor.
     world.branch_limited_user(world.north)
     limited = world.db.query(models.User).filter_by(user_id="LTB0001").one()
     limited_scope = auth.get_current_user(_cookie_request(world, limited, ["branch_scope=all"]), world.db)
-    assert limited_scope.scope_all_branches is False
+    assert talent_branch_scope.branch_scope_unrestricted(limited_scope) is False
     assert {row[0] for row in auth.get_accessible_branch_query(world.db, limited_scope).with_entities(models.Branch.id).all()} == {world.north}
+    assert talent_branch_scope.visible_branch_ids(world.db, limited_scope) == {world.north}
 
 
-def test_scope_branch_all_sets_only_the_marker_and_a_specific_branch_clears_it(world):
+def test_scope_branch_endpoint_no_longer_offers_all_and_clears_the_legacy_marker(world):
     import main
 
     admin = world.db.query(models.User).filter_by(user_id=world.admin_user_id).one()
@@ -313,15 +323,14 @@ def test_scope_branch_all_sets_only_the_marker_and_a_specific_branch_clears_it(w
     def cookies(response):
         return b"\n".join(value for key, value in response.raw_headers if key == b"set-cookie").decode("ascii")
 
-    everywhere = main.set_scope_branch(request=_cookie_request(world, admin, []), branch_id="all", return_to="/talent/overview", db=world.db)
-    header = cookies(everywhere)
-    assert "branch_scope=all" in header and "branch_id=" not in header  # working Branch untouched
+    ignored = main.set_scope_branch(request=_cookie_request(world, admin, []), branch_id="all", return_to="/talent/overview", db=world.db)
+    header = cookies(ignored)
+    assert "branch_scope=all" not in header and "branch_id=" not in header  # nothing is set
     specific = main.set_scope_branch(request=_cookie_request(world, admin, ["branch_scope=all"]), branch_id=str(world.south), return_to="/talent/overview", db=world.db)
     header = cookies(specific)
     assert f"branch_id={world.south}" in header
-    assert 'branch_scope=""' in header or "branch_scope=;" in header  # marker cleared
-    # A Branch-limited actor cannot use it (same access denial as any switch).
+    assert 'branch_scope=""' in header or "branch_scope=;" in header  # legacy marker cleared
     world.branch_limited_user(world.north)
     limited = world.db.query(models.User).filter_by(user_id="LTB0001").one()
-    denied = main.set_scope_branch(request=_cookie_request(world, limited, []), branch_id="all", return_to="/talent/overview", db=world.db)
-    assert "branch_scope=all" not in cookies(denied)
+    denied = main.set_scope_branch(request=_cookie_request(world, limited, []), branch_id=str(world.south), return_to="/talent/overview", db=world.db)
+    assert "branch_id=" not in cookies(denied)

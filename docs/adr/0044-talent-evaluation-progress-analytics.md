@@ -1,6 +1,6 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.4
+documentation_version: 1.5
 last_updated: 2026-09-24
 status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
@@ -291,3 +291,23 @@ the existing `student_drill_population`/`count`/`distinct_student` coordinate in
 B9 P7 Student Drill gate and its identification rules are unchanged). Membership-grain
 metrics (`frozen_eligible`, `completed`, coverage) keep their definitions and
 denominators; only their user-facing labels changed to state their grain.
+
+## Owner Amendment (2026-09-25): Branch Authority For Organization-Authorized Actors
+
+Dated owner-directed amendment; the Batch 1 closure text above is preserved as history.
+The closure statement that the global (sidebar) Branch is a hard Talent ceiling is
+superseded for organization-authorized actors only. The sidebar selector lists real Branches.
+For an organization-authorized actor (`auth.can_access_all_branches`) the Talent ceiling is
+the actor's own authorization (all Branches of the SchoolGroup); the sidebar Branch is only the
+default page-level Branch, and the Talent Branch filter offers All Branches and each authorized
+Branch. For a Branch-limited actor the ceiling remains their authorized Branch(es) and any
+attempt to name another Branch is rejected. An omitted `branch_id` means every authorized
+Branch; an explicit `branch_id` is validated server-side, and tenant isolation is unchanged. The
+`branch_scope=all` marker cookie and `user.scope_all_branches` are removed (an old cookie is
+ignored). No `MetricCode`, privacy, Evaluation Progress or schema change.
+
+Classification note (same date): an aggregate Classification band that reads "Unavailable" is the
+approved Release 1 provider withholding a band cell below the minimum cohort (or a total below it,
+or a fail-closed absent configuration). No rule changed; the UI states one uniform value-free
+explanation. Making small cohorts visible needs an explicit owner decision and an amendment here
+and in ADR 0028.

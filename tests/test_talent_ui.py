@@ -376,19 +376,20 @@ def _tp_config(html):
 
 def test_workspace_publishes_the_server_validated_active_branch(db, client):
     permissions(db, 'talent_programs.view')
-    # Batch 1 closure: an organization actor's single-Branch global scope (the request's
-    # scope_branch_id, always set by get_current_user) is a hard ceiling and is
-    # published as tp-config.branch; the explicit global All Branches publishes none.
+    # Part 1 amendment: for an organization actor the validated sidebar Branch
+    # (scope_branch_id) is published as the DEFAULT page Branch and is not a lock;
+    # a legacy scope_all_branches attribute grants and changes nothing.
     scoped = actor()
     scoped.scope_branch_id = 10
     client.app.dependency_overrides[get_current_user] = lambda: scoped
     config = _tp_config(client.get('/talent/overview').text)
-    assert config['branch'] == 10 and config['branchName'] == 'North'
-    all_branches = actor()
-    all_branches.scope_branch_id = 10
-    all_branches.scope_all_branches = True
-    client.app.dependency_overrides[get_current_user] = lambda: all_branches
-    assert _tp_config(client.get('/talent/overview').text)['branch'] is None
+    assert config['branch'] == 10 and config['branchName'] == 'North' and config['branchLocked'] is False
+    legacy = actor()
+    legacy.scope_branch_id = 10
+    legacy.scope_all_branches = True
+    client.app.dependency_overrides[get_current_user] = lambda: legacy
+    legacy_config = _tp_config(client.get('/talent/overview').text)
+    assert legacy_config['branch'] == 10 and legacy_config['branchLocked'] is False
 
 
 def test_workspace_never_publishes_a_branch_outside_the_actors_tenant(db):

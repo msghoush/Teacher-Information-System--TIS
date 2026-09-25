@@ -490,15 +490,18 @@
   const CLASSIFICATION_LABELS = ['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'];
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map(), activeSections = null;
   const can = key => permissions[key] === true;
-  // Batch 1 closure (global Branch = HARD Talent scope). The sidebar "Change Branch
-  // / Campus" selector sets the active application Branch; the server validates it
-  // and renders it as config.branch, the UPPER CEILING of every Talent request:
-  // when set, no Branch other than it is ever offered, kept in the URL or sent
-  // (qs clamps any branch_id to it). When empty the global scope is "All Branches"
-  // and the Branch selector/All Branches/Branch comparison work as before. The
-  // server enforces the same ceiling from the session (talent_branch_scope); this
-  // is presentation, never the security boundary.
-  const activeBranch = config.branch!=null && config.branch!=='' ? String(config.branch) : '';
+  // Branch model (owner-directed amendment to the Batch 1 closure). The sidebar
+  // "Change Branch / Campus" selector holds REAL Branches only. The server renders
+  // the validated active Branch as config.branch:
+  //  * organization-authorized actor: it is only the DEFAULT page-level Branch
+  //    (defaultBranch). The Talent Branch filter offers All Branches and every
+  //    authorized Branch; All Branches is carried by the URL marker branch_scope=all.
+  //  * Branch-limited actor (config.branchLocked): it is the hard ceiling
+  //    (activeBranch): nothing else is offered, kept in the URL or sent.
+  // The server re-authorizes every branch_id (talent_branch_scope); this is
+  // presentation, never the security boundary.
+  const defaultBranch = config.branch!=null && config.branch!=='' ? String(config.branch) : '';
+  const activeBranch = config.branchLocked===true ? defaultBranch : '';
   const qs = values => new URLSearchParams(Object.entries(values)
     .map(([k,v]) => (k==='branch_id' && activeBranch && v!=='' && v!=null ? [k,activeBranch] : [k,v]))
     .filter(([,v]) => v !== '' && v != null)).toString();
@@ -508,15 +511,16 @@
     // A URL minted under a DIFFERENT active Branch (another tab, restored history,
     // bookmark) must never override the current global Branch: drop its Branch and
     // every Branch-dependent selection (Grade, Section) so no stale scope survives.
-    const marker=params.get('scope_branch_id');
-    if(marker!==null && marker!==activeBranch) ['branch_id','grade_level','planning_section_id','branch_scope','offset'].forEach(key=>params.delete(key));
-    if(activeBranch) params.set('scope_branch_id',activeBranch); else params.delete('scope_branch_id');
+    const marker=params.get('scope_branch_id'), reference=activeBranch||defaultBranch;
+    if(marker!==null && marker!==reference) ['branch_id','grade_level','planning_section_id','branch_scope','offset'].forEach(key=>params.delete(key));
+    if(reference) params.set('scope_branch_id',reference); else params.delete('scope_branch_id');
     if(activeBranch) {
-      // Hard ceiling: the Branch is always exactly the global Branch. A different
-      // branch_id (hand-edited or stale URL) is overwritten, "All Branches" is gone.
+      // Hard ceiling (Branch-limited actor): the Branch is always exactly theirs. A
+      // different branch_id (hand-edited or stale URL) is overwritten, All Branches is gone.
       params.set('branch_id',activeBranch);
       params.delete('branch_scope');
     } else if(params.get('branch_id')) params.delete('branch_scope');
+    else if(defaultBranch && params.get('branch_scope')!=='all') params.set('branch_id',defaultBranch);
     // Persist the reconciled scope so every consumer that reads the URL (for
     // example talent-experience.js) sees the same Branch this script requests.
     try { history.replaceState(null,'',`${location.pathname}?${params}${location.hash||''}`); } catch { /* bookkeeping only */ }
@@ -665,7 +669,7 @@
       const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
       const yearLabel=esc(year.options[year.selectedIndex]?.textContent || '');
       const scopedBranchId=params.get('branch_id');
-      const scopedBranchName=scopedBranchId&&String(scopedBranchId)===activeBranch?config.branchName:(branch.options?.find?.(o=>String(o.value)===String(scopedBranchId))?.textContent||'');
+      const scopedBranchName=scopedBranchId&&String(scopedBranchId)===(activeBranch||defaultBranch)?config.branchName:(branch.options?.find?.(o=>String(o.value)===String(scopedBranchId))?.textContent||'');
       const branchLabel=scopedBranchId&&scopedBranchName?` · ${esc(scopedBranchName)}`:'';
       // The page shell (hero copy + action cards) never waits on organization
       // analytics: the headline figures are an independent section with their own
@@ -862,7 +866,7 @@
         else if(branch.value){params.set('branch_id',branch.value);params.delete('branch_scope');}
         else{params.delete('branch_id');params.set('branch_scope','all');}
       }
-      if(BRANCH_SCOPED_VIEWS.includes(config.view)){if(activeBranch)params.set('scope_branch_id',activeBranch);else params.delete('scope_branch_id');}
+      if(BRANCH_SCOPED_VIEWS.includes(config.view)){if(activeBranch||defaultBranch)params.set('scope_branch_id',activeBranch||defaultBranch);else params.delete('scope_branch_id');}
       if(!grade.parentElement.hidden){grade.value?params.set('grade_level',grade.value):params.delete('grade_level');}
       if(!section.parentElement.hidden){section.value?params.set('planning_section_id',section.value):params.delete('planning_section_id');}
       if(!metricSelect.parentElement.hidden)params.set('metric',metricSelect.value);
@@ -898,6 +902,11 @@
     window.TalentCharts?.bind(root);
     const publishDashboard=next=>{
       if(activeBranch)next.set('branch_id',activeBranch);
+      else{
+        // Organization actor: keep the default-Branch marker; a blank Branch is an explicit All Branches.
+        if(defaultBranch)next.set('scope_branch_id',defaultBranch);
+        if(!next.get('branch_id'))next.set('branch_scope','all');else next.delete('branch_scope');
+      }
       next.set('academic_year_id',year.value);
       for(const k of [...params.keys()])params.delete(k);
       for(const [k,v] of next)params.set(k,v);
@@ -980,6 +989,7 @@
       branch.innerHTML=(!activeBranch&&offered.length>1?'<option value="">All Branches</option>':'')+offered.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
       if(activeBranch){branch.value=activeBranch;params.set('branch_id',activeBranch);}
       else if(previous&&items.some(item=>String(item.id)===String(previous)))branch.value=previous;
+      else if(params.get('branch_scope')==='all'&&items.length>1){branch.value='';params.delete('branch_id');}
       else if(items.length===1){branch.value=String(items[0].id);params.set('branch_id',String(items[0].id));}
       else params.delete('branch_id');
     } catch {

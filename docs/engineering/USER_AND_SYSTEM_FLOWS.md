@@ -31,6 +31,13 @@ source_of_truth: true
 
 ## Global Branch -> Talent Flow (Batch 1 Closure, 2026-09-25)
 
+> Amended 2026-09-25 (Part 1 production follow-up): the sidebar Branch switch lists real Branches only
+> and no longer offers a Talent All Branches option. On `/talent` pages the validated sidebar Branch is
+> the DEFAULT page Branch for an organization-authorized actor, who may choose All Branches or another
+> authorized Branch in the Talent Branch filter (URL marker `branch_scope=all`); a Branch-limited actor
+> stays locked to their Branch (`branchLocked`). The API still validates every `branch_id`. Start
+> Assessment failures show a curated, code-specific reason inline beside the Student row.
+
 Supersedes step 2 of the Batch 1 flow below ("default ... honors explicit
 `branch_scope=all`").
 

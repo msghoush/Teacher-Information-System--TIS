@@ -1,11 +1,39 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.11
+documentation_version: 4.12
 last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Branch Authority, Start Assessment And Classification Honesty (Production Follow-up Part 1, 2026-09-25)
+
+Owner-directed amendment. Read before touching Talent Branch scope, Start Assessment
+or aggregate Classification copy.
+
+- **Branch model.** The sidebar Branch selector lists REAL Branches only (no Talent
+  "All Branches" entry; `branch_scope=all` cookie and `user.scope_all_branches` are
+  removed and any old cookie is ignored, it grants nothing). For an organization-
+  authorized actor the sidebar Branch is only the DEFAULT page-level Branch
+  (`tp-config.branch`); the Talent Branch filter offers All Branches (client marker
+  `branch_scope=all` in the URL, no `branch_id` sent) and every authorized Branch.
+  For a Branch-limited actor the ceiling stays their authorized Branch (`tp-config.branchLocked`,
+  enforced by `auth.get_accessible_branch_query`). `talent_branch_scope.talent_branch_ceiling`
+  is now always `None`; an omitted `branch_id` means every Branch the actor is authorized
+  for; an explicit `branch_id` is validated server-side. This supersedes the "hard
+  ceiling" section below for organization-authorized actors only.
+- **Start Assessment.** The backend flow is sound (POST then workspace reads succeed).
+  The production banner "This context cannot be displayed" was the generic mapping of a
+  stable, safe 400 code (chiefly `assessment_tool_unavailable`: the Student's Grade has
+  no saved criteria in the Program). `talent-api-errors.js` `CODE_COPY` now carries
+  fixed curated copy for the Start Assessment codes (never backend detail) and the
+  reason is shown inline beside the row without scrolling.
+- **Classification "Unavailable".** Not a bug: each band cell is protected by the
+  approved Release 1 provider (minimum cohort 5, per band, zero counts included, then
+  complementary suppression). The UI adds one uniform, value-free sentence. No threshold,
+  suppression or privacy rule changed; making small cohorts visible requires an owner
+  decision plus an ADR 0028/0044 amendment.
 
 ## Agent 3 privacy and aggregate authority (2026-09-25)
 
@@ -31,6 +59,10 @@ words "protected for privacy". Visual work in Talent is structurally verified, n
 browser verified, unless a reviewer states otherwise.
 
 ## Global Branch = Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+> Amended 2026-09-25 (Part 1 production follow-up): for organization-authorized actors the
+> sidebar Branch is only a default and All Branches is chosen inside Talent; the marker cookie is
+> removed. The ceiling below still holds for Branch-limited actors. See the section above.
 
 Read before adding any Talent route or Branch filter. The global Branch is a hard
 ceiling, NOT the "default" described in the Batch 1 section below (that wording is

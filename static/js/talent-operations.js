@@ -89,7 +89,7 @@
         stale=stale||error.status===409;
         feedback(el,`${error.message}${stale?' Your entries are still here. Refresh the page before making further changes.':''}`,true);
         const message=root.querySelector('#op-message');
-        if(message){message.setAttribute('role','alert');message.classList.add('tp-error');message.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
+        if(message){message.setAttribute('role','alert');message.classList.add('tp-error');if(!error.inline)message.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
       }
       finally{busy=false;controls.filter(([el])=>el.isConnected).forEach(([el,disabled])=>el.disabled=disabled);}
     }
@@ -463,7 +463,21 @@
     // snapshot when the Assessment is created; no Open Evaluation step exists.
     on('start',async el=>{
       if(!cycle?.id)throw new Error('Choose an Evaluation Period and Program before starting an Assessment.');
-      const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,student_id:Number(el.dataset.student)}});
+      let result;
+      try {
+        result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,student_id:Number(el.dataset.student)}});
+      } catch(error) {
+        // Show the safe, specific reason beside the row's own button and keep the
+        // page where it is (no jump to the top-of-page banner, no navigation).
+        const cell=el.closest?el.closest('td'):el.parentElement;
+        if(cell&&typeof document!=='undefined'&&document.createElement) {
+          let hint=cell.querySelector?cell.querySelector('[data-start-error]'):null;
+          if(!hint){hint=document.createElement('p');hint.setAttribute('data-start-error','');hint.setAttribute('role','alert');hint.className='tp-op-feedback tp-error';cell.appendChild(hint);}
+          hint.textContent=error.message;
+          error.inline=true;
+        }
+        throw error;
+      }
       navigate('assessments',{assessment_id:result.id,cycle_id:cycle.id,academic_year_id:result.academic_year_id,program_id:result.program_id||cycle.program_id||pid});
     });
     on('reassess-row',async el=>{

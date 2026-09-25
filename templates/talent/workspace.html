@@ -43,7 +43,7 @@
   <div id="tp-content" aria-busy="true"><p class="tp-empty" data-server-loader data-initial-loading>Loading your authorized workspace…</p><noscript><p class="tp-empty">JavaScript is required to use Talent &amp; Potential. Enable it and reload this page.</p></noscript></div>
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
-<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name}|tojson }}</script>
+<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name, "branchLocked": talent_branch_locked}|tojson }}</script>
 {# Deployment Acceptance Batch 1: the server-rendered loader is replaced synchronously as soon as talent.js runs (boot()). If it is STILL on screen after 15 s the page script never took over (for example a script failed to download or parse, or a stale cached copy from an earlier deployment). The page must never sit on a generic loader indefinitely, so this tiny inline watchdog turns that state into an explicit, retryable error. It only ever acts on the still-untouched server-rendered placeholder. #}
 <script>
 (function(){

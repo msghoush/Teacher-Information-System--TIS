@@ -1,11 +1,27 @@
 ---
 title: TIS Change History
-documentation_version: 5.14
+documentation_version: 5.15
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Production follow-up Part 1: Talent Branch authority, Start Assessment, Classification
+
+- Sidebar Branch selector lists real Branches only. Removed the Talent "All Branches" entry,
+  the `branch_scope=all` marker cookie, `user.scope_all_branches` and `branch_id=all` handling in
+  `POST /scope/branch` (legacy cookie ignored). Organization-authorized actors choose All Branches
+  or any authorized Branch in the Talent page-level filter (sidebar Branch = default);
+  Branch-limited actors stay confined (`tp-config.branchLocked`). ADR 0044 records the dated
+  owner-directed amendment. Tests: `test_talent_branch_hard_scope.py`, Node B1-B10.
+- Start Assessment: root cause was the generic mapping of stable safe 400 codes (chiefly
+  `assessment_tool_unavailable`); curated fixed copy per code, shown inline without scrolling.
+  Backend flow proven end to end (`test_talent_start_assessment_flow.py`).
+- Classification: diagnosed as the approved per-band cohort floor (no behavior change); added one
+  uniform value-free explanatory sentence (`test_talent_classification_aggregate_privacy.py`,
+  `talent_classification_withheld.test.cjs`). No schema, migration, permission, privacy-rule or
+  `tis.db` change. Web Service only; not deployed.
 
 ## 2026-09-25 - Deployment hotfix: PostgreSQL psycopg v3 driver requirement
 
@@ -62,6 +78,9 @@ only; the separate workflow revision is unaffected.
 
 
 ## 2026-09-25 - Batch 1 closure: the global Branch is a hard Talent scope
+
+> Superseded for organization-authorized actors by the 2026-09-25 Part 1 entry above (owner
+> direction); the ceiling continues to bind Branch-limited actors.
 
 - Supersedes the 2026-09-24 entry's "default Talent Branch scope": the active global
   Branch is now an upper ceiling (intersection of actor authorization and active

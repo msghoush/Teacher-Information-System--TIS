@@ -618,3 +618,84 @@ test('assessment editor CSS uses a single-column competency layout and readable 
   // Mobile stacks rubric choices to a single column.
   assert.match(css,/\.tp-assessment-levels\{grid-template-columns:1fr\}/);
 });
+
+test('Start Assessment is a non-submitting button (no form submit, no # navigation) and stays a type=button control',async()=>{
+  const root=domRoot();
+  const cycle={id:71,program_id:11,title:'Term 1',status:'draft',revision:2,population_effective_at:'2026-01-01'};
+  const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},navigate(){},
+    api:async path=>{
+      if(path.startsWith('/api/talent/assessments?'))return [];
+      if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
+      if(path.endsWith('/eligible-students'))return {members:[{student_id:501,student_name:'Not Started Learner',grade_level:'3',section_name:'A'}]};
+      throw new Error(`Unexpected ${path}`);
+    }};
+  await withWindow(()=>render(ctx));
+  assert.match(root.innerHTML,/<button type="button" data-action="start" data-student="501">Start Assessment<\/button>/);
+  assert.doesNotMatch(root.innerHTML,/data-action="start"[^>]*href=|<a[^>]*href="#"[^>]*>Start Assessment/);
+});
+
+test('Start Assessment: string or number Program/Academic Year ids resolve to the same navigation context',async()=>{
+  for(const [programId,year,returnedYear] of [['11','2026','2026'],[11,2026,2026]]) {
+    const root=domRoot();
+    const cycle={id:71,program_id:programId,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
+    let clickHandler,navigated=null;
+    const startButton={dataset:{student:'501'},addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
+    root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
+    const ctx={root,year,view:'assessments',params:new URLSearchParams(`cycle_id=71&program_id=${programId}&branch_id=7`),can:()=>true,notify(){},
+      navigate:(target,extra)=>{navigated={target,extra};},
+      api:async(path,options)=>{
+        if(path.startsWith('/api/talent/assessments?'))return [];
+        if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
+        if(path.includes('/eligible-students'))return {members:[{student_id:501,student_name:'L',grade_level:'3',section_name:'A'}]};
+        if(path==='/api/talent/assessments'&&options?.method==='POST')return {id:701,academic_year_id:returnedYear,program_id:programId};
+        throw new Error(`Unexpected ${path}`);
+      }};
+    await withWindow(()=>render(ctx));
+    await clickHandler();
+    assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:71,academic_year_id:returnedYear,program_id:programId}});
+  }
+});
+
+test('Start Assessment rejected by the backend keeps the roster, shows the specific safe reason beside the row, and never navigates',async()=>{
+  const apiErrors=require('../static/js/talent-api-errors.js');
+  const root=domRoot();
+  const cycle={id:71,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
+  let clickHandler,navigated=null;
+  const hint={};
+  const cell={querySelector:()=>null,appendChild:child=>Object.assign(hint,{attached:child})};
+  const startButton={dataset:{student:'501'},closest:selector=>selector==='td'?cell:null,addEventListener:(type,cb)=>{if(type==='click')clickHandler=cb;}};
+  root.querySelectorAll=selector=>selector==='[data-action="start"]'?[startButton]:[];
+  const banner={textContent:'',scrolled:false,setAttribute(){},classList:{add(){},toggle(){}},scrollIntoView(){banner.scrolled=true;},addEventListener(){}};
+  root.querySelector=selector=>selector==='#op-message'?banner:{textContent:'',setAttribute(){},addEventListener(){}};
+  const created=[];
+  const previousDocument=global.document;
+  global.document={createElement:()=>{const el={attrs:{},setAttribute(k,v){this.attrs[k]=v;},textContent:'',className:''};created.push(el);return el;}};
+  try {
+    const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=71&program_id=11'),can:()=>true,notify(){},
+      navigate:(target,extra)=>{navigated={target,extra};},
+      api:async(path,options)=>{
+        if(path.startsWith('/api/talent/assessments?'))return [];
+        if(path.startsWith('/api/talent/assessments/contexts?'))return [cycle];
+        if(path.includes('/eligible-students'))return {members:[{student_id:501,student_name:'L',grade_level:'3',section_name:'A'}]};
+        if(path==='/api/talent/assessments'&&options?.method==='POST')throw apiErrors.httpError(400,'assessment_tool_unavailable');
+        throw new Error(`Unexpected ${path}`);
+      }};
+    await withWindow(()=>render(ctx));
+    await clickHandler();
+  } finally {global.document=previousDocument;}
+  assert.equal(navigated,null,'a rejected Start must not navigate');
+  assert.equal(created.length,1);
+  assert.match(created[0].textContent,/no saved assessment criteria/);
+  assert.doesNotMatch(created[0].textContent,/cannot be displayed/);
+  assert.equal(created[0].attrs.role,'alert');
+  assert.equal(banner.scrolled,false,'the page must not scroll to the top-of-page banner');
+});
+
+test('curated Start Assessment error codes never echo backend detail and unknown codes stay generic',()=>{
+  const apiErrors=require('../static/js/talent-api-errors.js');
+  for(const code of ['assessment_tool_unavailable','student_not_eligible','invalid_student_context','duplicate_assessment','assessment_conflict']) {
+    assert.ok(apiErrors.messageFor(400,code).length>20);
+    assert.doesNotMatch(apiErrors.messageFor(400,code),/cannot be displayed/);
+  }
+  assert.equal(apiErrors.messageFor(400,'some_unknown_code'),apiErrors.STATUS_COPY[400]);
+});

@@ -1,11 +1,60 @@
 ---
 title: TIS Project State
-documentation_version: 5.23
+documentation_version: 5.24
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Production follow-up Part 1 - Talent Branch authority, Start Assessment, Classification (2026-09-25)
+
+Implemented on `dev`; Web Service only; not deployed. No schema, migration, permission,
+privacy-threshold or `tis.db` change.
+
+**A. Branch authority (owner-directed amendment to the Batch 1 closure).** The sidebar
+selector lists real Branches only; the Talent "All Branches" option, the `branch_scope=all`
+marker cookie, `user.scope_all_branches` and `POST /scope/branch branch_id=all` are removed
+(an old cookie is ignored and grants nothing; choosing a Branch still clears it).
+`talent_branch_scope.talent_branch_ceiling` is always `None`; `branch_scope_unrestricted`
+is `auth.can_access_all_branches`. Organization-authorized actor: ceiling = own authorization
+(all Branches of the SchoolGroup); the sidebar Branch is the page default (`tp-config.branch`);
+the page-level Branch filter offers All Branches (URL marker `branch_scope=all`, no `branch_id`
+sent) and every authorized Branch; a stale marker from another sidebar Branch resets to the new
+default. Branch-limited actor: `tp-config.branchLocked`; the ceiling stays their authorized
+Branch on every read surface (server enforced, regression: `tests/test_talent_branch_hard_scope.py`);
+an explicit foreign or cross-tenant Branch is rejected as before. Omitted `branch_id` = all
+authorized Branches (it is how All Branches is expressed); the default is applied by the page.
+Branch display: legacy startup seeding uses hyphenated Branch names (`X-Boys`); persisted names
+and Talent presentation were NOT changed (reported as a separate data/presentation decision).
+
+**B. Start Assessment.** Trace: roster button (`type="button"`, no form/`#`) -> POST
+`/api/talent/assessments {cycle_id, student_id}` -> navigation with `assessment_id`, `cycle_id`,
+`academic_year_id`, `program_id` -> workspace reads. Backend regression proves the whole chain for
+organization actors under every sidebar Branch and for a Branch-limited actor
+(`tests/test_talent_start_assessment_flow.py`); string/number id typing does not matter. Root
+cause of the banner: a stable, safe 400 business code (chiefly `assessment_tool_unavailable`, a
+Student whose Grade has no saved criteria in the Program; also `student_not_eligible`,
+`invalid_student_context`, duplicate/conflict) was collapsed by `talent-api-errors.js` into the
+generic 400 copy and shown in the page-top banner via `scrollIntoView`. Fix: curated fixed copy per
+code (`CODE_COPY`, backend `detail` still never echoed) shown inline beside the row; no scroll jump,
+no navigation on failure. Which code production returned could not be observed here.
+
+**C. Classification "Unavailable".** Diagnosis (reproduced, `tests/test_talent_classification_aggregate_privacy.py`):
+every Student is classified; the aggregate is hidden at the PRIMARY privacy stage
+(`apply_primary_privacy` inside `build_bucket_projection`, class P4) by the approved Release 1
+provider (`ConfiguredRelease1PrivacyPolicy`, minimum cohort 5 per Classification band cell, zero
+counts included; ADR 0028, B11-E F1), then complementary suppression; a total below the floor hides
+the whole family; an absent provider configuration fails closed (`restricted`). Broader selections
+publish exactly the bands that clear the floor. Behavior is unchanged. UI: one uniform, value-free
+sentence (`data-chart-withheld-note`) and a precise whole-family message; no threshold, cell-level
+reason, or hidden value is emitted. Showing small cohorts would require an owner decision and an
+ADR 0028/0044 amendment. Production privacy configuration (the cohort environment value) could not
+be verified here; if it were absent every protected metric would read Unavailable.
+
+Tests: Python `test_talent_branch_hard_scope.py`, `test_talent_start_assessment_flow.py`,
+`test_talent_classification_aggregate_privacy.py`; Node B1-B10, Start Assessment cases in
+`talent_operations.test.cjs`, `talent_classification_withheld.test.cjs`. Browser verification not performed.
 
 ## Talent product transformation (Agent 3, 2026-09-25)
 
@@ -76,6 +125,11 @@ is no longer attached.
 
 
 ## Batch 1 Closure - The Global Branch Is A Hard Talent Scope (2026-09-25)
+
+> Amended 2026-09-25 (Part 1 production follow-up, owner decision): the ceiling described here now
+> applies only to Branch-limited actors. Organization-authorized actors choose All Branches or any
+> authorized Branch inside Talent, the sidebar Branch being only the default, and the `branch_scope=all`
+> marker cookie / `user.scope_all_branches` were removed. Original text below is preserved as history.
 
 **Status: implemented on `dev` only; not deployed, not merged. Web Service only
 (no worker/timetable/workflow change). No schema, migration, permission or `tis.db`

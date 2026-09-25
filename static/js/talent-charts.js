@@ -12,6 +12,12 @@
     permission_required:'Learning Style requires permission to view Students.',
     incompatible_frameworks:'Choose one compatible Program and assessment framework to view results.'
   };
+  // Classification is a privacy-closed aggregate (P4, cohort floor and complementary
+  // suppression are owned by the backend). One uniform, value-free sentence explains
+  // why a group reads Unavailable. It is derived only from cell STATES, never names
+  // which cells were primary or complementary suppressed and never states a threshold.
+  const withheldNote='Groups marked Unavailable are withheld to protect individual Students. A broader selection may allow more groups to be shown.';
+  const withheldWhole='This summary is not available for this selection: Classification is withheld to protect individual Students. A broader selection may allow it to be shown.';
   function sanitize(projection){
     if(!projection||!['visible','empty'].includes(projection.state))return [];
     return (projection.buckets||projection.levels||[]).map(b=>({label:String(b.label||b.key||''),state:b.state,
@@ -43,12 +49,13 @@
     const rows=sanitize(projection);
     if(!rows.length){
       const known=messages[projection?.reason_code];
-      const text=known||(['empty','no_data'].includes(projection?.state)?'No data for this selection.':'This summary is not available for this selection.');
+      const withheld=family==='classification'&&['suppressed','coarsened'].includes(projection?.state);
+      const text=known||(withheld?withheldWhole:['empty','no_data'].includes(projection?.state)?'No data for this selection.':'This summary is not available for this selection.');
       return `<section class="tp-card tp-chart is-${known?'protected':['empty','no_data'].includes(projection?.state)?'empty':'unavailable'}"><div class="tp-chart-head"><h3>${esc(title)}</h3></div><p class="tp-empty" data-chart-state="${known?'protected':'unavailable'}">${esc(text)}</p></section>`;
     }
     const available=modes(projection,family);if(!available.includes(mode))mode='bar';
     // Keep only sanitized public values in switchable markup. No serialized API payload.
-    return `<section class="tp-card tp-chart" data-chart-family="${esc(family)}"><div class="tp-chart-head"><h3>${esc(title)}</h3><div class="tp-chart-switch" role="group" aria-label="${esc(title)} chart type">${available.map(m=>`<button type="button" data-chart-mode="${m}" aria-pressed="${m===mode}">${esc(m[0].toUpperCase()+m.slice(1))}</button>`).join('')}</div></div><div data-chart-visual>${visual(rows,mode)}</div><details><summary>Exact values and accessible table</summary><div class="tp-table-wrap"><table><caption>${esc(title)}</caption><thead><tr><th scope="col">Category</th><th scope="col">Count</th><th scope="col">Percentage</th></tr></thead><tbody>${rows.map(r=>`<tr data-chart-row data-state="${esc(r.state)}"><th scope="row">${esc(r.label)}</th><td>${r.count===null?protectedText:esc(r.count)}</td><td>${r.percentage===null?(r.state==='visible'?'Unavailable':protectedText):esc(r.percentage)+'%'}</td></tr>`).join('')}</tbody></table></div></details></section>`;
+    return `<section class="tp-card tp-chart" data-chart-family="${esc(family)}"><div class="tp-chart-head"><h3>${esc(title)}</h3><div class="tp-chart-switch" role="group" aria-label="${esc(title)} chart type">${available.map(m=>`<button type="button" data-chart-mode="${m}" aria-pressed="${m===mode}">${esc(m[0].toUpperCase()+m.slice(1))}</button>`).join('')}</div></div><div data-chart-visual>${visual(rows,mode)}</div>${family==='classification'&&rows.some(r=>r.state!=='visible')?`<p class="tp-note tp-chart-note" data-chart-withheld-note>${esc(withheldNote)}</p>`:''}<details><summary>Exact values and accessible table</summary><div class="tp-table-wrap"><table><caption>${esc(title)}</caption><thead><tr><th scope="col">Category</th><th scope="col">Count</th><th scope="col">Percentage</th></tr></thead><tbody>${rows.map(r=>`<tr data-chart-row data-state="${esc(r.state)}"><th scope="row">${esc(r.label)}</th><td>${r.count===null?protectedText:esc(r.count)}</td><td>${r.percentage===null?(r.state==='visible'?'Unavailable':protectedText):esc(r.percentage)+'%'}</td></tr>`).join('')}</tbody></table></div></details></section>`;
   }
   function bind(root){
     root.addEventListener('click',event=>{

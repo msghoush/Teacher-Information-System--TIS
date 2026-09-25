@@ -54,6 +54,15 @@ source_of_truth: true
 
 ## Talent Branch ceiling (Batch 1 Closure, 2026-09-25)
 
+> Amended 2026-09-25 (Part 1 production follow-up): `talent_branch_ceiling` now always returns
+> `None` (the sidebar Branch is a default, not a ceiling); `branch_scope_unrestricted` is
+> `auth.can_access_all_branches`; a Branch-limited actor remains confined by
+> `auth.get_accessible_branch_query`. `user.scope_all_branches`, the `branch_scope=all` cookie
+> handling and the `/scope/branch` `all` value below were removed; `talent_ui` publishes
+> `tp-config.branch` (default) and `tp-config.branchLocked`. `talent-api-errors.js` `CODE_COPY`
+> carries the curated Start Assessment error codes; `talent-charts.js` adds the uniform
+> Classification withheld note.
+
 - `talent_branch_scope.py`: `talent_branch_ceiling`, `branch_scope_unrestricted`,
   `visible_branch_ids`, `visible_branch_ids_or_none`, `branch_within_ceiling`. Consumed
   by `talent_org_intelligence_service.resolve_access_context`, the Talent routers

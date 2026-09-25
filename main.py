@@ -15594,14 +15594,6 @@ def set_scope_branch(
             page_key="dashboard",
         )
 
-    if str(branch_id).strip().lower() == "all":
-        # Explicit global "All Branches" (organization-wide) scope for Talent &
-        # Potential. Only a marker cookie: every other module keeps its single
-        # working Branch (branch_id cookie untouched); the marker only lifts the
-        # Talent Branch ceiling for an actor who may access all Branches anyway.
-        response = RedirectResponse(url=_safe_redirect_path(return_to), status_code=302)
-        auth.set_scope_cookie(response, "branch_scope", "all", request)
-        return response
     try:
         branch_id = int(branch_id)
     except (TypeError, ValueError):
@@ -15637,7 +15629,7 @@ def set_scope_branch(
         status_code=302,
     )
     auth.set_scope_cookie(response, "branch_id", target_branch.id, request)
-    # Choosing a specific Branch ends any explicit Talent "All Branches" scope.
+    # Retire any legacy Talent "All Branches" marker cookie (no longer honoured).
     response.delete_cookie("branch_scope")
     auth.set_scope_cookie(response, "school_group_id", target_group_id, request)
     auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)

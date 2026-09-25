@@ -145,13 +145,9 @@
                             <input type="hidden" name="return_to" value="{{ request.url.path }}">
                             <div>
                                 <label for="sidebar_scope_branch_id">Branch / Campus</label>
-                                {% set talent_all_scope = request.url.path.startswith('/talent') %}
                                 <select id="sidebar_scope_branch_id" name="branch_id" required>
-                                    {% if talent_all_scope %}
-                                    <option value="all" {% if shell.scope_all_branches %}selected{% endif %}>All Branches (Talent &amp; Potential organization-wide)</option>
-                                    {% endif %}
                                     {% for branch_item in shell.available_scope_branches %}
-                                    <option value="{{ branch_item.id }}" {% if shell.scoped_branch_id == branch_item.id and not (talent_all_scope and shell.scope_all_branches) %}selected{% endif %}>{{ branch_item.name }}</option>
+                                    <option value="{{ branch_item.id }}" {% if shell.scoped_branch_id == branch_item.id %}selected{% endif %}>{{ branch_item.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
