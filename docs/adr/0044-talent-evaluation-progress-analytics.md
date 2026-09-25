@@ -1,6 +1,6 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.5
+documentation_version: 1.6
 last_updated: 2026-09-24
 status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
@@ -311,3 +311,16 @@ approved Release 1 provider withholding a band cell below the minimum cohort (or
 or a fail-closed absent configuration). No rule changed; the UI states one uniform value-free
 explanation. Making small cohorts visible needs an explicit owner decision and an amendment here
 and in ADR 0028.
+
+## Part 2 Amendment (2026-09-25): Chart Types, Background Refresh And Progress Over Time (presentation only)
+
+Dated, presentation-only amendment; no `MetricCode`, privacy, suppression, Classification,
+Learning Style or Evaluation Progress semantic changed. (1) Chart types: the selector offers only
+materially different types; circular types only for a full public partition of at most eight
+categories and never for time series, ordinal Rubric levels or Learning Style (nine categories);
+percentages and counts remain visible in every type and in the accessible table; no frontend
+threshold or derived value exists. (2) Dashboard filters refetch in the background under the same
+authorized read API (`.../dashboard`), with cancellation of superseded requests and only the newest
+response rendered. (3) Progress Over Time stays a real per-Program view over the ADR 0027
+longitudinal projection; a period that is suppressed or has no Student result yet is a gap
+("Unavailable" / "No data yet"), never zero, and different Program frameworks are never combined.

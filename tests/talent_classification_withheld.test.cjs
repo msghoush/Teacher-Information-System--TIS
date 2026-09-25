@@ -52,8 +52,10 @@ test('C5. restricted (fail-closed configuration) keeps the neutral message and t
 });
 
 test('C6. chart mode switching keeps the explanation and never exposes hidden magnitudes', () => {
-  assert.deepEqual(charts.modes(mixed, 'classification'), ['bar', 'percentage']);
-  const html = charts.chart('Current Classification', mixed, 'classification', 'percentage');
+  // Part 2 D: the old "percentage" mode was the same picture as the count bar and is gone;
+  // a partially withheld Classification can only be a bar (no circular type for a partial partition).
+  assert.deepEqual(charts.modes(mixed, 'classification'), ['bar']);
+  const html = charts.chart('Current Classification', mixed, 'classification', 'doughnut');
   assert.match(html, /data-chart-withheld-note/);
   assert.ok(!html.includes('conic-gradient'));
 });

@@ -86,7 +86,8 @@ REQUIRED_SCRIPTS_BY_VIEW = {
     'branch': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
     'overlap': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
     'students': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
-    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    # Part 2: the Progress Over Time trend is drawn by the shared chart module.
+    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-charts.js'),
 }
 
 

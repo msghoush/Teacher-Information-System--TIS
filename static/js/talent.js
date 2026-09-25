@@ -24,6 +24,12 @@
   const studentIdentity = typeof module !== 'undefined' && module.exports
     ? require('./talent-student-identity.js')
     : (typeof window !== 'undefined' && window.TalentStudentIdentity) || null;
+  // Shared privacy-safe chart renderer (Progress Over Time trend). Resolved defensively.
+  const talentCharts = typeof module !== 'undefined' && module.exports
+    ? require('./talent-charts.js')
+    : (typeof window !== 'undefined' && window.TalentCharts) || null;
+  // Shared chevron for navigation actions (inline SVG, decorative, always paired with text).
+  const chevron = '<svg class="tp-chevron" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m9 6 6 6-6 6"/></svg>';
   const labels = {
     programs_configured:'Programs configured', active_programs:'Active Programs',
     // Batch 1: "Students participating" is DISTINCT current Students only (the
@@ -192,7 +198,7 @@
   function kpiCard(key, cell, href='', context='') {
     const isRate = cell && cell.state === 'visible' && typeof cell.percentage === 'number' && Number.isFinite(cell.percentage);
     const value = isRate ? radialGauge(cell, labels[key] || human(key)) : `<div class="tp-kpi-value">${metric(cell)}</div>`;
-    const body=`<article class="tp-kpi${href?' tp-kpi-link':''}"><span class="tp-kpi-label">${esc(labels[key]||human(key))}</span>${value}${context?`<p>${esc(context)}</p>`:''}${href?`<a class="tp-card-hit" href="${href}" aria-label="Explore ${esc(labels[key]||human(key))}"><span>Explore</span><span aria-hidden="true">&rarr;</span></a>`:''}</article>`;
+    const body=`<article class="tp-kpi${href?' tp-kpi-link':''}"><span class="tp-kpi-label">${esc(labels[key]||human(key))}</span>${value}${context?`<p>${esc(context)}</p>`:''}${href?`<a class="tp-card-hit" href="${href}" aria-label="Explore ${esc(labels[key]||human(key))}"><span>Explore</span>${chevron}</a>`:''}</article>`;
     return body;
   }
   const friendlyReason = reason => ({missing_cycle:'An evaluation cycle has not been linked',cycle_not_authoritative:'The linked cycle is not open or closed',cancelled_period:'This evaluation period was cancelled',no_frozen_population:'No recorded Student assessment context is available',metric_unavailable:'This result is not available for the selected measure',framework_changed:'The Program framework changed between these periods',privacy_protected:'One or both results are unavailable for this comparison'}[reason] || 'These periods cannot be compared');
@@ -330,15 +336,19 @@
     }).join('');
     return `<div class="tp-matrix-wrap"><div class="tp-matrix" role="grid" aria-label="Distinct Students participating across Programs" style="grid-template-columns:190px repeat(${count-1},minmax(150px,1fr))">${header}${rows}</div></div>`;
   }
+  // Progress Over Time (ADR 0027 longitudinal projection): one Program, one Academic Year,
+  // ordered Evaluation Periods. The trend/bar chart and its exact table come from the shared
+  // chart module; a period whose cell is not visible is a gap, never a zero or a magnitude
+  // (a newly opened Period with no Student result is "No data yet", not 0%).
   function periodVisual(data) {
-    const path=data.points?.length?`<div class="tp-period-path" role="list" aria-label="Evaluation sequence">${data.points.map((point,index)=>`${index?'<span aria-hidden="true">→</span>':''}<strong role="listitem">${esc(point.evaluation_period.label)}</strong>`).join('')}</div>`:'';
-    const ratePoints=data.points.filter(p=>p.metric_result?.state==='visible'&&typeof p.metric_result.percentage==='number');
-    const plot=ratePoints.length ? `<div class="tp-period-chart" role="img" aria-label="${esc(labels[data.metric])} across visible evaluation periods">${data.points.map(p=>{
-      const cell=p.metric_result;
-      if(cell?.state!=='visible'||typeof cell.percentage!=='number')return `<div class="tp-chart-slot tp-chart-unavailable"><span>${esc(p.evaluation_period.label)}</span><i aria-hidden="true"></i><small>${esc(states[cell?.state]||'Not available')}</small></div>`;
-      const height=Math.max(4,Math.min(100,cell.percentage));
-      return `<div class="tp-chart-slot"><span>${esc(p.evaluation_period.label)}</span><i style="height:${height}%" aria-hidden="true"></i><strong>${number(cell.percentage)}%</strong></div>`;
-    }).join('')}</div>` : '';
+    const path=data.points?.length?`<div class="tp-period-path" role="list" aria-label="Evaluation sequence">${data.points.map((point,index)=>`${index?`<span aria-hidden="true">${chevron}</span>`:''}<strong role="listitem">${esc(point.evaluation_period.label)}</strong>`).join('')}</div>`:'';
+    const rows=(data.points||[]).map(p=>{
+      const cell=p.metric_result||{};
+      return {label:p.evaluation_period.label,state:cell.state||'no_data',
+        count:typeof cell.numerator==='number'?cell.numerator:cell.value,
+        percentage:cell.percentage,denominator:cell.denominator};
+    });
+    const plot=talentCharts&&rows.length?talentCharts.series(`${labels[data.metric]||'Result'} by Evaluation Period`,rows,{surface:'longitudinal'}):'';
     return path+plot+`<ol class="tp-sequence tp-period-grid">${data.points.map(p=>`<li class="tp-period"><span class="tp-seq">${esc(p.evaluation_period.sequence)}</span><div><h3>${esc(p.evaluation_period.label)}</h3>${badge(p.evaluation_period.status)}<p>${esc(labels[data.metric])}</p>${metric(p.metric_result)}${p.no_data_reason?`<p class="tp-state-explanation">${esc(friendlyReason(p.no_data_reason))}</p>`:''}</div></li>`).join('')}</ol>`;
   }
   // M18b-2 Results & Analytics rebuild: bucket distribution chart/table pair
@@ -525,7 +535,7 @@
     // example talent-experience.js) sees the same Branch this script requests.
     try { history.replaceState(null,'',`${location.pathname}?${params}${location.hash||''}`); } catch { /* bookkeeping only */ }
   }
-  const link = (view, text, extra={}) => `<a target="_self" href="/talent/${view}?${esc(qs({academic_year_id:year.value,...extra}))}">${esc(text)} →</a>`;
+  const link = (view, text, extra={}) => `<a target="_self" href="/talent/${view}?${esc(qs({academic_year_id:year.value,...extra}))}">${esc(text)} ${chevron}</a>`;
   function syncNavigation() {
     // Top-level Talent navigation is a context reset boundary. Moving from a
     // selected Program (for example Mental Math) to Programs, Student
@@ -618,6 +628,96 @@
       },
     };
   }
+  // ---- Filter interaction, scroll and focus preservation (Part 2 E) ----------
+  // Results & Analytics filters never navigate or reload the document: they update local
+  // params, mirror them into the URL with history.replaceState, and refetch in the
+  // background. The rendered dashboard stays in place (aria-busy, dimmed, thin progress
+  // bar) until the newest response is ready; only that response may render.
+  let dashboardReady = false, dashToken = 0, dashController = null, dashTimer = null, overviewAnimated = false;
+  // One restrained entrance for the Overview charts, first render only, and never when the
+  // user prefers reduced motion (or the preference cannot be read).
+  function shouldAnimateEntrance() {
+    if (overviewAnimated) return false;
+    overviewAnimated = true;
+    try {
+      const query = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
+      return Boolean(query) && !query.matches;
+    } catch { return false; }
+  }
+  function captureAnchor(holder) {
+    const active = document.activeElement;
+    const named = active && active.name && (typeof root.contains !== 'function' || root.contains(active));
+    let top = null;
+    try { if (named && typeof active.getBoundingClientRect === 'function') top = active.getBoundingClientRect().top; } catch { top = null; }
+    const anchor = {x: window.scrollX || 0, y: window.scrollY || 0, top,
+      key: named ? {name: active.name, value: active.type === 'checkbox' ? active.value : null} : null,
+      height: (holder && holder.offsetHeight) || 0};
+    // Holding the region's height stops the browser clamping the scroll position while
+    // the content is replaced by something momentarily shorter.
+    if (holder && holder.style && anchor.height) holder.style.minHeight = `${anchor.height}px`;
+    return anchor;
+  }
+  function restoreAnchor(anchor, holder) {
+    try {
+      let target = null;
+      if (anchor.key && typeof root.querySelectorAll === 'function') {
+        target = Array.from(root.querySelectorAll(`[name="${anchor.key.name}"]`)).find(el => anchor.key.value === null || el.value === anchor.key.value) || null;
+      }
+      if (target) {
+        if (typeof target.focus === 'function') target.focus({preventScroll: true});
+        const now = typeof target.getBoundingClientRect === 'function' ? target.getBoundingClientRect().top : null;
+        if (anchor.top !== null && now !== null && Math.abs(now - anchor.top) > 1 && typeof window.scrollBy === 'function') window.scrollBy(0, now - anchor.top);
+      } else if (Math.abs((window.scrollY || 0) - anchor.y) > 1 && typeof window.scrollTo === 'function') {
+        window.scrollTo(anchor.x, anchor.y);
+      }
+    } catch { /* presentation only */ }
+    if (holder && holder.style) holder.style.minHeight = '';
+  }
+  function cancelDashboard() {
+    clearTimeout(dashTimer); dashToken += 1;
+    if (dashController) dashController.abort();
+    dashController = null;
+  }
+  const dashboardSlot = () => (config.view === 'analytics' && window.TalentDashboard) ? root.querySelector('[data-tp-slot="tp-dashboard-slot"]') : null;
+  function setDashboardBusy(slot, busy) {
+    if (busy) slot.setAttribute('aria-busy', 'true'); else slot.removeAttribute('aria-busy');
+    if (slot.classList) { if (busy) slot.classList.add('is-refreshing'); else slot.classList.remove('is-refreshing'); }
+    const bar = slot.querySelector('[data-dashboard-progress]');
+    if (bar) bar.hidden = !busy;
+    const banner = slot.querySelector('[data-dashboard-error]');
+    if (banner && busy) { banner.hidden = true; banner.innerHTML = ''; }
+  }
+  function showDashboardError(slot, error) {
+    const banner = slot.querySelector('[data-dashboard-error]');
+    if (!banner) return;
+    banner.hidden = false;
+    banner.innerHTML = `<strong>${error && error.code === 'timeout' ? 'Taking longer than expected' : 'The analysis could not be updated.'}</strong> <span>${esc(safeMessage(error))}</span> <button type="button" class="tp-secondary" data-dashboard-retry>Retry</button>`;
+  }
+  async function refreshDashboard() {
+    const slot = dashboardSlot();
+    // Nothing rendered yet (first load in flight, or it failed): use the full lifecycle.
+    if (!slot || !dashboardReady) return load();
+    clearTimeout(dashTimer);
+    if (dashController) dashController.abort();
+    const token = ++dashToken, controller = dashController = new AbortController();
+    const anchor = captureAnchor(slot);
+    setDashboardBusy(slot, true);
+    status.textContent = 'Updating analysis…';
+    try {
+      const data = await api(`results-analytics/academic-years/${encodeURIComponent(year.value)}/dashboard?${qs(Object.fromEntries(params))}`, controller.signal);
+      if (token !== dashToken) return;
+      slot.innerHTML = window.TalentDashboard.analytics(data, params, activeBranch);
+      restoreAnchor(anchor, slot);
+      status.textContent = 'Analysis updated.';
+    } catch (error) {
+      if (token !== dashToken || isAbortError(error)) return;
+      // Keep the previous analysis on screen and offer an explicit, retryable error.
+      showDashboardError(slot, error);
+      status.textContent = 'The analysis could not be updated.';
+    } finally {
+      if (token === dashToken) { setDashboardBusy(slot, false); if (slot.style) slot.style.minHeight = ''; }
+    }
+  }
   function programCards(items) {
     return items.length ? `<div class="tp-grid">${items.map(p=>`<article class="tp-card">${programLogo(p)}<h3>${esc(p.name)}</h3><p>${esc(p.description || 'Explore the Program framework and annual evaluation context.')}</p>${link('programs','Open Program',{program_id:p.id})}</article>`).join('')}</div>` : empty('No Programs are available. Ask your Program administrator to configure the first Program.');
   }
@@ -688,11 +788,11 @@
         }});
         if(window.TalentDashboard)sections.add({id:'tp-overview-charts',label:'executive charts',keys:['dashboard'],build:async()=>{
           const data=await sections.request('dashboard',`results-analytics/academic-years/${encodeURIComponent(ay)}/dashboard?${qs({branch_id:params.get('branch_id')})}`);
-          return window.TalentDashboard.overview(data);
+          return window.TalentDashboard.overview(data,{animate:shouldAnimateEntrance()});
         }});
         registerSections(sections);
       }
-      return hero+(can('talent_analytics.view')&&window.TalentDashboard?slotHtml('tp-overview-charts','executive charts'):'')+`<section class="tp-overview-command" aria-label="Open a Talent workspace"><div><p class="tp-eyebrow">Continue work</p><h3>Take the next useful action</h3></div><div class="tp-overview-actions">${routes.filter(r=>can(r[3])).map((r,index)=>`<a class="tp-dashboard-action ${index===0?'is-primary':''}" href="${esc(`/talent/${r[0]}?${qs({academic_year_id:ay})}`)}"><span aria-hidden="true">${appIcon(r[4])}</span><span><strong>${esc(r[1])}</strong><small>${esc(r[2])}</small></span><b aria-hidden="true">→</b></a>`).join('')}</div></section>${can('talent_review_candidates.view')?`<p class="tp-legacy-link">${link('reviews','Legacy Review & Identification History')} <span>Preserved audit history only; not part of the current workflow.</span></p>`:''}`;
+      return hero+(can('talent_analytics.view')&&window.TalentDashboard?slotHtml('tp-overview-charts','executive charts'):'')+`<section class="tp-overview-command" aria-label="Open a Talent workspace"><div><p class="tp-eyebrow">Continue work</p><h3>Take the next useful action</h3></div><div class="tp-overview-actions">${routes.filter(r=>can(r[3])).map((r,index)=>`<a class="tp-dashboard-action ${index===0?'is-primary':''}" href="${esc(`/talent/${r[0]}?${qs({academic_year_id:ay})}`)}"><span aria-hidden="true">${appIcon(r[4])}</span><span><strong>${esc(r[1])}</strong><small>${esc(r[2])}</small></span><b aria-hidden="true">${chevron}</b></a>`).join('')}</div></section>${can('talent_review_candidates.view')?`<p class="tp-legacy-link">${link('reviews','Legacy Review & Identification History')} <span>Preserved audit history only; not part of the current workflow.</span></p>`:''}`;
     }
     if (view==='programs') {
       if (!pid) return programCards(await api('programs',signal));
@@ -733,7 +833,9 @@
       const sections=createSections(run,signal);
       sections.add({id:'tp-dashboard-slot',label:'filtered analysis',keys:['dashboard'],build:async()=>{
         const data=await sections.request('dashboard',`results-analytics/academic-years/${encodeURIComponent(ay)}/dashboard?${qs(Object.fromEntries(params))}`);
-        return window.TalentDashboard.analytics(data,params,activeBranch);
+        const html=window.TalentDashboard.analytics(data,params,activeBranch);
+        if(run===generation)dashboardReady=true;
+        return html;
       }});
       registerSections(sections);
       return '<div data-tp-dashboard>'+slotHtml('tp-dashboard-slot','filtered analysis')+'</div>';
@@ -826,6 +928,7 @@
   // generation owns the placeholder, aria-busy and status from that point on.
   async function load() {
     const run=++generation; controller?.abort(); controller=new AbortController();
+    cancelDashboard(); dashboardReady=false; let anchor=null;
     // New render generation invalidates any prior rubric read ownership so a
     // Program/Academic-Year change can never reuse a stale shared promise.
     if(rubricRequest && typeof rubricRequest.reset==='function') rubricRequest.reset();
@@ -833,6 +936,9 @@
     try {
       updateBreadcrumb();
       const hasRenderedContent=Boolean(root.children?.length && !root.querySelector?.('.tp-empty[data-initial-loading]'));
+      // A refresh over rendered content keeps the region's height and restores the reader's
+      // position (and focused control) so re-rendering never throws the page to the top.
+      anchor=hasRenderedContent?captureAnchor(root):null;
       if(!hasRenderedContent) root.innerHTML=`<div class="tp-empty" data-initial-loading role="presentation">${sectionLoadingHtml('this view')}</div>`;
       root.setAttribute('aria-busy','true'); root.classList.add('is-refreshing'); status.textContent='Refreshing view…';
       const html=await render(signal,run);
@@ -847,15 +953,22 @@
     } catch(error) {
       if(run===generation) showPageError(error);
     } finally {
-      if(run===generation){root.setAttribute('aria-busy','false');root.classList.remove('is-refreshing');}
+      if(run===generation){
+        root.setAttribute('aria-busy','false');root.classList.remove('is-refreshing');
+        if(anchor)restoreAnchor(anchor,root);
+      }
     }
   }
   // Selections auto-apply (no required "Apply context" click); a short debounce
   // collapses rapid multi-dropdown changes into one reload. The visible Refresh
   // button (form submit) applies immediately, bypassing the debounce.
   const AUTO_APPLY_DEBOUNCE_MS = 250;
+  // Ticking several comparison groups in a row collapses into one background request.
+  const COMPARISON_DEBOUNCE_MS = 350;
   let autoApplyTimer = null;
   function applyContext() {
+    // Results & Analytics: the dashboard refetches in the background (no page-wide reload).
+    if(config.view==='analytics'&&window.TalentDashboard&&dashboardReady){params.set('academic_year_id',year.value);history.replaceState(null,'',`${location.pathname}?${params}`);refreshDashboard();return;}
     try {
       params.set('academic_year_id',year.value);
       if(!program.parentElement.hidden){program.value?params.set('program_id',program.value):params.delete('program_id');}
@@ -900,7 +1013,7 @@
     if (eventsBound) return;
     eventsBound = true;
     window.TalentCharts?.bind(root);
-    const publishDashboard=next=>{
+    const publishDashboard=(next,delay=0)=>{
       if(activeBranch)next.set('branch_id',activeBranch);
       else{
         // Organization actor: keep the default-Branch marker; a blank Branch is an explicit All Branches.
@@ -911,8 +1024,9 @@
       for(const k of [...params.keys()])params.delete(k);
       for(const [k,v] of next)params.set(k,v);
       history.replaceState(null,'',`${location.pathname}?${params}`);
-      root.innerHTML=sectionLoadingHtml('filtered analysis');
-      load();
+      // Never replace the root: refresh in the background, keeping what is on screen.
+      clearTimeout(dashTimer);
+      if(delay>0)dashTimer=setTimeout(refreshDashboard,delay);else refreshDashboard();
     };
     root.addEventListener('change',event=>{
       const f=event.target.closest?.('[data-dashboard-filters]');
@@ -921,7 +1035,7 @@
       if(el.name==='compare_ids'){
         const chosen=Array.from(f.querySelectorAll('input[name="compare_ids"]:checked')).map(i=>i.value);
         if(chosen.length>6){el.checked=false;status.textContent='Choose up to six comparison groups.';return;}
-        publishDashboard(window.TalentDashboard.change(params,el.name,chosen.join(',')));
+        publishDashboard(window.TalentDashboard.change(params,el.name,chosen.join(',')),COMPARISON_DEBOUNCE_MS);
       }else publishDashboard(window.TalentDashboard.change(params,el.name,el.value));
     });
     root.addEventListener('submit',event=>{
@@ -929,6 +1043,7 @@
       event.preventDefault();publishDashboard(new URLSearchParams(params));
     });
     root.addEventListener('click',event=>{
+      if(event.target.closest?.('[data-dashboard-retry]')){refreshDashboard();return;}
       if(!event.target.closest?.('[data-dashboard-clear]'))return;
       publishDashboard(new URLSearchParams({academic_year_id:year.value}));
     });
@@ -956,7 +1071,7 @@
       event.preventDefault();
       if(activeSections)activeSections.retry(button.getAttribute('data-tp-section-retry'));
     });
-    window.addEventListener('pagehide',()=>{controller?.abort();root.replaceChildren();});
+    window.addEventListener('pagehide',()=>{controller?.abort();cancelDashboard();root.replaceChildren();});
     // A page restored from the back/forward cache was emptied by pagehide above.
     window.addEventListener('pageshow',event=>{if(event.persisted)load();});
   }

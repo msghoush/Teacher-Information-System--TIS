@@ -1,11 +1,22 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.12
+documentation_version: 4.13
 last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Chart Types, Background Refresh And Progress Over Time (Production Follow-up Part 2, 2026-09-25)
+
+Read before touching Talent charts or dashboard filters. Chart-type selectors may only switch
+materially different visualization types (`talent-charts.js` `modes()`); never add a mode that draws
+the same picture, a circular type for a time series, high-cardinality (more than eight) or ordinal data,
+or a percentage-only toggle. Values stay visible in every type. Dashboard filter changes must go
+through `refreshDashboard()` (background fetch, newest-token-wins, no root replacement, no
+`scrollIntoView`, no navigation); do not reintroduce a root-level loading replacement. Selected
+Comparisons is one bottom section. Progress Over Time is a kept, real per-Program longitudinal view over
+the ADR 0027 API with honest gaps. Presentation only; browser behavior is not verified.
 
 ## Talent Branch Authority, Start Assessment And Classification Honesty (Production Follow-up Part 1, 2026-09-25)
 

@@ -33,8 +33,9 @@ test('Progress Over Time chart never encodes protected magnitude', () => {
     {evaluation_period:{id:1,sequence:1,label:'Autumn',status:'planned'},metric_result:{state:'visible',percentage:25,numerator:1,denominator:4}},
     {evaluation_period:{id:2,sequence:2,label:'Spring',status:'planned'},metric_result:{state:'suppressed',percentage:99,numerator:99,denominator:100}},
   ]});
-  assert.match(html, /height:25%/);
-  assert.doesNotMatch(html, /height:99%|>99%|99 of 100/);
+  // Part 2: the plot is the shared chart (one visible point => Bar; the suppressed period is a gap).
+  assert.match(html, /width:25%/);
+  assert.doesNotMatch(html, /width:99%|height:99%|>99%|99 of 100|99/);
   assert.match(html, /Unavailable/);
   assert.match(html, /Autumn[\s\S]*Spring/);
   assert.match(html, /tp-period-path/);

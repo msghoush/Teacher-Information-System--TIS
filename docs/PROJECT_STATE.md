@@ -1,11 +1,71 @@
 ---
 title: TIS Project State
-documentation_version: 5.24
+documentation_version: 5.25
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Production follow-up Part 2 - chart types, Results & Analytics filter UX, comparisons, Progress Over Time (2026-09-25)
+
+Implemented on `dev`; Web Service only (static JS/CSS and one template script include); not deployed.
+No schema, migration, permission, analytics-semantics, privacy-threshold, Classification or Learning
+Style policy or `tis.db` change. Verified through the Node stub harness only (no browser).
+
+**D. Chart type semantics.** Root cause: the selector offered "Bar" and "Percentage", which drew the
+same picture (Bar already printed the percentage), and Pie beside Doughnut (same reading). Now
+`talent-charts.js` switches only genuinely different visualization types and renders no selector when
+only one type is valid: Classification and Assessment completion = Bar / Doughnut (only for a full
+public partition of at most `MAX_CIRCULAR_CATEGORIES` = 8 categories); Learning Style (eight styles plus
+Unassigned = nine) and Rubric levels (ordinal) = Bar only, keeping the stable per-index semantic colours
+(Unassigned is always the neutral last colour); time series = Trend / Bar (Trend only with two visible
+points); comparisons = one fixed Bar of the backend rate per group. Pie was dropped as a doughnut
+without a centre (owner decision open). Exact counts/percentages stay in every type (bar label, legend,
+trend legend) and in the accessible table. The Overview defaults Classification and completion to
+Doughnut where valid (Bar otherwise); Results & Analytics defaults to Bar. A deliberate choice is
+remembered across refetches. The Overview gets ONE restrained CSS entrance (fade, bar grow) on its first
+render only, decided in `talent.js` from `prefers-reduced-motion` (reduced or unknown = none), applied
+with opacity/transform only, and removed on a chart-type switch.
+
+**E. Results & Analytics filter UX.** Root cause: every dashboard filter change replaced the whole
+content root with a loading skeleton (`root.innerHTML = ...` then a second full replacement in `load()`),
+collapsing the page height so the browser clamped the scroll to the top, and re-created the form (focus
+lost). Now Branch/Grade/Section/Program/Period/Classification/Competency/Indicator/comparison changes
+call `refreshDashboard()`: local `params` + `history.replaceState` (no navigation, submit cancelled),
+a background fetch with its own `AbortController` and a monotonically increasing token (only the newest
+response renders), the previous analysis stays on screen with `aria-busy`, a dimmed region and a thin
+bounded progress bar, the region height is held while replacing and the reader position is restored
+(focused control re-focused with `preventScroll`, relative `scrollBy` compensation, `scrollTo` only if
+the browser clamped anyway). Comparison tick changes are debounced (350 ms). The existing 25 s bounded
+request applies; a failure keeps the old analysis and shows an inline retryable error. Chart-type change
+is purely client-side (no fetch, no URL change). `load()` also holds height and restores the anchor for
+other views. The `scrollIntoView` in `talent-operations.js` belongs to the assessment editor and is not
+on this path.
+
+**F. Selected Comparisons.** One dedicated section, last in Results & Analytics, contains the Compare-by
+selector, the group checkboxes (up to six; the seventh is disabled/refused, count announced), then the
+"Completion rate by group" chart and the per-group Completion/Classification/Result cards, with explicit
+empty, protected and unavailable states. The selector was removed from the top filter form. Group values
+are the backend's own per-group rates; nothing averages Programs or frameworks.
+
+**G. Progress Over Time - decision: KEEP as a real per-Program longitudinal view.** Evidence: the view is
+backed by the governed ADR 0027 route `/api/talent/organization-analytics/programs/{id}/longitudinal`
+(one Program x one Academic Year, ordered by governed Evaluation Period, each point independently
+privacy-closed, five metrics incl. counts and started coverage, comparability state, no computed
+delta). Results & Analytics offers only a completion-by-period line, so the view has distinct value
+(counts, started coverage, comparability context). The previous plot drew percentage bars only; it now
+uses the shared trend chart with honest gaps (a suppressed or not-yet-available period is a dashed gap
+with no coordinate; "No data yet" is never 0%; count metrics plot counts) plus the accessible table, and
+Results & Analytics links to it for a chosen Program. Not done (needs new backend semantics or owner
+decision): multi-year series, Classification-over-time, Branch comparison trend, rubric-indicator trend.
+The nav key and route are unchanged, so old links keep working; the template now loads `talent-charts.js`
+on that view.
+
+**I. Cleanup.** Raw arrow glyphs in actions replaced by a shared inline SVG chevron; duplicate chart
+controls removed (D). Tests: `tests/talent_part2_experience.test.cjs` (P1-P22) plus deliberate updates to
+the old mode pins in the `talent_dashboard`, `talent_visual_system`, `talent_classification_withheld`
+and `talent_results_experience` tests and the harness (scroll model, writable hooks).
 
 ## Production follow-up Part 1 - Talent Branch authority, Start Assessment, Classification (2026-09-25)
 

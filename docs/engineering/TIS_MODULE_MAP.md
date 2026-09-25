@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 4.9
+documentation_version: 4.10
 last_updated: 2026-09-25
 source_of_truth: true
 ---
@@ -51,6 +51,18 @@ source_of_truth: true
   and never derives a Classification or Learning Style aggregate. `talent-experience`
   no longer installs the retired DOM-only roster filter.
 
+
+## Talent chart and refresh modules (Production Follow-up Part 2, 2026-09-25)
+
+- `static/js/talent-charts.js`: shared privacy-safe chart renderer. `modes()` is the single source of
+  allowed visualization types per family; `chart`, `series` (time series) and `comparison` render
+  sanitized rows only; explicit chart-type choices are remembered per chart key.
+- `static/js/talent-dashboard.js`: `overview(data, {animate})` (Doughnut default, entrance class) and
+  `analytics()` with one bottom Selected Comparisons section and a Progress Over Time link.
+- `static/js/talent.js`: `refreshDashboard()` (background refresh: token, AbortController, held height,
+  anchor and focus restoration), `captureAnchor`/`restoreAnchor` also used by `load()`,
+  `shouldAnimateEntrance()` (reduced-motion aware), `periodVisual()` (Progress Over Time via the shared
+  series chart). `templates/talent/workspace.html` loads `talent-charts.js` on `longitudinal` too.
 
 ## Talent Branch ceiling (Batch 1 Closure, 2026-09-25)
 

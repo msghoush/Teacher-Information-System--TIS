@@ -1,11 +1,27 @@
 ---
 title: TIS Change History
-documentation_version: 5.15
+documentation_version: 5.16
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Production follow-up Part 2: chart types, filter UX, comparisons, Progress Over Time
+
+- Chart selector now switches only distinct visualization types (Bar/Doughnut for full public
+  partitions of at most eight categories, Trend/Bar for series, Bar only for Learning Style, Rubric
+  and comparisons); the duplicate "Percentage" and redundant "Pie" modes were removed; single-type
+  charts show no selector. Overview defaults to Doughnut where valid with one reduced-motion-aware
+  entrance animation.
+- Results & Analytics filters refresh in the background (AbortController, newest-token-wins,
+  region-local busy state, held height, restored scroll and focus, retryable inline error) instead of
+  replacing the page root; chart-type change is client-only.
+- One "Selected comparisons" section at the bottom holds the selector, six-group limit and results.
+- Progress Over Time kept as a per-Program longitudinal trend over the existing ADR 0027 API with
+  honest gaps; Results & Analytics links to it. Raw arrow glyphs replaced by an inline SVG chevron.
+- Tests: `talent_part2_experience.test.cjs`; old mode pins updated deliberately. No schema,
+  migration, permission, privacy or `tis.db` change. Web Service only; not deployed.
 
 ## 2026-09-25 - Production follow-up Part 1: Talent Branch authority, Start Assessment, Classification
 

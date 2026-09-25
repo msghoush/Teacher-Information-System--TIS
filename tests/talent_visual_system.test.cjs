@@ -14,11 +14,11 @@ const css=read('static/css/talent-experience.css');
 const full={state:'visible',buckets:[{label:'Visual',state:'visible',count:6,percentage:60},{label:'Aural',state:'visible',count:4,percentage:40}]};
 const partial={state:'visible',buckets:[{label:'Visual',state:'visible',count:31,percentage:62},{label:'Hidden band',state:'suppressed',count:19,percentage:38}]};
 
-test('V1. chart-type matrix: only valid modes per family and only for a full public partition',()=>{
-  const matrix={classification:['bar','percentage','doughnut'],'learning-style':['bar','percentage','pie','doughnut'],completion:['bar','percentage'],rubric:['bar','percentage']};
+test('V1. chart-type matrix: only valid, materially different modes per family and only for a full public partition',()=>{
+  const matrix={classification:['bar','doughnut'],completion:['bar','doughnut'],'learning-style':['bar'],rubric:['bar']};
   for(const [family,expected] of Object.entries(matrix))assert.deepEqual(charts.modes(full,family),expected,family);
-  assert.deepEqual(charts.modes(partial,'learning-style'),['bar','percentage'],'a suppressed cell removes every circular mode');
-  assert.deepEqual(charts.modes({state:'restricted'},'classification'),['bar','percentage'].slice(0,2));
+  assert.deepEqual(charts.modes(partial,'classification'),['bar'],'a suppressed cell removes every circular mode');
+  assert.deepEqual(charts.modes({state:'restricted'},'classification'),['bar']);
 });
 
 test('V2. switching chart mode re-renders only sanitized public rows: no protected value reaches geometry, text or attributes',()=>{
@@ -95,7 +95,9 @@ test('V8. responsive, reduced-motion and forced-colors structure exists and char
   assert.match(css,/forced-colors:active/);
   const html=charts.chart('Style',full,'learning-style');
   assert.match(html,/<summary>Exact values and accessible table<\/summary>/);
-  assert.match(html,/type="button"/);
+  // Learning Style is bar-only, so no selector is rendered; a switchable family keeps real buttons.
+  assert.ok(!html.includes('data-chart-mode'));
+  assert.match(charts.chart('Class',full,'classification'),/type="button"/);
 });
 
 test('V9. the analytics KPI strip exposes distinct Students, participations, completion and result, each labelled with its grain',()=>{

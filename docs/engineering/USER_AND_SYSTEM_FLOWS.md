@@ -1,6 +1,6 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.13
+documentation_version: 3.14
 last_updated: 2026-09-25
 source_of_truth: true
 ---
@@ -28,6 +28,18 @@ source_of_truth: true
    accessible; protected values are absent from hidden/ARIA/tooltip content as
    well as visible charts. Ordered periods do not imply growth.
 
+
+## Results & Analytics Filter Flow (Production Follow-up Part 2, 2026-09-25)
+
+Changing any dashboard filter (Branch, Grade, Section, Program, Evaluation Period, Classification,
+Competency, Indicator, comparison dimension or groups) updates local state and the URL with
+`history.replaceState`, cancels any in-flight refresh, and fetches the same authorized dashboard read in
+the background. The current analysis stays visible (region `aria-busy`, thin progress bar) and only the
+newest response replaces it; the reader's scroll position and focused control are preserved and a
+failure shows an inline Retry while keeping the previous analysis. Changing a chart type only re-renders
+the chart client-side. Selected comparisons (dimension, up to six groups, results) live in one section at
+the bottom. Progress Over Time opens per Program from the Results navigation or the Evaluation Periods
+section.
 
 ## Global Branch -> Talent Flow (Batch 1 Closure, 2026-09-25)
 
