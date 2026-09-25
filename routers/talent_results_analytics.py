@@ -30,19 +30,51 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 import talent_analytics_service as svc
 import talent_results_analytics_service as results_svc
 from auth import get_current_user
-from dependencies import get_db
+from dependencies import get_db, get_m10_organization_analytics_db
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
 from talent_analytics_privacy import resolve_privacy_policy_provider
+from talent_dashboard_service import build_dashboard, DashboardError
 
 router = APIRouter(prefix="/api/talent/results-analytics", tags=["Talent Results Analytics"])
 
 _FILTER_KEYS = ("period_id", "cycle_id", "branch_id", "grade", "section_id", "framework_version_id")
+
+
+@router.get('/academic-years/{academic_year_id}/dashboard')
+def dashboard(academic_year_id: int, request: Request,
+              db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
+              policy=Depends(resolve_privacy_policy_provider)):
+    user, denied = authorization.require_any_permission(
+        request, db, 'talent_analytics.view', current_user=current_user, page_key='talent_results_analytics',
+    )
+    if denied:
+        return denied
+    group_id = _scope(db, user)
+    if not group_id:
+        return JSONResponse({'detail': 'Select an organization scope.'}, status_code=403)
+    keys = ('branch_id', 'grade_level', 'section_id', 'program_id', 'period_id', 'classification',
+            'compare_by', 'compare_ids', 'competency_id', 'rubric_id')
+    filters = {key: request.query_params.get(key) for key in keys}
+    try:
+        payload = build_dashboard(
+            db, group_id=int(group_id), year_id=academic_year_id,
+            visible_branches=_visible_branches(db, user), filters=filters, policy=policy,
+            learning_style_allowed=auth.has_permission(db, user, 'students.view', school_group_id=int(group_id)),
+        )
+    except DashboardError as exc:
+        # Deliberately bounded, user-safe messages authored in the service.
+        return JSONResponse({'detail': str(exc), 'code': 'invalid_filter'}, status_code=400)
+    except ValueError:
+        # Malformed filter values (e.g. non-numeric ids); never echo internal text.
+        return JSONResponse({'detail': 'Invalid analytics filter.', 'code': 'invalid_filter'}, status_code=400)
+    return jsonable_encoder(payload)
 
 
 def _scope(db, user):
@@ -50,9 +82,8 @@ def _scope(db, user):
 
 
 def _visible_branches(db, user):
-    if auth.can_access_all_branches(user):
-        return None
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Batch 1 closure: organization scope is bounded by the active global Branch.
+    return branch_scope.visible_branch_ids_or_none(db, user)
 
 
 def _fail_closed():
@@ -85,6 +116,13 @@ def learning_style(academic_year_id: int, request: Request,
     group_id = _scope(db, user)
     if not group_id:
         return JSONResponse({"detail": "Select an organization scope.", "code": "organization_scope_required"}, status_code=403)
+    # Batch 1 closure: the active global Branch is a hard ceiling. An omitted
+    # Branch resolves to it (never organization-wide); another Branch is rejected.
+    ceiling = branch_scope.talent_branch_ceiling(user)
+    if ceiling is not None:
+        if branch_id is not None and int(branch_id) != ceiling:
+            return JSONResponse({"detail": "Branch is outside your authorized scope.", "code": "invalid_filter"}, status_code=403)
+        branch_id = ceiling
     rows = resolve_learning_style_population(
         db, school_group_id=group_id, user=user, branch_id=branch_id,
         grade_level=grade_level, section_name=section_name,

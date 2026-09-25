@@ -1,5 +1,8 @@
 """M11 presentation routes. Data and mutations remain owned by Talent APIs."""
 
+import hashlib
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -8,12 +11,43 @@ from sqlalchemy.orm import Session
 import auth
 import authorization
 import models
+import talent_branch_scope
 from auth import get_current_user
 from dependencies import get_db
 from ui_shell import build_shell_context
 
 router = APIRouter(prefix="/talent", tags=["Talent & Potential UI"])
 templates = Jinja2Templates(directory="templates")
+
+_STATIC_ROOT = Path(__file__).resolve().parent.parent / "static"
+_ASSET_VERSIONS: dict = {}
+
+
+def talent_asset_version(relative_path: str) -> str:
+    """Short content hash for a Talent static asset (cache-busting query value).
+
+    /static is served without a Cache-Control policy, so a browser may keep using a
+    copy of talent.js from an EARLIER deployment (heuristic freshness) against the
+    freshly rendered no-store page - the exact mixed-version state the loading
+    hardening cannot protect against. Versioning the URL by content guarantees the
+    page and its scripts always come from the same deployment. Re-hashed only when
+    the file's mtime/size changes.
+    """
+    path = _STATIC_ROOT / relative_path
+    try:
+        stat = path.stat()
+        signature = (stat.st_mtime_ns, stat.st_size)
+        cached = _ASSET_VERSIONS.get(relative_path)
+        if cached and cached[0] == signature:
+            return cached[1]
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()[:12]
+        _ASSET_VERSIONS[relative_path] = (signature, digest)
+        return digest
+    except OSError:
+        return "0"
+
+
+templates.env.globals["talent_asset_version"] = talent_asset_version
 
 VIEWS = {
     "overview": ("Overview", "talent_programs.view"),
@@ -81,6 +115,22 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
         permission_keys=allowed_keys,
     )
     years = db.query(models.AcademicYear).filter_by(school_group_id=int(group_id)).order_by(models.AcademicYear.id).all()
+    # Batch 1 closure (global Branch = HARD Talent scope): the active application
+    # Branch (sidebar "Change Branch / Campus" -> session scope) is an upper ceiling
+    # for organization actors, enforced by every Talent API through
+    # talent_branch_scope. It is rendered here only so the client can hide options
+    # outside the ceiling (never a security boundary). `branch` is the locked Branch
+    # (organization actor with a single-Branch global scope, or a Branch-limited
+    # actor); it is empty only when the actor's global scope is "All Branches".
+    active_branch_id = None
+    active_branch_name = None
+    candidate_branch_id = talent_branch_scope.talent_branch_ceiling(user)
+    if candidate_branch_id is None and not auth.can_access_all_branches(user):
+        candidate_branch_id = getattr(user, "scope_branch_id", None) or getattr(user, "branch_id", None)
+    if candidate_branch_id:
+        active_branch = db.query(models.Branch).filter_by(id=int(candidate_branch_id), school_group_id=int(group_id)).one_or_none()
+        if active_branch is not None and auth.can_access_branch(db, user, active_branch.id):
+            active_branch_id, active_branch_name = int(active_branch.id), active_branch.name
     allowed = {key: key in allowed_keys
                for key in {entry[1] for entry in VIEWS.values()} | {
                    "talent_analytics.view_students", "talent_official_identifications.view",
@@ -109,4 +159,6 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
         "talent_title": VIEWS[view][0], "talent_views": VIEWS,
         "talent_permissions": allowed,
         "talent_years": years,
+        "talent_active_branch_id": active_branch_id,
+        "talent_active_branch_name": active_branch_name,
     }, headers={"Cache-Control": "no-store"})

@@ -1,11 +1,35 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.3
+documentation_version: 1.4
 last_updated: 2026-09-24
 status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
 
 # ADR 0044: Talent Evaluation Progress Analytics (M4)
+
+## Agent 3 aggregate dashboard amendment (2026-09-25)
+
+The filtered dashboard composes existing authorities in an identity-free
+projection. Completion and Classification count Evaluation participations;
+Student KPIs and Learning Style count distinct current Students. Current
+reassessments resolve through the original Evaluation context. Organization
+percentages divide underlying counts, never average Branch percentages.
+Result means require one Program, framework and scale; incompatible results
+are unavailable, not pooled.
+
+Selected Branch/Grade/Section/Program/Period comparisons are bounded to six groups.
+The full authorized comparison family participates in conservative privacy
+closure even when only some groups are displayed. Completion uses P2, results
+and rubric evidence P3, and Classification P4 provider rules. Suppressed families
+emit protected states. Program/Competency/Indicator scope is validated; historical
+frameworks retain separate indicators. Ordered periods do not imply growth.
+
+The dashboard reuses M10's read-only repeatable snapshot dependency without changing
+global isolation or older endpoint contracts. Requests exceeding 5,000 scoped
+population rows fail explicitly for narrowing; totals are never truncated.
+The owner-approved Learning Style cohort boundary is recorded in ADR 0031.
+Individually authorized operational roster records remain outside aggregate
+cohort suppression.
 
 ## Context
 
@@ -244,3 +268,26 @@ Learning Style distribution only: it is authorized Student-domain aggregation,
 denominator including Unassigned, with no Talent small-cell suppression. This
 ADR's own Evaluation Progress metrics and their Cell/Group suppression are
 unchanged.
+
+## Batch 1 Amendment (2026-09-24): Distinct-Student Headline And Current-Student Reads
+
+
+> **Correction (2026-09-25).** Wording elsewhere in the Batch 1 documentation that the
+> global Branch is only a "default" Talent scope is superseded: the global Branch is a
+> hard ceiling enforced server-side (`talent_branch_scope`; M10 `resolve_access_context`
+> becomes Branch-scoped when the actor's global scope is one Branch, so
+> `accessible_historical_branch_ids` = that Branch and every Evaluation Progress /
+> analytics route inherits it). Branch comparison and the Organization Talent Map remain
+> available only under an explicit global All Branches. No `MetricCode`, privacy or
+> Evaluation Progress semantics changed.
+
+Owner rule: current Talent figures use only Students that currently exist. This ADR's
+population queries (`population_query`, and the M10 `frozen_membership_query`) now
+require the Student to exist in the same SchoolGroup, and the Evaluation Progress
+Branch/Organization result reads do the same. The Overview headline for "Students" is
+the DISTINCT-Student count published through the existing B2 pipeline at class P2 using
+the existing `student_drill_population`/`count`/`distinct_student` coordinate in the
+`overview` projection family only (no new `MetricCode`, no new `MembershipGrain`; the
+B9 P7 Student Drill gate and its identification rules are unchanged). Membership-grain
+metrics (`frozen_eligible`, `completed`, coverage) keep their definitions and
+denominators; only their user-facing labels changed to state their grain.

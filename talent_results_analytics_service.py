@@ -72,6 +72,8 @@ from talent_analytics_privacy import (
     run_complementary_suppression,
 )
 from talent_classification_service import CLASSIFICATION_LABELS, TALENTED_CLASSIFICATION, assessment_classification
+from talent_read_batch import read_batch
+from talent_student_assessment_service import prime_assessment_batch
 
 CLASSIFICATION_PRIVACY_CLASS = "P4"
 TALENTED_NOT_TALENTED = ("talented", "not_talented")
@@ -128,12 +130,17 @@ def classify_rows(db, rows):
     """
     by_branch: dict = defaultdict(lambda: {label: 0 for label in CLASSIFICATION_LABELS})
     unavailable_by_branch: dict = defaultdict(int)
-    for branch_id, assessment in rows:
-        result = assessment_classification(db, assessment)
-        if result and result.get("available"):
-            by_branch[branch_id][result["classification"]] += 1
-        else:
-            unavailable_by_branch[branch_id] += 1
+    # Request-scoped read memoization + set-based priming: the per-row
+    # classification otherwise re-reads the same Framework/rubric configuration
+    # once per Assessment (talent_read_batch.py).
+    with read_batch(db):
+        prime_assessment_batch(db, [assessment for _, assessment in rows])
+        for branch_id, assessment in rows:
+            result = assessment_classification(db, assessment)
+            if result and result.get("available"):
+                by_branch[branch_id][result["classification"]] += 1
+            else:
+                unavailable_by_branch[branch_id] += 1
     return dict(by_branch), dict(unavailable_by_branch)
 
 

@@ -13,6 +13,7 @@ from talent_analytics_privacy import (
 )
 from talent_org_intelligence_service import resolve_organization_analytics_availability_provider
 from routers import talent_organization_analytics as route
+from talent_test_students import ensure_talent_students
 from test_talent_org_intelligence_queries import AllowAvailability, actor, db, permissions
 
 
@@ -99,6 +100,7 @@ def test_identified_count_counts_only_identified_decisions(db, client):
             assessment_id=assessment_id, review_candidate_id=candidate_id, decision=decision,
         ))
     db.commit()
+    ensure_talent_students(db)
     assert get(client[0]).json()["metrics"]["identified_count"] == {"state": "visible", "value": 3}
 
 

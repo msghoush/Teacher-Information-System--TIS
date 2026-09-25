@@ -18,7 +18,10 @@ from sqlalchemy.orm import Session
 
 import academic_grade
 import auth
+import talent_branch_scope
 import models
+from talent_current_students import current_student_exists
+from talent_request_permissions import request_permission_checker
 from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy_closure import (
     DerivedRateProjection,
@@ -194,23 +197,27 @@ def resolve_access_context(
     )
     if available is not True:
         raise OrganizationAnalyticsError("organization_analytics_unavailable", "Organization analytics is unavailable.")
-    if not _permission(db, user, "talent_analytics.view", school_group_id):
+    permitted = request_permission_checker(db, user, school_group_id)
+    if not permitted("talent_analytics.view"):
         raise OrganizationAnalyticsError("forbidden", "Organization analytics access is denied.")
     year = db.query(models.AcademicYear.id).filter_by(
         id=academic_year_id, school_group_id=school_group_id,
     ).one_or_none()
     if year is None:
         raise OrganizationAnalyticsError("not_found", "Academic Year was not found.")
-    all_branches = auth.can_access_all_branches(user)
+    # Batch 1 closure: organization scope is bounded by the active global Branch
+    # (talent_branch_scope.talent_branch_ceiling); with a single-Branch global scope
+    # this context is Branch-scoped, so every downstream population query,
+    # filter validation, Branch list and comparison inherits the ceiling.
+    all_branches = talent_branch_scope.branch_scope_unrestricted(user)
     branch_ids = () if all_branches else tuple(sorted(
-        int(row[0]) for row in auth.get_accessible_branch_query(db, user)
-        .with_entities(models.Branch.id).all()
+        int(branch_id) for branch_id in talent_branch_scope.visible_branch_ids(db, user)
     ))
     capabilities = {
-        "candidate": _permission(db, user, "talent_review_candidates.view", school_group_id),
-        "identification": _permission(db, user, "talent_official_identifications.view", school_group_id),
-        "student_drill": _permission(db, user, "talent_analytics.view_students", school_group_id),
-        "learner_profile": _permission(db, user, "talent_learner_profiles.view", school_group_id),
+        "candidate": permitted("talent_review_candidates.view"),
+        "identification": permitted("talent_official_identifications.view"),
+        "student_drill": permitted("talent_analytics.view_students"),
+        "learner_profile": permitted("talent_learner_profiles.view"),
     }
     permission_class = "+".join(("base", *(key for key, allowed in capabilities.items() if allowed)))
     return OrganizationAnalyticsAccessContext(
@@ -404,6 +411,8 @@ def frozen_membership_query(
         models.TalentAssessmentCyclePopulationMember.academic_year_id == context.academic_year_id,
         models.TalentAssessmentCyclePopulationMember.program_id.in_(selected_programs or (-1,)),
         models.TalentAssessmentCycle.status.in_(("open", "closed")),
+        # Batch 1 data-integrity rule: current Students only (no orphan rows).
+        current_student_exists(),
     )
     if not context.all_branches:
         query = query.filter(models.TalentAssessmentCyclePopulationMember.branch_id.in_(context.accessible_historical_branch_ids or (-1,)))

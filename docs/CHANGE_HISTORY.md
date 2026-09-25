@@ -1,11 +1,99 @@
 ---
 title: TIS Change History
-documentation_version: 5.12
-last_updated: 2026-09-24
+documentation_version: 5.14
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Agent 3 Talent product transformation and privacy remediation
+
+- Preserved and completed the executive Overview work, with distinct Student KPI,
+  participation grain, shared charts and workspace actions; Programs uses searchable
+  cards and omits normal lifecycle-status badges without changing lifecycle gates.
+- Added one bounded, identity-free filtered dashboard contract and six aggregate
+  sections with shared filters, selected comparisons, Program-bound indicators,
+  and compatible ordered-period results. No average-of-Branch-rate calculations.
+- Fixed Agent 2's Classification-filtered Learning Style reconstruction leak.
+  The existing privacy provider gates the selected cohort against its original
+  primary/complementary projection. Protected aggregates serialize no numbers;
+  individually authorized Student roster rows remain available without cohort
+  suppression. Current reassessments resolve through their original Evaluation.
+- Added shared chart modes, exact accessible tables and value-free protected states;
+  removed duplicate analytics/Student preview and auxiliary rubric fetches from
+  Results & Analytics. Retained per-view assets, bounded requests and stale-response
+  protection. New dashboard reads use the existing repeatable snapshot dependency.
+- Added adversarial backend/frontend tests. No schema, migration, permission,
+  local database, deployment, master merge or release PR change.
+
+- Recovery completion: removed the re-introduced generic "Protected for privacy"
+  chart copy, fixed the inert/over-shown Program summary Finish Setup control,
+  replaced emoji avatars/icons with initials and SVG, added the Talent visual
+  system stylesheet layer and Program grade chips, and added backend and Node
+  regression for Overview/dashboard Student-count agreement, bounded statements,
+  route-level protected Learning Style, exact small-cohort roster rows, chart
+  mode switching and Program Status absence. Visual results are structural only.
+
+## 2026-09-25 - Student Assessment request-backed filters and filtered insights
+
+- Added bounded query filters to the live eligible Student roster: search, Grade,
+  Section, Assessment state and canonical Classification, while retaining the
+  existing hard global Branch ceiling.
+- Added backend roster-population Classification (privacy-projected) and Learning
+  Style (eight categories plus Unassigned) summaries. Classification is derived
+  only from current completed Assessments through the M17 authority; the frontend
+  displays the backend contract and accessible equivalent table data.
+- Removed the Student Assessment page's DOM-only Grade/Section/Status filtering.
+  No schema, migration, permission, `tis.db`, Results & Analytics, or deployment
+  change.
+
+
+## 2026-09-25 - Batch 1 closure: the global Branch is a hard Talent scope
+
+- Supersedes the 2026-09-24 entry's "default Talent Branch scope": the active global
+  Branch is now an upper ceiling (intersection of actor authorization and active
+  global scope) enforced server-side by `talent_branch_scope.py` on every Talent read
+  surface (organization analytics, analytics, results analytics incl. Learning Style,
+  Evaluation Progress, Assessments, Cycle roster/population, learner profile, legacy
+  review/identification/educator lists, selector option lists). A Branch outside the
+  ceiling is rejected; an omitted Branch resolves to the ceiling.
+- Added an explicit global "All Branches" state for Talent (`branch_scope=all` marker
+  cookie set by `POST /scope/branch` `branch_id=all`, exposed as
+  `user.scope_all_branches`; option shown only on `/talent` pages; other modules keep
+  their single working Branch). Without it organization users could never reach
+  organization-wide Talent again.
+- `static/js/talent.js`: `config.branch` is a ceiling; no All Branches / other Branch
+  offered or sent under a single-Branch scope; stale URL Branch params are clamped.
+- Tests: `tests/test_talent_branch_hard_scope.py`; Node B3/B4/B6/B6b. No schema,
+  migration, permission or `tis.db` change; Student deletion, inactive-Student and
+  Talented-KPI semantics unchanged. Web Service only; not deployed.
+
+## 2026-09-24 - Deployment Acceptance Batch 1: data correctness, scope integrity, Student deletion, loading
+
+- **63 vs 9.** The Overview "Students participating" figure was the frozen
+  membership row count (one per Student per Cycle/Program) and the population
+  query did not check that the Student still exists. `distinct_students` (distinct
+  current Students, existing distinct-Student authority, class P2) now backs
+  "Students participating"; membership counts are "Program participations". Every
+  governed Talent population read now requires the Student to exist
+  (`talent_current_students.py`).
+- **Student deletion.** Exhaustive FK audit: ten Student-owned tables, all removed
+  by `force_delete_student_history` (now `STUDENT_OWNED_MODELS`, locked to ORM
+  metadata by test). Permission model unchanged (normal/bulk Delete stay blocked by
+  history). Fixed the ObjectDeletedError test defect.
+- **Global Branch.** The active Branch is now the default Talent Branch scope
+  (`tp-config.branch`, `reconcileBranchScope`, stale-scope marker, explicit All
+  Branches); Overview, Program Results and the eligible-students roster accept an
+  authorized `branch_id`; backend authorization unchanged and authoritative.
+- **Loading.** Row-proportional N+1 (assessments list 982 statements for 20 rows)
+  replaced by request-scoped `read_batch` memoization and set-based priming;
+  permission set resolved once per request; Assessments page requests only its
+  Year/Program; `/programs/summaries` 500 fixed; Talent assets cache-busted by
+  content hash; inline 15 s loader watchdog. Render capacity not shown to be
+  implicated (production cannot be measured here).
+- Tests and KMS: see PROJECT_STATE. No schema, migration, permission or `tis.db`
+  change. Web Service only; not deployed.
 
 ## 2026-09-24 - Deployment Acceptance Correction D: Professional Student Assessment editor redesign
 

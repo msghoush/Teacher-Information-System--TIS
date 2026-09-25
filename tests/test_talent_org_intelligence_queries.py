@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 
 import models
 from database import Base
+from talent_test_students import ensure_talent_students, install_auto_students
 from talent_analytics_privacy import SUPPRESSED, VISIBLE
 from talent_analytics_privacy_closure import close_privacy_graph
 from talent_analytics_relationship_graph import PrivacyRelationshipGraph
@@ -134,6 +135,8 @@ def db():
         assessment_id=701, review_candidate_id=801, decision="identified",
     ))
     session.commit()
+    ensure_talent_students(session)
+    install_auto_students(session)
     yield session
     session.close()
 

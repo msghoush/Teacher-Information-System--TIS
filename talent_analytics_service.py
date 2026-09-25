@@ -34,6 +34,7 @@ from sqlalchemy.orm import Session
 
 import academic_grade
 import models
+from talent_current_students import current_student_exists
 from talent_analytics_privacy import (
     COARSENED,
     NO_DATA,
@@ -240,6 +241,9 @@ def population_query(db: Session, ctx: AnalyticsContext, filters: ResolvedFilter
             models.TalentStudentAssessment.evaluation_context_cycle_id
                 != models.TalentStudentAssessment.cycle_id,
         )),
+        # Batch 1 data-integrity rule: only rows whose Student still exists
+        # may contribute to current analytics (never an orphan/historical row).
+        current_student_exists(),
     )
     if visible_branch_ids is not None:
         query = query.filter(models.TalentAssessmentCyclePopulationMember.branch_id.in_(visible_branch_ids or {-1}))

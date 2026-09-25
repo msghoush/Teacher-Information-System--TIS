@@ -146,7 +146,7 @@ test('a completed Program opens operational summary while Edit reopens the same 
   assert.match(operational.root.innerHTML,/class="tp-program-summary"/);
   assert.match(operational.root.innerHTML,/2026–2027/);
   assert.match(operational.root.innerHTML,/href="#tp-basics"[^>]*>[\s\S]*Edit Program/);
-  assert.match(operational.root.innerHTML,/href="#tp-rubric"[^>]*>[\s\S]*Build \/ Edit Rubric/);
+  assert.match(operational.root.innerHTML,/href="#tp-rubric"[^>]*>[\s\S]*Build \/ Edit Competency, KPI &amp; Level/);
   assert.match(operational.root.innerHTML,/href="#tp-schedule"[^>]*>Manage Evaluation Plan/);
   assert.match(operational.root.innerHTML,/href="\/talent\/assessments\?[^"]*academic_year_id=2026[^"]*program_id=11[^"]*"[^>]*>[\s\S]*Open Assessments/);
   assert.match(operational.root.innerHTML,/href="\/talent\/portfolio\?[^"]*academic_year_id=2026[^"]*program_id=11[^"]*"[^>]*>[\s\S]*View Results/);
@@ -193,12 +193,12 @@ test('Basics renders the Academic Year label instead of its internal ID',async()
 
 
 test('Program summary owns readiness and Finish Setup activation; there is no separate Ready step',async()=>{
-  const {ctx,root,calls}=fixture(true,'draft',{complete:true,hash:''});
+  const {ctx,root,calls}=fixture(true,'draft',{complete:true,step:'',hash:''});
   const navigated=[];ctx.navigate=(target,extra)=>navigated.push({target,extra});
   await render(ctx);
   assert.match(root.innerHTML,/class="tp-readiness-banner is-ready"/);
   assert.match(root.innerHTML,/✓ Ready/);
-  assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish Setup/);
+  assert.match(root.innerHTML,/data-action="finish-setup"[^>]*>.*Finish setup/);
   assert.doesNotMatch(root.innerHTML,/id="tp-ready"|>Ready<\/b>/);
   await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
   const lifecycleWrites=calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/frameworks\/31\/activate$/.test(call.path)));
@@ -233,25 +233,25 @@ test('Ready is exactly Competency+KPI+Level, saved - Program/Academic-Year Grade
 });
 
 test('incomplete Program summary never presents green Ready or Finish Setup',async()=>{
-  const {ctx,root}=fixture(true,'draft',{complete:false,hash:''});
+  const {ctx,root}=fixture(true,'draft',{complete:false,step:'',hash:''});
+  const api=ctx.api;ctx.api=async(path,options)=>!options&&path.endsWith('/configuration')?{levels:[],rubrics:[],descriptors:[]}:api(path,options);
   await render(ctx);
   assert.match(root.innerHTML,/class="tp-readiness-banner is-incomplete"/);
-  assert.match(root.innerHTML,/Setup incomplete/);
+  assert.match(root.innerHTML,/Needs setup/);
   assert.doesNotMatch(root.innerHTML,/✓ Ready|data-action="finish-setup"/);
 });
 
 test('Finish Setup on an already-active fully configured Program avoids redundant lifecycle writes',async()=>{
-  const {ctx,root,calls}=fixture(true,'active',{complete:true,hash:''});
+  const {ctx,root,calls}=fixture(true,'active',{complete:true,step:'',hash:''});
   const navigated=[];ctx.navigate=(target,extra)=>navigated.push({target,extra});
   await render(ctx);
-  assert.match(root.innerHTML,/data-action="finish-setup"/);
-  await root.onclick({target:{closest:()=>({dataset:{action:'finish-setup'}})}});
+  assert.doesNotMatch(root.innerHTML,/data-action="finish-setup"/);
   assert.equal(calls.filter(call=>call.options?.method==='POST'&&(/\/lifecycle\/active$/.test(call.path)||/\/activate$/.test(call.path))).length,0);
-  assert.deepEqual(navigated,[{target:'programs',extra:{program_id:'11'}}]);
+  assert.deepEqual(navigated,[]);
 });
 
 
-test('Program index is a compact searchable table with primary actions',async()=>{
+test('Program index is a searchable card workspace with primary actions',async()=>{
   const feedback={textContent:'',setAttribute(){}},root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
   const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>key==='talent_programs.view'||key==='talent_programs.manage',api:async path=>{
     if(path==='/api/talent/programs')return [{id:11,name:'Performing Arts',status:'draft'}];
@@ -260,8 +260,10 @@ test('Program index is a compact searchable table with primary actions',async()=
     throw new Error(`Unexpected ${path}`);
   }};
   await render(ctx);
-  assert.match(root.innerHTML,/<table/);
-  assert.match(root.innerHTML,/Program<\/th><th>Grades<\/th><th>Scoring Mode<\/th><th>Current Year<\/th><th>Status<\/th><th>Actions/);
+  assert.match(root.innerHTML,/tp-program-cards/);
+  assert.match(root.innerHTML,/Performing Arts/);
+  assert.match(root.innerHTML,/Grades/);
+  assert.doesNotMatch(root.innerHTML,/>draft<|<th>Status<\/th>/);
   assert.doesNotMatch(root.innerHTML,/<th>Type<\/th>/);
   assert.match(root.innerHTML,/Search Programs/);
   assert.match(root.innerHTML,/New Program/);
@@ -301,7 +303,7 @@ test('Program Identity renders the logo on the Programs list (small) and Program
     return {ctx,root};
   })();
   await render(listCtx);
-  assert.match(listRoot.innerHTML, /<th scope="row"><span class="tp-logo-badge tp-logo-sm"><img src="\/organization-assets\/1\/programs\/11\/logo\/a\.png"[^>]*><\/span> Mental Math<\/th>/);
+  assert.match(listRoot.innerHTML, /<span class="tp-logo-badge tp-logo-sm"><img src="\/organization-assets\/1\/programs\/11\/logo\/a\.png"[^>]*>/);
 
   const {ctx: headerCtx, root: headerRoot} = fixture(true, 'draft', {logoUrl: null});
   await render(headerCtx);
@@ -498,7 +500,7 @@ test('changing canonical program_id on the shared ctx (simulating a ribbon-drive
   await render(ctx);
   assert.match(root.innerHTML, /<h2>Chess Club<\/h2>/);
   assert.doesNotMatch(root.innerHTML, /<h2>Mental Math<\/h2>/);
-  const fetchesAfterSecond = calls.filter(c => c.path === '/api/talent/programs/12').length;
+  const fetchesAfterSecond = calls.filter(c => c.path === '/api/talent/programs/27').length;
   assert.equal(fetchesAfterSecond, 1, 'a real Program change fetches the newly selected Program directly, never reusing stale Program data');
 });
 
@@ -521,7 +523,7 @@ test('a stale in-flight response for a previous Program can never overwrite the 
   const freshCtx = {
     root, year: '2026', yearLabel: '2026-2027', params: new URLSearchParams(`program_id=${chessClubProgram.id}`),
     can: key => key === 'talent_programs.view', notify() {}, navigate() {},
-    api: async (path, options) => { if (options) return {}; if (path === '/api/talent/programs/12') return chessClubProgram; if (path.startsWith('/api/talent/programs/planning-grades')) return []; if (path.endsWith('/academic-years')) return []; if (path.endsWith('/frameworks')) return []; if (path.endsWith('/competencies')) return []; if (path.startsWith('/api/talent/evaluation-plans')) return []; return []; },
+    api: async (path, options) => { if (options) return {}; if (path === '/api/talent/programs/27') return chessClubProgram; if (path.startsWith('/api/talent/programs/planning-grades')) return []; if (path.endsWith('/academic-years')) return []; if (path.endsWith('/frameworks')) return []; if (path.endsWith('/competencies')) return []; if (path.startsWith('/api/talent/evaluation-plans')) return []; return []; },
   };
   await render(freshCtx);
   assert.match(root.innerHTML, /<h2>Chess Club<\/h2>/, 'the newer Program (B) is fully rendered');
@@ -589,7 +591,7 @@ test('removing the Program logo requires confirmation and calls the Program-scop
 });
 
 
-test('Rubric action renders eligible Grades as independent collapsible Grade accordions',async()=>{
+test('Rubric action renders only the selected Grade and preserves independent criteria when switching',async()=>{
   const {ctx,root}=fixture(true,'draft',{hash:'#tp-rubric',complete:true});
   const read=ctx.api;
   ctx.api=async(path,options)=>{
@@ -634,10 +636,15 @@ test('Rubric action renders eligible Grades as independent collapsible Grade acc
   assert.match(root.innerHTML,/Grade 1/);
   assert.match(root.innerHTML,/Grade 2/);
   assert.match(root.innerHTML,/Mental Calculation/);
-  assert.match(root.innerHTML,/Number Flexibility/);
+  assert.doesNotMatch(root.innerHTML,/Number Flexibility/);
   assert.match(root.innerHTML,/\+ Add Competency/);
   assert.match(root.innerHTML,/Grade 1 beginning/);
   assert.match(root.innerHTML,/data-action="finish-rubric"/);
+  ctx.params.set('rubric_grade','2');
+  await render(ctx);
+  assert.match(root.innerHTML,/Number Flexibility/);
+  assert.match(root.innerHTML,/Grade 2 beginning/);
+  assert.doesNotMatch(root.innerHTML,/>Mental Calculation<|Grade 1 beginning/);
 });
 
 test('Program creation form asks for eligible Grades and keeps rubric as a separate action',async()=>{

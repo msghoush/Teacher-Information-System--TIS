@@ -26,6 +26,7 @@ function okHandler(overrides = {}) {
     for (const [fragment, outcome] of Object.entries(overrides)) {
       if (url.includes(fragment)) return typeof outcome === 'function' ? outcome(url, init, call) : outcome;
     }
+    if (url.includes('/dashboard?')) return {body: {options: {}, completion: {state:'visible', buckets:[{label:'Completed',state:'visible',count:1,percentage:100}]}, classification: distribution.distribution, learning_style: learningStyleBody.distribution}};
     if (url.includes('organization-analytics/overview')) return {body: overviewBody};
     if (url.includes('talent-map')) return {body: mapBody};
     if (url.includes('program-portfolio')) return {body: {programs: [], totals: {}}};
@@ -45,7 +46,7 @@ const ANALYTICS_SEARCH = '?program_id=5&academic_year_id=1';
 test('1. successful bootstrap replaces the server-rendered loader and clears aria-busy', async () => {
   const env = await createEnv({view: 'overview', permissions: FULL, handler: okHandler()}).start();
   assert.doesNotMatch(env.text(), new RegExp(LOADER));
-  assert.match(env.text(), /Where Talent &amp; Potential stands right now/);
+  assert.match(env.text(), /Executive Overview/);
   assert.equal(env.busy(), 'false');
   assert.equal(env.status.textContent, 'View loaded.');
 });
@@ -58,7 +59,7 @@ test('1b. the placeholder is replaced deterministically even while every request
 });
 
 test('2. a synchronous init exception cannot leave permanent loading; Retry re-boots', async () => {
-  const env = createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler(), breakInit: true});
+  const env = createEnv({view: 'talent-map', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler(), breakInit: true});
   await env.start();
   assert.doesNotMatch(env.text(), new RegExp(LOADER));
   assert.match(env.text(), /Unable to load view/);
@@ -71,7 +72,7 @@ test('2. a synchronous init exception cannot leave permanent loading; Retry re-b
   env.elements['tp-metric-field'] = env.elements['tp-program-field'];
   env.root.querySelector('#tp-retry').emit('click');
   await env.flush();
-  assert.match(env.text(), /Results &amp; Analytics|Results & Analytics/);
+  assert.match(env.text(), /Talent Map/);
   assert.equal(env.busy(), 'false');
 });
 
@@ -124,7 +125,7 @@ test('5. an aborted stale response never replaces newer content, and busy tracks
 test('6/7/8. Organization landing: primary content renders when organization analytics fails, with a LOCAL retryable failure', async () => {
   const env = await createEnv({view: 'overview', permissions: FULL, handler: okHandler({'organization-analytics/overview': {status: 500, body: {detail: 'x'}}})}).start();
   const text = env.text();
-  assert.match(text, /Where Talent &amp; Potential stands right now/);
+  assert.match(text, /Executive Overview/);
   assert.match(text, /tp-overview-actions/);
   assert.match(text, /tp-section-error/);
   assert.match(text, /data-tp-section-retry="tp-hero-stats"/);
@@ -144,50 +145,40 @@ test('7b. a hanging organization analytics request times out locally while the p
   assert.equal(env.busy(), 'false');
 });
 
-test('9/13. Results & Analytics: one secondary failure never erases or blocks the others, and no request is duplicated', async () => {
-  const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({
-    'learning-style': {status: 503, body: {detail: 'privacy configuration incomplete'}},
-    'program_grade': 'hang',
-  })}).start();
-  const text = env.text();
-  // failed section: local error; hung section: still its own skeleton
-  assert.match(text, /data-tp-section-retry="tp-learning-style-slot"/);
-  assert.match(text, /Loading grade results/);
-  // unrelated sections rendered from their own successful requests
-  assert.match(text, /Classification Distribution/);
-  assert.match(text, /Talented \(Exceptional\) Students/);
-  assert.match(text, /Organization snapshot/);
-  assert.match(text, /Branch comparison/);
-  assert.equal(env.busy(), 'true', 'the hung grade section is still pending within its bound');
+test('9/13. Results uses one bounded aggregate request; a failure is retryable without duplicate secondary requests', async () => {
+  const env = await createEnv({view:'analytics', permissions:FULL, search:ANALYTICS_SEARCH, handler:okHandler({'/dashboard?':'hang'})}).start();
+  assert.match(env.text(), /Loading filtered analysis/);
+  assert.equal(env.callsTo('/dashboard?').length, 1);
+  assert.equal(env.busy(), 'true');
   await env.tick(25001);
   assert.match(env.text(), /Taking longer than expected/);
+  assert.match(env.text(), /data-tp-section-retry="tp-dashboard-slot"/);
   assert.equal(env.busy(), 'false');
-  const urls = env.calls.map(call => call.url);
-  assert.equal(new Set(urls).size, urls.length, `duplicate identical requests: ${urls}`);
+  assert.equal(env.callsTo('rubric-distribution').length, 0);
 });
 
-test('9b. Results & Analytics: a failing snapshot request does not erase Classification / Talent sections', async () => {
-  const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({'organization-analytics/overview': {status: 500, body: {}}})}).start();
-  assert.match(env.text(), /data-tp-section-retry="tp-snapshot-slot"/);
-  assert.match(env.text(), /Classification Distribution/);
-  assert.match(env.text(), /Learning Style Distribution/);
-  assert.equal(env.busy(), 'false');
+test('9b. aggregate Results does not depend on the legacy organization snapshot request', async () => {
+  const env=await createEnv({view:'analytics',permissions:FULL,search:ANALYTICS_SEARCH,handler:okHandler({'organization-analytics/overview':{status:500,body:{}}})}).start();
+  assert.equal(env.callsTo('organization-analytics/overview').length,0);
+  assert.match(env.text(),/Current Classification/);
+  assert.match(env.text(),/Learning Style/);
+  assert.equal(env.busy(),'false');
 });
 
 test('12. section Retry performs a fresh bounded request for that section only', async () => {
   let failing = true;
   const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({
-    'learning-style': () => failing ? {status: 500, body: {}} : {body: learningStyleBody},
+    '/dashboard?': () => failing ? {status: 500, body: {}} : {body: learningStyleBody},
   })}).start();
-  assert.equal(env.callsTo('learning-style').length, 1);
+  assert.equal(env.callsTo('/dashboard?').length, 1);
   const totalBefore = env.calls.length;
   failing = false;
-  env.root.emit('click', {target: {closest: () => ({getAttribute: () => 'tp-learning-style-slot'})}});
+  env.root.emit('click', {target: {closest: selector => selector === '[data-tp-section-retry]' ? ({getAttribute: () => 'tp-dashboard-slot'}) : null}});
   await env.flush();
-  assert.equal(env.callsTo('learning-style').length, 2, 'a fresh request is issued');
+  assert.equal(env.callsTo('/dashboard?').length, 2, 'a fresh request is issued');
   assert.equal(env.calls.length, totalBefore + 1, 'no other section is re-requested');
-  assert.match(env.text(), /Learning Style Distribution/);
-  assert.doesNotMatch(env.text(), /data-tp-section-retry="tp-learning-style-slot"/);
+  assert.match(env.text(), /Learning Style/);
+  assert.doesNotMatch(env.text(), /data-tp-section-retry="tp-dashboard-slot"/);
   assert.equal(env.status.textContent, 'View loaded.');
 });
 
@@ -300,11 +291,11 @@ test('16. every terminal state leaves aria-busy false and status set (no permane
 });
 
 test('17. permission-denied section errors show no Retry (retrying cannot help) and expose no internals', async () => {
-  const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({'learning-style': {status: 403, body: {detail: 'Not permitted for this scope.'}}})}).start();
+  const env = await createEnv({view: 'analytics', permissions: FULL, search: ANALYTICS_SEARCH, handler: okHandler({'/dashboard?': {status: 403, body: {detail: 'Not permitted for this scope.'}}})}).start();
   // Curated 403 copy is shown; the raw backend detail is never rendered.
   assert.match(env.text(), /This view is not available for your permissions or selected scope/);
   assert.doesNotMatch(env.text(), /Not permitted for this scope/);
-  assert.doesNotMatch(env.text(), /data-tp-section-retry="tp-learning-style-slot"/);
+  assert.doesNotMatch(env.text(), /data-tp-section-retry="tp-dashboard-slot"/);
 });
 
 // talent-experience.js owns the Program-filtered rubric section on Results & Analytics.
@@ -383,55 +374,50 @@ test('22. raw exception/stack-like text never reaches the page', async () => {
 
 const ANALYTICS_PROGRAMS = {'api/talent/programs': {body: [{id: 5, name: 'Mental Math'}]}};
 
-test('23. talent.js + talent-experience.js issue exactly ONE rubric-distribution request for the same Program/Year/context', async () => {
-  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: ANALYTICS_SEARCH, handler: okHandler(ANALYTICS_PROGRAMS)}).start();
+test('23. dashboard and experience modules share one aggregate owner with no duplicate rubric read',async()=>{
+  const env=await createEnv({view:'analytics',permissions:FULL,search:ANALYTICS_SEARCH,handler:okHandler()}).start();
   await env.triggerMutation();
-  assert.equal(env.callsTo('rubric-distribution').length, 1, JSON.stringify(env.calls.map(c => c.url)));
-  const section = env.root.querySelector('[data-tp-rubric-section]');
-  assert.ok(section, 'talent.js rendered the experience-owned rubric section shell');
-  assert.match(section.querySelector('[data-tp-rubric-results]').innerHTML, /No completed rubric results/);
+  assert.equal(env.callsTo('/dashboard?').length,1);
+  assert.equal(env.callsTo('rubric-distribution').length,0);
+  assert.match(env.text(),/Rubric Indicator analytics/);
 });
 
-test('24. rubric-section Retry performs exactly ONE new request (not two)', async () => {
-  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: ANALYTICS_SEARCH, handler: okHandler({...ANALYTICS_PROGRAMS, 'rubric-distribution': {status: 500, body: {detail: 'boom'}}})}).start();
-  await env.triggerMutation();
-  assert.equal(env.callsTo('rubric-distribution').length, 1, 'one shared request, one failure');
-  const section = env.root.querySelector('[data-tp-rubric-section]');
-  const retry = section.querySelector('[data-tp-rubric-results]').querySelector('[data-tp-rubric-retry]');
-  assert.ok(retry, 'rubric section shows a Retry button');
-  retry.emit('click');
-  await env.flush();
-  assert.equal(env.callsTo('rubric-distribution').length, 2, 'Retry re-issues exactly one new request');
+test('24. aggregate Retry after experience mutation performs exactly one fresh request',async()=>{
+ const env=await createEnv({view:'analytics',permissions:FULL,search:ANALYTICS_SEARCH,handler:okHandler({'/dashboard?':{status:500,body:{}}})}).start();
+ await env.triggerMutation();
+ assert.equal(env.callsTo('/dashboard?').length,1);
+ env.root.emit('click',{target:{closest:selector=>selector==='[data-tp-section-retry]'?{getAttribute:()=> 'tp-dashboard-slot'}:null}});
+ await env.flush();
+ assert.equal(env.callsTo('/dashboard?').length,2);
+ assert.equal(env.callsTo('rubric-distribution').length,0);
 });
 
-test('25. Program change invalidates the old read and issues ONE correctly-keyed request', async () => {
-  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: '?program_id=5&academic_year_id=1', handler: (url, init, call) => {
-    if (url.includes('api/talent/programs')) return {body: [{id: 5, name: 'Mental Math'}, {id: 7, name: 'Qaaidah Nouraniah'}]};
-    return okHandler()(url, init, call);
-  }}).start();
-  assert.equal(env.callsTo('rubric-distribution').length, 1);
-  assert.match(env.callsTo('rubric-distribution')[0].url, /\/programs\/5\//);
-  env.elements['tp-program'].value = '7';
-  env.elements['tp-filters'].emit('submit');
-  await env.flush();
-  assert.equal(env.callsTo('rubric-distribution').length, 2);
-  assert.match(env.callsTo('rubric-distribution')[1].url, /\/programs\/7\//);
+test('25. dashboard Program selection issues one correctly-keyed request and clears dependent context',async()=>{
+ const env=await createEnv({view:'analytics',permissions:FULL,search:'?program_id=5&period_id=8&competency_id=9&rubric_id=10&academic_year_id=1',handler:okHandler()}).start();
+ assert.equal(env.callsTo('/dashboard?').length,1);
+ env.root.emit('change',{target:{name:'program_id',value:'7',closest:()=>({})}});
+ await env.flush();
+ const calls=env.callsTo('/dashboard?');
+ assert.equal(calls.length,2);
+ const q=new URL(calls[1].url,'http://tis.test').searchParams;
+ assert.equal(q.get('program_id'),'7');
+ for(const key of ['period_id','competency_id','rubric_id'])assert.equal(q.has(key),false,key);
 });
 
-test('26. a stale rubric response cannot overwrite the newer Program state', async () => {
-  let first = true;
-  const env = await createEnv({view: 'analytics', permissions: {...FULL, 'talent_programs.view': true}, search: '?program_id=5&academic_year_id=1', handler: (url, init, call) => {
-    if (url.includes('api/talent/programs')) return {body: [{id: 5, name: 'Mental Math'}, {id: 7, name: 'Qaaidah Nouraniah'}]};
-    if (url.includes('rubric-distribution')) {
-      if (first) { first = false; return {defer: true, body: {distributions: [], program_result_summary: {state: 'visible', average: 1, scale_max: 5, normalized_percent: 20, competency_count: 2}}}; }
-      return {body: {distributions: [], program_result_summary: {state: 'no_data'}}};
-    }
-    return okHandler()(url, init, call);
-  }}).start();
-  const stale = env.callsTo('rubric-distribution')[0];
-  env.elements['tp-program'].value = '7';
-  env.elements['tp-filters'].emit('submit');
-  await env.flush();
-  assert.ok(stale.signal.aborted, 'the obsolete rubric request is aborted');
-  assert.doesNotMatch(env.text(), /Average Overall Program Result|20%/);
+test('26. a stale aggregate response cannot overwrite a newer Program selection',async()=>{
+ let first=true;
+ const env=await createEnv({view:'analytics',permissions:FULL,search:ANALYTICS_SEARCH,handler:okHandler({'/dashboard?':()=>{
+   if(first){first=false;return {defer:true,body:{result:{state:'visible',average:98765,scale_max:10,normalized_percent:55}}};}
+   return {body:{result:{state:'visible',average:12345,scale_max:10,normalized_percent:66}}};
+ }})}).start();
+ const stale=env.callsTo('/dashboard?')[0];
+ env.root.emit('change',{target:{name:'program_id',value:'7',closest:()=>({})}});
+ await env.flush();
+ assert.ok(stale.signal.aborted);
+ assert.match(env.text(),/12345/);
+ stale.settle();
+ await env.flush();
+ assert.match(env.text(),/12345/);
+ assert.doesNotMatch(env.text(),/98765/);
+ assert.equal(env.busy(),'false');
 });

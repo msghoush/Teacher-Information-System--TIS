@@ -12,6 +12,7 @@
   const identityHtml = options => studentIdentity
     ? studentIdentity.identityHtml(options)
     : `<span class="tp-identity"><span class="tp-identity-name">${String(options?.name || 'Student name unavailable').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}</span></span>`;
+  const initialsOf = name => esc(String(name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]||'').join('').toUpperCase() || '?');
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const words = value => String(value ?? '').replaceAll('_', ' ');
   const badge = value => `<span class="tp-badge">${esc(words(value))}</span>`;
@@ -162,7 +163,7 @@
         const candidate=r.candidate;
         const d=decisionFor(r);
         const status=r.reassessment?.required?'Re-evaluation required':candidateLabel(r);
-        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span>${identityHtml({name:c.student_name,learningStyle:c.student_learning_style,classification:r.classification,isTalented:r.is_talented,notAssessed:true,extra:`<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small>`})}</span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open legacy record →</a></td></tr>`;
+        return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">${initialsOf(c.student_name)}</span>${identityHtml({name:c.student_name,learningStyle:c.student_learning_style,classification:r.classification,isTalented:r.is_talented,notAssessed:true,extra:`<small>Grade ${esc(c.grade_level || '—')} · ${esc(c.section_name || '—')}</small>`})}</span></th><td>${programLogo(programById.get(String(r.program_id)))} ${esc(c.program_name || 'Program name unavailable')}<small>${esc(c.cycle_title || 'Evaluation unavailable')}</small></td><td>${overallResultVisual(r.overall_result)}</td><td><span class="tp-status-chip">${esc(status)}</span></td><td><span class="tp-status-chip ${d?.decision==='identified'?'is-positive':'is-neutral'}">${esc(identificationLabel(r))}</span></td><td><a class="tp-action-link" href="${esc(url('reviews',{review_id:r.id}))}">Open legacy record →</a></td></tr>`;
       }).join('');
       mount(`${kpis}${note('Legacy Review & Identification History is preserved for audit only and is not part of the current workflow. The current workflow ends in the automatic Classification (only Exceptional is Talented), shown with each Student. Legacy review status and Official Identification decisions never determine a Student current Talent state.')}${!rows.length?note('No completed Student Assessments are available in this context yet.'):`<div class="tp-table-wrap"><table class="tp-compact-table tp-review-table"><caption class="tp-sr-status">Legacy Review &amp; Identification History</caption><thead><tr><th>Student</th><th>Program / Evaluation</th><th>Overall result</th><th>Legacy review status</th><th>Legacy identification decision</th><th>Action</th></tr></thead><tbody>${tableRows}</tbody></table></div>`}`);
       return;
@@ -279,21 +280,35 @@
       return;
     }
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
+    // The roster is scoped to the selected/active Branch (Batch 1); with no Branch
+    // scope the URL is exactly the pre-existing organization-wide roster URL.
+    // The server owns all roster filtering and both aggregate distributions.
+    // Keeping the values in the URL lets talent.js cancel superseded loads and
+    // prevents a stale DOM-only filter from becoming an analytics authority.
+    const rosterBranchQuery=query({
+      branch_id:params.get('branch_id'), search:params.get('search'),
+      grade_level:params.get('grade_level'), section_name:params.get('section_name'),
+      assessment_state:params.get('assessment_state'), classification:params.get('classification'),
+    });
+    const eligibleUrl=id=>`/api/talent/assessment-cycles/${id}/eligible-students${rosterBranchQuery?`?${rosterBranchQuery}`:''}`;
     const [allRows,cycles,programs,plans,explicitEligible]=await Promise.all([
-      api(`/api/talent/assessments?${query({})}`),
+      // Server-side Academic Year + Program scope: the Student Assessments page only
+      // ever renders this Year/Program, so it must not download and derive results
+      // for every Assessment in the organization (Batch 1 loading root cause).
+      api(`/api/talent/assessments?${query({academic_year_id:year,program_id:pid})}`),
       api(`/api/talent/assessments/contexts?${query({program_id:pid,academic_year_id:year})}`),
       can('talent_programs.view')?api('/api/talent/programs').catch(()=>[]):Promise.resolve([]),
       can('talent_evaluation_plans.view')
         ?api(`/api/talent/evaluation-plans?${query({program_id:pid,academic_year_id:year})}`).catch(()=>[])
         :Promise.resolve([]),
-      cycleId?api(`/api/talent/assessment-cycles/${cycleId}/eligible-students`).catch(()=>null):Promise.resolve(null),
+      cycleId?api(eligibleUrl(cycleId)).catch(()=>null):Promise.resolve(null),
     ]);
     const rows=allRows.filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
     const currentRows=rows.filter(r=>r.is_current!==false);
     const programById=new Map(programs.map(item=>[String(item.id),item]));
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
     const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
-    const eligible=explicitEligible || (cycle&&!cycleId?await api(`/api/talent/assessment-cycles/${cycle.id}/eligible-students`):null);
+    const eligible=explicitEligible || (cycle&&!cycleId?await api(eligibleUrl(cycle.id)):null);
     const assessmentFor=(studentId,context)=>{
       if(!context)return null;
       const matches=currentRows.filter(r=>{
@@ -327,8 +342,20 @@
       const classificationCell=current&&current.classification&&studentIdentity
         ?`<span class="tp-identity-meta">${studentIdentity.classificationChip(current.classification)}${talented}</span>`
         :current?'<span class="tp-muted">Not available for this rubric</span>':'<span class="tp-muted">Not assessed</span>';
-      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span>${identity}</span></th><td>${esc(m.grade_level)}</td><td>${esc(sectionDisplay)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${classificationCell}</td><td>${action}</td></tr>`;
+      return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">${initialsOf(fullName)}</span>${identity}</span></th><td>${esc(m.grade_level)}</td><td>${esc(sectionDisplay)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${classificationCell}</td><td>${action}</td></tr>`;
     }).join(''):'';
+    const rosterFilters=eligible?`<form class="tp-local-filterbar" data-operation="roster-filters">
+      <label>Student search<input name="search" value="${esc(params.get('search')||'')}" autocomplete="off"></label>
+      <label>Grade<select name="grade_level"><option value="">All Grades</option>${(eligible.filter_options?.grades||[]).map(v=>`<option value="${esc(v)}" ${String(params.get('grade_level')||'')===String(v)?'selected':''}>Grade ${esc(v)}</option>`).join('')}</select></label>
+      <label>Section<select name="section_name"><option value="">All Sections</option>${(eligible.filter_options?.sections||[]).map(v=>`<option value="${esc(v)}" ${String(params.get('section_name')||'')===String(v)?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
+      <label>Assessment state<select name="assessment_state"><option value="">All states</option>${[['not_started','Not started'],['in_progress','In progress'],['completed','Completed'],['incomplete','Incomplete'],['insufficient_evidence','Insufficient evidence']].map(([v,l])=>`<option value="${v}" ${params.get('assessment_state')===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      <label>Classification<select name="classification"><option value="">All classifications</option>${['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'].map(v=>`<option value="${esc(v)}" ${params.get('classification')===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
+      <button type="submit" class="tp-primary">Apply filters</button><button type="button" data-action="clear-roster-filters">Clear filters</button>
+    </form>`:'';
+    const insightBars=(title,distribution)=>window.TalentCharts
+      ?window.TalentCharts.chart(title,distribution,title==='Learning Style'?'learning-style':'classification')
+      :`<section class="tp-card"><h3>${esc(title)}</h3><p class="tp-empty">Summary component unavailable. Reload this page.</p></section>`;
+    const insightHtml=eligible?`<div class="tp-insight-grid">${insightBars('Current Classification',eligible.insights?.classification)}${insightBars('Learning Style',eligible.insights?.learning_style)}</div>`:'';
 
     // Evaluation Period -> unique Programs. Planned Periods are the display
     // authority; linked Cycles provide the assessable context when one exists.
@@ -391,7 +418,7 @@
     });
     const selectedLabel=cycle?(cycle.evaluation_label||cycle.title||'').trim().toLowerCase():'';
     const cardsHtml=evaluationGroups.length
-      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>{const selected=Boolean(selectedLabel&&group.label.trim().toLowerCase()===selectedLabel);return `<section class="tp-evaluation-group${selected?' is-selected':''}" ${selected?'aria-current="true"':''}><header><span class="tp-evaluation-icon" aria-hidden="true">📅</span><div><p class="tp-eyebrow">${selected?'Selected Evaluation Period':'Evaluation Period'}</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}${selected?' · active':''}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));const title=esc(p?.name || `Program ${context.program_id}`);return context.id
+      ?`<div class="tp-evaluation-groups">${evaluationGroups.map(group=>{const selected=Boolean(selectedLabel&&group.label.trim().toLowerCase()===selectedLabel);return `<section class="tp-evaluation-group${selected?' is-selected':''}" ${selected?'aria-current="true"':''}><header><span class="tp-evaluation-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span><div><p class="tp-eyebrow">${selected?'Selected Evaluation Period':'Evaluation Period'}</p><h3>${esc(group.label)}</h3><small>${group.contexts.length} Program${group.contexts.length===1?'':'s'}${selected?' · active':''}</small></div></header><div class="tp-evaluation-programs">${group.contexts.map(context=>{const p=programById.get(String(context.program_id));const title=esc(p?.name || `Program ${context.program_id}`);return context.id
         ?`<a class="tp-evaluation-program-card${String(context.id)===String(cycle?.id)?' is-selected':''}" href="${esc(url('assessments',{cycle_id:context.id,program_id:context.program_id}))}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>${String(context.id)===String(cycle?.id)?'Selected Program · ':''}View eligible Students and assessment status</small></span><span aria-hidden="true">→</span></a>`
         :can('talent_assessment_cycles.manage')&&can('talent_evaluation_plans.manage')&&can('talent_evaluation_plans.select_period')
           ?`<button type="button" class="tp-evaluation-program-card" data-action="select-planned-evaluation" data-program="${context.program_id}" data-period="${context.evaluation_period_id}" data-plan-revision="${context.plan_revision}" data-label="${esc(context.evaluation_label||group.label)}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Select this Program for ${esc(group.label)} and view eligible Students</small></span><span aria-hidden="true">→</span></button>`
@@ -401,7 +428,12 @@
     // The selected real Evaluation is marked in place on its own card above
     // (is-selected class + aria-current) rather than repeated in a separate
     // duplicated "Selected Evaluation" panel here.
-    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+    const hasRosterFilters=['search','grade_level','section_name','assessment_state','classification'].some(key=>params.get(key));
+    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${rosterFilters}${insightHtml}${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note(hasRosterFilters?'No currently enrolled Students match these filters.':'No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+
+    const rosterFilterForm=root.querySelector('[data-operation="roster-filters"]');
+    rosterFilterForm?.addEventListener('submit', event=>{event.preventDefault(); const values=Object.fromEntries(new FormData(rosterFilterForm)); navigate('assessments',{cycle_id:cycle?.id,program_id:cycle?.program_id||pid,...values});});
+    on('clear-roster-filters',async()=>navigate('assessments',{cycle_id:cycle?.id,program_id:cycle?.program_id||pid}));
 
     on('select-planned-evaluation',async el=>{
       const programId=Number(el.dataset.program), periodId=Number(el.dataset.period);

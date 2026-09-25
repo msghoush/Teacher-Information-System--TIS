@@ -1,11 +1,67 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.11
-last_updated: 2026-09-24
+documentation_version: 3.13
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Agent 3 filtered analysis flow (2026-09-25)
+
+1. Open Overview for distinct current Student headlines and executive charts,
+   Programs for searchable configuration cards, or Student Assessment for
+   individually authorized operational records.
+2. In Results & Analytics select shared Branch, Grade, Section, Program,
+   Evaluation Period and Classification filters. All means all within authorization,
+   never beyond the global Branch ceiling. Parent changes clear dependent
+   selections; bounded requests and generation guards prevent stale publication.
+3. One backend read-only repeatable snapshot builds the selected population,
+   canonical current attempts and privacy projections. Organization percentages
+   use underlying counts. Compare one dimension and up to six groups. Rubric
+   selection is Program, then Competency, then Indicator.
+4. Classification-filtered Learning Style represents the same cohort. If its count
+   would expose a protected Classification cell, show the protected-cohort
+   explanation, not zero/no-data, geometry or exact values. Individual authorized
+   roster rows remain exact and are not cohort-suppressed.
+5. Switch valid chart modes without fetching again. Exact tables are keyboard-
+   accessible; protected values are absent from hidden/ARIA/tooltip content as
+   well as visible charts. Ordered periods do not imply growth.
+
+
+## Global Branch -> Talent Flow (Batch 1 Closure, 2026-09-25)
+
+Supersedes step 2 of the Batch 1 flow below ("default ... honors explicit
+`branch_scope=all`").
+
+1. Sidebar Branch switch (`/scope/branch`, session scope) sets the working Branch;
+   on `/talent` pages the switcher also offers "All Branches (Talent & Potential
+   organization-wide)" (marker cookie `branch_scope=all`; other modules unaffected).
+2. `/talent/{view}` publishes `tp-config.branch` = the ceiling Branch (empty only for
+   the explicit global All Branches). The client forces `branch_id` to it and offers no
+   other Branch or All Branches.
+3. Every Talent API recomputes the ceiling from the authenticated request user
+   (`talent_branch_scope`), so an explicit other Branch is rejected (400/403/404) and
+   an omitted Branch resolves to the ceiling; only the explicit global All Branches
+   returns organization-wide data and cross-Branch comparison.
+
+## Student Deletion, Branch Scope And Talent Loading Flows (Deployment Acceptance Batch 1, 2026-09-24)
+
+1. **Permanent Student deletion.** `students.delete` (Organization scope) previews
+   blockers; without history the Student is deleted with its identifiers/audit.
+   With Placement/Talent history normal and bulk Delete are blocked (409); an actor
+   who also holds `students.force_delete_history` and confirms deletes the Student
+   plus all ten Student-owned tables in one transaction. Talent surfaces recompute
+   from the remaining Students; nothing is retained.
+2. **Global Branch -> Talent.** Sidebar Branch switch (`/scope/branch`, session
+   scope) -> `/talent/{view}` renders the validated active Branch as `tp-config.branch`
+   -> `reconcileBranchScope` sets `branch_id` (default), clears a stale Branch/Grade/
+   Section from a URL minted under another Branch, honors explicit `branch_scope=all`
+   -> each API validates its own `branch_id` (foreign/unauthorized rejected).
+3. **Talent page load.** Server loader (`data-server-loader`) is replaced as soon as
+   `talent.js` boots; if it is still present after 15 s the inline watchdog shows an
+   explicit error with Reload. Assets are `?v=<content hash>`. Lookups are bounded
+   (15 s each, 20 s deadline) and independent sections terminate on their own.
 
 ## Learning Style Distribution Flow (Deployment Acceptance Correction C, 2026-09-24)
 

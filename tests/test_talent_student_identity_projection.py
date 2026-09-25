@@ -143,10 +143,16 @@ def test_tenant_isolation_learning_style_of_another_school_group_never_appears(d
     complete_with_level(db, member2, fw2, levels2[-1], group_id=2)
     with _client(db, _admin(db)) as client:
         listing = client.get("/api/talent/assessments").text
-        roster = client.get(f"/api/talent/assessment-cycles/{cycle1.id}/eligible-students").text
+        roster_response = client.get(f"/api/talent/assessment-cycles/{cycle1.id}/eligible-students")
+        roster = roster_response.text
         foreign = client.get(f"/api/talent/assessment-cycles/{cycle2.id}/eligible-students")
     assert "Visual" in listing and "Auditory" not in listing
-    assert "Auditory" not in roster
+    # The governed eight-category roster distribution lists every category label; a foreign
+    # Group's Student must contribute no member value and no count.
+    payload = roster_response.json()
+    assert all(member.get("learning_style") != "Auditory" for member in payload["members"])
+    levels = {b["key"]: b for b in payload["insights"]["learning_style"]["levels"]}
+    assert levels["Auditory"]["count"] == 0
     assert foreign.status_code in (403, 404)
     assert "Auditory" not in foreign.text
 

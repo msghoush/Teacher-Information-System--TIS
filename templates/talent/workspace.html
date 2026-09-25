@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% from "_app_icons.html" import icon %}
 {% block title %}{{ talent_title }} · Talent & Potential | TIS{% endblock %}
-{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-program-workspace.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-experience.css') }}">{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}?v={{ talent_asset_version('css/talent.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-program-workspace.css') }}?v={{ talent_asset_version('css/talent-program-workspace.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}?v={{ talent_asset_version('css/talent-rubric-visual.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-experience.css') }}?v={{ talent_asset_version('css/talent-experience.css') }}">{% endblock %}
 {% block content %}
 {% set nav_icons = {'overview':'dashboard','programs':'degree','evaluation-plans':'calendar','assessments':'exam','reviews':'clipboard-check','analytics':'insights','talent-map':'table','portfolio':'spreadsheet','branch':'branch','overlap':'activity','students':'users','longitudinal':'clock','learner-profile':'eye'} %}
 <section class="tp" id="talent-workspace" data-view="{{ talent_view }}">
@@ -40,25 +40,48 @@
     <button type="submit" title="Selections apply automatically. Use Refresh only if a view does not update on its own." aria-label="Refresh now (selections apply automatically)">{{ icon('check-circle') }}Refresh</button>
   </form>
   <div id="tp-status" role="status" aria-live="polite" class="tp-sr-status"></div>
-  <div id="tp-content" aria-busy="true"><p class="tp-empty" data-initial-loading>Loading your authorized workspace…</p><noscript><p class="tp-empty">JavaScript is required to use Talent &amp; Potential. Enable it and reload this page.</p></noscript></div>
+  <div id="tp-content" aria-busy="true"><p class="tp-empty" data-server-loader data-initial-loading>Loading your authorized workspace…</p><noscript><p class="tp-empty">JavaScript is required to use Talent &amp; Potential. Enable it and reload this page.</p></noscript></div>
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
-<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
+<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name}|tojson }}</script>
+{# Deployment Acceptance Batch 1: the server-rendered loader is replaced synchronously as soon as talent.js runs (boot()). If it is STILL on screen after 15 s the page script never took over (for example a script failed to download or parse, or a stale cached copy from an earlier deployment). The page must never sit on a generic loader indefinitely, so this tiny inline watchdog turns that state into an explicit, retryable error. It only ever acts on the still-untouched server-rendered placeholder. #}
+<script>
+(function(){
+  var LIMIT_MS = 15000;
+  setTimeout(function(){
+    var root = document.getElementById('tp-content');
+    var pending = root && root.querySelector('[data-server-loader]');
+    if (!pending) return;
+    root.innerHTML = '<div class="tp-error" role="alert"><h3>This page could not finish loading</h3><p>The page did not start correctly. Reload the page to try again. If the problem continues, contact your administrator.</p><p><button type="button" id="tp-watchdog-reload">Reload page</button></p></div>';
+    root.setAttribute('aria-busy', 'false');
+    var status = document.getElementById('tp-status');
+    if (status) status.textContent = 'View could not be loaded.';
+    var button = document.getElementById('tp-watchdog-reload');
+    if (button) button.addEventListener('click', function(){ location.reload(); });
+  }, LIMIT_MS);
+})();
+</script>
 {# talent.js and talent-experience.js render rubric/competency visuals on every Talent view (Results & Analytics, Learner Profile, ...), so the tiny shared rubric visual module must always be present. The shared error-mapping and rubric-read-ownership helpers below are also loaded on every view (never gated) so no view can miss a global its render path needs. It is not a heavy bundle; the operational/workspace bundles below stay surface-specific (M16). #}
-<script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/talent-api-errors.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/talent-rubric-request.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}?v={{ talent_asset_version('js/talent-rubric-visual.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-api-errors.js') }}?v={{ talent_asset_version('js/talent-api-errors.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-rubric-request.js') }}?v={{ talent_asset_version('js/talent-rubric-request.js') }}" defer></script>
 {# Shared Student identity presentation (name / Learning Style / Classification / Talented): every Talent view that renders an identifiable Student needs it, so it is loaded everywhere like the other tiny shared helpers. #}
-<script src="{{ url_for('static', path='js/talent-student-identity.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-student-identity.js') }}?v={{ talent_asset_version('js/talent-student-identity.js') }}" defer></script>
+{% if talent_view in ['overview', 'analytics', 'assessments'] %}
+<script src="{{ url_for('static', path='js/talent-charts.js') }}?v={{ talent_asset_version('js/talent-charts.js') }}" defer></script>
+{% endif %}
+{% if talent_view in ['overview', 'analytics'] %}
+<script src="{{ url_for('static', path='js/talent-dashboard.js') }}?v={{ talent_asset_version('js/talent-dashboard.js') }}" defer></script>
+{% endif %}
 {% if talent_view in ['assessments', 'reviews'] %}
-<script src="{{ url_for('static', path='js/talent-operations.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-operations.js') }}?v={{ talent_asset_version('js/talent-operations.js') }}" defer></script>
 {% endif %}
 {% if talent_view in ['programs', 'evaluation-plans'] %}
-<script src="{{ url_for('static', path='js/talent-program-workspace.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-program-workspace.js') }}?v={{ talent_asset_version('js/talent-program-workspace.js') }}" defer></script>
 {% endif %}
 {% if talent_view == 'evaluation-plans' %}
-<script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}?v={{ talent_asset_version('js/talent-evaluation-workspace.js') }}" defer></script>
 {% endif %}
-<script src="{{ url_for('static', path='js/talent.js') }}" defer></script>
-<script src="{{ url_for('static', path='js/talent-experience.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent.js') }}?v={{ talent_asset_version('js/talent.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-experience.js') }}?v={{ talent_asset_version('js/talent-experience.js') }}" defer></script>
 {% endblock %}

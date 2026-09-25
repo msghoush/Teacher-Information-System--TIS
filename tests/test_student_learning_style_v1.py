@@ -23,6 +23,7 @@ coverage is in test_student_learning_style_distribution_acceptance_c.py).
 """
 
 import pathlib
+import ast
 import re
 
 import pytest
@@ -80,6 +81,16 @@ def _student(db, group=1, first="Maya", learning_style=None):
     )
     db.commit()
     return row
+
+
+def _without_fixture_students(db):
+    """Batch 1: the shared Talent fixture now creates placeholder Students for its bare
+    integer Talent ids; the Students-page tests assert an exact population of only the
+    Students they seed, so drop the placeholders first."""
+    db.query(models.Student).filter(
+        models.Student.first_name == "Test", models.Student.last_name.like("Student%")
+    ).delete(synchronize_session=False)
+    db.commit()
 
 
 def _place_all(db, ids):
@@ -412,6 +423,7 @@ def test_html_students_page_renders_the_distribution_panel(db):
     from routers import students_ui
 
     permissions(db, "students.view")
+    _without_fixture_students(db)
     db.add_all([
         models.Student(id=5001, school_group_id=1, first_name="Vis", last_name="One", status="active", learning_style="Visual"),
         models.Student(id=5002, school_group_id=1, first_name="Aud", last_name="Two", status="active", learning_style="Auditory"),
@@ -474,6 +486,7 @@ def test_html_students_page_small_cohort_is_never_suppressed_and_has_no_privacy_
     from routers import students_ui
 
     permissions(db, "students.view")
+    _without_fixture_students(db)
     db.add_all([
         models.Student(id=6001, school_group_id=1, first_name="A", last_name="One", status="active", learning_style="Visual"),
         models.Student(id=6002, school_group_id=1, first_name="B", last_name="Two", status="active", learning_style="Visual"),
@@ -506,6 +519,7 @@ def test_html_students_page_empty_selection_shows_empty_state_not_zero_percent(d
     from routers import students_ui
 
     permissions(db, "students.view")
+    _without_fixture_students(db)
     app = FastAPI()
     app.mount("/static", StaticFiles(directory="static"), name="static")
     app.include_router(students_ui.router)
@@ -529,7 +543,9 @@ _TALENT_SCORING_MODULES = (
     "talent_analytics_privacy.py",
     "routers/talent_assessments.py",
     "routers/talent_review_candidates.py",
-    "routers/talent_assessment_cycles.py",
+    "talent_assessment_cycle_service.py",
+    "talent_student_assessment_service.py",
+    "talent_classification_service.py",
     "routers/talent_programs.py",
 )
 
@@ -547,6 +563,104 @@ def test_no_talent_scoring_or_eligibility_module_reads_learning_style():
         source = path.read_text(encoding="utf-8")
         assert "learning_style" not in source, f"{relative} must never read learning_style"
     assert checked >= 5, "expected to actually check several real Talent scoring modules"
+
+
+_APPROVED_ROSTER_HANDLER = 'cycles_eligible_students'
+_ROSTER_ROUTER = 'routers/talent_assessment_cycles.py'
+_APPROVED_STYLE_IMPORT = 'talent_learning_style_privacy'
+# Names that carry Learning Style / its privacy projection into a module.
+_STYLE_NAMES = {'learning_style', 'learning_style_projection', 'classification_cohort_publishable',
+                'student_identity_metadata', 'identity_metadata', 'style_rows'}
+
+
+def _style_references_outside_handler(source, handler_name):
+    """Return (lineno, token) for any Learning Style reference outside the approved handler
+    (other than the single approved privacy-module import)."""
+    tree = ast.parse(source)
+    allowed = set()
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == handler_name:
+            allowed.update(id(child) for child in ast.walk(node))
+        if isinstance(node, ast.ImportFrom) and node.module in (_APPROVED_STYLE_IMPORT, 'talent_operational_context'):
+            allowed.update(id(child) for child in ast.walk(node))
+    found = []
+    for node in ast.walk(tree):
+        if id(node) in allowed:
+            continue
+        tokens = []
+        if isinstance(node, ast.Name):
+            tokens.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            tokens.append(node.attr)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            tokens.append(node.value)
+        elif isinstance(node, ast.arg):
+            tokens.append(node.arg)
+        for token in tokens:
+            if any(name in token for name in _STYLE_NAMES):
+                found.append((getattr(node, 'lineno', 0), token))
+    return found
+
+
+def test_roster_learning_style_is_presentation_only_not_eligibility_or_scoring():
+    """ADR 0031: the only Talent-router exception is the read-only roster projection.
+
+    Learning Style may appear in routers/talent_assessment_cycles.py solely inside
+    cycles_eligible_students (plus the approved privacy import); any other handler,
+    helper or module-level use fails.
+    """
+    root = pathlib.Path(__file__).resolve().parents[1]
+    source = (root / _ROSTER_ROUTER).read_text(encoding='utf-8')
+    assert _style_references_outside_handler(source, _APPROVED_ROSTER_HANDLER) == []
+    tree = ast.parse(source)
+    callers = []
+    for function in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
+        for call in (node for node in ast.walk(function) if isinstance(node, ast.Call)):
+            if isinstance(call.func, ast.Name) and call.func.id == 'learning_style_projection':
+                callers.append(function.name)
+    assert callers == [_APPROVED_ROSTER_HANDLER]
+    handler = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == callers[0])
+    assert any(isinstance(node, ast.Constant) and node.value == 'insights' for node in ast.walk(handler))
+    assert any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'current_placements_for_assessment'
+               for node in ast.walk(handler))
+
+
+def test_learning_style_guard_self_test_rejects_unapproved_router_use():
+    bad = "\n".join([
+        "from talent_learning_style_privacy import learning_style_projection",
+        "def cycles_eligible_students():",
+        "    return learning_style_projection([])",
+        "def cycles_eligibility_rule(row):",
+        "    return row['learning_style'] == 'Visual'",
+        "def other(row):",
+        "    return classification_cohort_publishable(row, None)",
+    ])
+    hits = _style_references_outside_handler(bad, _APPROVED_ROSTER_HANDLER)
+    assert {token for _, token in hits} >= {'learning_style', 'classification_cohort_publishable'}
+    good = "\n".join([
+        "from talent_learning_style_privacy import learning_style_projection",
+        "def cycles_eligible_students():",
+        "    return learning_style_projection([])",
+    ])
+    assert _style_references_outside_handler(good, _APPROVED_ROSTER_HANDLER) == []
+
+
+def test_learning_style_privacy_projection_is_confined_to_approved_modules():
+    """talent_learning_style_privacy may be imported only by the approved roster router and
+    the aggregate dashboard service - never by scoring, eligibility, Classification or
+    Official Identification code."""
+    root = pathlib.Path(__file__).resolve().parents[1]
+    approved = {'routers/talent_assessment_cycles.py', 'talent_dashboard_service.py'}
+    importers = set()
+    for path in list(root.glob('*.py')) + list((root / 'routers').glob('*.py')):
+        text = path.read_text(encoding='utf-8')
+        if re.search(r'(?m)^[ 	]*(from|import)[ 	]+talent_learning_style_privacy(?![A-Za-z0-9_])', text):
+            importers.add(path.relative_to(root).as_posix())
+    assert importers == approved
+    for relative in ('talent_classification_service.py', 'talent_program_service.py',
+                     'talent_assessment_cycle_service.py', 'talent_student_assessment_service.py'):
+        source = (root / relative).read_text(encoding='utf-8')
+        assert 'learning_style' not in source and 'classification_cohort_publishable' not in source
 
 
 # ---------------------------------------------------------------------------

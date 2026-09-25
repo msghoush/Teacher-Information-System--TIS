@@ -220,8 +220,8 @@ test('evaluation Student list maps Not started, In progress, and Completed to th
     {student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'},
   ];
   const rows=[
-    {id:501,student_id:102,cycle_population_member_id:102,status:'in_progress',academic_year_id:'2026',program_id:'11'},
-    {id:502,student_id:103,cycle_population_member_id:103,status:'completed',academic_year_id:'2026',program_id:'11'},
+    {id:501,student_id:102,cycle_population_member_id:102,status:'in_progress',academic_year_id:'2026',program_id:11},
+    {id:502,student_id:103,cycle_population_member_id:103,status:'completed',academic_year_id:'2026',program_id:11},
   ];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
@@ -244,7 +244,7 @@ test('completed Student with a changed rubric is surfaced as Re-evaluation requi
   const members=[{student_id:103,student_name:'Needs Update',grade_level:'3',section_name:'A'}];
   const rows=[{
     id:502,student_id:103,cycle_population_member_id:103,status:'completed',is_current:true,
-    academic_year_id:'2026',program_id:'11',
+    academic_year_id:'2026',program_id:11,
     reassessment:{required:true,framework_version_id:44,framework_version_number:3,historical:false},
     actions:['reassess']
   }];
@@ -265,7 +265,7 @@ test('completed Student can expose the evidence-preserving Reset for Re-assessme
   const root=domRoot();
   const cycle={id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',status:'open'};
   const members=[{student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
-  const rows=[{id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:'11',reassessment:{required:false},actions:['reset_for_reassessment']}];
+  const rows=[{id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:11,reassessment:{required:false},actions:['reset_for_reassessment']}];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{
       if(path.startsWith('/api/talent/assessments?'))return rows;
@@ -440,7 +440,8 @@ test('configured Evaluation Periods appear once per Program even before a physic
   assert.equal((root.innerHTML.match(/<strong>Mental Math<\/strong>/g)||[]).length,1);
   assert.equal((root.innerHTML.match(/<strong>Qaida Nourania<\/strong>/g)||[]).length,1);
   assert.match(root.innerHTML,/2 Programs/);
-  assert.match(root.innerHTML,/Qaida Nourania[\s\S]*Evaluation configured · open the plan to start Student Assessments/);
+  assert.match(root.innerHTML,/data-action="select-planned-evaluation" data-program="12" data-period="601"/);
+  assert.match(root.innerHTML,/Qaida Nourania[\s\S]*Select this Program for Term 1 and view eligible Students/);
 });
 
 test('a Draft legacy Cycle does not block enrolled Students from assessment',async()=>{
@@ -485,7 +486,7 @@ test('Start Assessment posts cycle_id plus student_id directly without a populat
   await clickHandler();
   const call=calls.find(item=>item.path==='/api/talent/assessments'&&item.options?.method==='POST');
   assert.deepEqual(call.options.body,{cycle_id:71,student_id:501});
-  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:71,academic_year_id:'2026',program_id:'11'}});
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:71,academic_year_id:'2026',program_id:11}});
 });
 
 test('starting an assessment carries the current Program forward in the resulting navigation (no ribbon/content mismatch)',async()=>{
@@ -508,7 +509,7 @@ test('starting an assessment carries the current Program forward in the resultin
   await withWindow(()=>render(ctx));
   assert.equal(typeof clickHandler,'function');
   await clickHandler();
-  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:61,academic_year_id:'2026',program_id:'11'}});
+  assert.deepEqual(navigated,{target:'assessments',extra:{assessment_id:701,cycle_id:61,academic_year_id:'2026',program_id:11}});
 });
 
 
@@ -547,8 +548,8 @@ test('Student roster prefers newest current attempt so Completed is not masked b
   const cycle={id:61,program_id:11,title:'Term 1',evaluation_label:'Term 1',status:'open'};
   const members=[{student_id:103,student_name:'All Done',grade_level:'3',section_name:'A'}];
   const rows=[
-    {id:501,student_id:103,status:'in_progress',is_current:true,academic_year_id:'2026',program_id:'11',evaluation_context_cycle_id:61},
-    {id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:'11',evaluation_context_cycle_id:61,reassessment:{required:false},actions:[]},
+    {id:501,student_id:103,status:'in_progress',is_current:true,academic_year_id:'2026',program_id:11,evaluation_context_cycle_id:61},
+    {id:502,student_id:103,status:'completed',is_current:true,academic_year_id:'2026',program_id:11,evaluation_context_cycle_id:61,reassessment:{required:false},actions:[]},
   ];
   const ctx={root,year:'2026',view:'assessments',params:new URLSearchParams('cycle_id=61&program_id=11'),can:()=>true,notify(){},
     api:async path=>{

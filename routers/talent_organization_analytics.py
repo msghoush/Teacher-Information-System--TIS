@@ -151,6 +151,9 @@ def _safe_overview_payload(
     metrics = {
         "programs_configured": _count_payload(closed, identities["programs_configured"]),
         "active_programs": _count_payload(closed, identities["active_programs"]),
+        # DISTINCT current Students (the only figure that may be labelled "Students").
+        "distinct_students": _count_payload(closed, identities["students"]),
+        # Membership grain: one row per Student per Cycle/Program ("Program participations").
         "frozen_eligible_memberships": _count_payload(closed, identities["frozen"]),
         "completion_coverage": _rate_payload(closed, identities["coverage_n"], identities["coverage_d"]),
         "required_period_execution": _rate_payload(closed, identities["period_n"], identities["period_d"]),
@@ -170,7 +173,8 @@ def _safe_overview_payload(
 
 @router.get("/overview")
 def organization_overview(
-    academic_year_id: int = Query(..., gt=0), db: Session = Depends(get_m10_organization_analytics_db),
+    academic_year_id: int = Query(..., gt=0), branch_id: Optional[int] = Query(None, gt=0),
+    db: Session = Depends(get_m10_organization_analytics_db),
     current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     policy=Depends(resolve_privacy_policy_provider),
@@ -185,13 +189,19 @@ def organization_overview(
 
     try:
         programs = svc.authorized_program_universe(db, context)
-        filters = svc.OrganizationAnalyticsFilters()
+        # Batch 1: the active/selected Branch scope is validated by the same
+        # backend authority as every other M10 route (never a client claim).
+        filters = svc.resolve_filters(db, context, {"branch_id": branch_id}, authorized_program_ids=programs)
         program_counts = svc.program_configuration_counts(db, context, authorized_program_ids=programs)
         population_query = svc.frozen_membership_query(db, context, filters, authorized_program_ids=programs)
         coverage_rows = svc.coverage_organization_total(db, population_query)
         population_count = sum(row.count for row in coverage_rows)
         completed_count = sum(row.count for row in coverage_rows if row.status == "completed")
         authoritative_population = population_count > 0
+        # Batch 1: DISTINCT current Students in the same authorized scope. The
+        # membership count above is one row per Student per Cycle/Program and
+        # must never be labelled "Students".
+        distinct_student_count = student_drill.count_distinct_students(population_query)
         candidate_rows = svc.candidate_membership_counts(db, context, population_query)
         identification_rows = svc.identification_membership_counts(db, context, population_query)
         period_rows = svc.required_period_execution_counts(db, context, authorized_program_ids=programs)
@@ -202,6 +212,7 @@ def organization_overview(
             "programs_configured": _identity(context, MetricCode.PROGRAMS_CONFIGURED, MeasureComponent.COUNT, MembershipGrain.PROGRAM_CONFIGURATION),
             "active_programs": _identity(context, MetricCode.ACTIVE_PROGRAMS, MeasureComponent.COUNT, MembershipGrain.PROGRAM_CONFIGURATION),
             "frozen": _identity(context, MetricCode.FROZEN_ELIGIBLE, MeasureComponent.COUNT, MembershipGrain.FROZEN_MEMBERSHIP),
+            "students": _identity(context, MetricCode.STUDENT_DRILL_POPULATION, MeasureComponent.COUNT, MembershipGrain.DISTINCT_STUDENT),
             "completed": _identity(context, MetricCode.COMPLETED, MeasureComponent.COUNT, MembershipGrain.FROZEN_MEMBERSHIP),
             "coverage_n": _identity(context, MetricCode.COMPLETION_COVERAGE, MeasureComponent.NUMERATOR, MembershipGrain.FROZEN_MEMBERSHIP),
             "coverage_d": _identity(context, MetricCode.COMPLETION_COVERAGE, MeasureComponent.DENOMINATOR, MembershipGrain.FROZEN_MEMBERSHIP),
@@ -211,12 +222,13 @@ def organization_overview(
         raw = {
             "programs_configured": program_counts.configured, "active_programs": program_counts.active,
             "frozen": population_count if authoritative_population else None,
+            "students": distinct_student_count if authoritative_population else None,
             "completed": completed_count if authoritative_population else None,
             "coverage_n": completed_count if authoritative_population else None,
             "coverage_d": population_count if authoritative_population else None,
             "period_n": period_n if period_d else None, "period_d": period_d if period_d else None,
         }
-        privacy_classes = {"programs_configured": "P1", "active_programs": "P1", "frozen": "P2", "completed": "P2", "coverage_n": "P2", "coverage_d": "P2", "period_n": "P1", "period_d": "P1"}
+        privacy_classes = {"programs_configured": "P1", "active_programs": "P1", "frozen": "P2", "students": "P2", "completed": "P2", "coverage_n": "P2", "coverage_d": "P2", "period_n": "P1", "period_d": "P1"}
         if candidate_rows is not None:
             identities["candidate"] = _identity(context, MetricCode.CANDIDATE_COUNT, MeasureComponent.COUNT, MembershipGrain.REVIEW_CANDIDATE_MEMBERSHIP)
             raw["candidate"] = sum(row.count for row in candidate_rows) if authoritative_population else None
@@ -252,7 +264,12 @@ def organization_overview(
         )
         observation.emit("success", program_count=len(programs))
         return response
-    except (svc.OrganizationAnalyticsError, PrivacyClosureError, KeyError, TypeError, ValueError) as exc:
+    except svc.OrganizationAnalyticsError as exc:
+        # A rejected filter (for example a Branch outside the authorized scope) is a
+        # client error, exactly like every sibling M10 route, never an opaque 500.
+        observation.emit("rejected", error_category=_route_error_category(exc.code))
+        return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)
+    except (PrivacyClosureError, KeyError, TypeError, ValueError) as exc:
         observation.emit("failed", error_category=_classify_exception(exc))
         return _error("organization_analytics_failed", "Organization analytics could not be produced.", 500)
     except Exception as exc:
@@ -448,6 +465,7 @@ def _b7_context(db, current_user, academic_year_id, availability_provider, obser
 @router.get("/program-portfolio")
 def organization_program_portfolio(
     academic_year_id: int = Query(..., gt=0), program_ids: Optional[list[int]] = Query(None),
+    branch_id: Optional[int] = Query(None, gt=0),
     db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
     availability_provider=Depends(svc.resolve_organization_analytics_availability_provider),
     breadth_policy=Depends(svc.resolve_organization_analytics_breadth_policy), policy=Depends(resolve_privacy_policy_provider),
@@ -458,8 +476,18 @@ def organization_program_portfolio(
     if policy is None:
         observation.emit("unavailable", privacy_outcome="provider_missing", error_category="privacy_policy_unavailable_failure")
         return _error("organization_analytics_unavailable", "Organization analytics is unavailable.", 503)
+    branch = None
+    if branch_id is not None:
+        # Batch 1: the Program Results view honors the selected/active Branch scope
+        # through the SAME authority as /branches/{id} (previously the parameter was
+        # sent by the client and silently ignored, returning organization-wide data).
+        branch_row = db.query(models.Branch.id, models.Branch.name).filter_by(id=branch_id, school_group_id=context.school_group_id).one_or_none()
+        if branch_row is None or (not context.all_branches and branch_id not in context.accessible_historical_branch_ids):
+            observation.emit("rejected", error_category="validation_error")
+            return _error("not_found", "Branch was not found.", 404)
+        branch = {"id": int(branch_row.id), "name": branch_row.name}
     try:
-        return _b7_response(db=db, context=context, policy=policy, breadth_policy=breadth_policy, program_ids=program_ids, branch=None, observation=observation)
+        return _b7_response(db=db, context=context, policy=policy, breadth_policy=breadth_policy, program_ids=program_ids, branch=branch, observation=observation)
     except svc.OrganizationAnalyticsError as exc:
         observation.emit("rejected", error_category=_route_error_category(exc.code))
         return _error(exc.code, exc.message, 413 if exc.code == "analytics_breadth_unavailable" else 400)

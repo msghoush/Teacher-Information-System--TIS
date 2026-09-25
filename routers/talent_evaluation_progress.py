@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 import talent_analytics_service as svc
@@ -34,9 +35,8 @@ def _scope(db, user):
 
 
 def _visible_branches(db, user):
-    if auth.can_access_all_branches(user):
-        return None
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Batch 1 closure: organization scope is bounded by the active global Branch.
+    return branch_scope.visible_branch_ids_or_none(db, user)
 
 
 def _fail_closed():
@@ -92,7 +92,7 @@ def branch_progress(program_id: int, academic_year_id: int, branch_id: int, requ
         return denied
     if policy is None:
         return _fail_closed()
-    if not auth.can_access_branch(db, user, branch_id):
+    if not auth.can_access_branch(db, user, branch_id) or not branch_scope.branch_within_ceiling(user, branch_id):
         return JSONResponse({"detail": "Branch was not found.", "code": "not_found"}, status_code=404)
     payload = progress_svc.build_branch_progress(db, ctx, branch_id=branch_id, visible_branch_ids=visible_branch_ids, policy=policy)
     return jsonable_encoder({"program_id": program_id, "academic_year_id": academic_year_id,

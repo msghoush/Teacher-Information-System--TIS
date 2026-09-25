@@ -97,7 +97,7 @@ def test_every_view_loads_each_script_global_its_render_path_needs_before_talent
     permissions(db, *set(item[1] for item in talent_ui.VIEWS.values()), 'talent_analytics.view_students')
     response = client.get(f'/talent/{view}')
     assert response.status_code == 200
-    scripts = re.findall(r'<script src="[^"]*/static/js/([^"?]+)"', response.text)
+    scripts = re.findall(r'<script src="[^"]*/static/js/([^"?]+)(?:\?[^"]*)?"', response.text)
     assert view in REQUIRED_SCRIPTS_BY_VIEW, f'declare the required script globals for the {view} view'
     # `defer` scripts execute in document order, so every dependency must precede talent.js.
     for asset in REQUIRED_SCRIPTS_BY_VIEW[view]:
@@ -238,7 +238,7 @@ def test_authorized_learner_profile_link_redirects_to_canonical_student_profile(
 
     from routers import students_ui
 
-    db.add(models.Student(id=1001, school_group_id=1, first_name='Alya', last_name='Learner', status='active'))
+    db.merge(models.Student(id=1001, school_group_id=1, first_name='Alya', last_name='Learner', status='active'))
     db.commit()
     permissions(db, 'talent_learner_profiles.view', 'students.view')
 
@@ -362,3 +362,57 @@ def test_primary_talent_navigation_lists_only_current_workflow_views():
     assert '"href": "/talent/reviews"' not in source
     for label in ('Student Assessments', 'Results & Analytics', 'Programs', 'Overview'):
         assert f'"label": "{label}"' in source
+
+
+# --- Deployment Acceptance Batch 1: global Branch context + never-hangs loading ----------
+
+
+def _tp_config(html):
+    import json
+    import re
+
+    return json.loads(re.search(r'<script type="application/json" id="tp-config">(.*?)</script>', html, re.S).group(1))
+
+
+def test_workspace_publishes_the_server_validated_active_branch(db, client):
+    permissions(db, 'talent_programs.view')
+    # Batch 1 closure: an organization actor's single-Branch global scope (the request's
+    # scope_branch_id, always set by get_current_user) is a hard ceiling and is
+    # published as tp-config.branch; the explicit global All Branches publishes none.
+    scoped = actor()
+    scoped.scope_branch_id = 10
+    client.app.dependency_overrides[get_current_user] = lambda: scoped
+    config = _tp_config(client.get('/talent/overview').text)
+    assert config['branch'] == 10 and config['branchName'] == 'North'
+    all_branches = actor()
+    all_branches.scope_branch_id = 10
+    all_branches.scope_all_branches = True
+    client.app.dependency_overrides[get_current_user] = lambda: all_branches
+    assert _tp_config(client.get('/talent/overview').text)['branch'] is None
+
+
+def test_workspace_never_publishes_a_branch_outside_the_actors_tenant(db):
+    app = FastAPI()
+    app.mount('/static', StaticFiles(directory='static'), name='static')
+    app.include_router(talent_ui.router)
+    foreign = actor()
+    foreign.scope_branch_id = 20  # a Branch of ANOTHER SchoolGroup ("Foreign")
+    app.dependency_overrides[get_db] = lambda: db
+    app.dependency_overrides[get_current_user] = lambda: foreign
+    permissions(db, 'talent_programs.view')
+    config = _tp_config(TestClient(app).get('/talent/overview').text)
+    assert config['branch'] is None and config['branchName'] is None
+
+
+def test_talent_assets_are_versioned_by_content_and_the_loader_has_a_watchdog(db, client):
+    import re
+
+    permissions(db, 'talent_programs.view')
+    html = client.get('/talent/overview').text
+    versioned = re.findall(r'/static/((?:js|css)/talent[^"?]*)\?v=([0-9a-f]{12})"', html)
+    assert len(versioned) >= 8
+    for asset, version in versioned:
+        assert version == talent_ui.talent_asset_version(asset), asset
+        assert client.get(f'/static/{asset}?v={version}').status_code == 200
+    # A static file that changes gets a new URL (no stale mixed-version cache).
+    assert 'data-server-loader' in html and 'LIMIT_MS = 15000' in html

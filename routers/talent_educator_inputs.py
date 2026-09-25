@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from auth import get_current_user
@@ -34,7 +35,8 @@ def _authorize(request, db, user, key):
 
 
 def _visible_branch_ids(db, user):
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Accessible Branches within the active global Branch ceiling (Batch 1 closure).
+    return branch_scope.visible_branch_ids(db, user)
 
 
 def _input_authorized(db, user, row):
@@ -42,7 +44,7 @@ def _input_authorized(db, user, row):
     # context stored on the Educator Input row itself (from Decision 8's
     # resolution) - never current Student Placement, so a later transfer never
     # reinterprets an already-recorded Educator Input's access.
-    if auth.can_access_all_branches(user):
+    if branch_scope.branch_scope_unrestricted(user):
         return True
     return row.branch_id in _visible_branch_ids(db, user)
 
@@ -163,7 +165,7 @@ def educator_inputs_list(request: Request, student_id: int | None = Query(None),
     if denied:
         return denied
     rows = list_inputs(db, school_group_id=group_id, student_id=student_id, program_id=program_id, current_only=True)
-    if not auth.can_access_all_branches(user):
+    if not branch_scope.branch_scope_unrestricted(user):
         visible = _visible_branch_ids(db, user)
         rows = [row for row in rows if row.branch_id in visible]
     return [input_payload(row) for row in rows]

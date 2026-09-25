@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import branding_storage
 import models
@@ -112,13 +113,9 @@ def programs_planning_branches(
             status_code=404,
         )
     query = db.query(models.Branch).filter_by(school_group_id=group_id)
-    if not auth.can_access_all_branches(user):
-        visible = {
-            row[0]
-            for row in auth.get_accessible_branch_query(db, user)
-            .with_entities(models.Branch.id).all()
-        }
-        query = query.filter(models.Branch.id.in_(visible or [-1]))
+    if not branch_scope.branch_scope_unrestricted(user):
+        # Selector options stay inside the active global Branch ceiling.
+        query = query.filter(models.Branch.id.in_(branch_scope.visible_branch_ids(db, user) or [-1]))
     return [{"id": row.id, "name": row.name} for row in query.order_by(models.Branch.name, models.Branch.id).all()]
 
 
@@ -145,13 +142,13 @@ def programs_planning_grades(request: Request, academic_year_id: int = Query(...
         return JSONResponse({"detail": "Academic Year is not available in your organization.", "code": "not_found"}, status_code=404)
     if branch_id is not None:
         branch = db.query(models.Branch).filter_by(id=branch_id, school_group_id=group_id).one_or_none()
-        if branch is None or not auth.can_access_branch(db, user, branch_id):
+        if branch is None or not auth.can_access_branch(db, user, branch_id) or not branch_scope.branch_within_ceiling(user, branch_id):
             return JSONResponse({"detail": "Branch is not available in your authorized scope.", "code": "not_found"}, status_code=404)
         return list_operational_planning_grades(db, branch_id, academic_year_id)
-    if auth.can_access_all_branches(user):
+    if branch_scope.branch_scope_unrestricted(user):
         branch_ids = [row[0] for row in db.query(models.Branch.id).filter_by(school_group_id=group_id).all()]
     else:
-        branch_ids = [row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()]
+        branch_ids = sorted(branch_scope.visible_branch_ids(db, user))
     combined = set()
     for one_branch_id in branch_ids:
         combined.update(list_operational_planning_grades(db, one_branch_id, academic_year_id))
@@ -166,7 +163,7 @@ def programs_planning_sections(request: Request, academic_year_id: int = Query(.
         return denied
     year = db.query(models.AcademicYear).filter_by(id=academic_year_id, school_group_id=group_id).one_or_none()
     branch = db.query(models.Branch).filter_by(id=branch_id, school_group_id=group_id).one_or_none()
-    if year is None or branch is None or not auth.can_access_branch(db, user, branch_id):
+    if year is None or branch is None or not auth.can_access_branch(db, user, branch_id) or not branch_scope.branch_within_ceiling(user, branch_id):
         return JSONResponse({"detail": "Planning context is not available in your authorized scope.", "code": "not_found"}, status_code=404)
     normalized = str(grade_level or "").strip().upper()
     items = [row for row in list_operational_planning_sections(db, branch_id, academic_year_id)
@@ -235,7 +232,9 @@ def programs_summaries(
         payload["annual"] = None if annual is None else {
             "academic_year_id": annual.academic_year_id,
             "is_enabled": annual.is_enabled,
-            "eligible_grade_levels": annual.eligible_grade_levels or [],
+            # The model stores the Grade list as a CSV column; there is no
+            # ``eligible_grade_levels`` attribute (this raised AttributeError -> 500).
+            "eligible_grade_levels": [grade for grade in (annual.eligible_grade_levels_csv or "").split(",") if grade],
         }
         payload["assessment_type"] = (
             "Numeric + rubric" if framework is not None and framework.id in numeric_frameworks

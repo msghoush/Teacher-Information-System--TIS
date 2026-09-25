@@ -101,17 +101,22 @@ def test_force_delete_student_history_removes_protected_academic_history(databas
         effective_from=datetime(2026, 9, 1),
     )
     db.commit()
+    # Capture identifiers while the instances are still live: after the commit that
+    # follows the force delete, touching ``student.id``/``placement.id`` on the now
+    # deleted (expired) instances raised ObjectDeletedError. That was a test defect,
+    # not a product defect - the deletion itself is correct.
+    student_id, placement_id = student.id, placement.id
 
     with pytest.raises(StudentAcademicError) as blocked:
-        delete_student(db, school_group_id=1, student_id=student.id)
+        delete_student(db, school_group_id=1, student_id=student_id)
     assert blocked.value.code == "student_delete_blocked"
     db.rollback()
 
-    force_delete_student_history(db, school_group_id=1, student_id=student.id)
+    force_delete_student_history(db, school_group_id=1, student_id=student_id)
     db.commit()
-    assert db.get(models.Student, student.id) is None
-    assert db.query(models.StudentAcademicPlacement).filter_by(id=placement.id).count() == 0
-    assert db.query(models.StudentAudit).filter_by(student_id=student.id, school_group_id=1).count() == 0
+    assert db.get(models.Student, student_id) is None
+    assert db.query(models.StudentAcademicPlacement).filter_by(id=placement_id).count() == 0
+    assert db.query(models.StudentAudit).filter_by(student_id=student_id, school_group_id=1).count() == 0
 
 
 def test_student_bulk_delete_is_atomic_when_any_selected_student_is_protected(database):

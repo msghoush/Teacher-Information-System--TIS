@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from auth import get_current_user
@@ -23,9 +24,7 @@ def learner_profile(student_id: int, request: Request, include_competencies: boo
     candidate_visible = auth.has_permission(db, user, "talent_review_candidates.view", school_group_id=group_id)
     identification_visible = auth.has_permission(db, user, "talent_official_identifications.view", school_group_id=group_id)
     educator_visible = auth.has_permission(db, user, "talent_educator_inputs.view", school_group_id=group_id)
-    visible_branches = None if auth.can_access_all_branches(user) else {
-        row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()
-    }
+    visible_branches = branch_scope.visible_branch_ids_or_none(db, user)
     try:
         return build_learner_profile(db, school_group_id=int(group_id), student_id=student_id,
                                      visible_branch_ids=visible_branches, include_competencies=include_competencies,

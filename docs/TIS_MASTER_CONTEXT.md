@@ -1,11 +1,61 @@
 ---
 title: TIS Master Context
-documentation_version: 4.12
-last_updated: 2026-09-24
+documentation_version: 4.14
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Agent 3 Talent product transformation (2026-09-25)
+
+Overview is the executive entry point; Results & Analytics is the six-section
+aggregate workspace, not another Student roster. A bounded backend projection
+provides shared filters, raw-population completion, canonical M17 Classification,
+eight-category Learning Style plus Unassigned, Program-bound Rubric Indicators,
+selected comparisons and compatible Evaluation Period context. Results across
+different Programs/frameworks/scales never become one Talent score.
+
+The owner clarified the privacy boundary: individually authorized operational
+Student records retain exact permitted fields; aggregate Classification retains
+primary, complementary, fail-closed and reconstruction protection. Classification-
+filtered Learning Style is protected whenever it could disclose the protected
+cohort count through totals, buckets or percentages. The backend privacy provider
+decides publishability; the browser has no threshold authority. This supersedes
+the unconditional aggregate exception for this Classification-filtered case only.
+See the Agent 3 amendment in ADR 0031.
+
+
+## Global Branch Is A Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+The active global Branch bounds Talent & Potential: it is an upper ceiling, not a
+default. The ceiling is the intersection of the actor's authorization and the active
+global scope (`talent_branch_scope.talent_branch_ceiling`, from the authenticated
+request user), composed into the existing visible-Branch resolution of every Talent
+read route, so a stale or hand-crafted `branch_id` naming another Branch is rejected
+and an omitted Branch resolves to the ceiling. "All Branches" inside Talent means all
+Branches permitted by the current global scope; only an explicit global "All Branches"
+(the `branch_scope=all` marker, `user.scope_all_branches`, offered on `/talent` pages
+only) exposes All Branches, the Organization Talent Map and cross-Branch comparison.
+Supersedes the Batch 1 "default only" wording. Details and the coverage table are in
+`docs/PROJECT_STATE.md`.
+
+## Talent Current-Student Integrity, Branch Scope And Loading (Deployment Acceptance Batch 1, 2026-09-24)
+
+Talent & Potential counts only Students that currently exist. The Overview
+"Students participating" figure is the DISTINCT current-Student count
+(`distinct_students`); the previous 63-vs-9 discrepancy was the frozen-membership
+row count (one per Student per Cycle/Program) labelled as Students. Membership
+figures are "Program participations". Permanent Student deletion removes every
+Student-owned Talent row (ten tables, one transaction) and every current analytics
+read additionally requires the Student to exist, so an orphan can never inflate a
+figure. The active global Branch is the default Branch scope of Talent (backend
+authorization unchanged); Talent list endpoints no longer scale per Assessment row;
+Talent assets are cache-busted and a loader watchdog prevents an endless generic
+loader. See PROJECT_STATE for the metric grain table, the FK audit, measurements and
+the open owner decisions (delete permission model, inactive Students, Talented
+Student headline). Supersedes the M15 reading that the Student-vs-Talent count
+difference was only a population-scope distinction.
 
 ## Learning Style Distribution (Deployment Acceptance Correction C, 2026-09-24)
 

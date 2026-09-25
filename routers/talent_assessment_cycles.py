@@ -4,13 +4,22 @@ from fastapi import APIRouter, Body, Depends, Query, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from academic_grade import format_section_display
 from talent_operational_context import student_identity_metadata
+from talent_request_permissions import branch_in_authorized_scope
+from talent_classification_service import CLASSIFICATION_LABELS
+from talent_results_analytics_service import build_bucket_projection
+from talent_analytics_privacy import resolve_privacy_policy_provider
+from talent_learning_style_privacy import learning_style_projection, classification_cohort_publishable
+from talent_read_batch import read_batch
+from talent_student_assessment_service import prime_assessment_batch
 from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
@@ -82,7 +91,8 @@ def _run(db, work, *, created=False):
 
 
 def _visible_branch_ids(db, user):
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Accessible Branches within the active global Branch ceiling (Batch 1 closure).
+    return branch_scope.visible_branch_ids(db, user)
 
 
 def _student_names(db, group_id, student_ids):
@@ -155,7 +165,14 @@ def cycles_update(cycle_id: int, request: Request, payload: dict = Body(...), db
 
 
 @router.get("/{cycle_id}/eligible-students")
-def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def cycles_eligible_students(cycle_id: int, request: Request,
+                            branch_id: int | None = Query(None, gt=0),
+                            search: str | None = Query(None, max_length=120),
+                            grade_level: str | None = Query(None, max_length=8),
+                            section_name: str | None = Query(None, max_length=20),
+                            assessment_state: str | None = Query(None, max_length=32),
+                            classification: str | None = Query(None, max_length=32),
+                            db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Current assessable Students for an Evaluation context (ADR 0035).
 
     This is live Academic Placement eligibility, not a frozen roster and not a
@@ -170,12 +187,77 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         population = current_placements_for_assessment(db, cycle=cycle, effective_at=datetime.utcnow())
     except TalentAssessmentCycleError as exc:
         return _error(exc)
-    organization = _organization_authorized(user)
+    organization = branch_scope.branch_scope_unrestricted(user)
     if not organization:
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
+    if branch_id is not None:
+        # Explicit Branch scope (the Talent workspace defaults to the global active
+        # Branch). Authorized by the same backend authority as every other Branch
+        # filter: never a Branch outside the actor's tenant/authorized set.
+        if not branch_in_authorized_scope(db, user, group_id, branch_id):
+            return JSONResponse({"detail": "Branch is outside your authorized scope.", "code": "invalid_filter"}, status_code=403)
+        population = [row for row in population if row["branch_id"] == branch_id]
+    # Stable authorized metadata precedes search/state/Classification filters.
+    # Selecting a protected cohort must not remove options or reveal its shape.
+    filter_options = {
+        "grades": sorted({str(row['grade_level']) for row in population if row.get('grade_level')}),
+        "sections": sorted({str(row['section_name']) for row in population
+                            if row.get('section_name') and (not grade_level or row.get('grade_level') == grade_level)}),
+    }
     names = _student_names(db, group_id, [row["student_id"] for row in population])
     identity_metadata = student_identity_metadata(db, group_id, [row["student_id"] for row in population])
+    assessments = db.query(models.TalentStudentAssessment).filter(
+        models.TalentStudentAssessment.school_group_id == group_id,
+        func.coalesce(models.TalentStudentAssessment.evaluation_context_cycle_id,
+                      models.TalentStudentAssessment.cycle_id) == cycle.id,
+        models.TalentStudentAssessment.is_current.is_(True),
+        models.TalentStudentAssessment.student_id.in_([row["student_id"] for row in population] or [-1]),
+    ).order_by(models.TalentStudentAssessment.id).all()
+    assessment_by_student = {row.student_id: row for row in assessments}
+    classified_by_student = {}
+    def state_for(student_id):
+        return getattr(assessment_by_student.get(student_id), "status", "not_started")
+    normalized_search = (search or "").strip().lower()
+    valid_states = {"not_started", "in_progress", "completed", "incomplete", "insufficient_evidence"}
+    if assessment_state and assessment_state not in valid_states:
+        return JSONResponse({"detail": "assessment_state is not recognized.", "code": "invalid_filter"}, status_code=400)
+    if classification and classification not in CLASSIFICATION_LABELS:
+        return JSONResponse({"detail": "classification is not recognized.", "code": "invalid_filter"}, status_code=400)
+    # Classification is intentionally not re-derived in the browser.  The
+    # roster can only narrow to a classification that the authoritative
+    # assessment projection supplied; unavailable/non-completed rows never
+    # satisfy this filter.
+    completed = [row for row in assessment_by_student.values() if row.status == "completed"]
+    from talent_classification_service import assessment_classification
+    with read_batch(db):
+        prime_assessment_batch(db, completed)
+        classified_by_student = {
+            row.student_id: result.get("classification")
+            for row in completed
+            if (result := assessment_classification(db, row)) and result.get("available")
+        }
+    population = [row for row in population if (
+        (not grade_level or row.get("grade_level") == grade_level)
+        and (not section_name or row.get("section_name") == section_name)
+        and (not normalized_search or normalized_search in " ".join(str(names.get(row["student_id"], {}).get(key, "")) for key in ("first_name", "father_name", "last_name", "student_name")).lower())
+        and (not assessment_state or state_for(row["student_id"]) == assessment_state)
+    )]
+    policy = resolve_privacy_policy_provider()
+    raw_base = {label: 0 for label in CLASSIFICATION_LABELS}
+    for member in population:
+        label = classified_by_student.get(member["student_id"])
+        if label in raw_base:
+            raw_base[label] += 1
+    base_projection = build_bucket_projection(
+        name="student_assessment_classification_scope", raw_counts=raw_base, policy=policy,
+    ) if policy is not None else {"state": "restricted"}
+    population = [row for row in population if not classification or classified_by_student.get(row["student_id"]) == classification]
+    raw_classification = {label: 0 for label in CLASSIFICATION_LABELS}
+    for row in population:
+        label = classified_by_student.get(row['student_id'])
+        if label in raw_classification:
+            raw_classification[label] += 1
     branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
     school_group = db.get(models.SchoolGroup, group_id)
     workspace_uuid = school_group.workspace_uuid if school_group else None
@@ -193,6 +275,17 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         }
         for row in population
     ]
+    # Learning Style is a governed eight-category learner-profile distribution
+    # over this exact, already-authorized roster population.  It is not the
+    # Students-page organization distribution and is never calculated by JS.
+    style_rows = [{"learning_style": identity_metadata.get(row["student_id"], {}).get("learning_style")} for row in population]
+    classification_distribution = build_bucket_projection(
+        name="student_assessment_classification",
+        raw_counts={label: raw_classification.get(label, 0) for label in CLASSIFICATION_LABELS},
+        policy=policy,
+    ) if policy is not None else {"state": "restricted", "total": {"state": "restricted", "value": None}, "buckets": []}
+    if not classification_cohort_publishable(base_projection, classification):
+        classification_distribution = {"state": "restricted", "total": {"state": "restricted", "value": None}, "buckets": []}
     return jsonable_encoder({
         "cycle_id": cycle.id,
         "eligibility_state": "live_academic_placement",
@@ -200,6 +293,14 @@ def cycles_eligible_students(cycle_id: int, request: Request, db: Session = Depe
         "is_filtered": not organization,
         "count": len(members),
         "members": members,
+        "filter_options": filter_options,
+        "insights": {
+            "learning_style": learning_style_projection(
+                style_rows, classification=classification, classification_projection=base_projection,
+                filtered_classification_projection=classification_distribution,
+            ),
+            "classification": classification_distribution,
+        },
     })
 
 
@@ -212,7 +313,7 @@ def cycles_preview(cycle_id: int, request: Request, db: Session = Depends(get_db
         cycle, population = preview_population(db, school_group_id=group_id, cycle_id=cycle_id)
     except TalentAssessmentCycleError as exc:
         return _error(exc)
-    organization = _organization_authorized(user)
+    organization = branch_scope.branch_scope_unrestricted(user)
     if not organization:
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
@@ -296,7 +397,7 @@ def cycles_population(cycle_id: int, request: Request, db: Session = Depends(get
         cycle, rows = frozen_population(db, school_group_id=group_id, cycle_id=cycle_id)
     except TalentAssessmentCycleError as exc:
         return _error(exc)
-    organization = _organization_authorized(user)
+    organization = branch_scope.branch_scope_unrestricted(user)
     if not organization:
         visible = _visible_branch_ids(db, user)
         rows = [row for row in rows if row.branch_id in visible]

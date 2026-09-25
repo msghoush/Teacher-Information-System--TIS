@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from auth import get_current_user
@@ -43,7 +44,8 @@ def _organization_authorized(user):
 
 
 def _visible_branch_ids(db, user):
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Accessible Branches within the active global Branch ceiling (Batch 1 closure).
+    return branch_scope.visible_branch_ids(db, user)
 
 
 def _member_branch(db, school_group_id, cycle_population_member_id):
@@ -54,7 +56,7 @@ def _member_branch(db, school_group_id, cycle_population_member_id):
 
 
 def _identification_authorized(db, user, row):
-    if auth.can_access_all_branches(user):
+    if branch_scope.branch_scope_unrestricted(user):
         return True
     branch_id = _member_branch(db, row.school_group_id, row.cycle_population_member_id)
     return branch_id is not None and branch_id in _visible_branch_ids(db, user)
@@ -104,7 +106,7 @@ def official_identifications_list(request: Request, cycle_id: int | None = Query
     if denied:
         return denied
     rows = list_identifications(db, school_group_id=group_id, cycle_id=cycle_id)
-    if not auth.can_access_all_branches(user):
+    if not branch_scope.branch_scope_unrestricted(user):
         visible = _visible_branch_ids(db, user)
         member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
             models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,

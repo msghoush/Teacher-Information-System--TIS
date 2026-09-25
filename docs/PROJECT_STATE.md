@@ -1,12 +1,336 @@
 ---
 title: TIS Project State
-documentation_version: 5.21
-last_updated: 2026-09-24
+documentation_version: 5.23
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
 
+## Talent product transformation (Agent 3, 2026-09-25)
+
+Implemented on dev, not deployed or merged. This extends the preserved executive
+Overview work into an aggregate-only Results & Analytics workspace: completion
+and participation, results and Classification, Learning Style, Program-bound
+Rubric Indicators, ordered Evaluation Periods, and selected comparisons.
+The shared backend dashboard projection owns filters and all numerical values;
+the frontend only renders its safe semantic states. Comparisons select at most
+six authorized Branch/Grade/Section/Program/Period groups. Totals use underlying
+Evaluation participations, not averages of Branch rates. Distinct Student and
+participation grains are labelled separately. Incompatible Program/framework
+results are not pooled. Requests exceeding 5,000 scoped population rows fail
+explicitly and require a narrower Branch; there is no silent truncation.
+
+The owner-approved privacy amendment fixes Agent 2's Classification-filtered
+Learning Style leak: the original selected Classification bucket and denominator
+must be visible after provider primary/complementary suppression before either
+filtered aggregate can publish. Otherwise Learning Style returns a protected
+semantic result with no total, buckets, percentages or chart magnitudes. Individual
+authorized roster records retain exact identity, state, Classification and style;
+aggregate suppression never removes an individually authorized Student row.
+Tenant, Student visibility and the global Branch ceiling remain mandatory.
+
+Overview retains its independent headline projection and adds shared charts.
+Programs now uses searchable cards without normal lifecycle-status presentation.
+Bar/percentage and applicable pie/doughnut/trend modes retain exact accessible
+tables and native keyboard controls; nonvisible cells have no numeric geometry,
+tooltips, datasets or ARIA values. Bundles remain surface-specific, bounded reads
+retain cancellation/generation guards, and old duplicate rubric reads are removed.
+The dashboard uses the existing read-only repeatable snapshot dependency.
+No schema, migration, permission, timetable worker or local database change.
+
+Recovery completion (same day): the interrupted local Agent 3 worktree was audited
+and completed. Corrections: the generic "Protected for privacy" copy that had
+re-entered chart and dashboard scripts was removed again (M18a); a non-visible
+cell now reads "Unavailable", and only the backend reason
+`classification_cohort_protected` produces the Classification-cohort explanation;
+a missing Student-view permission has its own value-free message. The Program
+summary Finish Setup control was inert (the summary path returned before click
+binding) and was shown for incomplete setups; it is now bound and shown only for
+a complete draft setup. Roster avatars and period icons use initials and inline SVG
+instead of emoji. A Talent visual system layer (header band, KPI tiles, chart
+cards, colour-controlled Program cards, one primary/secondary/destructive action
+hierarchy, empty/loading/error states, responsive, reduced-motion and
+forced-colors rules) was added in `talent-experience.css`. Visual claims are
+structurally verified only; no browser review was performed. The dashboard reuses
+the current-Student, classification, assessment and privacy authorities and its
+distinct-Student figure is tested equal to Overview's. No schema, migration,
+permission or local database change; Web Service only, no Workflow change.
+
+## Student Assessment Filtered Insights (Agent 2, 2026-09-25)
+
+**Status: implemented on `dev` only; not deployed or merged. No schema,
+migration, permission, or `tis.db` change.** The Student Assessment roster now
+uses request-backed search, Grade, Section, Assessment-state, Classification and
+existing Branch ceiling filters. `GET /api/talent/assessment-cycles/{cycle_id}/eligible-students`
+applies the active global Branch ceiling before every filter, rejects invalid state
+or classification values, and returns the exact filtered roster population plus
+backend-produced summaries. Classification is the current completed M17 result
+only, uses the canonical service and its existing privacy projection, and remains
+Exceptional-only for Talented presentation. Learning Style is the approved eight
+categorical values plus Unassigned over this roster population; it is never the
+deprecated four-dimension profile or the Students-page organization aggregate.
+The browser renders supplied values and accessible tables/progress labels; it does
+not calculate classifications or distributions. The former DOM-only roster filter
+is no longer attached.
+
+
+## Batch 1 Closure - The Global Branch Is A Hard Talent Scope (2026-09-25)
+
+**Status: implemented on `dev` only; not deployed, not merged. Web Service only
+(no worker/timetable/workflow change). No schema, migration, permission or `tis.db`
+change. Frontend verified only with the DOM-stub harness and Python route/template
+tests, not in a real browser.**
+
+**Correction (supersedes the Batch 1 wording below).** The Batch 1 sections state
+that the active global Branch is only the workspace *default* and that an
+organization actor may widen to all Branches from inside Talent (`branch_scope=all`).
+That is withdrawn. Owner decision: **the global Branch is a HARD upper ceiling for
+every Talent page/API/filter.** A single-Branch global scope (for example one of two
+sibling Branches) -> Talent shows that Branch only; an internal "All Branches" choice
+inside Talent can never exceed the global scope. Only an explicit global "All
+Branches" (organization-wide) scope lets Talent expose All Branches, the Organization
+Talent Map and cross-Branch comparison.
+
+**Finding that shaped the design.** Before this closure there was no global "All
+Branches" state at all: every tenant user always resolves to one Branch
+(`get_current_user` -> `user.scope_branch_id`), and the sidebar switcher lists
+Branches only. A ceiling taken from `scope_branch_id` alone would have removed
+organization-wide Talent for every organization user. The closure therefore adds an
+explicit organization-wide marker, scoped to Talent: the sidebar switcher shows
+"All Branches (Talent & Potential organization-wide)" only on `/talent` pages;
+`POST /scope/branch` with `branch_id=all` sets the `branch_scope=all` cookie (only for
+an actor who `can_access_all_branches`) and leaves the `branch_id` cookie untouched,
+so every other module keeps resolving its single working Branch exactly as before;
+choosing a specific Branch, switching organization, login and logout clear it.
+`get_current_user` exposes it as `user.scope_all_branches`.
+
+**Enforcement (server-side, one helper).** `talent_branch_scope.py`:
+`talent_branch_ceiling(user)` = the single Branch id an actor is confined to in Talent,
+or `None`. It is the INTERSECTION of the actor's authorization and the active global
+scope: organization/global actor with a single-Branch scope -> that Branch;
+organization actor with `scope_all_branches`, or a platform actor with no Branch
+selected -> no extra ceiling; Branch-limited actor -> no extra ceiling (their own
+Branch is already the only accessible one). It reads the authenticated request user
+(never a client parameter). `visible_branch_ids` / `visible_branch_ids_or_none` /
+`branch_scope_unrestricted` / `branch_within_ceiling` compose the ceiling into the
+existing visible-Branch resolution, so every route inherits it and there is no second
+authorization system. A Branch outside the ceiling is treated exactly like a Branch
+outside the actor's authorization (same 400/403/404 conventions as the sibling routes);
+an omitted Branch resolves to the ceiling, never to every Branch of the organization.
+
+| Surface | Ceiling enforced server-side | How |
+| --- | --- | --- |
+| `organization-analytics` overview, talent-map, program-portfolio, branches/{id}, participation-overlap, longitudinal, students (drill) | yes | `talent_org_intelligence_service.resolve_access_context`: `all_branches` false + `accessible_historical_branch_ids` = {ceiling}; every population query, filter validation, Branch list and Branch existence check reads it |
+| `analytics/...` context, overview, rubric/kpi distribution, competencies, breakdowns, period-comparison, students | yes | `routers/talent_analytics._visible_branches` -> helper; population query + `resolve_filters` branch scope |
+| `results-analytics` classification, talented | yes | `_visible_branches` -> helper |
+| `results-analytics` learning-style | yes | route clamps `branch_id` to the ceiling (other Branch -> 403 `invalid_filter`), then the existing `resolve_population`; the Students module is unchanged |
+| `evaluation-progress` student, branch/{id}, organization, branch-comparison | yes | `_visible_branches` -> helper; `branches/{id}` also requires `branch_within_ceiling` (404) |
+| `assessments` list and per-Assessment authorization, start | yes | Branch filters use `visible_branch_ids` / `branch_scope_unrestricted` |
+| `assessment-cycles` eligible-students, preview, population | yes | same; explicit `branch_id` via `branch_in_authorized_scope` (ceiling-aware, 403) |
+| `learner-profiles/{id}` | yes | `visible_branch_ids_or_none` (profile shows only records inside the ceiling; 404 if none) |
+| `review-candidates`, `official-identifications`, `educator-inputs` lists and per-record authorization | yes | same helper |
+| `programs/planning-branches`, `planning-grades`, `planning-sections` (selector option lists) | yes | Branch list limited to the ceiling; other Branch -> 404 |
+| `/talent/{view}` `tp-config` | presentational | publishes the locked Branch (empty only for global All Branches) |
+
+**Client.** `static/js/talent.js`: `config.branch` is now a ceiling. When set,
+`reconcileBranchScope` forces `branch_id` to it and deletes `branch_scope`
+(stale/hand-edited URLs and `branch_scope=all` cannot widen), the Branch selector
+offers only that Branch (no All Branches), `applyContext` cannot choose another
+Branch, and `qs()` clamps any `branch_id` it serialises. With an empty
+`config.branch` (global All Branches) All Branches, the Talent Map and individual
+Branch comparison behave exactly as before. Acceptance A loader hardening and
+section isolation are unchanged.
+
+**Deletion / inactive Students / Talented KPI (owner decisions, unchanged).** No
+permission was widened; `force_delete_student_history` (the already-authorized
+history-delete path) still removes every Student-owned Talent table and the existing
+deletion tests were re-run. Bulk-delete history/force behaviour is out of scope.
+ADR 0039 status semantics unchanged. The Talented KPI keeps the honest "Talented
+results" grain; no distinct-Student Talented metric was invented.
+
+Tests: `tests/test_talent_branch_hard_scope.py` (real tenants/Branches: mirror
+across every read surface, global All Branches keeps organization comparison,
+stale explicit Branch rejected, Branch-limited actor and tenant isolation unchanged,
+`tp-config`), `tests/talent_branch_scope_and_metrics.test.cjs` (B3/B4/B6 re-pinned,
+B6b added). Batch 1 tests that pinned "default, overridable" semantics were updated
+deliberately (the shared `World` fixture's org actor now has the explicit global
+All Branches scope).
+
+**Not verified / residual.** No real browser. Another already-open tab keeps its own
+URL until reloaded but the server ceiling applies to every request. The
+`branch_scope=all` marker is a per-browser cookie; it only lifts the Talent ceiling
+and never widens authorization. Offering the All Branches option on other modules'
+switchers is not done (out of scope).
+
+
+## Deployment Acceptance Batch 1 - Data Correctness, Scope Integrity, Student Deletion And Loading (2026-09-24)
+
+**Status: implemented on `dev` only; not deployed and not merged to `master`.
+Whether production now shows the corrected figures and loads reliably needs
+production verification after a deploy; production infrastructure cannot be
+measured from the development environment. Web Service only (no worker
+contract, no timetable change) - the separate `tis-timetable-workflow`
+revision is unaffected. No schema, migration, permission or `tis.db` change.
+Frontend verified only with a DOM-stub harness and Python route/template tests;
+not exercised in a real browser.**
+
+Owner rule that governs this batch: **Talent & Potential operates from the
+Students that currently exist in TIS.** Only current Students and their valid
+current Talent data may contribute to any current Talent figure (counts,
+participation, completion, Classification, Talented, distributions,
+percentages, denominators, trends). This supersedes the M15 reading that the
+Student-vs-Talent count difference was purely a population-scope distinction:
+the headline was a different *grain*, and orphan/historical rows must never
+count.
+
+**Root cause of "Students participating = 63 while 9 Students exist".** The
+Overview headline `frozen_eligible_memberships` (labelled "Students
+participating" in `static/js/talent.js`) is the frozen-membership row count:
+`talent_org_intelligence_service.frozen_membership_query` returns one
+`TalentAssessmentCyclePopulationMember` row per Student per Cycle/Program (open
+or closed), so, for example, 9 Students spread over 7 open or closed
+Program/Cycle contexts is 63 rows (the exact production composition cannot be
+observed from the development environment; the mechanism is reproduced by
+`tests/test_talent_batch1_data_scope.py`). `MetricCode.FROZEN_ELIGIBLE` has always been defined at
+`MembershipGrain.FROZEN_MEMBERSHIP`; only the label called it Students. The
+population query also never checked that the Student still exists.
+
+**Fix.** (1) `talent_current_students.current_student_exists` (correlated
+EXISTS on the same SchoolGroup) is composed into every governed Talent
+population read: `talent_analytics_service.population_query`,
+`talent_org_intelligence_service.frozen_membership_query`, the Evaluation
+Progress Branch/Organization reads and `list_assessments`, so an orphan or
+deleted Student's row can never inflate a count, denominator or result. Student
+`status` (active/inactive) is not a Talent population filter (ADR 0039 keeps
+eligibility independent of it). (2) `/api/talent/organization-analytics/overview`
+adds `distinct_students`: DISTINCT current Students in the authorized scope
+(`talent_org_student_drill.count_distinct_students`, the existing distinct-Student
+authority, published through the same B2 privacy pipeline at class P2 using the
+existing `student_drill_population`/`count`/`distinct_student` coordinate - no new
+MetricCode or MembershipGrain; see ADR 0044 Batch 1 amendment). The overview also
+accepts an authorized `branch_id`. (3) Labels: "Students participating" is bound
+only to `distinct_students`; the membership figures are "Program
+participations"; `completed` is "Assessments completed"; the Talented card counts
+current completed assessment results, so it reads "Talented (Exceptional)
+results" (a Talented *Student* rule across several Periods would need a governed
+Period-selection rule and is not invented here).
+
+**Metric grain table** (A = distinct current Students, B = participation/
+membership rows, C = assessment/result rows):
+
+| Metric | Label before | Grain before | Label after | Grain after | Authority |
+| --- | --- | --- | --- | --- | --- |
+| Overview headline Students | "Students participating" (63) | B | "Students participating" (9) | A | `organization_overview` -> `count_distinct_students` |
+| `frozen_eligible_memberships` | "Students participating" | B | "Program participations" | B | `coverage_organization_total` |
+| `frozen_eligible` (Program card, Talent Map, Longitudinal) | "Students participating" | B | "Program participations" | B | `coverage_by_program_*`, `talent_org_talent_map` |
+| `completed` | "Assessed" | B | "Assessments completed" | B | coverage rows |
+| `completion_coverage`, `assessment_started`, `started_coverage` | unchanged | ratio/count of B | unchanged | B | valid membership denominators, deliberately unchanged |
+| `participation_overlap` diagonal | "Distinct participating Students" | A | unchanged | A | `participation_overlap_counts` |
+| Student drill list | Students | A | unchanged | A | `fetch_student_rows` |
+| Classification / Talented | "Talented (Exceptional) Students" | C | "Talented (Exceptional) results" | C | `talent_results_analytics_service` |
+| Learning Style distribution | Students | A | unchanged | A | `student_learning_style_analytics` |
+| Evaluation Period / Branch comparison | results | C | unchanged | C | `talent_evaluation_progress_service` |
+| Rubric / competency distribution | results | C | unchanged | C | `routers/talent_analytics.py` |
+
+**Student deletion completeness (exhaustive FK audit).** Ten tables carry a
+`student_id` or a foreign key to `students`: `student_academic_placements`,
+`student_audits`, `student_external_identifiers`,
+`talent_assessment_cycle_population_members`, `talent_student_assessments`,
+`talent_student_competency_results`, `talent_assessment_audits`,
+`talent_review_candidates`, `talent_official_identifications`,
+`talent_educator_inputs`; no other table reaches a Student even transitively.
+`force_delete_student_history` already removed all ten in one FK-safe transaction;
+the list is now the exported `STUDENT_OWNED_MODELS` and is locked to the ORM
+metadata by `tests/test_student_delete_completeness_batch1.py`, so a future
+Student-owned table cannot be added without being deleted. Nothing is retained
+(no historical retention store) and nothing orphaned can feed current analytics
+(the defensive EXISTS above). The permission model is unchanged: normal Delete and
+Bulk Delete stay blocked while Placement/Talent history exists
+(`students.delete`/`students.bulk_delete`); only `students.force_delete_history`
+removes Talent history. Deleting 2 of 10 Students recomputes distinct Students,
+memberships, Classification, Talented, Learning Style, roster, drill, Branch and
+Grade projections from the remaining 8 (`tests/test_talent_batch1_data_scope.py`).
+The historical `test_student_academic_foundation` ObjectDeletedError was a test
+defect (reading `.id` of a just-deleted instance), fixed in the test.
+
+**Global Branch context.** *(Correction 2026-09-25: the "default only" / "explicit
+All Branches" wording in this paragraph is superseded - the global Branch is a hard
+Talent ceiling; see "Batch 1 Closure - The Global Branch Is A Hard Talent Scope".)*
+Root cause: the sidebar Branch selector only sets the
+session scope Branch; Talent never read it. All-Branch (Organization) actors got
+every Branch's Students on every Talent page unless a per-view Branch filter was
+chosen, and `/program-portfolio` silently ignored the `branch_id` the Results
+view sent. Fix: `routers/talent_ui.py` validates the active Branch (a Branch of
+the actor's tenant that they can access) and renders it as `tp-config.branch`;
+`static/js/talent.js` `reconcileBranchScope` makes it the default Branch scope of
+every Student-data view, drops any Branch/Grade/Section carried by a URL minted
+under a different active Branch (`scope_branch_id` marker), and honors an explicit
+"All Branches" choice (`branch_scope=all`). The Branch selector is available on
+Overview, Assessments, Results, Program Results, Talent Map, Students Across
+Programs, Students and Progress Over Time. Backend authority is unchanged and
+authoritative: every Branch filter is validated (a foreign-tenant or unauthorized
+Branch is rejected, never widened) - added `branch_id` to the Overview, Program
+Results (`/program-portfolio`, same authority as `/branches/{id}`) and the
+eligible-students roster, and the rubric read now carries the Branch. Residual
+risk: another already-open tab keeps its own URL scope until reloaded.
+
+**Loading / performance (fresh investigation, measured).** Confirmed causes:
+(1) per-Assessment-row N+1: `/api/talent/assessments` (no filter) re-derived
+`overall_program_result`, classification, `reassessment_requirement` and its
+Framework/rubric/descriptor snapshots, permission sets and delete probes for
+every row - 982 SQL statements for 20 rows (about 49 per row; 1,294 with 6 more
+Students) - and the Student Assessments page requested every Assessment in the
+organization then filtered client-side; (2) Results/Student Drill/Evaluation
+Progress repeated the same per-row derivation (drill 136, classification and
+Talented 74 each, branch comparison 84); (3) the access context recomputed the
+actor's permission set five times per request (overview 33, every Organization
+route 31-34 fixed statements); (4) Evaluation Plans recomputed permissions six
+times per Period (140); (5) `/api/talent/programs/summaries` raised HTTP 500 for
+any Program with an annual configuration (`annual.eligible_grade_levels` does not
+exist; the Programs page silently fell back); (6) Talent static assets had no
+cache-busting and `/static` sends no Cache-Control, so a browser could pair the
+freshly rendered no-store page with a script copy from an earlier deployment (the
+mixed-version state the earlier loader hardening cannot cover). After the fix
+(same dataset): assessments 111, drill 24, classification 20, Talented 20, branch
+comparison 30, overview 15, evaluation plans 20 statements, and the counts no
+longer change when Students are added (guarded by
+`test_talent_list_endpoints_do_not_scale_with_the_number_of_assessment_rows`,
+which fails on the pre-fix code: 982 -> 1,294). Fix: `talent_read_batch.py`
+(opt-in, request-scoped memoization inside `with read_batch(db)` on one
+request-owned Session; inactive by default so write paths are untouched;
+discarded on exit so it can never serve data across requests or after a Student
+deletion), set-based priming of Assessment members/results,
+`talent_request_permissions.request_permission_checker` (effective permission set
+resolved once per request; per-request only, decisions identical to
+`auth.has_permission`), server-side Academic Year/Program filters on the
+Assessments list, the `summaries` fix, content-hash `?v=` versions on every
+Talent script/style, and an inline 15-second watchdog that turns a still-untouched
+server-rendered loader into an explicit "could not finish loading" error with a
+Reload button (so a script that never runs, fails to parse or is stale cannot
+leave a generic loader indefinitely). The previously known over-budget tests
+(overview 31 vs 16, Student Drill 36 vs 12) are resolved (drill's pinned ceiling
+is now 18 (fixed family of 17) with the never-row-proportional invariant kept).
+**Render capacity is not shown to be implicated:** locally each handler now costs
+tens of milliseconds and a bounded statement count; the confirmed causes are
+code-level (row-proportional queries, stale-asset mixing, one crashing route),
+and the 512 MB / 1 CPU service cannot be measured from here. Production timing
+must be confirmed after deploy.
+
+**Open owner decisions (not changed here).** (a) Non-force Delete and Bulk Delete
+remain blocked whenever Talent history exists; making an authorized delete remove
+Talent data would be a permission-model change (options: keep, add force to Bulk
+Delete under `students.force_delete_history`, or let `students.delete` cascade).
+(b) Inactive Students still count as current Students (Talent eligibility is
+status-independent, ADR 0039). (c) A distinct-Student "Talented Students" headline
+would need a governed rule for which Evaluation Period counts.
+
+Tests: `tests/test_talent_batch1_data_scope.py`,
+`tests/test_student_delete_completeness_batch1.py`,
+`tests/talent_branch_scope_and_metrics.test.cjs`, additions to
+`tests/test_talent_ui.py`, plus the shared fixture helper
+`tests/talent_test_students.py` (Talent fixtures now create real Students; older
+fixtures used bare integer ids, which are orphans under the new rule).
 
 ## Deployment Acceptance Correction D - Professional Student Assessment Editor Redesign (2026-09-24)
 

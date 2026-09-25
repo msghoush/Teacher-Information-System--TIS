@@ -328,30 +328,42 @@ def _delete_student_unchecked(db: Session, *, school_group_id: int, student_id: 
         db.flush()
 
 
+# Every table that carries a ``student_id`` (or a foreign key to ``students``), in
+# foreign-key-safe child-before-parent order. Batch 1 data-integrity rule: when a
+# Student is permanently deleted, everything the Student owns in Student-domain
+# and Talent & Potential must be removed in the SAME transaction so nothing
+# orphaned can ever feed current analytics. The set is locked against the ORM
+# metadata by ``tests/test_student_delete_completeness_batch1.py`` so a future
+# Student-owned table cannot be added without being listed here.
+STUDENT_OWNED_MODELS = (
+    models.TalentOfficialIdentification,
+    models.TalentEducatorInput,
+    models.TalentReviewCandidate,
+    models.TalentAssessmentAudit,
+    models.TalentStudentCompetencyResult,
+    models.TalentStudentAssessment,
+    models.TalentAssessmentCyclePopulationMember,
+    models.StudentAcademicPlacement,
+    models.StudentExternalIdentifier,
+    models.StudentAudit,
+)
+
+
 def force_delete_student_history(db: Session, *, school_group_id: int, student_id: int):
     """Permanently remove one Student and all Student-owned academic/Talent history.
 
     This is a deliberately separate destructive authority. Callers must enforce
     the dedicated force-delete permission and obtain explicit user confirmation.
     Deletion order follows the existing foreign-key graph so no historical row
-    is silently orphaned.
+    is silently orphaned. Nothing is retained: there is no separate historical
+    retention store, and current Talent analytics additionally exclude any row
+    whose Student no longer exists (``talent_current_students``).
     """
     if get_student(db, school_group_id, student_id) is None:
         raise StudentAcademicError("not_found", "Student was not found.")
 
     scoped = {"school_group_id": school_group_id, "student_id": student_id}
-    for model in (
-        models.TalentOfficialIdentification,
-        models.TalentEducatorInput,
-        models.TalentReviewCandidate,
-        models.TalentAssessmentAudit,
-        models.TalentStudentCompetencyResult,
-        models.TalentStudentAssessment,
-        models.TalentAssessmentCyclePopulationMember,
-        models.StudentAcademicPlacement,
-        models.StudentExternalIdentifier,
-        models.StudentAudit,
-    ):
+    for model in STUDENT_OWNED_MODELS:
         db.query(model).filter_by(**scoped).delete(synchronize_session=False)
 
     student = get_student(db, school_group_id, student_id)

@@ -88,14 +88,14 @@ class Element {
   }
 }
 
-function createEnv({view = 'overview', permissions = {}, search = '', handler, source = SOURCE, globals = {}, breakInit = false} = {}) {
+function createEnv({view = 'overview', permissions = {}, search = '', handler, source = SOURCE, globals = {}, breakInit = false, config = {}} = {}) {
   const calls = [];
   const timers = [];
   let now = 0, timerSeq = 0;
   const elements = {};
-  const env = {calls, elements, reloads: 0};
+  const env = {calls, elements, reloads: 0, replaced: []};
   const el = (id, extra = {}) => Object.assign(elements[id] = new Element(id, env), extra);
-  el('tp-config').textContent = JSON.stringify({view, permissions, year: 1});
+  el('tp-config').textContent = JSON.stringify({view, permissions, year: 1, ...config});
   el('tp-content'); elements['tp-content']._html = '<p class="tp-empty" data-initial-loading>Loading your authorized workspace…</p>';
   elements['tp-content'].attrs['aria-busy'] = 'true';
   el('tp-status'); el('tp-filters', {isSelect: false});
@@ -114,7 +114,7 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
   const sandbox = {
     console, URL, URLSearchParams, Intl, AbortController, Promise, Object, JSON, Number, String, Math, Map, Set, Array, Error, TypeError,
     location: {search, pathname: `/talent/${view}`, origin: 'http://tis.test', href: `http://tis.test/talent/${view}${search}`, reload() { env.reloads += 1; }},
-    history: {replaceState() {}},
+    history: {replaceState(...args) { env.replaced.push(args); }},
     document: {
       title: 'Overview · Talent & Potential | TIS',
       getElementById: id => elements[id] || null,
@@ -177,6 +177,8 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
     script(js('talent-rubric-request.js'), 'talent-rubric-request.js');
     // Acceptance B: shared Student identity presentation is loaded on every view before talent.js.
     script(js('talent-student-identity.js'), 'talent-student-identity.js');
+    if(['overview','analytics','assessments'].includes(view))script(js('talent-charts.js'),'talent-charts.js');
+    if(['overview','analytics'].includes(view))script(js('talent-dashboard.js'),'talent-dashboard.js');
     script(source, 'talent.js');
     script(js('talent-experience.js'), 'talent-experience.js');
     await env.flush();

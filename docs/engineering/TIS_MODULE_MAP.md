@@ -1,11 +1,90 @@
 ---
 title: TIS Module Map
-documentation_version: 4.7
-last_updated: 2026-09-24
+documentation_version: 4.9
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent filtered aggregate workspace (Agent 3, 2026-09-25)
+
+- `talent_dashboard_service.py`: bounded current-Student Evaluation membership
+  projection, canonical current-attempt results/Classification, raw-population
+  totals, authorized filter options, selected comparisons, compatible period
+  results and Program/Competency-bound rubric evidence. Uses P2 completion,
+  P3 result/indicator and P4 Classification provider rules with conservative
+  cross-group closure; emits no Student identities.
+- `routers/talent_results_analytics.py`: GET
+  `/api/talent/results-analytics/academic-years/{academic_year_id}/dashboard`,
+  analytics permission, tenant/year/Branch ceiling and existing repeatable
+  read-only snapshot dependency. Learning Style also requires `students.view`.
+- `talent_learning_style_privacy.py`: owner-approved Classification-cohort
+  publishability gate shared by the operational roster summaries and dashboard.
+  It does not suppress authorized individual rows or invent frontend thresholds.
+- `static/js/talent-dashboard.js`: shared aggregate filters and six dashboard
+  sections, Overview summaries and dependent-filter clearing.
+- `static/js/talent-charts.js`: sanitizes nonvisible values before chart markup,
+  applicable mode switching without fetches, native keyboard controls and exact
+  tables. Loaded only on Overview, Analytics and Student Assessment.
+- `static/js/talent.js`: bounded request/generation ownership, independent Overview
+  headline/chart sections and one dashboard request. `talent-experience.js` no
+  longer adds a second rubric request to this dashboard.
+- `static/js/talent-program-workspace.js` and `static/css/talent-experience.css`:
+  searchable Program cards, executive hierarchy and shared chart presentation.
+
+- `static/css/talent-experience.css` (Talent visual system layer): presentation
+  only; header band, KPI tiles, chart cards, Program cards, action hierarchy,
+  responsive/reduced-motion/forced-colors rules. Owns no values or thresholds.
+- `tests/talent_visual_system.test.cjs`: chart-mode matrix, switched-visual
+  no-leak, protected Learning Style, Program Status absence, action system.
+
+## Student Assessment filtered roster and insights (Agent 2, 2026-09-25)
+
+- `routers/talent_assessment_cycles.py` `cycles_eligible_students`: owns the
+  server-filtered live roster for an Evaluation context. It composes the existing
+  Branch ceiling before search/Grade/Section/state/classification filtering, then
+  produces identity-free Classification and Learning Style aggregate projections
+  for precisely that response population.
+- `static/js/talent-operations.js`: serializes roster controls into the route
+  query, renders backend projections with progress bars and screen-reader tables,
+  and never derives a Classification or Learning Style aggregate. `talent-experience`
+  no longer installs the retired DOM-only roster filter.
+
+
+## Talent Branch ceiling (Batch 1 Closure, 2026-09-25)
+
+- `talent_branch_scope.py`: `talent_branch_ceiling`, `branch_scope_unrestricted`,
+  `visible_branch_ids`, `visible_branch_ids_or_none`, `branch_within_ceiling`. Consumed
+  by `talent_org_intelligence_service.resolve_access_context`, the Talent routers
+  (`talent_analytics`, `talent_results_analytics`, `talent_evaluation_progress`,
+  `talent_assessments`, `talent_assessment_cycles`, `talent_learner_profiles`,
+  `talent_review_candidates`, `talent_official_identifications`,
+  `talent_educator_inputs`, `talent_programs` selector lists), `talent_ui` and
+  `talent_request_permissions.branch_in_authorized_scope`.
+- `auth.get_current_user` sets `user.scope_all_branches` from the `branch_scope=all`
+  cookie (only for `can_access_all_branches` actors); `main.py` `POST /scope/branch`
+  accepts `branch_id=all`; `templates/base.html` offers it on `/talent` pages only.
+
+## Talent current-Student, read-batch and permission helpers (Deployment Acceptance Batch 1, 2026-09-24)
+
+- `talent_current_students.py`: `current_student_exists` (correlated EXISTS, same
+  SchoolGroup) composed into `talent_analytics_service.population_query`,
+  `talent_org_intelligence_service.frozen_membership_query`, the Evaluation Progress
+  Branch reads and `list_assessments`.
+- `talent_read_batch.py`: opt-in request-scoped memoization (`read_batch(db)`,
+  `memo`, `prime`) stored in `Session.info`; used by the Assessments list,
+  classification/Talented families, Student Drill rows and Evaluation Progress
+  Branch results via `talent_student_assessment_service.prime_assessment_batch`.
+- `talent_request_permissions.py`: `request_permission_checker` (effective permission
+  set resolved once per request; used by the M10 access context, the Assessments list
+  and Evaluation Plans) and `branch_in_authorized_scope`.
+- `student_academic_service.STUDENT_OWNED_MODELS`: the ten Student-owned tables
+  deleted by `force_delete_student_history`, locked to ORM metadata by
+  `tests/test_student_delete_completeness_batch1.py`.
+- `routers/talent_ui.py`: renders `tp-config.branch` (validated active Branch) and
+  `talent_asset_version` content-hash asset URLs; `templates/talent/workspace.html`
+  carries the inline loader watchdog.
 
 ## Learning Style distribution boundary (Deployment Acceptance Correction C, 2026-09-24)
 

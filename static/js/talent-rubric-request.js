@@ -13,8 +13,24 @@
 
   const reads = new Map();
 
-  function key(programId, year) {
-    return `${String(programId)}|${String(year)}|completed`;
+  // The Branch scope is part of the read's identity: a Branch-scoped read must
+  // never be reused for another Branch (or for the organization-wide read).
+  // talent.js is the single owner of the resolved Branch scope and publishes it
+  // here, so every consumer of this store keys and requests the SAME scope without
+  // depending on the browser URL.
+  let branchScope = '';
+
+  function setBranch(branchId) {
+    branchScope = branchId == null ? '' : String(branchId);
+  }
+
+  function currentBranch() {
+    return branchScope;
+  }
+
+  function key(programId, year, branchId = branchScope) {
+    const branch = branchId == null || branchId === '' ? '' : `|${String(branchId)}`;
+    return `${String(programId)}|${String(year)}|completed${branch}`;
   }
 
   function publish(k, promise) {
@@ -29,5 +45,5 @@
     reads.clear();
   }
 
-  return {key, publish, get, reset};
+  return {key, publish, get, reset, setBranch, currentBranch};
 });

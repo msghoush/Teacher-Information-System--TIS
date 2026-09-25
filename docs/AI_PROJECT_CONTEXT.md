@@ -1,12 +1,79 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.9
-last_updated: 2026-09-24
+documentation_version: 4.11
+last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
 
+## Agent 3 privacy and aggregate authority (2026-09-25)
+
+Read the Agent 3 amendments in ADRs 0031 and 0044 before changing summaries.
+Individually authorized Assessment roster rows are NOT cohort-suppressed.
+Classification aggregates still use the existing privacy provider. A
+Classification-filtered Learning Style aggregate reflects that same population,
+but returns a protected, value-free state if the selected Classification bucket
+or denominator is protected in the original projection. Never ignore
+Classification, emit a protected denominator via another chart, or invent a
+frontend threshold. Eight styles plus Unassigned remain categorical.
+
+Results & Analytics is aggregate-only. One backend projection owns shared
+Branch/Grade/Section/Program/Period/Classification filters and selected comparisons.
+Rubric results are Program/framework-bound. Chart switching changes presentation
+only. Keep per-view bundles, the hard Branch ceiling, request batching and
+repeatable snapshot reads. This is Web-only work, with no schema, migration,
+permission, local database or timetable worker changes.
+
+The generic "Protected for privacy" badge stays removed (M18a). Non-visible
+cells read "Unavailable"; only the Classification-cohort explanation may use the
+words "protected for privacy". Visual work in Talent is structurally verified, not
+browser verified, unless a reviewer states otherwise.
+
+## Global Branch = Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+Read before adding any Talent route or Branch filter. The global Branch is a hard
+ceiling, NOT the "default" described in the Batch 1 section below (that wording is
+superseded). Never accept an explicit `branch_id` in a Talent route without going
+through the ceiling: use `talent_branch_scope.visible_branch_ids(_or_none)` /
+`branch_scope_unrestricted` / `branch_within_ceiling` (or `resolve_access_context`
+for M10 org routes) instead of `auth.can_access_all_branches`, which alone would let an
+organization actor widen past the active Branch. An omitted Branch must resolve to the
+ceiling. The ceiling is lifted only by an explicit global All Branches
+(`user.scope_all_branches`, cookie `branch_scope=all`, set via `POST /scope/branch`
+with `branch_id=all`; other modules ignore it). Client: `config.branch` is the ceiling
+(`qs()` clamps `branch_id`; no All Branches option when set). Tests:
+`tests/test_talent_branch_hard_scope.py`.
+
+
+## Talent Current-Student Data Integrity, Branch Scope And Loading Cost (Deployment Acceptance Batch 1, 2026-09-24)
+
+Read before changing any Talent population query, analytics label, Student
+deletion path or the Talent workspace Branch/loader code.
+
+- **Grain discipline.** "Students" means DISTINCT current Students in the
+  authorized scope. `frozen_eligible*` counts are participations (one row per
+  Student per Cycle/Program) and are labelled "Program participations"; assessment/
+  result counts (completion, started, Classification, Talented, Period results)
+  keep their own denominators and honest labels. Never label a membership or
+  result count as Students. The 63-vs-9 defect was exactly this.
+- **Current-Student rule.** Compose `talent_current_students.current_student_exists`
+  into any new Talent population read (it is already in `population_query`,
+  `frozen_membership_query`, Evaluation Progress reads and `list_assessments`).
+  Student `status` is deliberately not a filter (ADR 0039).
+- **Deletion.** `force_delete_student_history` deletes `STUDENT_OWNED_MODELS` (ten
+  tables) in one transaction and retains nothing; a metadata test fails if a new
+  Student-referencing table is not listed. Permission gates are unchanged.
+- **Branch scope.** The active global Branch is only the workspace DEFAULT
+  (`tp-config.branch`); every API still authorizes its own `branch_id` and a foreign
+  or unauthorized Branch is rejected. `reconcileBranchScope` drops stale Branch/
+  Grade/Section from a URL minted under another active Branch.
+- **Per-row cost.** Inside `talent_read_batch.read_batch(db)` (list/aggregate
+  endpoints only) Student-independent configuration reads are memoized per request;
+  never enter it in write paths and never cache across requests. Resolve permissions
+  once per request with `talent_request_permissions.request_permission_checker`.
+- **Loader.** Talent assets are `?v=<content hash>`; an inline watchdog ends a
+  still-untouched server loader in an explicit error after 15 s.
 
 ## Student Assessment Editor Redesign (Deployment Acceptance Correction D, 2026-09-24)
 
@@ -21,8 +88,6 @@ selected state). Presentation only: scoring, automatic Classification
 (Exceptional-only Talented), authorization and persistence are unchanged and
 still come from the backend. Structural verification only; browser visual
 acceptance is still pending.
-
-## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
 
 ## Learning Style Distribution Correction (Deployment Acceptance Correction C, 2026-09-24)
 

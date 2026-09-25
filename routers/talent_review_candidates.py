@@ -5,6 +5,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from auth import get_current_user
@@ -86,7 +87,8 @@ def _authorize(request, db, user, key):
 
 
 def _visible_branch_ids(db, user):
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Accessible Branches within the active global Branch ceiling (Batch 1 closure).
+    return branch_scope.visible_branch_ids(db, user)
 
 
 def _member_branch(db, school_group_id, cycle_population_member_id):
@@ -102,14 +104,14 @@ def _assessment_authorized(db, user, school_group_id, assessment_id):
     ).one_or_none()
     if assessment is None:
         return None, False
-    if auth.can_access_all_branches(user):
+    if branch_scope.branch_scope_unrestricted(user):
         return assessment, True
     branch_id = _member_branch(db, school_group_id, assessment.cycle_population_member_id)
     return assessment, branch_id is not None and branch_id in _visible_branch_ids(db, user)
 
 
 def _candidate_authorized(db, user, candidate):
-    if auth.can_access_all_branches(user):
+    if branch_scope.branch_scope_unrestricted(user):
         return True
     branch_id = _member_branch(db, candidate.school_group_id, candidate.cycle_population_member_id)
     return branch_id is not None and branch_id in _visible_branch_ids(db, user)
@@ -241,7 +243,7 @@ def talent_review_workspace(
             filtered.append(assessment)
         rows = filtered
 
-    if not auth.can_access_all_branches(user):
+    if not branch_scope.branch_scope_unrestricted(user):
         visible = _visible_branch_ids(db, user)
         member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
             models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,
@@ -296,7 +298,7 @@ def review_candidates_list(request: Request, cycle_id: int | None = Query(None),
     if denied:
         return denied
     rows = list_candidates(db, school_group_id=group_id, cycle_id=cycle_id)
-    if not auth.can_access_all_branches(user):
+    if not branch_scope.branch_scope_unrestricted(user):
         visible = _visible_branch_ids(db, user)
         member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
             models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,
