@@ -51,7 +51,7 @@ def _authorize(request, db, user, *keys):
     group_id = _scope(db, user) if user else None
     if denied: return None, None, denied
     if not group_id: return user, None, JSONResponse({"detail": "Select an organization scope."}, status_code=403)
-    if keys and all(key in CONFIG_MUTATION_KEYS for key in keys) and not _organization_authorized(user):
+    if any(key in CONFIG_MUTATION_KEYS for key in keys) and not _organization_authorized(user):
         return user, None, JSONResponse({"detail": "Talent configuration is shared by all Branches and is managed by your organization Administrator.", "code": "organization_authority_required"}, status_code=403)
     return user, int(group_id), None
 

@@ -71,6 +71,8 @@ CLASSIFIED = {
     ("platform_identity", "saas/orphaned_test_account_service.py"): ("IDENTITY", 2, "Platform-only purge."),
     ("platform_identity", "saas/promo_code_service.py"): ("IDENTITY", 2, "Platform-only promo management (plus promo_codes.* keys)."),
     ("platform_identity", "saas/router.py"): ("IDENTITY", 7, "Platform-only SaaS admin guards."),
+    ("platform_identity", "saas/promo_redemption_service.py"): ("IDENTITY", 1, "Service-layer defense in depth for platform promo grant replacement: platform identity AND promo_codes.manage, the same decision as saas.router._require_promo_permission; it only narrows access and grants nothing."),
+    ("platform_identity", "talent_request_permissions.py"): ("HELPER", 1, "Request-scoped memo of auth.has_permission for Talent routes: mirrors its exact decision order (empty key True, inactive False, platform Owner True, else membership in the canonical auth.get_allowed_permission_keys set including per-user overrides per ADR 0040); no role shortcut, created per request, never cached across requests or users."),
     # --- raw RolePermission access outside role_permission_service -----------
     ("raw_role_permission", "auth.py"): ("HELPER", 0, "Removed: dead duplicate raw reader deleted in the Phase 3 audit."),
     ("raw_role_permission", "models.py"): ("HELPER", 1, "ORM model definition."),
@@ -84,6 +86,7 @@ CLASSIFIED = {
     ("raw_user_override", "main.py"): ("HELPER", 1, "Startup table creation."),
     ("raw_user_override", "user_permission_service.py"): ("HELPER", 7, "The sole per-user exception service."),
     # --- SchoolGroup id from form/query ------------------------------------
+    ("form_school_group_id", "saas/router.py"): ("IDENTITY", 2, "Promo grant replacement (GET Query, POST Form): both handlers first require _require_promo_permission (platform identity AND promo_codes.manage) and the service re-checks the same and resolves the organization by id; a platform actor may target any tenant by design, and no tenant actor can reach these routes."),
     ("form_school_group_id", "main.py"): ("IDENTITY", 6, "Every use re-checks: tenant actors are forced to their own SchoolGroup; only platform actors (with the all-school capability) may target another (role-permissions, logos, create_branch, open-academic-year, /scope/organization)."),
     # --- per-request snapshot attributes ------------------------------------
     ("orm_permission_stash", "auth.py"): ("LEGACY", 1, "Per-request frozen snapshot on the user instance built by get_current_user; never read as authority (no reader exists)."),

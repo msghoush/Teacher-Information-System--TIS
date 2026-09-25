@@ -453,6 +453,19 @@ def roster_start_states(db: Session, *, cycle, grades_by_student, students_with_
     return states
 
 
+CYCLE_TITLE_MAXIMUM = 180  # talent_assessment_cycle_service._clean default maximum
+
+
+def _derived_cycle_title(base_title, suffix):
+    """Private derived-Cycle title that always fits the Cycle title limit.
+
+    The visible Evaluation title may already be at the limit; a derived context
+    must never make a roster ``can_start`` row fail with ``invalid_input``.
+    """
+    base = " ".join(str(base_title or "").split())
+    return base[: max(0, CYCLE_TITLE_MAXIMUM - len(suffix))].rstrip() + suffix
+
+
 def start_assessment_for_evaluation(
     db: Session, *, school_group_id, evaluation_cycle_id, student_id, actor=None
 ):
@@ -501,10 +514,11 @@ def start_assessment_for_evaluation(
         program_id=root_cycle.program_id,
         academic_year_id=root_cycle.academic_year_id,
         framework_version_id=newest.id,
-        title=(
-            f"{root_cycle.title} · Re-assessment"
+        title=_derived_cycle_title(
+            root_cycle.title,
+            " · Re-assessment"
             if prior_on_root and newest.id == root_cycle.framework_version_id
-            else f"{root_cycle.title} · Current rubric"
+            else " · Current rubric",
         ),
         description=(
             "Internal re-assessment attempt context; prior completed evidence remains historical."
@@ -572,7 +586,7 @@ def continue_empty_assessment_on_current_rubric(
         program_id=assessment.program_id,
         academic_year_id=assessment.academic_year_id,
         framework_version_id=newest.id,
-        title=f"{root_cycle.title} · Current rubric",
+        title=_derived_cycle_title(root_cycle.title, " · Current rubric"),
         description="Internal rubric-version context for an empty current Assessment.",
         population_effective_at=datetime.utcnow(),
         actor=actor,

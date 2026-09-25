@@ -7,6 +7,22 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-25 - Final pre-release verification pass (code side)
+
+- `tests/test_permission_dangerous_patterns.py` had been failing unnoticed (CI runs only KMS Enforcement).
+  Root cause: three reviewed-safe hits were never classified. The two SaaS hits (service-layer
+  `promo_redemption_service` platform-identity re-check; `saas/router.py` promo grant replacement `school_group_id`
+  Query/Form, both behind platform identity AND `promo_codes.manage`) arrived with `a94013e` (2026-09-21, on master);
+  the third is `talent_request_permissions.py`, the Batch 1 request-scoped memo of `auth.has_permission` (identical
+  decision order, canonical resolver incl. per-user overrides, ADR 0040). All three are classified with justification
+  (IDENTITY/IDENTITY/HELPER); no pattern was weakened and no permission behavior changed.
+- Start Assessment: a re-assessment or newer-rubric Start derives a private Cycle titled from the visible Evaluation;
+  an Evaluation title at the 180-character limit made that derivation fail with `invalid_input` although the roster
+  said `can_start`. The derived title is now bounded (`_derived_cycle_title`), with regression coverage.
+- Central configuration authority: `routers/talent_programs._authorize` now applies the organization gate when ANY
+  requested key is a configuration key (matching Evaluation Plans), so a mixed call can never skip it; no existing
+  route mixes keys. Regression test added. No schema, migration, permission key or `tis.db` change; Web Service only.
+
 ## 2026-09-25 - Final Production Follow-Up Closure Part B: central organization Talent configuration authority
 
 - Owner clarification: no Branch copy/clone/enablement of Programs, Rubrics, Frameworks, Evaluation

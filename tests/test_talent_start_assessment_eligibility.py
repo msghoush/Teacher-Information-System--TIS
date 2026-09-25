@@ -183,3 +183,26 @@ def test_org_actor_can_start_any_authorized_branch_student_under_any_page_branch
         created = start(world, cycle.id, target["student_id"])
         assert created.status_code == 201, created.text
         workspace_reads(world, created.json())
+
+
+def test_roster_can_start_holds_for_a_reassessment_on_a_maximum_length_evaluation_title(world):
+    """The re-assessment Start derives a private Cycle titled '<Evaluation> - <suffix>'.
+
+    A can_start=true row must succeed even when the visible Evaluation title is
+    already at the 180-character limit (the derived title used to overflow it).
+    """
+    program, cycle = make_program(world, name="Long Title", competency_grade=None)
+    cycle.title = "E" * 180
+    world.db.commit()
+    world.as_admin()
+    member = roster(world, cycle.id)[0]
+    first = start(world, cycle.id, member["student_id"])
+    assert first.status_code == 201, first.text
+    row = world.db.get(models.TalentStudentAssessment, first.json()["id"])
+    row.is_current = False  # the state an Administrator reset leaves behind
+    world.db.commit()
+    again = {m["student_id"]: m for m in roster(world, cycle.id)}[member["student_id"]]
+    assert again["can_start"] is True
+    second = start(world, cycle.id, member["student_id"])
+    assert second.status_code == 201, second.text
+    assert second.json()["evaluation_context_cycle_id"] == cycle.id

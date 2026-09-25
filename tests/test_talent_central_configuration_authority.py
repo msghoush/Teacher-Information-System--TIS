@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
@@ -363,3 +363,32 @@ def test_branch_operational_editor_still_starts_assessments_but_cannot_configure
         assert world.db.query(models.TalentProgram).filter_by(name="Branch Duplicate").count() == 0
     finally:
         world.close()
+
+
+def test_programs_authorize_is_fail_closed_for_a_mixed_config_and_non_config_key_call(db):
+    """A call mixing a read key with a configuration key still needs organization scope.
+
+    Guards the `any()` (not `all()`) structural rule: a Branch-scoped actor who holds
+    only the non-configuration key must not slip past the organization gate merely
+    because one of the requested keys is not a configuration key.
+    """
+    grant_tenant(db, "Editor", [P + "view"])
+    branch_actor = make_user(db, role="Editor", scope="BRANCH")
+    org_actor = make_user(db, role="Editor", scope="ORGANIZATION")
+
+    def api(actor, *keys):
+        app = FastAPI()
+
+        @app.get("/probe")
+        def probe(request: Request):
+            _user, group_id, denied = talent_programs._authorize(request, db, actor, *keys)
+            return denied or {"group_id": group_id}
+
+        return TestClient(app, raise_server_exceptions=False)
+
+    mixed = (P + "view", P + "manage")
+    denied = api(branch_actor, *mixed).get("/probe")
+    assert denied.status_code == 403 and denied.json()["code"] == "organization_authority_required"
+    assert api(org_actor, *mixed).get("/probe").status_code == 200
+    # A call with only non-configuration keys keeps Branch users working (reads unchanged).
+    assert api(branch_actor, P + "view").get("/probe").status_code == 200
