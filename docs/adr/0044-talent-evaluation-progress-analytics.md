@@ -337,6 +337,8 @@ authorized read API (`.../dashboard`), with cancellation of superseded requests 
 response rendered. (3) Progress Over Time stays a real per-Program view over the ADR 0027
 longitudinal projection; a period that is suppressed or has no Student result yet is a gap
 ("Unavailable" / "No data yet"), never zero, and different Program frameworks are never combined.
+(Superseded in part, 2026-09-25: honest gaps also apply across a non-comparable adjacent pair; see the
+Progress Over Time Comparability Closure below. The original wording is preserved as history.)
 
 ## Final Closure Part B Amendment (2026-09-25): Central Organization Configuration Authority
 
@@ -351,3 +353,24 @@ access scope; Branch-scoped actors read shared configuration and assess Students
 mutate configuration. This supersedes the earlier statement that a Branch-scoped `.manage` holder may author
 Draft Program/Framework/Cycle metadata (preserved in older documents as history). Stored custom grants are not
 rewritten. Analytics reads and the Branch authorization above are unchanged.
+
+## Progress Over Time Comparability Closure (2026-09-25)
+
+Dated presentation-only correction; no analytics formula, backend calculation, privacy, permission, `MetricCode`
+or schema change. Gap found: the Progress Over Time trend broke its line only for a non-visible point, so two
+visible points on either side of a non-comparable adjacent pair (for example `framework_changed`) were joined by
+a continuous line. Rule:
+
+"When adjacent Evaluation Period points are not governed as comparable, the trend line must break. TIS must not connect, interpolate, or imply continuity across a non-comparable framework boundary. Individual Period values may still be shown independently where authorized and privacy-safe."
+
+- The backend `comparisons` list of the ADR 0027 longitudinal projection (one record per adjacent Period pair,
+  `evaluation_period_ids` = [earlier, later], `state` `comparable`/`not_comparable`, `reason_code`) remains the
+  sole authority. The frontend never derives comparability (no Framework or version comparison client-side); it
+  passes the list to the shared chart, which connects a pair only when that pair's record is `comparable`.
+- A missing, unknown or unmappable comparison record fails toward NOT connecting.
+- Each visible Period still renders its own dot, legend value and table row; nothing is hidden, bridged,
+  interpolated or invented. Suppressed and no-data periods still break the line with a value-free gap. A broken
+  pair adds a value-free dashed break marker and the legend note "not connected: periods are not comparable".
+- When a chart supplies no comparability list (the Results & Analytics completion-by-period trend, which is a
+  single-Program series of the Framework-independent completion metric), behavior is unchanged. `comparable`
+  still means only that two factual points may be viewed side by side, never growth or improvement.

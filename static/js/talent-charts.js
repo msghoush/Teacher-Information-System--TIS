@@ -70,13 +70,18 @@
     const max=pct?100:Math.max(1,...shown);
     const x=i=>10+i*280/Math.max(1,rows.length-1),y=v=>110-Math.max(0,Math.min(100,v/max*100));
     // A non-visible point breaks the line (an honest gap) and carries no coordinate at all.
+    // A backend-governed pair that is not comparable ALSO breaks the line between two visible
+    // points (row.link===false): TIS never connects or implies continuity across it. Each
+    // point keeps its own dot. row.link===null means no governance was supplied (unchanged).
     const runs=[];let run=[];
-    values.forEach((v,i)=>{if(v===null){if(run.length)runs.push(run);run=[];}else run.push([x(i),y(v)]);});
+    values.forEach((v,i)=>{if(v===null){if(run.length)runs.push(run);run=[];}else{if(run.length&&rows[i].link===false){runs.push(run);run=[];}run.push([x(i),y(v)]);}});
     if(run.length)runs.push(run);
     const lines=runs.filter(r=>r.length>1).map(r=>`<polyline points="${r.map(p=>p.join(',')).join(' ')}" fill="none" stroke="currentColor" stroke-width="2"/>`).join('');
     const dots=runs.flat().map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="currentColor"/>`).join('');
     const gaps=values.map((v,i)=>v===null?`<line class="tp-trend-gap" x1="${x(i)}" x2="${x(i)}" y1="12" y2="110" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4"/>`:'').join('');
-    return `<svg class="tp-trend" viewBox="0 0 300 120" aria-hidden="true" focusable="false"><line x1="6" x2="294" y1="110" y2="110" stroke="currentColor" stroke-opacity=".25"/>${gaps}${lines}${dots}</svg><ol class="tp-chart-legend tp-trend-legend">${rows.map(r=>`<li>${esc(r.label)}: ${r.state==='visible'?rowText(r,'series'):stateText(r)}</li>`).join('')}</ol>`;
+    const broken=i=>i>0&&rows[i].link===false&&values[i]!==null&&values[i-1]!==null;
+    const breaks=values.map((v,i)=>broken(i)?`<line class="tp-trend-break" x1="${(x(i-1)+x(i))/2}" x2="${(x(i-1)+x(i))/2}" y1="12" y2="110" stroke="currentColor" stroke-width="1" stroke-dasharray="1 5"/>`:'').join('');
+    return `<svg class="tp-trend" viewBox="0 0 300 120" aria-hidden="true" focusable="false"><line x1="6" x2="294" y1="110" y2="110" stroke="currentColor" stroke-opacity=".25"/>${gaps}${breaks}${lines}${dots}</svg><ol class="tp-chart-legend tp-trend-legend">${rows.map((r,i)=>`<li>${esc(r.label)}: ${r.state==='visible'?rowText(r,'series'):stateText(r)}${broken(i)?' (not connected: periods are not comparable)':''}</li>`).join('')}</ol>`;
   }
   function visual(rows,mode,family='classification'){
     if(mode==='doughnut'){
@@ -101,7 +106,7 @@
     const control=o.switch!==false&&available.length>1?`<div class="tp-chart-switch" role="group" aria-label="${esc(title)} chart type">${available.map(m=>`<button type="button" data-chart-mode="${m}" aria-pressed="${m===mode}">${esc(MODE_LABELS[m]||m)}</button>`).join('')}</div>`:'';
     const cellText=(r,name)=>r[name]===null||r[name]===undefined?(r.state==='visible'?(series?'—':protectedText):stateText(r)):(name==='percentage'?esc(r[name])+'%':esc(r[name]));
     // Keep only sanitized public values in switchable markup. No serialized API payload.
-    return `<section class="tp-card tp-chart" data-chart-family="${esc(family)}" data-chart-key="${esc(key)}"><div class="tp-chart-head"><h3>${esc(title)}</h3>${control}</div><div data-chart-visual>${visual(rows,mode,family)}</div>${family==='classification'&&rows.some(r=>r.state!=='visible')?`<p class="tp-note tp-chart-note" data-chart-withheld-note>${esc(withheldNote)}</p>`:''}<details><summary>Exact values and accessible table</summary><div class="tp-table-wrap"><table><caption>${esc(title)}</caption><thead><tr><th scope="col">Category</th><th scope="col">Count</th><th scope="col">Percentage</th>${hasDenominator?'<th scope="col">Total</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr data-chart-row data-state="${esc(r.state)}"><th scope="row">${esc(r.label)}</th><td>${cellText(r,'count')}</td><td>${cellText(r,'percentage')}</td>${hasDenominator?`<td>${r.denominator==null?(r.state==='visible'?'—':stateText(r)):esc(r.denominator)}</td>`:''}</tr>`).join('')}</tbody></table></div></details></section>`;
+    return `<section class="tp-card tp-chart" data-chart-family="${esc(family)}" data-chart-key="${esc(key)}"><div class="tp-chart-head"><h3>${esc(title)}</h3>${control}</div><div data-chart-visual>${visual(rows,mode,family)}</div>${family==='classification'&&rows.some(r=>r.state!=='visible')?`<p class="tp-note tp-chart-note" data-chart-withheld-note>${esc(withheldNote)}</p>`:''}<details><summary>Exact values and accessible table</summary><div class="tp-table-wrap"><table><caption>${esc(title)}</caption><thead><tr><th scope="col">Category</th><th scope="col">Count</th><th scope="col">Percentage</th>${hasDenominator?'<th scope="col">Total</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr data-chart-row data-state="${esc(r.state)}"${r.link===false?' data-link="broken"':r.link===true?' data-link="comparable"':''}><th scope="row">${esc(r.label)}</th><td>${cellText(r,'count')}</td><td>${cellText(r,'percentage')}</td>${hasDenominator?`<td>${r.denominator==null?(r.state==='visible'?'—':stateText(r)):esc(r.denominator)}</td>`:''}</tr>`).join('')}</tbody></table></div></details></section>`;
   }
   // chart(title, projection, family, mode | {mode, defaultMode, switch, surface})
   function chart(title,projection,family='classification',arg){
@@ -117,10 +122,21 @@
   }
   // Time series (Progress Over Time): rows are {label,state,count,percentage,denominator}
   // built from backend cells. A row whose state is not `visible` never receives a value.
+  // o.comparisons is the backend's adjacent-Period comparability list ({evaluation_period_ids:
+  // [earlier,later], state}); each point carries its Period `id`. The backend is the only
+  // authority: this module never derives comparability. When o.comparisons is supplied, a pair
+  // connects only when its record says `comparable`; a missing or any other record does not
+  // connect. When it is not supplied, no governance exists and behaviour is unchanged.
   function series(title,points,o={}){
-    const rows=(points||[]).map(p=>{
+    const governed=Array.isArray(o.comparisons);
+    const linkOf=i=>{
+      if(!governed||i===0)return null;
+      const c=o.comparisons.find(c=>Array.isArray(c?.evaluation_period_ids)&&c.evaluation_period_ids[0]===points[i-1].id&&c.evaluation_period_ids[1]===points[i].id);
+      return !!c&&c.state==='comparable';
+    };
+    const rows=(points||[]).map((p,i)=>{
       const v=p.state==='visible';
-      return {label:String(p.label||''),state:p.state||'no_data',
+      return {label:String(p.label||''),state:p.state||'no_data',link:linkOf(i),
         count:v&&Number.isFinite(p.count)?p.count:null,
         percentage:v&&Number.isFinite(p.percentage)?p.percentage:null,
         denominator:v&&Number.isFinite(p.denominator)?p.denominator:null};
@@ -147,7 +163,7 @@
       const host=button.closest('[data-chart-family]');if(!host)return;
       const rows=Array.from(host.querySelectorAll('[data-chart-row]')).map(tr=>{
         const visible=tr.dataset.state==='visible',cells=tr.children,num=i=>visible&&cells[i]&&/^-?\d+(\.\d+)?%?$/.test(cells[i].textContent.trim())?Number(cells[i].textContent.trim().replace('%','')):null;
-        return {label:cells[0].textContent,state:tr.dataset.state,count:num(1),percentage:visible&&cells[2].textContent.endsWith('%')?num(2):null,denominator:cells[3]?num(3):null};
+        return {label:cells[0].textContent,state:tr.dataset.state,count:num(1),percentage:visible&&cells[2].textContent.endsWith('%')?num(2):null,denominator:cells[3]?num(3):null,link:tr.dataset.link==='comparable'?true:tr.dataset.link==='broken'?false:null};
       });
       const family=host.dataset?.chartFamily||'classification',mode=button.dataset.chartMode;
       host.querySelector('[data-chart-visual]').innerHTML=visual(rows,mode,family);

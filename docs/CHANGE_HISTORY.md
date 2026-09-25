@@ -7,6 +7,17 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-25 - Progress Over Time comparability closure (frontend, presentation only)
+
+- Gap: the Progress Over Time trend broke its line only for non-visible points, so two visible Periods across a
+  non-comparable adjacent pair (for example `framework_changed`) were joined by a continuous line although the same
+  view listed the pair as not comparable. Fix: `talent.js` passes each point's Period id and the backend
+  `comparisons` list to `talent-charts.js` `series()`, which connects a pair only when its record is `comparable`
+  (a missing record does not connect); broken pairs add a value-free break marker and legend note; every Period
+  value stays visible. The frontend derives no comparability. No analytics formula, privacy, permission, schema,
+  migration or `tis.db` change; Web Service only. Rule recorded in ADR 0044. Tests:
+  `tests/talent_progress_comparability.test.cjs`.
+
 ## 2026-09-25 - Final pre-release verification pass (code side)
 
 - `tests/test_permission_dangerous_patterns.py` had been failing unnoticed (CI runs only KMS Enforcement).

@@ -339,16 +339,17 @@
   // Progress Over Time (ADR 0027 longitudinal projection): one Program, one Academic Year,
   // ordered Evaluation Periods. The trend/bar chart and its exact table come from the shared
   // chart module; a period whose cell is not visible is a gap, never a zero or a magnitude
-  // (a newly opened Period with no Student result is "No data yet", not 0%).
+  // (a newly opened Period with no Student result is "No data yet", not 0%). The backend
+  // `comparisons` decide whether two adjacent points may be joined; the client never derives it.
   function periodVisual(data) {
     const path=data.points?.length?`<div class="tp-period-path" role="list" aria-label="Evaluation sequence">${data.points.map((point,index)=>`${index?`<span aria-hidden="true">${chevron}</span>`:''}<strong role="listitem">${esc(point.evaluation_period.label)}</strong>`).join('')}</div>`:'';
     const rows=(data.points||[]).map(p=>{
       const cell=p.metric_result||{};
-      return {label:p.evaluation_period.label,state:cell.state||'no_data',
+      return {id:p.evaluation_period.id,label:p.evaluation_period.label,state:cell.state||'no_data',
         count:typeof cell.numerator==='number'?cell.numerator:cell.value,
         percentage:cell.percentage,denominator:cell.denominator};
     });
-    const plot=talentCharts&&rows.length?talentCharts.series(`${labels[data.metric]||'Result'} by Evaluation Period`,rows,{surface:'longitudinal'}):'';
+    const plot=talentCharts&&rows.length?talentCharts.series(`${labels[data.metric]||'Result'} by Evaluation Period`,rows,{surface:'longitudinal',comparisons:data.comparisons||[]}):'';
     return path+plot+`<ol class="tp-sequence tp-period-grid">${data.points.map(p=>`<li class="tp-period"><span class="tp-seq">${esc(p.evaluation_period.sequence)}</span><div><h3>${esc(p.evaluation_period.label)}</h3>${badge(p.evaluation_period.status)}<p>${esc(labels[data.metric])}</p>${metric(p.metric_result)}${p.no_data_reason?`<p class="tp-state-explanation">${esc(friendlyReason(p.no_data_reason))}</p>`:''}</div></li>`).join('')}</ol>`;
   }
   // M18b-2 Results & Analytics rebuild: bucket distribution chart/table pair

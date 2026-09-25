@@ -27,7 +27,10 @@ or a percentage-only toggle. Values stay visible in every type. Dashboard filter
 through `refreshDashboard()` (background fetch, newest-token-wins, no root replacement, no
 `scrollIntoView`, no navigation); do not reintroduce a root-level loading replacement. Selected
 Comparisons is one bottom section. Progress Over Time is a kept, real per-Program longitudinal view over
-the ADR 0027 API with honest gaps. Presentation only; browser behavior is not verified.
+the ADR 0027 API with honest gaps. Presentation only; browser behavior is not verified. Comparability
+closure (2026-09-25, ADR 0044): the trend line must not connect across an adjacent pair the backend
+`comparisons` do not mark `comparable` (missing record = no connection); the client never derives
+comparability and each Period value stays individually visible.
 
 ## Talent Branch Authority, Start Assessment And Classification Honesty (Production Follow-up Part 1, 2026-09-25)
 

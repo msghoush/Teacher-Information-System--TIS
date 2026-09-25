@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-25T16:24:42.294990+03:00",
+  "generated_at": "2026-09-25T16:57:44.526481+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "1680994",
+  "commit_sha": "cfaadc4",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "2f570c6585b25c0c93893ec9893d70fd979c77b9e999c6000c2747ba2b819822",
-  "pdf_size_bytes": 2367118,
+  "pdf_sha256": "a8f8c821af49e6fce9ac280edd0f3e87e7441bd298cb0cbfbd87e601671ae344",
+  "pdf_size_bytes": 2370542,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -25,9 +25,9 @@
     },
     {
       "path": "docs/AI_PROJECT_CONTEXT.md",
-      "modified_at": "2026-09-25T16:24:19.375302+03:00",
-      "size_bytes": 240449,
-      "sha256": "60c8be1ffaf1b5130c1f551c0e449660c645f6fd9761fffe023e75ea7217e712",
+      "modified_at": "2026-09-25T16:56:46.200338+03:00",
+      "size_bytes": 240725,
+      "sha256": "0b9095605b339870c512b2f245a07278bc09f4272e7729c363ea031a641bc39c",
       "pdf_page": 17
     },
     {
@@ -46,16 +46,16 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-25T16:24:19.372301+03:00",
-      "size_bytes": 386813,
-      "sha256": "70eb2ab1cd9c6d521bd332a4bf417e607766d700111cc2df7cbe0bf77a8fb6b3",
+      "modified_at": "2026-09-25T16:56:46.198328+03:00",
+      "size_bytes": 387146,
+      "sha256": "d298316cbaca72d8333d582310c0cf6b37568edaa8e7e60b15cd8c30f21c8058",
       "pdf_page": 124
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-25T15:43:35.231197+03:00",
-      "size_bytes": 313356,
-      "sha256": "61f096712d858674a0f013ce947c1f1db15eba07114c5f8ba479693c2a9698ed",
+      "modified_at": "2026-09-25T16:56:46.204359+03:00",
+      "size_bytes": 314251,
+      "sha256": "25f1ff974220ca6032abb68fb214fdc1a507afc84915115b387492c1dc5552cd",
       "pdf_page": 217
     },
     {
@@ -508,9 +508,9 @@
     },
     {
       "path": "docs/adr/0044-talent-evaluation-progress-analytics.md",
-      "modified_at": "2026-09-25T14:29:08.914850+03:00",
-      "size_bytes": 21886,
-      "sha256": "37e30cd07e217e21860733532ff7bfc43574ff149bd9c08233eb5d4caf2ad4c5",
+      "modified_at": "2026-09-25T16:56:35.100480+03:00",
+      "size_bytes": 23968,
+      "sha256": "d890a15d22c16d700a8a80ca9a484967e4f62379545844f3741e0bccec130bcd",
       "pdf_page": 602
     },
     {
@@ -518,427 +518,427 @@
       "modified_at": "2026-09-24T16:21:05.020278+03:00",
       "size_bytes": 4389,
       "sha256": "38edf1b262b9cfb22177b6bc9473e78281fa060771b87176b72d5e91169e8d1f",
-      "pdf_page": 608
+      "pdf_page": 609
     },
     {
       "path": "docs/history/academic-calendar/README.md",
       "modified_at": "2026-08-22T02:52:50.576697+03:00",
       "size_bytes": 367,
       "sha256": "f2e21ac28b38079b715ab86736afe8fdd4ded0ed86e301a5097ff6aef62bd263",
-      "pdf_page": 610
+      "pdf_page": 611
     },
     {
       "path": "docs/history/ai-entitlements/README.md",
       "modified_at": "2026-08-22T02:52:50.576697+03:00",
       "size_bytes": 1377,
       "sha256": "99a38a6504677528ae8b7a7088bbe241b95b717623886aa4bf761286aee58066",
-      "pdf_page": 611
+      "pdf_page": 612
     },
     {
       "path": "docs/history/demo-operations/2026-07-27-m8b9-demo-operations.md",
       "modified_at": "2026-08-22T02:52:50.576697+03:00",
       "size_bytes": 786,
       "sha256": "62cb718052c92783b94459369aeec0d47c2584f9d256ca124505e890d18cb151",
-      "pdf_page": 612
+      "pdf_page": 613
     },
     {
       "path": "docs/history/demo-operations/2026-08-19-common-customer-demo-baseline.md",
       "modified_at": "2026-08-22T02:52:50.576697+03:00",
       "size_bytes": 744,
       "sha256": "4ce306b4972d7d1d11b07df0b578f614f4fbf28b12fad891825f7ff794760f0c",
-      "pdf_page": 613
+      "pdf_page": 614
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-engineering-handbook.md",
       "modified_at": "2026-08-22T02:52:50.576697+03:00",
       "size_bytes": 1861,
       "sha256": "9df47871dc9a1f90d51358fb655b9776d67fecf750cbfc7dfa0321f503c5dead",
-      "pdf_page": 614
+      "pdf_page": 615
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3b-engineering-layers.md",
       "modified_at": "2026-08-22T02:52:50.578708+03:00",
       "size_bytes": 1860,
       "sha256": "0698554ac5c127cc3658864f661b363cbccd7b037305ed47b649afeba4d4f08b",
-      "pdf_page": 616
+      "pdf_page": 617
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3c-governance-ai-traceability.md",
       "modified_at": "2026-08-22T02:52:50.578708+03:00",
       "size_bytes": 1993,
       "sha256": "9d641bdeba461892612cb952a9ce5298d1d2f1760f1a053b9bb17f9a81f680a8",
-      "pdf_page": 618
+      "pdf_page": 619
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-26-kms-v3-phase-3d-lifecycle-foundation.md",
       "modified_at": "2026-08-22T02:52:50.578708+03:00",
       "size_bytes": 2128,
       "sha256": "8eddf233477470a196aef60df65c021f734b2714bc897f86200ea9d176b0743e",
-      "pdf_page": 620
+      "pdf_page": 621
     },
     {
       "path": "docs/history/engineering-handbook/2026-06-27-production-memory-stability-guardrails.md",
       "modified_at": "2026-08-22T02:52:50.578708+03:00",
       "size_bytes": 3131,
       "sha256": "b71464ac5dcf855f8a1d325e6fdda0e32dbc6a1ba2bab6ae14529d8b4ba5010a",
-      "pdf_page": 622
+      "pdf_page": 623
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-automatic-enforcement.md",
       "modified_at": "2026-08-22T02:52:50.578708+03:00",
       "size_bytes": 3222,
       "sha256": "32934450ec8af0cf6a65534767304d1526550fc1030ec15a92bfd944e4ac3509",
-      "pdf_page": 624
+      "pdf_page": 625
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-phase-7a-navigation-foundation.md",
       "modified_at": "2026-08-22T02:52:50.580713+03:00",
       "size_bytes": 1402,
       "sha256": "8b17556ed6a2eac7bdbaf9c3cf87717fea75f23cb3f732e9dda0371ea065d72d",
-      "pdf_page": 626
+      "pdf_page": 627
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-21-kms-phase-7b-pdf-navigation.md",
       "modified_at": "2026-08-22T02:52:50.580713+03:00",
       "size_bytes": 1528,
       "sha256": "8f499946c8eaeb37b7d5165ad6a2755a6f44bffe58280005ed0da136999f0f7d",
-      "pdf_page": 627
+      "pdf_page": 628
     },
     {
       "path": "docs/history/engineering-handbook/2026-07-22-kms-phase-7d-navigation-catalog-enforcement.md",
       "modified_at": "2026-08-22T02:52:50.580713+03:00",
       "size_bytes": 3070,
       "sha256": "c7e4386962199bfcf37492a6e1f314e83c1b99be5b974ad00a9a4ef4f6333807",
-      "pdf_page": 628
+      "pdf_page": 629
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-03-claude-code-kms-configuration.md",
       "modified_at": "2026-09-24T16:21:05.067750+03:00",
       "size_bytes": 1293,
       "sha256": "331bcd1ad65255c8beca79b4c3be5c4c5fc35579706473dabc315fc0b2526006",
-      "pdf_page": 630
+      "pdf_page": 631
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-05-cline-kms-configuration.md",
       "modified_at": "2026-09-24T16:21:05.069763+03:00",
       "size_bytes": 2316,
       "sha256": "6668c700a398b9aac2c3c088afefc170954fc87c15c368f1d5ab4a4771fcaaf1",
-      "pdf_page": 631
+      "pdf_page": 632
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-07-b11c-postgresql-profiling-evidence-remediation.md",
       "modified_at": "2026-09-24T16:21:05.071776+03:00",
       "size_bytes": 64354,
       "sha256": "5d5ca537a9b70d41d776d397544c97dbfa62a69f4fbaae8af43fc686ba5fa0de",
-      "pdf_page": 632
+      "pdf_page": 633
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-07-b11d-postgresql-concurrency-consistency-qualification.md",
       "modified_at": "2026-09-24T16:21:05.075656+03:00",
       "size_bytes": 43009,
       "sha256": "90cef5f39982278dca19997a89ed13847618a93c3aaa12d927f04716deb10d6c",
-      "pdf_page": 653
+      "pdf_page": 654
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-08-b11e-integrated-production-qualification.md",
       "modified_at": "2026-09-24T16:21:05.079585+03:00",
       "size_bytes": 27085,
       "sha256": "91acfe2f5c890b5d9028544b3fb31a3a89bd378a63e3055e2d7ce89037d29862",
-      "pdf_page": 665
+      "pdf_page": 666
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-09-b11e-f2-postgresql-qualification.md",
       "modified_at": "2026-09-24T16:21:05.082015+03:00",
       "size_bytes": 8655,
       "sha256": "ada950b6e53080c8473ca4526a6f4f568943f5c144467cefe4418290785904e9",
-      "pdf_page": 673
+      "pdf_page": 674
     },
     {
       "path": "docs/history/engineering-handbook/2026-09-09-b11e-live-multiworker-qualification.md",
       "modified_at": "2026-09-24T16:21:05.084194+03:00",
       "size_bytes": 13778,
       "sha256": "239b7f3a95595e144b1427069a1963ccef08e2eb2af571000098f4a1a7e00ddf",
-      "pdf_page": 676
+      "pdf_page": 677
     },
     {
       "path": "docs/history/engineering-handbook/README.md",
       "modified_at": "2026-09-24T16:21:05.086260+03:00",
       "size_bytes": 3407,
       "sha256": "fb9b6fc40a82c8c8e3f201efd619a7e7ac21498526b6f8ce843f5d95a10e1d51",
-      "pdf_page": 680
+      "pdf_page": 681
     },
     {
       "path": "docs/history/landing-page/2026-07-25-landing-cta-and-demo-domain-policy.md",
       "modified_at": "2026-08-22T02:52:50.582463+03:00",
       "size_bytes": 1351,
       "sha256": "37271960a259551532b4c9d2f401fc39346c0810e62475f9e3b3015ddaa99aa6",
-      "pdf_page": 682
+      "pdf_page": 683
     },
     {
       "path": "docs/history/landing-page/2026-07-25-m8-landing-integration-open-account.md",
       "modified_at": "2026-08-22T02:52:50.582463+03:00",
       "size_bytes": 2335,
       "sha256": "f9f4e78de29481371ddcb04cba9f7910ae46bfb95f6ef386a4d08faf0fdf5795",
-      "pdf_page": 683
+      "pdf_page": 684
     },
     {
       "path": "docs/history/landing-page/README.md",
       "modified_at": "2026-08-22T02:52:50.582463+03:00",
       "size_bytes": 1834,
       "sha256": "d3f0923309ad98cf1b6ac352df4d3a7d8a44c1356327c2c8bc29c8ed4db3b6fc",
-      "pdf_page": 685
+      "pdf_page": 686
     },
     {
       "path": "docs/history/platform-knowledge/2026-06-26-platform-owner-knowledge-center.md",
       "modified_at": "2026-08-22T02:52:50.582463+03:00",
       "size_bytes": 2063,
       "sha256": "1f9319b1860fd875ab31de08742bcb2ca2c022a7fb81962389fac8fd93c49187",
-      "pdf_page": 686
+      "pdf_page": 687
     },
     {
       "path": "docs/history/platform-knowledge/2026-07-22-kms-phase-7c-knowledge-center-navigation.md",
       "modified_at": "2026-08-22T02:52:50.582463+03:00",
       "size_bytes": 2738,
       "sha256": "c5e20a2e083e746ca00316d3f6e5dd4ecd32ac0ea3fb66225ed6f8bad87d18ff",
-      "pdf_page": 688
+      "pdf_page": 689
     },
     {
       "path": "docs/history/platform-knowledge/README.md",
       "modified_at": "2026-08-22T02:52:50.584477+03:00",
       "size_bytes": 675,
       "sha256": "0fc76c537e0a1d3f40a70e4944a846038645aa7ec823bdc642de026a716a17d4",
-      "pdf_page": 690
+      "pdf_page": 691
     },
     {
       "path": "docs/history/provisioning/2026-06-26-kms-foundation.md",
       "modified_at": "2026-08-22T02:52:50.584477+03:00",
       "size_bytes": 1614,
       "sha256": "94aa0a563e22c309aefb08ee5c1d16f5c7ac02c0b9502be6d9facf97ce7a3b93",
-      "pdf_page": 691
+      "pdf_page": 692
     },
     {
       "path": "docs/history/provisioning/README.md",
       "modified_at": "2026-08-22T02:52:50.584477+03:00",
       "size_bytes": 1867,
       "sha256": "86de14aa775190a76ec4ee7d2a7c2f4e22767518b72012738feb53825e37d92d",
-      "pdf_page": 693
+      "pdf_page": 694
     },
     {
       "path": "docs/history/README.md",
       "modified_at": "2026-08-22T02:52:50.574685+03:00",
       "size_bytes": 846,
       "sha256": "2930c0b4ac04337dd59e0ea12755bacabe388d65be402ff53c668dfa154aff97",
-      "pdf_page": 694
+      "pdf_page": 695
     },
     {
       "path": "docs/history/saas-onboarding/README.md",
       "modified_at": "2026-08-22T02:52:50.584477+03:00",
       "size_bytes": 26973,
       "sha256": "8d8469079d796091f31b501f851186c1794b4c92376a7386ab095c3859181b6a",
-      "pdf_page": 695
+      "pdf_page": 696
     },
     {
       "path": "docs/history/subscriptions/README.md",
       "modified_at": "2026-08-22T02:52:50.584477+03:00",
       "size_bytes": 20761,
       "sha256": "12731680027faffc6bde47a2eebaf2deb0a8fa5347f73c36854977c06720cd22",
-      "pdf_page": 704
+      "pdf_page": 705
     },
     {
       "path": "docs/history/workforce-planning/2026-08-19-smart-timetable-stage-2-version-foundation.md",
       "modified_at": "2026-08-22T02:52:50.586490+03:00",
       "size_bytes": 1225,
       "sha256": "d4eaf36d86c46a570ccd3a7f0e82eea5c0b28936c74c17102b3c683e3b4c92b7",
-      "pdf_page": 710
+      "pdf_page": 711
     },
     {
       "path": "docs/history/workforce-planning/2026-08-19-smart-timetable-stage-3-readiness-and-slot-semantics.md",
       "modified_at": "2026-08-22T02:52:50.586490+03:00",
       "size_bytes": 1145,
       "sha256": "cec0aa9477817202f7808ec702d50503dabec50f8d84ac10706ec1b43ea107fc",
-      "pdf_page": 711
+      "pdf_page": 712
     },
     {
       "path": "docs/history/workforce-planning/2026-08-21-smart-timetable-stage-35-composed-timeline.md",
       "modified_at": "2026-08-22T02:52:50.586490+03:00",
       "size_bytes": 1246,
       "sha256": "c9eaddfbeaca96eb78bfb1ff4ff77625dc8368c8cdc7a578c04f98d0126fcf0b",
-      "pdf_page": 712
+      "pdf_page": 713
     },
     {
       "path": "docs/history/workforce-planning/2026-08-21-smart-timetable-stage-4-version-publication.md",
       "modified_at": "2026-08-22T02:52:50.586490+03:00",
       "size_bytes": 1438,
       "sha256": "d3789d55016ff088e6bf621d6b1c905ad339beb6bae4fab045ef7359bfd2a63a",
-      "pdf_page": 713
+      "pdf_page": 714
     },
     {
       "path": "docs/history/workforce-planning/2026-08-22-smart-timetable-stage-51-generator.md",
       "modified_at": "2026-09-24T16:21:05.088289+03:00",
       "size_bytes": 1852,
       "sha256": "173ef397e233e9d10b61680a8fad9d35eb10219bfefb2e325a1b58d6f4da4b32",
-      "pdf_page": 714
+      "pdf_page": 715
     },
     {
       "path": "docs/history/workforce-planning/2026-08-26-on-demand-timetable-generation-workflow.md",
       "modified_at": "2026-09-24T16:21:05.090755+03:00",
       "size_bytes": 1817,
       "sha256": "3db5cbbda1ca13e2b801a9e90b2ee2c476042da835e6a1c76468e0eeca101bd2",
-      "pdf_page": 715
+      "pdf_page": 716
     },
     {
       "path": "docs/history/workforce-planning/2026-08-26-smart-timetable-stage-52-simplified-workflow.md",
       "modified_at": "2026-09-24T16:21:05.099194+03:00",
       "size_bytes": 4020,
       "sha256": "0e56229143f68dcc8bc778e7267eb78847924726d2b182c96f3db633a1a192bd",
-      "pdf_page": 716
+      "pdf_page": 717
     },
     {
       "path": "docs/history/workforce-planning/2026-08-28-explicit-planning-subject-demand-foundation.md",
       "modified_at": "2026-09-24T16:21:05.102465+03:00",
       "size_bytes": 1324,
       "sha256": "afafe672a2333b0efa09841ec564353aef9d1abaecfd6ed4e838727136db82fe",
-      "pdf_page": 717
+      "pdf_page": 718
     },
     {
       "path": "docs/history/workforce-planning/2026-08-28-planning-subject-demand-consumers.md",
       "modified_at": "2026-09-24T16:21:05.104539+03:00",
       "size_bytes": 671,
       "sha256": "fcee4f72e22432c1ec6f80bbc911c5f1b64547762ec497c7e82b701484791034",
-      "pdf_page": 718
+      "pdf_page": 719
     },
     {
       "path": "docs/history/workforce-planning/2026-08-29-curriculum-adjustment-apply.md",
       "modified_at": "2026-09-24T16:21:05.106079+03:00",
       "size_bytes": 975,
       "sha256": "8747e01223495bdebcf458b4893356453af4d2ac0695e90fb01dec75d4f7c33a",
-      "pdf_page": 719
+      "pdf_page": 720
     },
     {
       "path": "docs/history/workforce-planning/2026-08-29-curriculum-adjustment-preview.md",
       "modified_at": "2026-09-24T16:21:05.106951+03:00",
       "size_bytes": 913,
       "sha256": "8389dfcde074547ad652be6475b7cf1fde0ecee809baf5bed45e0779c61f15b3",
-      "pdf_page": 720
+      "pdf_page": 721
     },
     {
       "path": "docs/history/workforce-planning/2026-08-29-curriculum-transfer-and-subjects-display-fix.md",
       "modified_at": "2026-09-24T16:21:05.110634+03:00",
       "size_bytes": 890,
       "sha256": "2dea751607608f4455c6182fc7506897c639ad2c4e801424f53d996ff6973a43",
-      "pdf_page": 721
+      "pdf_page": 722
     },
     {
       "path": "docs/history/workforce-planning/2026-08-29-guided-curriculum-adjustment-ui.md",
       "modified_at": "2026-09-24T16:21:05.113684+03:00",
       "size_bytes": 736,
       "sha256": "f1b1c4d87546d4de605182712c8f9f6b5234344cbd1c08ccc0d4e8fafd76affb",
-      "pdf_page": 722
+      "pdf_page": 723
     },
     {
       "path": "docs/history/workforce-planning/2026-08-29-reduce-only-curriculum-adjustment.md",
       "modified_at": "2026-09-24T16:21:05.115292+03:00",
       "size_bytes": 939,
       "sha256": "fc6e85494687a739ba466c957c1103120c864aeecaa76d8214f80045395750c3",
-      "pdf_page": 723
+      "pdf_page": 724
     },
     {
       "path": "docs/history/workforce-planning/2026-08-30-teacher-scheduling-rules.md",
       "modified_at": "2026-09-24T16:21:05.117642+03:00",
       "size_bytes": 5305,
       "sha256": "59378b2c85d2acdafb8c112fdc22de293631f227e89b219ff0dc17daf67c3f91",
-      "pdf_page": 724
+      "pdf_page": 725
     },
     {
       "path": "docs/history/workforce-planning/2026-09-01-advanced-timetable-r1-reconciliation.md",
       "modified_at": "2026-09-24T16:21:05.120841+03:00",
       "size_bytes": 1507,
       "sha256": "fe8a309eda2deac4e62b021cf2bd4c5259b83a0a71b314bab549a15a318c8613",
-      "pdf_page": 726
+      "pdf_page": 727
     },
     {
       "path": "docs/history/workforce-planning/2026-09-01-structured-timetable-conflicts.md",
       "modified_at": "2026-09-24T16:21:05.122475+03:00",
       "size_bytes": 1606,
       "sha256": "3f3775a7e1b44dd000e36bb2f1ddfd04f22929cf5835fbbc4ec929cd53026a5e",
-      "pdf_page": 727
+      "pdf_page": 728
     },
     {
       "path": "docs/history/workforce-planning/2026-09-01-timetable-lesson-requirement-projection.md",
       "modified_at": "2026-09-24T16:21:05.124524+03:00",
       "size_bytes": 1777,
       "sha256": "0dfdffc418881be4e414e134e5ea87b0732b26e61fb3c26131d7cf9f1793ef20",
-      "pdf_page": 728
+      "pdf_page": 729
     },
     {
       "path": "docs/history/workforce-planning/2026-09-02-professional-timetable-lifecycle-ux.md",
       "modified_at": "2026-09-24T16:21:05.127408+03:00",
       "size_bytes": 1349,
       "sha256": "35ae71529a624d97dcb5ca64c2da8a80540f6ba604885850b5cc4ef7d9c26295",
-      "pdf_page": 729
+      "pdf_page": 730
     },
     {
       "path": "docs/history/workforce-planning/2026-09-03-planning-and-subject-delete-dependency-guards.md",
       "modified_at": "2026-09-24T16:21:05.130527+03:00",
       "size_bytes": 4715,
       "sha256": "60e605c9608ccbc01e02c890128f9aadf11b2cb6cdb995f3849468240f70e7d9",
-      "pdf_page": 730
+      "pdf_page": 731
     },
     {
       "path": "docs/history/workforce-planning/2026-09-03-return-to-reopen-on-load-pattern.md",
       "modified_at": "2026-09-24T16:21:05.131956+03:00",
       "size_bytes": 3076,
       "sha256": "cc9080e076f88abffbe5328985318c21daba1dc65327578a2aa90ee30eb476fb",
-      "pdf_page": 731
+      "pdf_page": 732
     },
     {
       "path": "docs/history/workforce-planning/2026-09-04-planning-subject-requirement-removal.md",
       "modified_at": "2026-09-24T16:21:05.134046+03:00",
       "size_bytes": 8667,
       "sha256": "f4e6f1447484f02ca0f4db2ff5f5783d3854f6c596f6b5c14186e7fd79dfb1fa",
-      "pdf_page": 732
+      "pdf_page": 733
     },
     {
       "path": "docs/history/workforce-planning/README.md",
       "modified_at": "2026-09-24T16:21:05.137365+03:00",
       "size_bytes": 4679,
       "sha256": "a040525141ec7b31113b4071ce0632e0994f3c271be5c4160a26f73de66f1e66",
-      "pdf_page": 734
+      "pdf_page": 735
     },
     {
       "path": "docs/history/workspace-classification/README.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 1585,
       "sha256": "c9580e0b0340d48b5e93fc3601f7b9fdcddd65c3facc54ab2906b9386642197e",
-      "pdf_page": 736
+      "pdf_page": 737
     },
     {
       "path": "docs/marketing/landing_page_source_of_truth.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 2012,
       "sha256": "d901b0ac33d921ff6041334e6580949f167b159c01c7840b48b1c2cf437c16f2",
-      "pdf_page": 737
+      "pdf_page": 738
     },
     {
       "path": "docs/marketing/tis_landing_page_master_content.md",
       "modified_at": "2026-08-22T02:52:50.590506+03:00",
       "size_bytes": 22759,
       "sha256": "e66b791e2798281fb0ee2a30768c48a27403a01bdfb12724ae004b3c98063ed7",
-      "pdf_page": 738
+      "pdf_page": 739
     },
     {
       "path": "docs/location-data-roadmap.md",
       "modified_at": "2026-08-22T02:52:50.588501+03:00",
       "size_bytes": 3311,
       "sha256": "584398a00da21c44cbb0c6c93e7aa54ea4031fa52d72bd2429b132b296fa6020",
-      "pdf_page": 746
+      "pdf_page": 747
     },
     {
       "path": "docs/releases/2026-09-23-students-talent-m1-m13-release-handoff.md",
       "modified_at": "2026-09-24T16:21:05.141078+03:00",
       "size_bytes": 14821,
       "sha256": "67c8b91c2ec3d7a9e37be7dcca34822a4a115546001d6216bd6085e3339c61ac",
-      "pdf_page": 748
+      "pdf_page": 749
     }
   ]
 }

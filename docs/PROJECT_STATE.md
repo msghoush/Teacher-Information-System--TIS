@@ -158,6 +158,9 @@ uses the shared trend chart with honest gaps (a suppressed or not-yet-available 
 with no coordinate; "No data yet" is never 0%; count metrics plot counts) plus the accessible table, and
 Results & Analytics links to it for a chosen Program. Not done (needs new backend semantics or owner
 decision): multi-year series, Classification-over-time, Branch comparison trend, rubric-indicator trend.
+Comparability closure (2026-09-25, ADR 0044): the line also breaks between two visible points whose adjacent
+backend `comparisons` record is not `comparable` (or is missing); each Period stays individually visible; the
+frontend never derives comparability. Results & Analytics completion-by-period supplies no list and is unchanged.
 The nav key and route are unchanged, so old links keep working; the template now loads `talent-charts.js`
 on that view.
 
