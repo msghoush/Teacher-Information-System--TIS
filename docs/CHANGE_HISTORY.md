@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-25 - Deployment hotfix: PostgreSQL psycopg v3 driver requirement
+
+Render's pre-deploy `python scripts/run_migrations.py` failed with
+`ModuleNotFoundError: No module named 'psycopg'` because the deployed
+`DATABASE_URL` selects SQLAlchemy's `postgresql+psycopg` dialect (psycopg v3)
+while `requirements.txt` declared only `psycopg2-binary`. `requirements.txt` now
+also declares `psycopg[binary]`; `psycopg2-binary` is kept so a plain
+`postgresql://` or `postgresql+psycopg2://` URL still resolves. No code, schema,
+migration, environment value or Talent behavior changed. `tests/test_deployment_dependencies.py`
+asserts each PostgreSQL driver family has a declared requirement. Web Service
+only; the separate workflow revision is unaffected.
+
 ## 2026-09-25 - Agent 3 Talent product transformation and privacy remediation
 
 - Preserved and completed the executive Overview work, with distinct Student KPI,
