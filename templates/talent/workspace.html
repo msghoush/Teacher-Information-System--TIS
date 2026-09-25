@@ -17,7 +17,10 @@
     </div>
     {% if request.state.talent_synthetic_preview|default(false) %}<span class="tp-badge">{{ icon('shield') }}Synthetic data · Read-only preview</span>{% endif %}
   </div>
-  {% set analytics_family = ['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
+  {% if talent_view in ['programs', 'evaluation-plans'] %}
+  <p class="tp-note tp-shared-config" data-shared-config="{{ 'manage' if talent_can_configure else 'read-only' }}">{{ icon('shield') }}<strong>Shared by all Branches.</strong> Programs, rubrics, frameworks, evaluation plans, and evaluation periods are configured once for the whole organization. {% if talent_can_configure %}Changes you make here apply to every Branch.{% else %}They are managed by your organization Administrator; you can view them here but not change them.{% endif %}</p>
+  {% endif %}
+  {% set analytics_family =['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
   {% if talent_view in analytics_family %}
   <nav class="tp-results-nav" aria-label="Results and Analytics views">
     <span class="tp-results-nav-label">Results &amp; Analytics</span>

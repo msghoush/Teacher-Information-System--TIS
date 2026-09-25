@@ -1,11 +1,70 @@
 ---
 title: TIS Project State
-documentation_version: 5.25
+documentation_version: 5.26
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Final Production Follow-Up Closure, Part B - central organization Talent configuration authority (2026-09-25)
+
+Implemented on `dev`; Web Service only; not deployed. No schema, migration, new permission key, stored
+grant change or `tis.db` change. Owner clarification: there is NO Branch copy/clone/enablement model; the
+SchoolGroup-level architecture is desired. Programs, Frameworks/Rubrics, Competencies/Indicators, KPI and
+review-candidate policy, annual Program configuration, Evaluation Plans/Periods and Assessment Cycle
+definitions are shared configuration created and governed ONCE by the organization Administrator and used
+by every Branch. Branch state is only Students, Academic Placements, Cycle population evidence,
+Assessments, results and Branch analytics/history. `TalentProgram` still has no `branch_id`.
+
+**Permission reality before Part B (code and tests inspected; production stored rows could not be read).**
+The default role matrix is code-defined (`permission_registry.DEFAULT_ROLE_PERMISSIONS`), not seeded data:
+Administrator holds every non-platform key including every `talent_*` key; Editor and User hold NO
+`talent_*` key (`_EDITOR_LIKE_PERMISSIONS`); Limited holds none and `constrain_role_permissions` strips any
+Talent grant; Platform Owner holds all; Platform Developer holds all assignable keys. Stored rows
+(`seed_*_role_permissions`, Role Permissions UI) and per-user overrides (ADR 0040: Deny always wins, Allow
+only where the role already allows) can still grant an Editor/User a Talent key. Route gates: Program /
+Framework / Competency / Rubric / KPI / policy / annual-configuration create and edit =
+`talent_programs.manage` ONLY (no organization-scope gate: a Branch-scoped Administrator could author
+organization-wide configuration, and an existing test pinned it as "Branch author may draft"); framework
+activate/retire and Program lifecycle = `talent_programs.govern` + organization scope; Program delete =
+`.delete` + organization scope; Competency / Rubric Level delete = `.delete_competency` /
+`.delete_rubric_level`; Evaluation Plan create, Period add/edit/reorder/remove, activate, cancel, close,
+rollover, Cycle link/unlink = `talent_evaluation_plans.manage/.manage_timeline/.delete_period/.govern`
+(+ `talent_assessment_cycles.manage`, `.select_period` for linking) with organization scope; Assessment
+Cycle create/edit-Draft = `talent_assessment_cycles.manage` ONLY; Cycle open/close/synchronize =
+`.govern` + organization scope. The UI already withheld only `programs.govern`, `plans.manage/.govern` and
+`cycles.govern` from Branch scope.
+
+**Change.** Authority = the existing semantic permission (default Administrator-only) AND organization/global
+access scope, enforced structurally in each router's `_authorize` (`CONFIG_MUTATION_KEYS`,
+`CYCLE_CONFIG_KEYS`, `PLAN_CONFIG_KEYS`; 403 `organization_authority_required`) rather than per handler.
+Reads (`.view`), shared-configuration use, `talent_evaluation_plans.select_period` and every assessment /
+result / analytics permission are untouched, so a Branch operational user (Start/complete Assessments,
+Branch results) is unaffected. Cycle open/close stays configuration governance (it freezes the whole
+SchoolGroup population), not a Branch operational action. `talent_ui` now also withholds
+`programs.manage`, `programs.delete_competency/.delete_rubric_level` and `cycles.manage` from Branch scope
+(server-derived capability hints for the existing `can()` mechanism), publishes `talent_can_configure`, and
+the Programs and Evaluation Plan views show "Shared by all Branches" copy (read-only wording for actors who
+cannot configure); the Program summary reads "View Evaluation Plan" instead of "Manage" when read-only. No
+Program Status lifecycle UI was reintroduced.
+
+**Residual (owner-visible).** (1) A Branch-scoped Administrator LOSES configuration authoring (deliberate;
+supersedes the earlier M2/M4 "Branch author may draft" wording, which is preserved as history). (2) Stored
+custom grants are NOT revoked: an ORGANIZATION-scoped non-Administrator whom an administrator explicitly
+granted a configuration key can still mutate; Branch-scoped holders of any role are denied server-side. If
+the owner wants strictly Administrator-role-only mutation, that is a one-line role check plus a stored-grant
+review, deliberately not done. (3) Existing duplicate Programs are NOT merged, deleted or rewritten. The
+read-only `scripts/audit_talent_program_duplicates_readonly.py` lists suspected duplicates per SchoolGroup
+(case/hyphen/whitespace, Branch-name variants, identical framework structure), per-Program framework /
+annual-configuration / plan / Period / history-reference counts, whether a merge would be destructive, and
+counts of non-Administrator configuration grants; production data was not audited here.
+
+Tests: `tests/test_talent_central_configuration_authority.py` (inventory of all 47 mutating configuration
+routes, role x route, per-route permission-key mapping, platform actors, a Branch operational Editor still
+starts Assessments, tenant isolation), `tests/test_audit_talent_program_duplicates_readonly.py`, UI additions
+in `tests/test_talent_ui.py`, Node additions in `tests/talent_program_workspace.test.cjs`, and the deliberate
+replacement of the old Branch-author test in `test_talent_program_framework_foundation.py`.
 
 ## Final Production Follow-Up Closure, Part A - Start Assessment must actually work (2026-09-25)
 
@@ -4074,7 +4133,7 @@ audited additive synchronization of newly eligible Students while Open.
 
 Dedicated `talent_assessment_cycles.view/manage/view_population/govern`
 permissions are Administrator-only by default. Branch authors may manage
-Draft metadata but cannot Open/Close. Governance additionally requires
+Draft metadata but cannot Open/Close [superseded 2026-09-25 by Final Closure Part B: Cycle create/edit now also requires organization/global scope]. Governance additionally requires
 organization/global scope. Population reads are separately permissioned:
 Branch actors see only authorized preview/frozen Branch members and subset
 counts, never the full count/fingerprint; organization/global population

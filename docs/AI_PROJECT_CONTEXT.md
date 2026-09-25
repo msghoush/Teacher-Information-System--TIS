@@ -7,6 +7,17 @@ recommended_first_read: true
 
 # TIS AI Project Context
 
+## Talent Configuration Is Organization-Level (Final Closure Part B, 2026-09-25)
+
+Read before touching Talent configuration routes or permissions. Programs, Frameworks/Rubrics, Competencies/KPI,
+annual Program configuration, Evaluation Plans/Periods and Cycle definitions are SchoolGroup-level shared
+configuration, governed once by the organization Administrator. Do NOT add Branch ownership, Branch copies or a
+Branch enablement table. Every configuration mutation needs its semantic permission (default Administrator-only;
+Editor/User/Limited hold no `talent_*` key by default) AND organization/global access scope, enforced in each
+router's `_authorize` (`CONFIG_MUTATION_KEYS`, `CYCLE_CONFIG_KEYS`, `PLAN_CONFIG_KEYS`). A new mutating Talent
+configuration route must be added to `tests/test_talent_central_configuration_authority.py`
+`EXPECTED_MUTATIONS`. The earlier "Branch-scoped `.manage` holder may author Draft" behavior is superseded.
+
 ## Talent Chart Types, Background Refresh And Progress Over Time (Production Follow-up Part 2, 2026-09-25)
 
 Read before touching Talent charts or dashboard filters. Chart-type selectors may only switch
@@ -1760,7 +1771,7 @@ Existing members and evidence are never changed; Closed Cycles remain final.
 M4 adds dedicated Administrator-only-by-default permissions:
 `talent_assessment_cycles.view`, `.manage`, `.view_population`, and `.govern`.
 Branch-scoped `.manage` holders may author Draft metadata but cannot Open or
-Close; lifecycle governance requires `.govern` plus organization/global
+Close [superseded 2026-09-25 by Final Closure Part B: organization/global scope is now required]; lifecycle governance requires `.govern` plus organization/global
 scope and always freezes the complete SchoolGroup population. Identifiable
 preview and frozen reads require `.view_population`. Branch-scoped readers
 receive only members whose resolved preview Branch or frozen historical

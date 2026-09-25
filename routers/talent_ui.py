@@ -147,14 +147,23 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
                    "talent_review_candidates.manage", "talent_official_identifications.record",
                    "talent_educator_inputs.view", "talent_educator_inputs.add", "talent_educator_inputs.amend"}}
     # Mirror the existing organization-only API gates for action presentation.
+    # Final-closure Part B: shared configuration (Programs, Frameworks, Rubrics,
+    # Competencies/KPI, annual configuration, Evaluation Plans/Periods, Cycle
+    # definitions) is organization-level, so EVERY configuration mutation capability
+    # is withheld from Branch-scoped actors, matching the API gates exactly.
     if not auth.can_access_all_branches(user):
-        for key in ("talent_programs.govern", "talent_evaluation_plans.manage", "talent_evaluation_plans.govern", "talent_assessment_cycles.govern",
+        for key in ("talent_programs.manage", "talent_programs.govern",
+                    "talent_programs.delete_competency", "talent_programs.delete_rubric_level",
+                    "talent_evaluation_plans.manage", "talent_evaluation_plans.govern",
+                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                     "talent_official_identifications.record"):
             allowed[key] = False
+    can_configure = bool(allowed.get("talent_programs.manage") or allowed.get("talent_evaluation_plans.manage"))
     return templates.TemplateResponse(request=request, name="talent/workspace.html", context={
         "request": request, **context, "talent_view": view,
         "talent_title": VIEWS[view][0], "talent_views": VIEWS,
         "talent_permissions": allowed,
+        "talent_can_configure": can_configure,
         "talent_years": years,
         "talent_active_branch_id": active_branch_id,
         "talent_active_branch_name": active_branch_name,

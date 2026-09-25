@@ -337,3 +337,17 @@ authorized read API (`.../dashboard`), with cancellation of superseded requests 
 response rendered. (3) Progress Over Time stays a real per-Program view over the ADR 0027
 longitudinal projection; a period that is suppressed or has no Student result yet is a gap
 ("Unavailable" / "No data yet"), never zero, and different Program frameworks are never combined.
+
+## Final Closure Part B Amendment (2026-09-25): Central Organization Configuration Authority
+
+Dated governance amendment; no `MetricCode`, privacy or analytics semantics changed. Owner decision: Talent
+configuration (Programs, Frameworks/Rubrics, Competencies/Indicators, KPI/policy, annual Program
+configuration, Evaluation Plans/Periods and Assessment Cycle definitions) is SchoolGroup-level shared
+configuration governed once by the organization Administrator; there is no Branch copy or Branch enablement
+model and Programs carry no Branch ownership. Branch state is Students, placements, Cycle population
+evidence, Assessments, results and Branch analytics. Every configuration mutation route requires its
+existing semantic permission (`.manage/.govern/.delete*`, default Administrator-only) and organization/global
+access scope; Branch-scoped actors read shared configuration and assess Students in their Branch but never
+mutate configuration. This supersedes the earlier statement that a Branch-scoped `.manage` holder may author
+Draft Program/Framework/Cycle metadata (preserved in older documents as history). Stored custom grants are not
+rewritten. Analytics reads and the Branch authorization above are unchanged.

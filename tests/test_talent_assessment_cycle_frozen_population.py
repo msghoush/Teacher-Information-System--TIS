@@ -524,23 +524,35 @@ def _client(db, user):
     return TestClient(app)
 
 
-def test_branch_manage_can_author_draft_but_never_open(db):
+def test_branch_scope_can_neither_author_nor_open_shared_cycles_while_organization_can(db):
+    # Final-closure Part B: a Cycle definition is shared organization configuration, so even a
+    # Branch-scoped holder of talent_assessment_cycles.manage can no longer author or edit a
+    # Draft (this supersedes the earlier "Branch manage can author Draft" behavior). Only an
+    # organization/global-scoped actor authors, edits and (with .govern) opens.
     _, session = db
     program, framework, _ = foundation(session)
     branch_admin = _user("1000000001", branch=10, scope="BRANCH")
-    session.add(branch_admin)
+    org_admin = _user("1000000009", branch=10, scope="ORGANIZATION")
+    session.add_all([branch_admin, org_admin])
     session.commit()
+    payload = {
+        "program_id": program.id, "academic_year_id": 100,
+        "framework_version_id": framework.id, "title": "Branch Authored",
+        "population_effective_at": "2026-10-01T00:00:00Z",
+    }
     with _client(session, branch_admin) as client:
-        created = client.post("/api/talent/assessment-cycles", json={
-            "program_id": program.id, "academic_year_id": 100,
-            "framework_version_id": framework.id, "title": "Branch Authored",
-            "population_effective_at": "2026-10-01T00:00:00Z",
-        })
+        denied_create = client.post("/api/talent/assessment-cycles", json=payload)
+        assert denied_create.status_code == 403 and denied_create.json()["code"] == "organization_authority_required"
+    with _client(session, org_admin) as client:
+        created = client.post("/api/talent/assessment-cycles", json={**payload, "title": "Organization Authored"})
         assert created.status_code == 201
         cycle_id = created.json()["id"]
-        assert client.patch(f"/api/talent/assessment-cycles/{cycle_id}", json={"expected_revision": 1, "title": "Edited"}).status_code == 200
-        denied = client.post(f"/api/talent/assessment-cycles/{cycle_id}/open", json={"expected_revision": 2})
+    with _client(session, branch_admin) as client:
+        assert client.patch(f"/api/talent/assessment-cycles/{cycle_id}", json={"expected_revision": 1, "title": "Edited"}).status_code == 403
+        denied = client.post(f"/api/talent/assessment-cycles/{cycle_id}/open", json={"expected_revision": 1})
         assert denied.status_code == 403 and denied.json()["code"] == "organization_authority_required"
+    with _client(session, org_admin) as client:
+        assert client.patch(f"/api/talent/assessment-cycles/{cycle_id}", json={"expected_revision": 1, "title": "Edited"}).status_code == 200
 
 
 def test_population_permission_and_branch_filtered_preview_do_not_leak_totals(db):

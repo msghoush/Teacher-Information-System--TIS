@@ -35,7 +35,18 @@ def _authorize(request, db, user, *keys, all_required=False):
         return None, None, denied
     if not group_id:
         return user, None, JSONResponse({"detail": "Select an organization scope.", "code": "organization_scope_required"}, status_code=403)
+    # Final-closure Part B: structural (not per-handler) guarantee that no plan/period
+    # mutation is reachable without organization/global scope. Reads (`.view`) and
+    # the operational `.select_period` remain Branch-usable.
+    if any(key in PLAN_CONFIG_KEYS for key in keys) and not _organization(user):
+        return user, None, JSONResponse({"detail": "Evaluation Plans are shared by all Branches and are managed by your organization Administrator.", "code": "organization_authority_required"}, status_code=403)
     return user, int(group_id), None
+
+
+PLAN_CONFIG_KEYS = frozenset({
+    "talent_evaluation_plans.manage", "talent_evaluation_plans.govern",
+    "talent_evaluation_plans.delete_period", "talent_evaluation_plans.manage_timeline",
+})
 
 
 def _require_org(user):

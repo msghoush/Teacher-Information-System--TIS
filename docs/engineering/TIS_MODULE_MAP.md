@@ -52,6 +52,15 @@ source_of_truth: true
   no longer installs the retired DOM-only roster filter.
 
 
+## Talent configuration authority (Final Closure Part B, 2026-09-25)
+
+- `routers/talent_programs.py` `CONFIG_MUTATION_KEYS`, `routers/talent_assessment_cycles.py`
+  `CYCLE_CONFIG_KEYS`, `routers/talent_evaluation_plans.py` `PLAN_CONFIG_KEYS`: each router's `_authorize`
+  denies (403 `organization_authority_required`) any mutation key for an actor without organization/global
+  access scope. `routers/talent_ui.py` withholds the same capabilities from Branch scope and publishes
+  `talent_can_configure`; `templates/talent/workspace.html` shows the shared-configuration notice.
+  `scripts/audit_talent_program_duplicates_readonly.py` is a read-only owner audit (never imported by the app).
+
 ## Start Assessment eligibility (Final Closure Part A, 2026-09-25)
 
 - `talent_student_assessment_service.roster_start_states` is the single predicate shared by the roster

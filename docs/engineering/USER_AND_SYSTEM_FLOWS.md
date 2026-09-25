@@ -29,6 +29,17 @@ source_of_truth: true
    well as visible charts. Ordered periods do not imply growth.
 
 
+## Talent Configuration Authority Flow (Final Closure Part B, 2026-09-25)
+
+1. The organization Administrator creates and maintains Programs, Frameworks/Rubrics, Competencies/KPI,
+   annual Program configuration, Evaluation Plans/Periods and Cycle definitions once for the whole
+   SchoolGroup. There is no per-Branch copy or enablement.
+2. Branch users see the shared configuration they need (Programs, Frameworks, Evaluation Periods) with a
+   "Shared by all Branches" notice and no enabled mutation control; the server independently answers 403
+   `organization_authority_required` to any configuration mutation from Branch scope.
+3. Branch operational work is unchanged: Students, placements, Cycle population, Start/complete Assessments
+   and Branch results stay under the operational permissions and Branch authorization.
+
 ## Start Assessment Flow (Final Closure Part A, 2026-09-25)
 
 1. Choose an Evaluation Period and Program; the roster lists every currently placed authorized Student

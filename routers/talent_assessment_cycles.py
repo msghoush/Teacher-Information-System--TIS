@@ -45,7 +45,16 @@ def _authorize(request, db, user, key):
         return None, None, denied
     if not group_id:
         return user, None, JSONResponse({"detail": "Select an organization scope."}, status_code=403)
+    # Final-closure Part B: a Cycle definition (create/edit Draft) and its lifecycle
+    # (open/close/synchronize) are shared organization configuration, so they need
+    # organization/global scope in addition to the permission. Reads and the
+    # Branch-scoped population/roster views are unaffected.
+    if key in CYCLE_CONFIG_KEYS and not _organization_authorized(user):
+        return user, None, JSONResponse({"detail": "Assessment Cycles are shared by all Branches and are managed by your organization Administrator.", "code": "organization_authority_required"}, status_code=403)
     return user, int(group_id), None
+
+
+CYCLE_CONFIG_KEYS = frozenset({"talent_assessment_cycles.manage", "talent_assessment_cycles.govern"})
 
 
 def _organization_authorized(user):

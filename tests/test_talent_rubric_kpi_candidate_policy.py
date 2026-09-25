@@ -405,7 +405,8 @@ def test_rubric_level_order_is_the_semantic_rank_independent_of_numeric_value(db
 
 
 def test_m3_api_reuses_view_manage_permissions(db):
-    admin = models.User(user_id="1000000001", username="admin", role="Administrator", user_type="TENANT", access_scope="BRANCH", school_group_id=1, branch_id=10, academic_year_id=100, is_active=True)
+    # Final-closure Part B: configuration mutation needs organization/global scope as well.
+    admin = models.User(user_id="1000000001", username="admin", role="Administrator", user_type="TENANT", access_scope="ORGANIZATION", school_group_id=1, branch_id=10, academic_year_id=100, is_active=True)
     db.add(admin); db.commit(); admin.scope_school_group_id = 1; admin.scope_branch_id = 10
     program, framework, _, _, _ = foundation(db)
     app = FastAPI(); app.include_router(router); app.dependency_overrides[get_db] = lambda: db; app.dependency_overrides[get_current_user] = lambda: admin

@@ -7,6 +7,16 @@ source_of_truth: true
 
 # TIS Master Context
 
+## Talent Configuration Authority Amendment (Final Closure Part B, 2026-09-25)
+
+Owner decision: Talent Programs, Frameworks/Rubrics, Competencies/KPI, annual Program configuration,
+Evaluation Plans/Periods and Assessment Cycle definitions are SchoolGroup-level shared configuration
+governed once by the organization Administrator; every Branch uses the same definitions. There is no Branch
+copy or enablement model. Configuration mutations require the existing semantic permission (default
+Administrator-only) and organization/global access scope; Branch users read shared configuration and assess
+Students in their authorized Branch only. Existing stored grants are not rewritten. See the ADR 0044 Part B
+amendment and `docs/PROJECT_STATE.md`.
+
 ## Talent Branch Authority Amendment (Production Follow-up Part 1, 2026-09-25)
 
 Owner decision: the global (sidebar) Branch selector contains real Branches only. Inside

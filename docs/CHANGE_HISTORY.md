@@ -1,11 +1,30 @@
 ---
 title: TIS Change History
-documentation_version: 5.16
+documentation_version: 5.17
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Final Production Follow-Up Closure Part B: central organization Talent configuration authority
+
+- Owner clarification: no Branch copy/clone/enablement of Programs, Rubrics, Frameworks, Evaluation
+  Plans or Periods; the SchoolGroup-level model is kept and configuration is governed once by the
+  organization Administrator. `TalentProgram` gained no Branch ownership.
+- Change: every Talent configuration mutation (Program, Framework/Rubric, Competency/KPI/policy, annual
+  configuration, Evaluation Plan/Period, Assessment Cycle definition and lifecycle) requires its existing
+  semantic permission (default Administrator-only) AND organization/global scope, enforced in each router's
+  `_authorize`; a Branch-scoped Administrator can no longer author shared configuration (previously
+  `talent_programs.manage` alone sufficed). Reads, shared-configuration use, Assessment and results
+  permissions are unchanged. UI: server-derived capabilities withheld from Branch scope; "Shared by all
+  Branches" copy on Programs and Evaluation Plan.
+- Stored custom grants are not revoked. New read-only duplicate audit script
+  `scripts/audit_talent_program_duplicates_readonly.py`; no production data audited.
+- Tests: `test_talent_central_configuration_authority.py`, `test_audit_talent_program_duplicates_readonly.py`,
+  additions to `test_talent_ui.py` and `talent_program_workspace.test.cjs`; the old "Branch author can draft"
+  test was replaced deliberately. No schema, migration, new permission key or `tis.db` change. Web Service only;
+  not deployed.
 
 ## 2026-09-25 - Final Production Follow-Up Closure Part A: Start Assessment must actually work
 
