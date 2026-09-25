@@ -67,4 +67,5 @@ ADRs record major TIS architectural and product decisions. They explain why the 
 - `0041-promo-grant-replacement.md`
 - `0042-student-learning-style-four-dimension-profile.md`
 - `0043-tis-student-number-managed-identifier-invariant.md`
+- `0044-talent-evaluation-progress-analytics.md`
 - `0045-al-andalus-section-display-workspace-authorization.md`

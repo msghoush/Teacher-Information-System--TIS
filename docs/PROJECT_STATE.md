@@ -23,7 +23,7 @@ Administrator holds every non-platform key including every `talent_*` key; Edito
 `talent_*` key (`_EDITOR_LIKE_PERMISSIONS`); Limited holds none and `constrain_role_permissions` strips any
 Talent grant; Platform Owner holds all; Platform Developer holds all assignable keys. Stored rows
 (`seed_*_role_permissions`, Role Permissions UI) and per-user overrides (ADR 0040: Deny always wins, Allow
-only where the role already allows) can still grant an Editor/User a Talent key. Route gates: Program /
+only where the role already allows) mean a stored role row can still grant an Editor/User a Talent key, but a per-user Allow cannot add a key the role denies. Route gates: Program /
 Framework / Competency / Rubric / KPI / policy / annual-configuration create and edit =
 `talent_programs.manage` ONLY (no organization-scope gate: a Branch-scoped Administrator could author
 organization-wide configuration, and an existing test pinned it as "Branch author may draft"); framework

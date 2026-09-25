@@ -1947,7 +1947,7 @@ current state or the call fails `stale_framework`.
 Governance is split into two tiers. Draft authorship - Program create/edit,
 Program annual configuration, Framework Draft edits (including competency
 membership add/update/reorder/remove within a Draft), and Competency
-create/edit - is permission-gated and organization-scope-independent.
+create/edit - is permission-gated and organization-scope-independent. [Superseded 2026-09-25 by Final Closure Part B: every configuration mutation additionally requires organization/global scope (`CONFIG_MUTATION_KEYS`); Branch-scoped actors read only.]
 Framework activate/retire and Program lifecycle transitions additionally
 require organization/global access scope (`auth.ACCESS_SCOPE_ORGANIZATION`/
 `ACCESS_SCOPE_GLOBAL`, checked through `_organization_authorized()` in
