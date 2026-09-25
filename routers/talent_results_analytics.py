@@ -68,8 +68,12 @@ def dashboard(academic_year_id: int, request: Request,
             visible_branches=_visible_branches(db, user), filters=filters, policy=policy,
             learning_style_allowed=auth.has_permission(db, user, 'students.view', school_group_id=int(group_id)),
         )
-    except (DashboardError, ValueError) as exc:
+    except DashboardError as exc:
+        # Deliberately bounded, user-safe messages authored in the service.
         return JSONResponse({'detail': str(exc), 'code': 'invalid_filter'}, status_code=400)
+    except ValueError:
+        # Malformed filter values (e.g. non-numeric ids); never echo internal text.
+        return JSONResponse({'detail': 'Invalid analytics filter.', 'code': 'invalid_filter'}, status_code=400)
     return jsonable_encoder(payload)
 
 

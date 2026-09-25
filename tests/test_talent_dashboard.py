@@ -319,3 +319,39 @@ def test_roster_small_cohort_rows_are_exact_while_aggregate_classification_stays
         assert all(bucket.get('count') is None for bucket in data['insights']['classification']['buckets'])
     finally:
         world.close()
+
+
+def test_dashboard_route_never_echoes_internal_value_error_text(monkeypatch):
+    """Security closure: only deliberately bounded DashboardError text is returned."""
+    from test_talent_batch1_data_scope import World
+    import routers.talent_results_analytics as route
+    world = World(foreign_keys=True)
+    try:
+        world.as_admin(world.north)
+        url = f'/api/talent/results-analytics/academic-years/{world.year}/dashboard'
+        sentinel = 'SENTINEL-internal-detail /srv/secret.py invalid literal'
+
+        def raise_value_error(*args, **kwargs):
+            raise ValueError(sentinel)
+
+        monkeypatch.setattr(route, 'build_dashboard', raise_value_error)
+        response = world.get(url)
+        assert response.status_code == 400
+        assert sentinel not in response.text
+        assert response.json() == {'detail': 'Invalid analytics filter.', 'code': 'invalid_filter'}
+
+        def raise_dashboard_error(*args, **kwargs):
+            raise DashboardError('Choose a recognized Classification.')
+
+        monkeypatch.setattr(route, 'build_dashboard', raise_dashboard_error)
+        response = world.get(url)
+        assert response.status_code == 400
+        assert response.json() == {'detail': 'Choose a recognized Classification.', 'code': 'invalid_filter'}
+
+        # Real malformed input (non-numeric id) is a generic ValueError and stays generic.
+        monkeypatch.undo()
+        malformed = world.get(url + '?branch_id=not-a-number')
+        assert malformed.status_code == 400
+        assert 'not-a-number' not in malformed.text
+    finally:
+        world.close()
