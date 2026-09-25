@@ -1,11 +1,32 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.12
+documentation_version: 3.13
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Agent 3 filtered analysis flow (2026-09-25)
+
+1. Open Overview for distinct current Student headlines and executive charts,
+   Programs for searchable configuration cards, or Student Assessment for
+   individually authorized operational records.
+2. In Results & Analytics select shared Branch, Grade, Section, Program,
+   Evaluation Period and Classification filters. All means all within authorization,
+   never beyond the global Branch ceiling. Parent changes clear dependent
+   selections; bounded requests and generation guards prevent stale publication.
+3. One backend read-only repeatable snapshot builds the selected population,
+   canonical current attempts and privacy projections. Organization percentages
+   use underlying counts. Compare one dimension and up to six groups. Rubric
+   selection is Program, then Competency, then Indicator.
+4. Classification-filtered Learning Style represents the same cohort. If its count
+   would expose a protected Classification cell, show the protected-cohort
+   explanation, not zero/no-data, geometry or exact values. Individual authorized
+   roster rows remain exact and are not cohort-suppressed.
+5. Switch valid chart modes without fetching again. Exact tables are keyboard-
+   accessible; protected values are absent from hidden/ARIA/tooltip content as
+   well as visible charts. Ordered periods do not imply growth.
 
 
 ## Global Branch -> Talent Flow (Batch 1 Closure, 2026-09-25)

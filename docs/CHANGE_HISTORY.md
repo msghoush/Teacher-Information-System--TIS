@@ -1,11 +1,39 @@
 ---
 title: TIS Change History
-documentation_version: 5.13
+documentation_version: 5.14
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Agent 3 Talent product transformation and privacy remediation
+
+- Preserved and completed the executive Overview work, with distinct Student KPI,
+  participation grain, shared charts and workspace actions; Programs uses searchable
+  cards and omits normal lifecycle-status badges without changing lifecycle gates.
+- Added one bounded, identity-free filtered dashboard contract and six aggregate
+  sections with shared filters, selected comparisons, Program-bound indicators,
+  and compatible ordered-period results. No average-of-Branch-rate calculations.
+- Fixed Agent 2's Classification-filtered Learning Style reconstruction leak.
+  The existing privacy provider gates the selected cohort against its original
+  primary/complementary projection. Protected aggregates serialize no numbers;
+  individually authorized Student roster rows remain available without cohort
+  suppression. Current reassessments resolve through their original Evaluation.
+- Added shared chart modes, exact accessible tables and value-free protected states;
+  removed duplicate analytics/Student preview and auxiliary rubric fetches from
+  Results & Analytics. Retained per-view assets, bounded requests and stale-response
+  protection. New dashboard reads use the existing repeatable snapshot dependency.
+- Added adversarial backend/frontend tests. No schema, migration, permission,
+  local database, deployment, master merge or release PR change.
+
+- Recovery completion: removed the re-introduced generic "Protected for privacy"
+  chart copy, fixed the inert/over-shown Program summary Finish Setup control,
+  replaced emoji avatars/icons with initials and SVG, added the Talent visual
+  system stylesheet layer and Program grade chips, and added backend and Node
+  regression for Overview/dashboard Student-count agreement, bounded statements,
+  route-level protected Learning Style, exact small-cohort roster rows, chart
+  mode switching and Program Status absence. Visual results are structural only.
 
 ## 2026-09-25 - Student Assessment request-backed filters and filtered insights
 

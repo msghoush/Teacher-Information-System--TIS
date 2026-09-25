@@ -67,6 +67,12 @@
 <script src="{{ url_for('static', path='js/talent-rubric-request.js') }}?v={{ talent_asset_version('js/talent-rubric-request.js') }}" defer></script>
 {# Shared Student identity presentation (name / Learning Style / Classification / Talented): every Talent view that renders an identifiable Student needs it, so it is loaded everywhere like the other tiny shared helpers. #}
 <script src="{{ url_for('static', path='js/talent-student-identity.js') }}?v={{ talent_asset_version('js/talent-student-identity.js') }}" defer></script>
+{% if talent_view in ['overview', 'analytics', 'assessments'] %}
+<script src="{{ url_for('static', path='js/talent-charts.js') }}?v={{ talent_asset_version('js/talent-charts.js') }}" defer></script>
+{% endif %}
+{% if talent_view in ['overview', 'analytics'] %}
+<script src="{{ url_for('static', path='js/talent-dashboard.js') }}?v={{ talent_asset_version('js/talent-dashboard.js') }}" defer></script>
+{% endif %}
 {% if talent_view in ['assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-operations.js') }}?v={{ talent_asset_version('js/talent-operations.js') }}" defer></script>
 {% endif %}

@@ -228,7 +228,7 @@ test('Students Across Programs shows Learning Style and per-Program Classificati
   assert.equal(env.callsTo('/classification').length, 0);
 });
 
-test('dashboard Student preview shows Learning Style and Classification by Program, not Review / Identification', async () => {
+test('aggregate dashboard never requests or renders individual Student previews', async () => {
   const env = await createEnv({view: 'analytics', permissions: FULL, search: '?program_id=5&academic_year_id=1', handler: url => {
     if (url.includes('organization-analytics/students')) return {body: {items: drillItems}};
     if (url.includes('organization-analytics/overview')) return {body: {metrics: {}}};
@@ -238,8 +238,9 @@ test('dashboard Student preview shows Learning Style and Classification by Progr
     return {body: {distribution: {state: 'visible', buckets: []}}};
   }}).start();
   const html = env.text();
-  assert.match(html, /Classification by Program/);
-  assert.match(html, /Learning Style:<\/span> Visual/);
+  assert.match(html, /Results &amp; Analytics/);
+  assert.equal(env.callsTo('organization-analytics/students').length, 0);
+  assert.doesNotMatch(html, /Ella|Learning Style:<\/span> Visual|Classification by Program/);
   assert.doesNotMatch(html, /Review \/ Identification|No candidate/);
 });
 

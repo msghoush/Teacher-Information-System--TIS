@@ -1,11 +1,43 @@
 ---
 title: TIS Module Map
-documentation_version: 4.8
+documentation_version: 4.9
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent filtered aggregate workspace (Agent 3, 2026-09-25)
+
+- `talent_dashboard_service.py`: bounded current-Student Evaluation membership
+  projection, canonical current-attempt results/Classification, raw-population
+  totals, authorized filter options, selected comparisons, compatible period
+  results and Program/Competency-bound rubric evidence. Uses P2 completion,
+  P3 result/indicator and P4 Classification provider rules with conservative
+  cross-group closure; emits no Student identities.
+- `routers/talent_results_analytics.py`: GET
+  `/api/talent/results-analytics/academic-years/{academic_year_id}/dashboard`,
+  analytics permission, tenant/year/Branch ceiling and existing repeatable
+  read-only snapshot dependency. Learning Style also requires `students.view`.
+- `talent_learning_style_privacy.py`: owner-approved Classification-cohort
+  publishability gate shared by the operational roster summaries and dashboard.
+  It does not suppress authorized individual rows or invent frontend thresholds.
+- `static/js/talent-dashboard.js`: shared aggregate filters and six dashboard
+  sections, Overview summaries and dependent-filter clearing.
+- `static/js/talent-charts.js`: sanitizes nonvisible values before chart markup,
+  applicable mode switching without fetches, native keyboard controls and exact
+  tables. Loaded only on Overview, Analytics and Student Assessment.
+- `static/js/talent.js`: bounded request/generation ownership, independent Overview
+  headline/chart sections and one dashboard request. `talent-experience.js` no
+  longer adds a second rubric request to this dashboard.
+- `static/js/talent-program-workspace.js` and `static/css/talent-experience.css`:
+  searchable Program cards, executive hierarchy and shared chart presentation.
+
+- `static/css/talent-experience.css` (Talent visual system layer): presentation
+  only; header band, KPI tiles, chart cards, Program cards, action hierarchy,
+  responsive/reduced-motion/forced-colors rules. Owns no values or thresholds.
+- `tests/talent_visual_system.test.cjs`: chart-mode matrix, switched-visual
+  no-leak, protected Learning Style, Program Status absence, action system.
 
 ## Student Assessment filtered roster and insights (Agent 2, 2026-09-25)
 

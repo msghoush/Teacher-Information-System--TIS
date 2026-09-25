@@ -1,11 +1,29 @@
 ---
 title: TIS Master Context
-documentation_version: 4.13
+documentation_version: 4.14
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Agent 3 Talent product transformation (2026-09-25)
+
+Overview is the executive entry point; Results & Analytics is the six-section
+aggregate workspace, not another Student roster. A bounded backend projection
+provides shared filters, raw-population completion, canonical M17 Classification,
+eight-category Learning Style plus Unassigned, Program-bound Rubric Indicators,
+selected comparisons and compatible Evaluation Period context. Results across
+different Programs/frameworks/scales never become one Talent score.
+
+The owner clarified the privacy boundary: individually authorized operational
+Student records retain exact permitted fields; aggregate Classification retains
+primary, complementary, fail-closed and reconstruction protection. Classification-
+filtered Learning Style is protected whenever it could disclose the protected
+cohort count through totals, buckets or percentages. The backend privacy provider
+decides publishability; the browser has no threshold authority. This supersedes
+the unconditional aggregate exception for this Classification-filtered case only.
+See the Agent 3 amendment in ADR 0031.
 
 
 ## Global Branch Is A Hard Talent Scope (Batch 1 Closure, 2026-09-25)

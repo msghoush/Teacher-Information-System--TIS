@@ -23,6 +23,7 @@ coverage is in test_student_learning_style_distribution_acceptance_c.py).
 """
 
 import pathlib
+import ast
 import re
 
 import pytest
@@ -542,7 +543,9 @@ _TALENT_SCORING_MODULES = (
     "talent_analytics_privacy.py",
     "routers/talent_assessments.py",
     "routers/talent_review_candidates.py",
-    "routers/talent_assessment_cycles.py",
+    "talent_assessment_cycle_service.py",
+    "talent_student_assessment_service.py",
+    "talent_classification_service.py",
     "routers/talent_programs.py",
 )
 
@@ -560,6 +563,27 @@ def test_no_talent_scoring_or_eligibility_module_reads_learning_style():
         source = path.read_text(encoding="utf-8")
         assert "learning_style" not in source, f"{relative} must never read learning_style"
     assert checked >= 5, "expected to actually check several real Talent scoring modules"
+
+
+def test_roster_learning_style_is_presentation_only_not_eligibility_or_scoring():
+    """Agent 2/3 owner-approved projection is not an eligibility input.
+
+    The old blanket router string ban contradicted the approved roster summary.
+    Keep the ban on actual domain services above and constrain projection calls
+    to the read-only eligible-students handler below.
+    """
+    root = pathlib.Path(__file__).resolve().parents[1]
+    tree = ast.parse((root / 'routers/talent_assessment_cycles.py').read_text(encoding='utf-8'))
+    callers = []
+    for function in (node for node in tree.body if isinstance(node, ast.FunctionDef)):
+        for call in (node for node in ast.walk(function) if isinstance(node, ast.Call)):
+            if isinstance(call.func, ast.Name) and call.func.id == 'learning_style_projection':
+                callers.append(function.name)
+    assert callers == ['cycles_eligible_students']
+    handler = next(node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == callers[0])
+    assert any(isinstance(node, ast.Constant) and node.value == 'insights' for node in ast.walk(handler))
+    assert any(isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == 'current_placements_for_assessment'
+               for node in ast.walk(handler))
 
 
 # ---------------------------------------------------------------------------

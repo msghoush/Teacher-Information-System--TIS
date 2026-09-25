@@ -97,19 +97,13 @@ test('responsive and accessibility invariants are present', () => {
   assert.match(css,/\.tp-period-path/);
 });
 
-test('analytics source wires supported filters and keeps secondary totals compact', () => {
-  const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
-  assert.match(source,/params\.set\('branch_id',branch\.value\)/);
-  assert.match(source,/params\.set\('grade_level',grade\.value\)/);
-  assert.doesNotMatch(source,/Program patterns/);
-  assert.doesNotMatch(source,/Talent Map preview/);
-  assert.doesNotMatch(source,/program-portfolio\?\$\{qs\(common\)\}/);
-  assert.match(source,/Open Program Results/);
-  assert.match(source,/Open Talent Map/);
-  assert.match(source,/Assessment progress by Grade/);
-  assert.match(source,/Detailed totals/);
-  // Acceptance B: Review Candidate / Meets Program Criteria is no longer a current Student status.
-  assert.doesNotMatch(source,/Meets Program Criteria/);
+test('aggregate dashboard wires shared filters without Student-level clutter',()=>{
+ const dashboard=fs.readFileSync(path.join(__dirname,'..','static','js','talent-dashboard.js'),'utf8');
+ const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
+ for(const key of ['branch_id','grade_level','section_id','program_id','period_id','classification'])assert.match(dashboard,new RegExp(key));
+ assert.match(source,/results-analytics\/academic-years/);
+ assert.match(dashboard,/Each group is computed from its underlying population/);
+ assert.doesNotMatch(dashboard,/Student preview|Review Candidate|Official Identification|learning_style_dimension/);
 });
 
 test('the shared Grade filter is Planning-driven, not a blanket hardcoded KG-12 catalog', () => {
@@ -166,7 +160,7 @@ test('top-level Talent navigation resets child context while analytics sub-navig
   assert.match(source, /next\.search=qs\(\{academic_year_id:year\.value\}\)/);
   assert.match(source, /document\.querySelectorAll\('\.tp-results-nav a'\)/);
   assert.match(source, /program_id:params\.get\('program_id'\)/);
-  assert.match(source, /\['programs','evaluation-plans','assessments','analytics'/);
+  assert.match(source, /\['programs','evaluation-plans','assessments'/);
 });
 
 test('Apply-context ceremony is removed: selections auto-apply, no required confirm click', () => {
@@ -195,15 +189,12 @@ test('permission and analytics availability failures have distinct plain-languag
 // identified_of_eligible projection, which the M18b-2 rebuild removes from
 // this current-Talent section (the underlying legacy Review/Identification
 // services and workspace remain fully preserved elsewhere, untouched).
-test('the Results & Analytics current-Talent indicator is sourced from the new backend Talented family, not legacy Official Identification/candidate metrics', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /results-analytics\/programs\/\$\{encodeURIComponent\(pid\)\}\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/talented/);
-  assert.match(source, /talentedSection\(talentedData,branchNames\)/);
-  // "identified_of_eligible" remains a legitimate legacy Branch-comparison
-  // metric option (a separate, still-supported view outside the current
-  // Talent section) - it must simply no longer drive this indicator.
-  assert.doesNotMatch(source, /identifiedIndicator|identifiedCell|identifiedMap/);
-  assert.doesNotMatch(source, /identificationAllowed=can\('talent_official_identifications\.view'\)/);
+test('current-Talent chart consumes backend Classification labels without deriving a band or legacy authority',()=>{
+ const dashboard=require('../static/js/talent-dashboard.js');
+ const html=dashboard.analytics({classification:{state:'visible',buckets:[{label:'Exceptional',state:'visible',count:12,percentage:75},{label:'Advanced',state:'visible',count:4,percentage:25}]}},new URLSearchParams(),null);
+ assert.match(html,/Exceptional/);assert.match(html,/75%/);
+ assert.match(html,/Only Exceptional is Talented/);
+ assert.doesNotMatch(html,/Official Identification|Review Candidate/);
 });
 
 test('talentedSection renders the backend Talented (Exceptional) rate and count, and the Organization value is never a client-side average of Branch rates', () => {
@@ -284,13 +275,11 @@ test('distributionSection never claims "Protected for privacy" and always render
 // Learning Style/Classification/Talented and never reconstructs the
 // deprecated four-dimension percentage fields or the dead
 // learning_style_dimension parameter (both removed by M14/M18a/M18b-1).
-test('Results & Analytics consumes the three new results-analytics endpoints and never references deprecated Learning Style fields', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /results-analytics\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/learning-style/);
-  assert.match(source, /results-analytics\/programs\/\$\{encodeURIComponent\(pid\)\}\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/classification/);
-  assert.match(source, /results-analytics\/programs\/\$\{encodeURIComponent\(pid\)\}\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/talented/);
-  assert.doesNotMatch(source, /learning_style_dimension/);
-  assert.doesNotMatch(source, /visual_percentage|auditory_percentage|kinesthetic_percentage|reading_percentage/);
+test('Results consumes one governed aggregate endpoint without deprecated Learning Style dimensions',()=>{
+ const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
+ const dashboard=fs.readFileSync(path.join(__dirname,'..','static','js','talent-dashboard.js'),'utf8');
+ assert.match(source,/results-analytics\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/dashboard/);
+ assert.doesNotMatch(dashboard,/learning_style_dimension|visual_percentage|auditory_percentage|kinesthetic_percentage|reading_percentage/);
 });
 
 test('rubricDistribution builds an order-derived (not value-derived) intensity for any label set and count', () => {
@@ -331,52 +320,38 @@ test('rubricDistribution and the primary indicator gauge carry accessible chart 
 // Current Talent, Competency Analysis grouped together, Results/Evaluation
 // Progress, then Branch/Organization comparison), dedicated page-header
 // copy, and the new progressive Classification filter.
-test('Results & Analytics page header uses dedicated copy, not internal architecture/legacy identification wording', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /lede\('Results & Analytics','This page summarizes your authorized current Talent results/);
-  assert.doesNotMatch(source, /Your organization at a glance/);
+test('Results & Analytics page header distinguishes the aggregate workspace from legacy identification',()=>{
+ const html=require('../static/js/talent-dashboard.js').analytics({},new URLSearchParams(),null);
+ assert.match(html,/<h2>Results &amp; Analytics<\/h2>/);
+ assert.match(html,/One authorized population/);
+ assert.doesNotMatch(html,/Official Identification|Review Candidate/);
 });
 
-test('the 9-section IA renders Competency Analysis (Program result + competency averages + rubric distributions) together, and Results\\/Progress before Branch\\/Organization comparison', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  const returnStart = source.indexOf("return lede('Results & Analytics'");
-  assert.ok(returnStart > -1, 'the analytics view return expression was not found');
-  const returnBlock = source.slice(returnStart, returnStart + 2600);
-  const order = ['learningStyleSection', 'classificationSection', 'talentedIndicator', 'programResultSection', 'competencyAverageSection', 'rubricSection', 'gradeSection', 'progressionSection', 'tp-branch-summary', 'studentResultsSection'];
-  let lastIndex = -1;
-  for (const token of order) {
-    const index = returnBlock.indexOf(token);
-    assert.ok(index > lastIndex, `${token} is out of the required 9-section IA order`);
-    lastIndex = index;
-  }
+test('the aggregate workspace renders six coherent analytical sections in order',()=>{
+ const dashboard=require('../static/js/talent-dashboard.js');
+ const html=dashboard.analytics({},new URLSearchParams(),null);
+ const order=['Completion &amp; participation','Results &amp; Classification','<h2>Learning Style','Rubric Indicator analytics','<h2>Evaluation Periods','Selected comparisons'];
+ let previous=-1;
+ for(const token of order){const at=html.indexOf(token);assert.ok(at>previous,token);previous=at;}
+ assert.doesNotMatch(html,/Student preview|Classification by Program/);
 });
 
-test('Classification filter is real (narrows the classification route only, never the talented route), progressive (Program-bound), and never widens backend authorization', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  const template = fs.readFileSync(path.join(__dirname, '..', 'templates', 'talent', 'workspace.html'), 'utf8');
-  assert.match(template, /for="tp-classification"/);
-  assert.match(template, /name="classification" id="tp-classification"/);
-  for (const band of ['Needs Improvement', 'Developing', 'Meets Expectations', 'Advanced', 'Exceptional']) {
-    assert.match(template, new RegExp(`<option value="${band}">${band}</option>`));
-  }
-  assert.match(source, /CLASSIFICATION_LABELS = \['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'\]/);
-  assert.match(source, /classificationFilters=\{\.\.\.resultsFilters,classification:/);
-  assert.match(source, /\/classification\?\$\{qs\(classificationFilters\)\}/);
-  // The talented request must never receive the classification narrowing param.
-  assert.match(source, /\/talented\?\$\{qs\(resultsFilters\)\}/);
-  assert.match(source, /function updateClassificationVisibility\(\)/);
-  assert.match(source, /show=config\.view==='analytics' && Boolean\(program\.value\)/);
+test('Classification filters the common backend projection without frontend threshold authority',()=>{
+ const dashboard=require('../static/js/talent-dashboard.js');
+ const params=dashboard.change(new URLSearchParams('program_id=5'),'classification','Exceptional');
+ assert.equal(params.get('classification'),'Exceptional');
+ assert.equal(params.get('program_id'),'5');
+ const html=dashboard.analytics({options:{}},params,null);
+ for(const band of ['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'])assert.match(html,new RegExp(band));
+ const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
+ assert.match(source,/qs\(Object.fromEntries\(params\)\)/);
 });
 
-test('legacy Review/Identification metrics are absent from the Results & Analytics summary strip and never conflated with the current Talented count', () => {
-  const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  // Acceptance B: no legacy metric label remains, so no generic card/summary renderer can surface it.
-  assert.doesNotMatch(source, /candidate_membership_count:|candidate_count:|identified_count:|meets_program_criteria:|officially_confirmed:/);
-  // The separate current-Talented summary fact is sourced only from the
-  // already-fetched backend Talented family (never a second client-derived
-  // gauge/percentage) and is explicitly labeled with its Exceptional relation.
-  assert.match(source, /Talented \(Exceptional\) results<\/span>/);
-  assert.doesNotMatch(source, /talentedSummary[\s\S]{0,200}radialGauge/);
+test('legacy Review/Identification metrics never determine current dashboard Talent',()=>{
+ const dashboard=require('../static/js/talent-dashboard.js');
+ const html=dashboard.analytics({},new URLSearchParams(),null);
+ assert.match(html,/Only Exceptional is Talented/);
+ assert.doesNotMatch(html,/Review Candidate|Official Identification|Meets Program Criteria/);
 });
 
 test('rubricDistribution never derives a bar width or numeric text for a protected level, only order-based intensity', () => {

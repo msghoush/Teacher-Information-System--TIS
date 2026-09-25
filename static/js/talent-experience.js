@@ -282,6 +282,8 @@
 
   async function ensureRubricSection(scope, {force=false}={}) {
     if (typeof document === 'undefined') return;
+    // The unified filtered dashboard owns its Program-bound rubric projection.
+    if (typeof window !== 'undefined' && window.TalentDashboard) return;
     const workspace = document.getElementById('talent-workspace');
     if (!workspace || workspace.dataset.view !== 'analytics' || !scope || scope.querySelector('.tp-error')) return;
 

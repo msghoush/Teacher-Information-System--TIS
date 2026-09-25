@@ -36,18 +36,18 @@ test('only the four current Branch-comparison metrics are offered; legacy Review
 
 test('metric families consume only their backend-authoritative value field',()=>{
   assert.equal(branchMetricValue({state:'visible',value:64},'current_overall_progress'),64);
-  assert.equal(branchMetricValue({state:'visible',mean_normalized_percent:55},'learning_style'),55);
+  assert.equal(branchMetricValue({state:'visible',mean_normalized_percent:55},'evaluation_period_result'),55);
   assert.equal(branchMetricValue({state:'visible',percentage:40},'assessment_completion'),40);
   assert.equal(branchMetricValue({state:'suppressed',value:99,percentage:99},'assessment_completion'),null);
 });
 
-test('Learning Style uses only four current dimensions and preserves null versus zero',()=>{
-  const template=fs.readFileSync(path.join(__dirname,'..','templates','talent','workspace.html'),'utf8');
-  const values=[...template.matchAll(/<option value="(verbal|non_verbal|quantitative|spatial)">/g)].map(match=>match[1]);
-  assert.deepEqual(values,['verbal','non_verbal','quantitative','spatial']);
-  assert.doesNotMatch(template,/Auditory|Read-Write|Kinesthetic/);
-  assert.equal(branchMetricValue({state:'visible',mean_normalized_percent:null},'learning_style'),null);
-  assert.equal(branchMetricValue({state:'visible',mean_normalized_percent:0},'learning_style'),0);
+test('Learning Style is categorical: old four-dimension selectors and metric are absent',()=>{
+ const template=fs.readFileSync(path.join(__dirname,'..','templates','talent','workspace.html'),'utf8');
+ const values=[...template.matchAll(/<option value="(verbal|non_verbal|quantitative|spatial)">/g)];
+ assert.equal(values.length,0);
+ assert.ok(!branchComparisonMetricOptions(true,true).some(([metric])=>metric==='learning_style'));
+ assert.equal(branchMetricValue({state:'visible',mean_normalized_percent:null},'learning_style'),null);
+ assert.equal(branchMetricValue({state:'visible',mean_normalized_percent:0},'learning_style'),null);
 });
 
 test('Evaluation Period bars keep backend period order and framework mismatch fabricates no result',()=>{
@@ -63,7 +63,7 @@ test('Evaluation Period bars keep backend period order and framework mismatch fa
 test('M10 frontend requests selected backend metric and contains no governed aggregation or M11 work',()=>{
   const source=fs.readFileSync(path.join(__dirname,'..','static','js','talent.js'),'utf8');
   const implementation=source.slice(source.indexOf('const branchComparisonMetricOptions'),source.indexOf('const rubricLevelIntensity'));
-  assert.match(source,/evaluation-progress\/programs\/\$\{encodeURIComponent\(pid\)\}/);
+  assert.match(source,/results-analytics\/academic-years\/\$\{encodeURIComponent\(ay\)\}\/dashboard/);
   // M18b-1: learning_style_dimension was a dead backend parameter (removed
   // outright - see talent_evaluation_progress_service.py's M18b-1 note) and
   // was never actually sent by this frontend module; this stale assertion

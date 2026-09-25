@@ -177,6 +177,8 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
     script(js('talent-rubric-request.js'), 'talent-rubric-request.js');
     // Acceptance B: shared Student identity presentation is loaded on every view before talent.js.
     script(js('talent-student-identity.js'), 'talent-student-identity.js');
+    if(['overview','analytics','assessments'].includes(view))script(js('talent-charts.js'),'talent-charts.js');
+    if(['overview','analytics'].includes(view))script(js('talent-dashboard.js'),'talent-dashboard.js');
     script(source, 'talent.js');
     script(js('talent-experience.js'), 'talent-experience.js');
     await env.flush();

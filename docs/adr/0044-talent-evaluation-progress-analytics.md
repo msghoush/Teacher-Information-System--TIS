@@ -1,11 +1,35 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.3
+documentation_version: 1.4
 last_updated: 2026-09-24
 status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
 
 # ADR 0044: Talent Evaluation Progress Analytics (M4)
+
+## Agent 3 aggregate dashboard amendment (2026-09-25)
+
+The filtered dashboard composes existing authorities in an identity-free
+projection. Completion and Classification count Evaluation participations;
+Student KPIs and Learning Style count distinct current Students. Current
+reassessments resolve through the original Evaluation context. Organization
+percentages divide underlying counts, never average Branch percentages.
+Result means require one Program, framework and scale; incompatible results
+are unavailable, not pooled.
+
+Selected Branch/Grade/Section/Program/Period comparisons are bounded to six groups.
+The full authorized comparison family participates in conservative privacy
+closure even when only some groups are displayed. Completion uses P2, results
+and rubric evidence P3, and Classification P4 provider rules. Suppressed families
+emit protected states. Program/Competency/Indicator scope is validated; historical
+frameworks retain separate indicators. Ordered periods do not imply growth.
+
+The dashboard reuses M10's read-only repeatable snapshot dependency without changing
+global isolation or older endpoint contracts. Requests exceeding 5,000 scoped
+population rows fail explicitly for narrowing; totals are never truncated.
+The owner-approved Learning Style cohort boundary is recorded in ADR 0031.
+Individually authorized operational roster records remain outside aggregate
+cohort suppression.
 
 ## Context
 

@@ -57,7 +57,7 @@ test('B1. the active global Branch is the default scope of every Student-data re
   const env = await createEnv({view: 'analytics', permissions: FULL, search: '?program_id=5&academic_year_id=1',
     config: {branch: 7, branchName: 'Girls'}, handler: handler()}).start();
   const withBranch = dataCalls(env);
-  assert.ok(withBranch.length >= 5, 'the analytics view issues its independent section requests');
+  assert.ok(withBranch.length === 1, 'one governed aggregate projection owns the analytics view');
   for (const call of withBranch.filter(c => !/branch-comparison/.test(c.url))) {
     assert.equal(new URL(call.url, 'http://tis.test').searchParams.get('branch_id'), '7', call.url);
   }
@@ -73,7 +73,7 @@ test('B2. Boys -> Girls: a stale Branch (and its Grade/Section) from the previou
     search: '?program_id=5&academic_year_id=1&branch_id=3&grade_level=4&planning_section_id=9&scope_branch_id=3',
     config: {branch: 7, branchName: 'Girls'}, handler: handler()}).start();
   const urls = env.calls.map(call => String(call.url));
-  assert.ok(urls.length > 5);
+  assert.ok(urls.length >= 1);
   assert.equal(urls.filter(url => /branch_id=3(&|$)/.test(url)).length, 0, 'the previous Branch must never be requested');
   assert.equal(urls.filter(url => /grade_level=4|planning_section_id=9/.test(url)).length, 0, 'Branch-dependent Grade/Section are cleared');
   assert.ok(urls.some(url => /branch_id=7(&|$)/.test(url)), 'the new global Branch is what is requested');
@@ -94,7 +94,7 @@ test('B4. HARD CEILING: a stale branch_scope=all URL cannot widen a single-Branc
     search: '?program_id=5&academic_year_id=1&branch_scope=all&scope_branch_id=7',
     config: {branch: 7, branchName: 'Girls'}, handler: handler()}).start();
   const calls = dataCalls(env).filter(c => !/branch-comparison/.test(c.url));
-  assert.ok(calls.length >= 5);
+  assert.ok(calls.length === 1);
   for (const call of calls) {
     assert.equal(new URL(call.url, 'http://tis.test').searchParams.get('branch_id'), '7', call.url);
   }
@@ -146,12 +146,12 @@ test('B7. the Overview requests the Branch-scoped headline and names the scope',
   assert.match(env.text(), /Academic Year [^<]* · Girls/);
 });
 
-test('M1. "Students participating" is the distinct-Student figure; memberships are "Program participations"', async () => {
+test('M1. "Distinct current Students" is the distinct-Student figure; memberships are "Program participations"', async () => {
   const env = await createEnv({view: 'overview', permissions: FULL, config: {branch: 7}, handler: handler()}).start();
   const html = env.text();
-  assert.match(html, /Students participating<\/span><span class="tp-stat-value"><strong>9<\/strong>/);
-  assert.match(html, /Program participations<\/span><span class="tp-stat-value"><strong>63<\/strong>/);
-  assert.doesNotMatch(html, /Students participating<\/span><span class="tp-stat-value"><strong>63/);
+  assert.match(html, /Distinct current Students<\/span><strong class="tp-stat-value"><strong>9<\/strong>/);
+  assert.match(html, /Program participations<\/span><strong class="tp-stat-value"><strong>63<\/strong>/);
+  assert.doesNotMatch(html, /Distinct current Students<\/span><strong class="tp-stat-value"><strong>63/);
 });
 
 test('M2. Talent Map / Longitudinal metric options never call a membership count "Students"', async () => {

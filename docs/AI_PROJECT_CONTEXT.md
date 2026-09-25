@@ -1,12 +1,34 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.10
+documentation_version: 4.11
 last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
 
+## Agent 3 privacy and aggregate authority (2026-09-25)
+
+Read the Agent 3 amendments in ADRs 0031 and 0044 before changing summaries.
+Individually authorized Assessment roster rows are NOT cohort-suppressed.
+Classification aggregates still use the existing privacy provider. A
+Classification-filtered Learning Style aggregate reflects that same population,
+but returns a protected, value-free state if the selected Classification bucket
+or denominator is protected in the original projection. Never ignore
+Classification, emit a protected denominator via another chart, or invent a
+frontend threshold. Eight styles plus Unassigned remain categorical.
+
+Results & Analytics is aggregate-only. One backend projection owns shared
+Branch/Grade/Section/Program/Period/Classification filters and selected comparisons.
+Rubric results are Program/framework-bound. Chart switching changes presentation
+only. Keep per-view bundles, the hard Branch ceiling, request batching and
+repeatable snapshot reads. This is Web-only work, with no schema, migration,
+permission, local database or timetable worker changes.
+
+The generic "Protected for privacy" badge stays removed (M18a). Non-visible
+cells read "Unavailable"; only the Classification-cohort explanation may use the
+words "protected for privacy". Visual work in Talent is structurally verified, not
+browser verified, unless a reviewer states otherwise.
 
 ## Global Branch = Hard Talent Scope (Batch 1 Closure, 2026-09-25)
 

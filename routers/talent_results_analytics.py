@@ -36,14 +36,41 @@ import models
 import talent_analytics_service as svc
 import talent_results_analytics_service as results_svc
 from auth import get_current_user
-from dependencies import get_db
+from dependencies import get_db, get_m10_organization_analytics_db
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
 from talent_analytics_privacy import resolve_privacy_policy_provider
+from talent_dashboard_service import build_dashboard, DashboardError
 
 router = APIRouter(prefix="/api/talent/results-analytics", tags=["Talent Results Analytics"])
 
 _FILTER_KEYS = ("period_id", "cycle_id", "branch_id", "grade", "section_id", "framework_version_id")
+
+
+@router.get('/academic-years/{academic_year_id}/dashboard')
+def dashboard(academic_year_id: int, request: Request,
+              db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
+              policy=Depends(resolve_privacy_policy_provider)):
+    user, denied = authorization.require_any_permission(
+        request, db, 'talent_analytics.view', current_user=current_user, page_key='talent_results_analytics',
+    )
+    if denied:
+        return denied
+    group_id = _scope(db, user)
+    if not group_id:
+        return JSONResponse({'detail': 'Select an organization scope.'}, status_code=403)
+    keys = ('branch_id', 'grade_level', 'section_id', 'program_id', 'period_id', 'classification',
+            'compare_by', 'compare_ids', 'competency_id', 'rubric_id')
+    filters = {key: request.query_params.get(key) for key in keys}
+    try:
+        payload = build_dashboard(
+            db, group_id=int(group_id), year_id=academic_year_id,
+            visible_branches=_visible_branches(db, user), filters=filters, policy=policy,
+            learning_style_allowed=auth.has_permission(db, user, 'students.view', school_group_id=int(group_id)),
+        )
+    except (DashboardError, ValueError) as exc:
+        return JSONResponse({'detail': str(exc), 'code': 'invalid_filter'}, status_code=400)
+    return jsonable_encoder(payload)
 
 
 def _scope(db, user):

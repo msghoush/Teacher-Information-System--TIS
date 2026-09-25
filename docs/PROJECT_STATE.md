@@ -1,11 +1,61 @@
 ---
 title: TIS Project State
-documentation_version: 5.22
+documentation_version: 5.23
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent product transformation (Agent 3, 2026-09-25)
+
+Implemented on dev, not deployed or merged. This extends the preserved executive
+Overview work into an aggregate-only Results & Analytics workspace: completion
+and participation, results and Classification, Learning Style, Program-bound
+Rubric Indicators, ordered Evaluation Periods, and selected comparisons.
+The shared backend dashboard projection owns filters and all numerical values;
+the frontend only renders its safe semantic states. Comparisons select at most
+six authorized Branch/Grade/Section/Program/Period groups. Totals use underlying
+Evaluation participations, not averages of Branch rates. Distinct Student and
+participation grains are labelled separately. Incompatible Program/framework
+results are not pooled. Requests exceeding 5,000 scoped population rows fail
+explicitly and require a narrower Branch; there is no silent truncation.
+
+The owner-approved privacy amendment fixes Agent 2's Classification-filtered
+Learning Style leak: the original selected Classification bucket and denominator
+must be visible after provider primary/complementary suppression before either
+filtered aggregate can publish. Otherwise Learning Style returns a protected
+semantic result with no total, buckets, percentages or chart magnitudes. Individual
+authorized roster records retain exact identity, state, Classification and style;
+aggregate suppression never removes an individually authorized Student row.
+Tenant, Student visibility and the global Branch ceiling remain mandatory.
+
+Overview retains its independent headline projection and adds shared charts.
+Programs now uses searchable cards without normal lifecycle-status presentation.
+Bar/percentage and applicable pie/doughnut/trend modes retain exact accessible
+tables and native keyboard controls; nonvisible cells have no numeric geometry,
+tooltips, datasets or ARIA values. Bundles remain surface-specific, bounded reads
+retain cancellation/generation guards, and old duplicate rubric reads are removed.
+The dashboard uses the existing read-only repeatable snapshot dependency.
+No schema, migration, permission, timetable worker or local database change.
+
+Recovery completion (same day): the interrupted local Agent 3 worktree was audited
+and completed. Corrections: the generic "Protected for privacy" copy that had
+re-entered chart and dashboard scripts was removed again (M18a); a non-visible
+cell now reads "Unavailable", and only the backend reason
+`classification_cohort_protected` produces the Classification-cohort explanation;
+a missing Student-view permission has its own value-free message. The Program
+summary Finish Setup control was inert (the summary path returned before click
+binding) and was shown for incomplete setups; it is now bound and shown only for
+a complete draft setup. Roster avatars and period icons use initials and inline SVG
+instead of emoji. A Talent visual system layer (header band, KPI tiles, chart
+cards, colour-controlled Program cards, one primary/secondary/destructive action
+hierarchy, empty/loading/error states, responsive, reduced-motion and
+forced-colors rules) was added in `talent-experience.css`. Visual claims are
+structurally verified only; no browser review was performed. The dashboard reuses
+the current-Student, classification, assessment and privacy authorities and its
+distinct-Student figure is tested equal to Overview's. No schema, migration,
+permission or local database change; Web Service only, no Workflow change.
 
 ## Student Assessment Filtered Insights (Agent 2, 2026-09-25)
 

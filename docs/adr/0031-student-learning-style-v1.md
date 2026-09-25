@@ -1,13 +1,42 @@
 ---
 title: Student Learning Style V1
-documentation_version: 1.4
+documentation_version: 1.5
 last_updated: 2026-09-24
 status: accepted
 module: architecture
-amended_by: "ADR 0042 (2026-09-22, superseded/corrected by the M14 amendment below) added a separate, independent four-dimension Learning Style percentage profile (Verbal/Non-verbal/Quantitative/Spatial) alongside this ADR's single-select categorical field. M14 (2026-09-23, owner correction) determined that ADR 0042's premise was a misinterpretation - 'percentage' was always intended to mean population/aggregate distribution, never a per-Student dimension score - and corrected the model: Verbal, Non-verbal, Quantitative, and Spatial become four MORE single-select categorical values on THIS field (eight total), not an independent percentage profile. The original four values, this field's single-select nature, and its Student-domain/no-Talent-effect governance are unchanged and remain in effect; only the approved value count changes (four to eight) and ADR 0042's four-percentage product model is corrected/superseded (see ADR 0042's own amendment note). Deployment Acceptance Correction C (2026-09-24, owner decision) then amended the aggregate-distribution privacy rule for THIS distribution only: it is authorized Student-domain aggregation and is no longer subject to Talent small-cell/complementary suppression (see the 'Acceptance C Amendment' section at the end; the original text above is preserved)."
+amended_by: "ADR 0042 (2026-09-22, superseded/corrected by M14) added a four-dimension percentage profile. M14 (2026-09-23) corrected the model to eight categorical values on this single-select field. Acceptance C (2026-09-24) exempted ordinary authorized Learning Style aggregation from Talent small-cell suppression. The Agent 3 owner amendment (2026-09-25) narrows that exception when a Classification filter could reveal a protected Classification cohort; see the amendment below."
 ---
 
 # ADR 0031: Student Learning Style V1
+
+## Agent 3 owner amendment: Classification-filtered aggregates (2026-09-25)
+
+This narrows the Acceptance C aggregate exception only where Learning Style would
+disclose or reconstruct a protected Classification cohort. It does not restore
+the deprecated four per-Student percentage dimensions.
+
+The individually authorized Student Assessment roster is an operational surface.
+Its exact authorized identity, current Assessment state, backend Classification
+and Learning Style are not subject to aggregate cohort-size suppression. Tenant,
+Branch ceiling, Student visibility and permission gates remain mandatory.
+
+Learning Style aggregates remain filter-adaptive to authorized Branch, Grade,
+Section, Program and Evaluation Period context. A selected Classification must
+also narrow the population, never be silently ignored. Before publishing, the
+existing backend privacy provider must permit that Classification bucket and
+denominator after primary/complementary suppression in the original population.
+Otherwise return the canonical restricted state, reason
+`classification_cohort_protected`, with no exact total, bucket count, percentage,
+chart magnitude, tooltip, DOM/dataset or ARIA number. Explain that the summary is
+unavailable because the cohort is protected for privacy, not zero or no-data.
+No frontend threshold may decide this.
+
+The shared `talent_learning_style_privacy.py` gate serves roster summaries and the
+new filtered dashboard. Non-Classification Learning Style retains its authorized
+aggregate exception, eight categories plus Unassigned and distinct-Student grain.
+Classification retains its existing P4 provider and fail-closed, complementary
+and reconstruction protections. This fixes Agent 2's exact-total disclosure.
+Earlier sections are superseded only to the extent stated in this amendment.
 
 ## Context
 
