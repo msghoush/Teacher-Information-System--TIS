@@ -89,7 +89,7 @@
         stale=stale||error.status===409;
         feedback(el,`${error.message}${stale?' Your entries are still here. Refresh the page before making further changes.':''}`,true);
         const message=root.querySelector('#op-message');
-        if(message){message.setAttribute('role','alert');message.classList.add('tp-error');message.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
+        if(message){message.setAttribute('role','alert');message.classList.add('tp-error');if(!error.inline)message.scrollIntoView?.({block:'nearest',behavior:'smooth'});}
       }
       finally{busy=false;controls.filter(([el])=>el.isConnected).forEach(([el,disabled])=>el.disabled=disabled);}
     }
@@ -291,6 +291,7 @@
       assessment_state:params.get('assessment_state'), classification:params.get('classification'),
     });
     const eligibleUrl=id=>`/api/talent/assessment-cycles/${id}/eligible-students${rosterBranchQuery?`?${rosterBranchQuery}`:''}`;
+    let rosterError=null;
     const [allRows,cycles,programs,plans,explicitEligible]=await Promise.all([
       // Server-side Academic Year + Program scope: the Student Assessments page only
       // ever renders this Year/Program, so it must not download and derive results
@@ -301,14 +302,19 @@
       can('talent_evaluation_plans.view')
         ?api(`/api/talent/evaluation-plans?${query({program_id:pid,academic_year_id:year})}`).catch(()=>[])
         :Promise.resolve([]),
-      cycleId?api(eligibleUrl(cycleId)).catch(()=>null):Promise.resolve(null),
+      cycleId?api(eligibleUrl(cycleId)).catch(error=>{rosterError=error;return null;}):Promise.resolve(null),
     ]);
     const rows=allRows.filter(r=>(!year||String(r.academic_year_id)===String(year))&&(!pid||String(r.program_id)===pid));
     const currentRows=rows.filter(r=>r.is_current!==false);
     const programById=new Map(programs.map(item=>[String(item.id),item]));
     const explicitCycle=cycles.find(c=>String(c.id)===cycleId);
     const cycle=explicitCycle || (!cycleId && pid && cycles.length===1 ? cycles[0] : undefined);
-    const eligible=explicitEligible || (cycle&&!cycleId?await api(eligibleUrl(cycle.id)):null);
+    // A cycle_id that is not among the server-filtered Evaluation contexts of the
+    // selected Program/Academic Year is a stale selection (for example the Year or
+    // Program was changed): never list that other Evaluation's roster under it.
+    const staleContext=Boolean(cycleId&&!explicitCycle);
+    if(staleContext){rosterError=new Error('The selected Program or Academic Year no longer matches this Evaluation. Choose the Evaluation Period and Program again.');rosterError.code='context_mismatch';}
+    const eligible=staleContext?null:(explicitEligible || (cycle&&!cycleId?await api(eligibleUrl(cycle.id)):null));
     const assessmentFor=(studentId,context)=>{
       if(!context)return null;
       const matches=currentRows.filter(r=>{
@@ -320,6 +326,23 @@
       return matches.sort((a,b)=>Number(b.id||0)-Number(a.id||0))[0] || null;
     };
 
+    const BLOCK_COPY={
+      assessment_tool_unavailable:'No assessment criteria are configured for this Grade in this Program.',
+      duplicate_assessment:'An Assessment already exists for this Student in this Evaluation. Reload the Student list.',
+    };
+    const startBlockedHtml=m=>{
+      const code=m.start_block_code||'';
+      // Fixed, curated copy per code (the backend reason is the same bounded text).
+      const reason=BLOCK_COPY[code]||'An Assessment cannot be started for this Student right now.';
+      // The configuration area is named for everyone but is an enabled link only for
+      // an actor who can manage Programs (the server still authorizes every change).
+      const remedy=code==='assessment_tool_unavailable'
+        ?(can('talent_programs.manage')
+          ?` <a class="tp-action-link" href="${esc(url('programs',{program_id:cycle?.program_id||pid||''}))}">Open Program setup →</a>`
+          :' A Program administrator can configure them in the Program setup.')
+        :'';
+      return `<span class="tp-start-blocked" data-start-blocked="${esc(code||'unavailable')}" role="note">${esc(reason)}${remedy}</span>`;
+    };
     const eligibleRows=eligible?eligible.members.map(m=>{
       const a=assessmentFor(m.student_id,cycle);
       const titled=value=>words(value).replace(/^./,c=>c.toUpperCase());
@@ -332,9 +355,16 @@
         ?button('reassess-row','Re-evaluate Student',`data-id="${a.id}"`)
         :a
           ?`<div class="tp-row-actions"><a class="tp-action-link" href="${esc(url('assessments',{assessment_id:a.id,cycle_id:cycle?.id||'',program_id:a.program_id||pid||''}))}">${a.status==='in_progress'?'Continue Assessment':'View Assessment'} →</a>${resetAllowed?button('reset-reassessment','Reset for Re-assessment',`data-id="${a.id}"`):''}</div>`
-        :can('talent_assessments.manage')
-          ?button('start','Start Assessment',`data-student="${m.student_id}"`)
-          :'<span>Not started</span>';
+        :!can('talent_assessments.manage')
+          ?'<span>Not started</span>'
+          // Start is offered only when the backend's per-row can_start (the same
+          // predicate the start route enforces) is true; otherwise its bounded
+          // reason is shown. Nothing here is a client-side authorization.
+          :!cycle?.id
+            ?'<span class="tp-start-blocked" data-start-blocked="no_context">Choose an Evaluation Period and Program above to start assessments.</span>'
+            :m.can_start===true
+              ?button('start','Start Assessment',`data-student="${m.student_id}"`)
+              :startBlockedHtml(m);
       const sectionDisplay=m.section_display||m.section_name;
       const fullName=m.student_name || [m.first_name,m.father_name,m.last_name].filter(Boolean).join(' ');
       const identity=identityHtml({name:fullName,learningStyle:m.learning_style,classification:current?.classification,isTalented:current?.is_talented,showClassification:false,extra:`<small>${esc(m.branch_name||'')}</small>`});
@@ -429,7 +459,7 @@
     // (is-selected class + aria-current) rather than repeated in a separate
     // duplicated "Selected Evaluation" panel here.
     const hasRosterFilters=['search','grade_level','section_name','assessment_state','classification'].some(key=>params.get(key));
-    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${rosterFilters}${insightHtml}${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note(hasRosterFilters?'No currently enrolled Students match these filters.':'No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+    mount(`${cardsHtml}${!eligible&&rosterError?`<div role="alert" data-roster-error="${esc(rosterError.code||'')}">${note(rosterError.message)}</div>`:''}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${rosterFilters}${insightHtml}${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note(hasRosterFilters?'No currently enrolled Students match these filters.':'No currently enrolled Students match this Program and Academic Year.')}`:''}`);
 
     const rosterFilterForm=root.querySelector('[data-operation="roster-filters"]');
     rosterFilterForm?.addEventListener('submit', event=>{event.preventDefault(); const values=Object.fromEntries(new FormData(rosterFilterForm)); navigate('assessments',{cycle_id:cycle?.id,program_id:cycle?.program_id||pid,...values});});
@@ -463,7 +493,21 @@
     // snapshot when the Assessment is created; no Open Evaluation step exists.
     on('start',async el=>{
       if(!cycle?.id)throw new Error('Choose an Evaluation Period and Program before starting an Assessment.');
-      const result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,student_id:Number(el.dataset.student)}});
+      let result;
+      try {
+        result=await api('/api/talent/assessments',{method:'POST',body:{cycle_id:cycle.id,student_id:Number(el.dataset.student),...(pid?{program_id:Number(pid)}:{}),...(year?{academic_year_id:Number(year)}:{})}});
+      } catch(error) {
+        // Show the safe, specific reason beside the row's own button and keep the
+        // page where it is (no jump to the top-of-page banner, no navigation).
+        const cell=el.closest?el.closest('td'):el.parentElement;
+        if(cell&&typeof document!=='undefined'&&document.createElement) {
+          let hint=cell.querySelector?cell.querySelector('[data-start-error]'):null;
+          if(!hint){hint=document.createElement('p');hint.setAttribute('data-start-error','');hint.setAttribute('role','alert');hint.className='tp-op-feedback tp-error';cell.appendChild(hint);}
+          hint.textContent=error.message;
+          error.inline=true;
+        }
+        throw error;
+      }
       navigate('assessments',{assessment_id:result.id,cycle_id:cycle.id,academic_year_id:result.academic_year_id,program_id:result.program_id||cycle.program_id||pid});
     });
     on('reassess-row',async el=>{

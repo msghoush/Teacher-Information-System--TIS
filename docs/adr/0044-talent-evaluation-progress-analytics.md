@@ -1,6 +1,6 @@
 ---
 title: Talent Evaluation Progress Analytics (M4)
-documentation_version: 1.4
+documentation_version: 1.6
 last_updated: 2026-09-24
 status: "Accepted, with the Learning Style Branch-comparison metric removed as of M14 (2026-09-23) and its dead computation code removed as of M18a (2026-09-23) - see the 'M14 Amendment' and 'M18a Amendment' sections at the end of this document. Original text below preserved unmodified as historical record."
 ---
@@ -291,3 +291,86 @@ the existing `student_drill_population`/`count`/`distinct_student` coordinate in
 B9 P7 Student Drill gate and its identification rules are unchanged). Membership-grain
 metrics (`frozen_eligible`, `completed`, coverage) keep their definitions and
 denominators; only their user-facing labels changed to state their grain.
+
+## Owner Amendment (2026-09-25): Branch Authority For Organization-Authorized Actors
+
+Dated owner-directed amendment; the Batch 1 closure text above is preserved as history.
+The closure statement that the global (sidebar) Branch is a hard Talent ceiling is
+superseded for organization-authorized actors only. The sidebar selector lists real Branches.
+For an organization-authorized actor (`auth.can_access_all_branches`) the Talent ceiling is
+the actor's own authorization (all Branches of the SchoolGroup); the sidebar Branch is only the
+default page-level Branch, and the Talent Branch filter offers All Branches and each authorized
+Branch. For a Branch-limited actor the ceiling remains their authorized Branch(es) and any
+attempt to name another Branch is rejected. An omitted `branch_id` means every authorized
+Branch; an explicit `branch_id` is validated server-side, and tenant isolation is unchanged. The
+`branch_scope=all` marker cookie and `user.scope_all_branches` are removed (an old cookie is
+ignored). No `MetricCode`, privacy, Evaluation Progress or schema change.
+
+Classification note (same date): an aggregate Classification band that reads "Unavailable" is the
+approved Release 1 provider withholding a band cell below the minimum cohort (or a total below it,
+or a fail-closed absent configuration). No rule changed; the UI states one uniform value-free
+explanation. Making small cohorts visible needs an explicit owner decision and an amendment here
+and in ADR 0028.
+
+## Final Closure Part A Amendment (2026-09-25): Start Assessment Eligibility Agrees With The Roster
+
+Dated amendment; no `MetricCode`, privacy, suppression or analytics semantics changed. The Student
+Assessments roster (`GET /api/talent/assessment-cycles/{id}/eligible-students`) keeps listing every
+currently placed Student (ADR 0035/0039), and now also carries, per row, the backend result of the exact
+predicate Start Assessment enforces: `can_start`, `start_block_code` (`assessment_tool_unavailable` when the
+Student's Grade has no saved assessable criteria in the Program per the ADR 0039 Grade-aligned amendment,
+`duplicate_assessment` when a current Assessment already exists in the Evaluation) and a fixed bounded
+`start_block_reason`. The client must render Start only when `can_start` is true. `POST
+/api/talent/assessments` accepts an optional echoed `program_id` / `academic_year_id` and rejects a mismatch
+with the Cycle as 409 `context_mismatch`; the Cycle remains the sole context authority. Authorization,
+tenant, Branch, Academic Year and evidence-immutability rules are unchanged.
+
+## Part 2 Amendment (2026-09-25): Chart Types, Background Refresh And Progress Over Time (presentation only)
+
+Dated, presentation-only amendment; no `MetricCode`, privacy, suppression, Classification,
+Learning Style or Evaluation Progress semantic changed. (1) Chart types: the selector offers only
+materially different types; circular types only for a full public partition of at most eight
+categories and never for time series, ordinal Rubric levels or Learning Style (nine categories);
+percentages and counts remain visible in every type and in the accessible table; no frontend
+threshold or derived value exists. (2) Dashboard filters refetch in the background under the same
+authorized read API (`.../dashboard`), with cancellation of superseded requests and only the newest
+response rendered. (3) Progress Over Time stays a real per-Program view over the ADR 0027
+longitudinal projection; a period that is suppressed or has no Student result yet is a gap
+("Unavailable" / "No data yet"), never zero, and different Program frameworks are never combined.
+(Superseded in part, 2026-09-25: honest gaps also apply across a non-comparable adjacent pair; see the
+Progress Over Time Comparability Closure below. The original wording is preserved as history.)
+
+## Final Closure Part B Amendment (2026-09-25): Central Organization Configuration Authority
+
+Dated governance amendment; no `MetricCode`, privacy or analytics semantics changed. Owner decision: Talent
+configuration (Programs, Frameworks/Rubrics, Competencies/Indicators, KPI/policy, annual Program
+configuration, Evaluation Plans/Periods and Assessment Cycle definitions) is SchoolGroup-level shared
+configuration governed once by the organization Administrator; there is no Branch copy or Branch enablement
+model and Programs carry no Branch ownership. Branch state is Students, placements, Cycle population
+evidence, Assessments, results and Branch analytics. Every configuration mutation route requires its
+existing semantic permission (`.manage/.govern/.delete*`, default Administrator-only) and organization/global
+access scope; Branch-scoped actors read shared configuration and assess Students in their Branch but never
+mutate configuration. This supersedes the earlier statement that a Branch-scoped `.manage` holder may author
+Draft Program/Framework/Cycle metadata (preserved in older documents as history). Stored custom grants are not
+rewritten. Analytics reads and the Branch authorization above are unchanged.
+
+## Progress Over Time Comparability Closure (2026-09-25)
+
+Dated presentation-only correction; no analytics formula, backend calculation, privacy, permission, `MetricCode`
+or schema change. Gap found: the Progress Over Time trend broke its line only for a non-visible point, so two
+visible points on either side of a non-comparable adjacent pair (for example `framework_changed`) were joined by
+a continuous line. Rule:
+
+"When adjacent Evaluation Period points are not governed as comparable, the trend line must break. TIS must not connect, interpolate, or imply continuity across a non-comparable framework boundary. Individual Period values may still be shown independently where authorized and privacy-safe."
+
+- The backend `comparisons` list of the ADR 0027 longitudinal projection (one record per adjacent Period pair,
+  `evaluation_period_ids` = [earlier, later], `state` `comparable`/`not_comparable`, `reason_code`) remains the
+  sole authority. The frontend never derives comparability (no Framework or version comparison client-side); it
+  passes the list to the shared chart, which connects a pair only when that pair's record is `comparable`.
+- A missing, unknown or unmappable comparison record fails toward NOT connecting.
+- Each visible Period still renders its own dot, legend value and table row; nothing is hidden, bridged,
+  interpolated or invented. Suppressed and no-data periods still break the line with a value-free gap. A broken
+  pair draws no connecting line and no midpoint marker (both dots stay) and adds the legend note "not connected: periods are not comparable".
+- When a chart supplies no comparability list (the Results & Analytics completion-by-period trend, which is a
+  single-Program series of the Framework-independent completion metric), behavior is unchanged. `comparable`
+  still means only that two factual points may be viewed side by side, never growth or improvement.

@@ -1,6 +1,6 @@
 ---
 title: TIS Module Map
-documentation_version: 4.9
+documentation_version: 4.10
 last_updated: 2026-09-25
 source_of_truth: true
 ---
@@ -52,7 +52,44 @@ source_of_truth: true
   no longer installs the retired DOM-only roster filter.
 
 
+## Talent configuration authority (Final Closure Part B, 2026-09-25)
+
+- `routers/talent_programs.py` `CONFIG_MUTATION_KEYS`, `routers/talent_assessment_cycles.py`
+  `CYCLE_CONFIG_KEYS`, `routers/talent_evaluation_plans.py` `PLAN_CONFIG_KEYS`: each router's `_authorize`
+  denies (403 `organization_authority_required`) any mutation key for an actor without organization/global
+  access scope. `routers/talent_ui.py` withholds the same capabilities from Branch scope and publishes
+  `talent_can_configure`; `templates/talent/workspace.html` shows the shared-configuration notice.
+  `scripts/audit_talent_program_duplicates_readonly.py` is a read-only owner audit (never imported by the app).
+
+## Start Assessment eligibility (Final Closure Part A, 2026-09-25)
+
+- `talent_student_assessment_service.roster_start_states` is the single predicate shared by the roster
+  (`routers/talent_assessment_cycles.py` `cycles_eligible_students`, per-row `can_start`) and
+  `start_assessment_for_evaluation` (`POST /api/talent/assessments`, which also verifies an echoed
+  Program/Academic Year). `static/js/talent-operations.js` renders Start only from the backend flag.
+
+## Talent chart and refresh modules (Production Follow-up Part 2, 2026-09-25)
+
+- `static/js/talent-charts.js`: shared privacy-safe chart renderer. `modes()` is the single source of
+  allowed visualization types per family; `chart`, `series` (time series) and `comparison` render
+  sanitized rows only; explicit chart-type choices are remembered per chart key.
+- `static/js/talent-dashboard.js`: `overview(data, {animate})` (Doughnut default, entrance class) and
+  `analytics()` with one bottom Selected Comparisons section and a Progress Over Time link.
+- `static/js/talent.js`: `refreshDashboard()` (background refresh: token, AbortController, held height,
+  anchor and focus restoration), `captureAnchor`/`restoreAnchor` also used by `load()`,
+  `shouldAnimateEntrance()` (reduced-motion aware), `periodVisual()` (Progress Over Time via the shared
+  series chart). `templates/talent/workspace.html` loads `talent-charts.js` on `longitudinal` too.
+
 ## Talent Branch ceiling (Batch 1 Closure, 2026-09-25)
+
+> Amended 2026-09-25 (Part 1 production follow-up): `talent_branch_ceiling` now always returns
+> `None` (the sidebar Branch is a default, not a ceiling); `branch_scope_unrestricted` is
+> `auth.can_access_all_branches`; a Branch-limited actor remains confined by
+> `auth.get_accessible_branch_query`. `user.scope_all_branches`, the `branch_scope=all` cookie
+> handling and the `/scope/branch` `all` value below were removed; `talent_ui` publishes
+> `tp-config.branch` (default) and `tp-config.branchLocked`. `talent-api-errors.js` `CODE_COPY`
+> carries the curated Start Assessment error codes; `talent-charts.js` adds the uniform
+> Classification withheld note.
 
 - `talent_branch_scope.py`: `talent_branch_ceiling`, `branch_scope_unrestricted`,
   `visible_branch_ids`, `visible_branch_ids_or_none`, `branch_within_ceiling`. Consumed

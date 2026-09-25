@@ -1,11 +1,64 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.11
+documentation_version: 4.13
 last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Configuration Is Organization-Level (Final Closure Part B, 2026-09-25)
+
+Read before touching Talent configuration routes or permissions. Programs, Frameworks/Rubrics, Competencies/KPI,
+annual Program configuration, Evaluation Plans/Periods and Cycle definitions are SchoolGroup-level shared
+configuration, governed once by the organization Administrator. Do NOT add Branch ownership, Branch copies or a
+Branch enablement table. Every configuration mutation needs its semantic permission (default Administrator-only;
+Editor/User/Limited hold no `talent_*` key by default) AND organization/global access scope, enforced in each
+router's `_authorize` (`CONFIG_MUTATION_KEYS`, `CYCLE_CONFIG_KEYS`, `PLAN_CONFIG_KEYS`). A new mutating Talent
+configuration route must be added to `tests/test_talent_central_configuration_authority.py`
+`EXPECTED_MUTATIONS`. The earlier "Branch-scoped `.manage` holder may author Draft" behavior is superseded.
+
+## Talent Chart Types, Background Refresh And Progress Over Time (Production Follow-up Part 2, 2026-09-25)
+
+Read before touching Talent charts or dashboard filters. Chart-type selectors may only switch
+materially different visualization types (`talent-charts.js` `modes()`); never add a mode that draws
+the same picture, a circular type for a time series, high-cardinality (more than eight) or ordinal data,
+or a percentage-only toggle. Values stay visible in every type. Dashboard filter changes must go
+through `refreshDashboard()` (background fetch, newest-token-wins, no root replacement, no
+`scrollIntoView`, no navigation); do not reintroduce a root-level loading replacement. Selected
+Comparisons is one bottom section. Progress Over Time is a kept, real per-Program longitudinal view over
+the ADR 0027 API with honest gaps. Presentation only; browser behavior is not verified. Comparability
+closure (2026-09-25, ADR 0044): the trend line must not connect across an adjacent pair the backend
+`comparisons` do not mark `comparable` (missing record = no connection); the client never derives
+comparability and each Period value stays individually visible.
+
+## Talent Branch Authority, Start Assessment And Classification Honesty (Production Follow-up Part 1, 2026-09-25)
+
+Owner-directed amendment. Read before touching Talent Branch scope, Start Assessment
+or aggregate Classification copy.
+
+- **Branch model.** The sidebar Branch selector lists REAL Branches only (no Talent
+  "All Branches" entry; `branch_scope=all` cookie and `user.scope_all_branches` are
+  removed and any old cookie is ignored, it grants nothing). For an organization-
+  authorized actor the sidebar Branch is only the DEFAULT page-level Branch
+  (`tp-config.branch`); the Talent Branch filter offers All Branches (client marker
+  `branch_scope=all` in the URL, no `branch_id` sent) and every authorized Branch.
+  For a Branch-limited actor the ceiling stays their authorized Branch (`tp-config.branchLocked`,
+  enforced by `auth.get_accessible_branch_query`). `talent_branch_scope.talent_branch_ceiling`
+  is now always `None`; an omitted `branch_id` means every Branch the actor is authorized
+  for; an explicit `branch_id` is validated server-side. This supersedes the "hard
+  ceiling" section below for organization-authorized actors only.
+- **Start Assessment.** The backend flow is sound (POST then workspace reads succeed).
+  The production banner "This context cannot be displayed" was the generic mapping of a
+  stable, safe 400 code (chiefly `assessment_tool_unavailable`: the Student's Grade has
+  no saved criteria in the Program). `talent-api-errors.js` `CODE_COPY` now carries
+  fixed curated copy for the Start Assessment codes (never backend detail) and the
+  reason is shown inline beside the row without scrolling.
+- **Classification "Unavailable".** Not a bug: each band cell is protected by the
+  approved Release 1 provider (minimum cohort 5, per band, zero counts included, then
+  complementary suppression). The UI adds one uniform, value-free sentence. No threshold,
+  suppression or privacy rule changed; making small cohorts visible requires an owner
+  decision plus an ADR 0028/0044 amendment.
 
 ## Agent 3 privacy and aggregate authority (2026-09-25)
 
@@ -31,6 +84,10 @@ words "protected for privacy". Visual work in Talent is structurally verified, n
 browser verified, unless a reviewer states otherwise.
 
 ## Global Branch = Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+> Amended 2026-09-25 (Part 1 production follow-up): for organization-authorized actors the
+> sidebar Branch is only a default and All Branches is chosen inside Talent; the marker cookie is
+> removed. The ceiling below still holds for Branch-limited actors. See the section above.
 
 Read before adding any Talent route or Branch filter. The global Branch is a hard
 ceiling, NOT the "default" described in the Batch 1 section below (that wording is
@@ -1717,7 +1774,7 @@ Existing members and evidence are never changed; Closed Cycles remain final.
 M4 adds dedicated Administrator-only-by-default permissions:
 `talent_assessment_cycles.view`, `.manage`, `.view_population`, and `.govern`.
 Branch-scoped `.manage` holders may author Draft metadata but cannot Open or
-Close; lifecycle governance requires `.govern` plus organization/global
+Close [superseded 2026-09-25 by Final Closure Part B: organization/global scope is now required]; lifecycle governance requires `.govern` plus organization/global
 scope and always freezes the complete SchoolGroup population. Identifiable
 preview and frozen reads require `.view_population`. Branch-scoped readers
 receive only members whose resolved preview Branch or frozen historical
@@ -1893,7 +1950,7 @@ current state or the call fails `stale_framework`.
 Governance is split into two tiers. Draft authorship - Program create/edit,
 Program annual configuration, Framework Draft edits (including competency
 membership add/update/reorder/remove within a Draft), and Competency
-create/edit - is permission-gated and organization-scope-independent.
+create/edit - is permission-gated and organization-scope-independent. [Superseded 2026-09-25 by Final Closure Part B: every configuration mutation additionally requires organization/global scope (`CONFIG_MUTATION_KEYS`); Branch-scoped actors read only.]
 Framework activate/retire and Program lifecycle transitions additionally
 require organization/global access scope (`auth.ACCESS_SCOPE_ORGANIZATION`/
 `ACCESS_SCOPE_GLOBAL`, checked through `_organization_authorized()` in

@@ -1208,3 +1208,40 @@ test('the very first Rubric Structure for a Program with no Framework yet never 
   const payload=JSON.parse(created.options.body);
   assert.equal(payload.clone_from_id,undefined);
 });
+
+// Final-closure Part B: shared organization configuration. The server withholds every
+// configuration mutation capability from actors without organization authority; the
+// workspace must then render the shared configuration read-only (no enabled mutation
+// control) while operational links stay available.
+test('Program index for a read-only (non-configuring) actor has no New Program, form, or delete action',async()=>{
+  const root={innerHTML:'',querySelector:()=>null,querySelectorAll:()=>[]};
+  const ctx={root,year:'2026',params:new URLSearchParams(),can:key=>['talent_programs.view','talent_analytics.view'].includes(key),api:async path=>{
+    if(path==='/api/talent/programs')return [{id:11,name:'Performing Arts',status:'draft',actions:[]}];
+    if(path.startsWith('/api/talent/programs/planning-grades'))return ['7','8'];
+    if(path.startsWith('/api/talent/programs/summaries'))return [{program:{id:11,name:'Performing Arts',status:'draft',actions:[]},id:11,name:'Performing Arts',status:'draft',annual:{academic_year_id:2026,is_enabled:true,eligible_grade_levels:['7','8']},assessment_type:'Rubric'}];
+    throw new Error(`Unexpected ${path}`);
+  }};
+  await render(ctx);
+  assert.match(root.innerHTML,/Performing Arts/);
+  assert.match(root.innerHTML,/>Open Program<\/a>/);
+  assert.doesNotMatch(root.innerHTML,/New Program|data-new-program|data-action="(?:new-program|delete-program)"|<form/);
+});
+
+test('Program summary for a read-only actor offers View (not Manage) Evaluation Plan and no configuration entry points',async()=>{
+  const {ctx,root}=fixture(false,'active',{complete:true,step:'',yearLabel:'2026–2027'});
+  ctx.can=key=>['talent_programs.view','talent_evaluation_plans.view','talent_assessments.view','talent_analytics.view'].includes(key);
+  await render(ctx);
+  assert.match(root.innerHTML,/class="tp-program-summary"/);
+  assert.match(root.innerHTML,/href="#tp-schedule"[^>]*>View Evaluation Plan</);
+  assert.doesNotMatch(root.innerHTML,/Manage Evaluation Plan/);
+  assert.doesNotMatch(root.innerHTML,/href="#tp-basics"|href="#tp-rubric"|Edit Program|Build \/ Edit|Finish setup|<form|data-action=/);
+  assert.match(root.innerHTML,/Open Assessments/);
+  assert.match(root.innerHTML,/View Results/);
+});
+
+test('Program summary for a configuring actor keeps Manage Evaluation Plan and edit entry points',async()=>{
+  const {ctx,root}=fixture(true,'active',{complete:true,step:'',yearLabel:'2026–2027'});
+  await render(ctx);
+  assert.match(root.innerHTML,/href="#tp-schedule"[^>]*>Manage Evaluation Plan</);
+  assert.match(root.innerHTML,/href="#tp-basics"[^>]*>[\s\S]*Edit Program/);
+});

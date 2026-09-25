@@ -32,11 +32,27 @@ router = APIRouter(prefix="/api/talent/programs", tags=["Talent Programs"])
 def _scope(db, user): return getattr(user, "scope_school_group_id", None) or auth.get_user_school_group_id(db, user)
 
 
+# Final-closure Part B (central configuration authority): Programs, Frameworks,
+# Rubrics, Competencies, KPI/policy and annual configuration are SchoolGroup-level
+# shared configuration governed once by the organization. Every mutating permission
+# key below therefore additionally requires organization/global access scope; a
+# Branch-scoped actor may still READ shared configuration (`.view`) but can never
+# author or change it, whatever role or stored grant they hold. No new permission
+# key exists: the semantic `.manage/.govern/.delete*` keys already separate config
+# mutation from `.view`, and the default role matrix keeps them Administrator-only.
+CONFIG_MUTATION_KEYS = frozenset({
+    "talent_programs.manage", "talent_programs.govern", "talent_programs.delete",
+    "talent_programs.delete_competency", "talent_programs.delete_rubric_level",
+})
+
+
 def _authorize(request, db, user, *keys):
     user, denied = authorization.require_any_permission(request, db, *keys, current_user=user, page_key="talent_programs")
     group_id = _scope(db, user) if user else None
     if denied: return None, None, denied
     if not group_id: return user, None, JSONResponse({"detail": "Select an organization scope."}, status_code=403)
+    if any(key in CONFIG_MUTATION_KEYS for key in keys) and not _organization_authorized(user):
+        return user, None, JSONResponse({"detail": "Talent configuration is shared by all Branches and is managed by your organization Administrator.", "code": "organization_authority_required"}, status_code=403)
     return user, int(group_id), None
 
 

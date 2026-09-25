@@ -1,24 +1,22 @@
-"""Talent & Potential Branch ceiling (Acceptance Batch 1 closure).
+"""Talent & Potential Branch authority.
 
-The active GLOBAL Branch (the sidebar "Change Branch / Campus" selector, resolved
-per request by ``auth.get_current_user`` into ``user.scope_branch_id``) is a HARD
-upper ceiling for every Talent read, never just a default:
+Owner-directed amendment (Part 1 production follow-up, 2026-09-25) to the Batch 1
+closure: the sidebar Branch is no longer a Talent ceiling for an organization-
+authorized actor. It is only the DEFAULT page-level Branch (rendered as
+tp-config.branch and pre-selected in the Talent Branch filter).
 
-* organization/global actor with a single active Branch  -> ceiling = that Branch;
-* organization/global actor whose explicit global scope is "All Branches"
-  (``user.scope_all_branches``, from the ``branch_scope=all`` marker cookie) or a
-  platform actor with no Branch selected                  -> no extra ceiling
-  (the actor's own authorization still applies);
-* Branch-limited actor                                    -> no extra ceiling (the
-  accessible-Branch query already confines them to their own Branch).
+* organization/global actor (auth.can_access_all_branches) -> the ceiling is the
+  actor's own authorization: every Branch of their SchoolGroup. They may choose All
+  Branches (omit branch_id) or any single authorized Branch inside a Talent page;
+* Branch-limited actor -> the ceiling stays their authorized Branch(es), enforced by
+  auth.get_accessible_branch_query; they can never widen it;
+* an explicit branch_id is always validated server-side against the visible set
+  (a foreign, unauthorized or cross-tenant Branch is rejected exactly as before);
+* the legacy branch_scope=all marker cookie is ignored: it grants nothing.
 
-The ceiling is the INTERSECTION of the actor's authorization and the active global
-scope. It is computed server-side from the authenticated request user, never from
-a client parameter, and is composed into the existing visible-Branch resolution so
-every Talent route inherits it. A Branch outside the ceiling is treated exactly like
-a Branch outside the actor's authorization (same 400/403/404 conventions as the
-sibling routes) and an omitted Branch resolves to the ceiling, never to every
-Branch of the organization.
+The ceiling is computed server-side from the authenticated request user, never from a
+client parameter, and is composed into the existing visible-Branch resolution so every
+Talent route inherits it. There is no second authorization system.
 """
 
 from __future__ import annotations
@@ -30,21 +28,17 @@ import models
 
 
 def talent_branch_ceiling(user) -> Optional[int]:
-    """Single Branch id the actor is confined to inside Talent, or ``None``."""
-    if user is None or not auth.can_access_all_branches(user):
-        return None
-    if getattr(user, "scope_all_branches", False):
-        return None
-    scoped = getattr(user, "scope_branch_id", None)
-    try:
-        return int(scoped) if scoped else None
-    except (TypeError, ValueError):
-        return None
+    """Extra single-Branch ceiling beyond the actor's authorization.
+
+    Always None: the sidebar Branch is a default, not a ceiling. A Branch-limited
+    actor is confined by the accessible-Branch query itself.
+    """
+    return None
 
 
 def branch_scope_unrestricted(user) -> bool:
-    """True only for an organization/global actor with no Branch ceiling."""
-    return auth.can_access_all_branches(user) and talent_branch_ceiling(user) is None
+    """True only for an organization/global actor (all Branches of their SchoolGroup)."""
+    return bool(user is not None and auth.can_access_all_branches(user))
 
 
 def visible_branch_ids(db, user) -> set:

@@ -1,11 +1,32 @@
 ---
 title: TIS Master Context
-documentation_version: 4.14
+documentation_version: 4.15
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Talent Configuration Authority Amendment (Final Closure Part B, 2026-09-25)
+
+Owner decision: Talent Programs, Frameworks/Rubrics, Competencies/KPI, annual Program configuration,
+Evaluation Plans/Periods and Assessment Cycle definitions are SchoolGroup-level shared configuration
+governed once by the organization Administrator; every Branch uses the same definitions. There is no Branch
+copy or enablement model. Configuration mutations require the existing semantic permission (default
+Administrator-only) and organization/global access scope; Branch users read shared configuration and assess
+Students in their authorized Branch only. Existing stored grants are not rewritten. See the ADR 0044 Part B
+amendment and `docs/PROJECT_STATE.md`.
+
+## Talent Branch Authority Amendment (Production Follow-up Part 1, 2026-09-25)
+
+Owner decision: the global (sidebar) Branch selector contains real Branches only. Inside
+Talent, an organization-authorized actor chooses All Branches or any authorized Branch in
+the page-level Branch filter; the sidebar Branch is only the default selection. A
+Branch-limited actor can never leave their authorized Branch (server-enforced). The
+Batch 1 closure wording "the global Branch is a hard Talent ceiling" is superseded for
+organization-authorized actors only. Tenant isolation, permissions and privacy are
+unchanged. Aggregate Classification remains governed by the approved privacy provider;
+groups it withholds read "Unavailable" with one uniform explanatory sentence.
 
 ## Agent 3 Talent product transformation (2026-09-25)
 
@@ -27,6 +48,9 @@ See the Agent 3 amendment in ADR 0031.
 
 
 ## Global Branch Is A Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+> Amended 2026-09-25: see "Talent Branch Authority Amendment" above (organization-authorized
+> actors choose the Talent Branch on the page; the marker cookie is removed).
 
 The active global Branch bounds Talent & Potential: it is an upper ceiling, not a
 default. The ceiling is the intersection of the actor's authorization and the active

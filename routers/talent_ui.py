@@ -11,7 +11,6 @@ from sqlalchemy.orm import Session
 import auth
 import authorization
 import models
-import talent_branch_scope
 from auth import get_current_user
 from dependencies import get_db
 from ui_shell import build_shell_context
@@ -115,18 +114,16 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
         permission_keys=allowed_keys,
     )
     years = db.query(models.AcademicYear).filter_by(school_group_id=int(group_id)).order_by(models.AcademicYear.id).all()
-    # Batch 1 closure (global Branch = HARD Talent scope): the active application
-    # Branch (sidebar "Change Branch / Campus" -> session scope) is an upper ceiling
-    # for organization actors, enforced by every Talent API through
-    # talent_branch_scope. It is rendered here only so the client can hide options
-    # outside the ceiling (never a security boundary). `branch` is the locked Branch
-    # (organization actor with a single-Branch global scope, or a Branch-limited
-    # actor); it is empty only when the actor's global scope is "All Branches".
+    # Talent Branch (owner-directed amendment): the active application Branch (sidebar
+    # "Change Branch / Campus") is only the DEFAULT page-level Branch for an
+    # organization-authorized actor, who may pick All Branches or any authorized
+    # Branch in the Talent Branch filter. A Branch-limited actor is LOCKED to their
+    # authorized Branch (branch_locked). Rendered only so the client can shape its
+    # options; every Talent API re-authorizes its own branch_id server-side.
     active_branch_id = None
     active_branch_name = None
-    candidate_branch_id = talent_branch_scope.talent_branch_ceiling(user)
-    if candidate_branch_id is None and not auth.can_access_all_branches(user):
-        candidate_branch_id = getattr(user, "scope_branch_id", None) or getattr(user, "branch_id", None)
+    branch_locked = not auth.can_access_all_branches(user)
+    candidate_branch_id = getattr(user, "scope_branch_id", None) or getattr(user, "branch_id", None)
     if candidate_branch_id:
         active_branch = db.query(models.Branch).filter_by(id=int(candidate_branch_id), school_group_id=int(group_id)).one_or_none()
         if active_branch is not None and auth.can_access_branch(db, user, active_branch.id):
@@ -150,15 +147,25 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
                    "talent_review_candidates.manage", "talent_official_identifications.record",
                    "talent_educator_inputs.view", "talent_educator_inputs.add", "talent_educator_inputs.amend"}}
     # Mirror the existing organization-only API gates for action presentation.
+    # Final-closure Part B: shared configuration (Programs, Frameworks, Rubrics,
+    # Competencies/KPI, annual configuration, Evaluation Plans/Periods, Cycle
+    # definitions) is organization-level, so EVERY configuration mutation capability
+    # is withheld from Branch-scoped actors, matching the API gates exactly.
     if not auth.can_access_all_branches(user):
-        for key in ("talent_programs.govern", "talent_evaluation_plans.manage", "talent_evaluation_plans.govern", "talent_assessment_cycles.govern",
+        for key in ("talent_programs.manage", "talent_programs.govern",
+                    "talent_programs.delete_competency", "talent_programs.delete_rubric_level",
+                    "talent_evaluation_plans.manage", "talent_evaluation_plans.govern",
+                    "talent_assessment_cycles.manage", "talent_assessment_cycles.govern",
                     "talent_official_identifications.record"):
             allowed[key] = False
+    can_configure = bool(allowed.get("talent_programs.manage") or allowed.get("talent_evaluation_plans.manage"))
     return templates.TemplateResponse(request=request, name="talent/workspace.html", context={
         "request": request, **context, "talent_view": view,
         "talent_title": VIEWS[view][0], "talent_views": VIEWS,
         "talent_permissions": allowed,
+        "talent_can_configure": can_configure,
         "talent_years": years,
         "talent_active_branch_id": active_branch_id,
         "talent_active_branch_name": active_branch_name,
+        "talent_branch_locked": branch_locked,
     }, headers={"Cache-Control": "no-store"})

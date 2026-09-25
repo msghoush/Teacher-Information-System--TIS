@@ -20,9 +20,9 @@ class Element {
     this.hidden = false; this.value = ''; this.options = []; this.textContent = '';
     this.parentElement = {hidden: false}; this.selectedIndex = 0; this._html = ''; this.slots = new Map();
     this.classList = {add() {}, remove() {}, contains: () => false, toggle() {}};
-    this.dataset = {}; this.isConnected = true; this._children = [];
+    this.dataset = {}; this.isConnected = true; this._children = []; this.style = {}; this.offsetHeight = 0; this._attrChildren = new Map();
   }
-  set innerHTML(value) { this._html = String(value); this.slots = new Map(); this.retryButton = null; if (this.isSelect) this.parseOptions(); }
+  set innerHTML(value) { if (this.env.onWrite) this.env.onWrite(this, String(value)); this._html = String(value); this.slots = new Map(); this.retryButton = null; if (this.isSelect) this.parseOptions(); }
   get innerHTML() { return this._html; }
   get children() { return this._html ? [{}] : []; }
   parseOptions() {
@@ -36,6 +36,7 @@ class Element {
   replaceChildren() { this._html = ''; this.slots = new Map(); }
   append(child) { this._children.push(child); }
   closest() { return null; }
+  scrollIntoView() { this.env.scrollCalls.push(['scrollIntoView']); }
   querySelectorAll() { return []; }
   matches(selector) { return selector === 'select' && Boolean(this.isSelect); }
   emit(type, event = {}) { (this.listeners[type] || []).forEach(fn => fn({preventDefault() {}, ...event})); }
@@ -75,6 +76,12 @@ class Element {
     if (selector === '#tp-rubric-program-filter') return this._rubricChild('#tp-rubric-program-filter');
     if (selector === '[data-tp-rubric-results]') return this._rubricChild('[data-tp-rubric-results]');
     if (selector === '[data-tp-rubric-retry]') return this._rubricChild('[data-tp-rubric-retry]');
+    // Generic writable stub for a bare [data-attribute] hook that exists in the markup.
+    const hook = selector.match(/^\[(data-[\w-]+)\]$/);
+    if (hook && new RegExp(hook[1] + '(?=[\\s>=])').test(this._html)) {
+      if (!this._attrChildren.has(selector)) { const child = new Element('hook' + hook[1], this.env); child.hidden = /hidden/.test(this._html.match(new RegExp(`<[^>]*${hook[1]}[^>]*>`))?.[0] || ''); this._attrChildren.set(selector, child); }
+      return this._attrChildren.get(selector);
+    }
     return null;
   }
   _rubricChild(selector) {
@@ -93,7 +100,7 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
   const timers = [];
   let now = 0, timerSeq = 0;
   const elements = {};
-  const env = {calls, elements, reloads: 0, replaced: []};
+  const env = {calls, elements, reloads: 0, replaced: [], scrollCalls: []};
   const el = (id, extra = {}) => Object.assign(elements[id] = new Element(id, env), extra);
   el('tp-config').textContent = JSON.stringify({view, permissions, year: 1, ...config});
   el('tp-content'); elements['tp-content']._html = '<p class="tp-empty" data-initial-loading>Loading your authorized workspace…</p>';
@@ -115,6 +122,9 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
     console, URL, URLSearchParams, Intl, AbortController, Promise, Object, JSON, Number, String, Math, Map, Set, Array, Error, TypeError,
     location: {search, pathname: `/talent/${view}`, origin: 'http://tis.test', href: `http://tis.test/talent/${view}${search}`, reload() { env.reloads += 1; }},
     history: {replaceState(...args) { env.replaced.push(args); }},
+    scrollX: 0, scrollY: 0,
+    scrollTo(x, y) { env.scrollCalls.push(['scrollTo', x, y]); sandbox.scrollX = x; sandbox.scrollY = y; },
+    scrollBy(x, y) { env.scrollCalls.push(['scrollBy', x, y]); sandbox.scrollY += y; },
     document: {
       title: 'Overview · Talent & Potential | TIS',
       getElementById: id => elements[id] || null,
@@ -177,7 +187,7 @@ function createEnv({view = 'overview', permissions = {}, search = '', handler, s
     script(js('talent-rubric-request.js'), 'talent-rubric-request.js');
     // Acceptance B: shared Student identity presentation is loaded on every view before talent.js.
     script(js('talent-student-identity.js'), 'talent-student-identity.js');
-    if(['overview','analytics','assessments'].includes(view))script(js('talent-charts.js'),'talent-charts.js');
+    if(['overview','analytics','assessments','longitudinal'].includes(view))script(js('talent-charts.js'),'talent-charts.js');
     if(['overview','analytics'].includes(view))script(js('talent-dashboard.js'),'talent-dashboard.js');
     script(source, 'talent.js');
     script(js('talent-experience.js'), 'talent-experience.js');

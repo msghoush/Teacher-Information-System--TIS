@@ -1,11 +1,102 @@
 ---
 title: TIS Change History
-documentation_version: 5.14
+documentation_version: 5.17
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Progress Over Time comparability closure (frontend, presentation only)
+
+- Gap: the Progress Over Time trend broke its line only for non-visible points, so two visible Periods across a
+  non-comparable adjacent pair (for example `framework_changed`) were joined by a continuous line although the same
+  view listed the pair as not comparable. Fix: `talent.js` passes each point's Period id and the backend
+  `comparisons` list to `talent-charts.js` `series()`, which connects a pair only when its record is `comparable`
+  (a missing record does not connect); broken pairs draw no line or midpoint marker, keep both dots and add a legend note; every Period
+  value stays visible. The frontend derives no comparability. No analytics formula, privacy, permission, schema,
+  migration or `tis.db` change; Web Service only. Rule recorded in ADR 0044. Tests:
+  `tests/talent_progress_comparability.test.cjs`.
+
+## 2026-09-25 - Final pre-release verification pass (code side)
+
+- `tests/test_permission_dangerous_patterns.py` had been failing unnoticed (CI runs only KMS Enforcement).
+  Root cause: three reviewed-safe hits were never classified. The two SaaS hits (service-layer
+  `promo_redemption_service` platform-identity re-check; `saas/router.py` promo grant replacement `school_group_id`
+  Query/Form, both behind platform identity AND `promo_codes.manage`) arrived with `a94013e` (2026-09-21, on master);
+  the third is `talent_request_permissions.py`, the Batch 1 request-scoped memo of `auth.has_permission` (identical
+  decision order, canonical resolver incl. per-user overrides, ADR 0040). All three are classified with justification
+  (IDENTITY/IDENTITY/HELPER); no pattern was weakened and no permission behavior changed.
+- Start Assessment: a re-assessment or newer-rubric Start derives a private Cycle titled from the visible Evaluation;
+  an Evaluation title at the 180-character limit made that derivation fail with `invalid_input` although the roster
+  said `can_start`. The derived title is now bounded (`_derived_cycle_title`), with regression coverage.
+- Central configuration authority: `routers/talent_programs._authorize` now applies the organization gate when ANY
+  requested key is a configuration key (matching Evaluation Plans), so a mixed call can never skip it; no existing
+  route mixes keys. Regression test added. No schema, migration, permission key or `tis.db` change; Web Service only.
+
+## 2026-09-25 - Final Production Follow-Up Closure Part B: central organization Talent configuration authority
+
+- Owner clarification: no Branch copy/clone/enablement of Programs, Rubrics, Frameworks, Evaluation
+  Plans or Periods; the SchoolGroup-level model is kept and configuration is governed once by the
+  organization Administrator. `TalentProgram` gained no Branch ownership.
+- Change: every Talent configuration mutation (Program, Framework/Rubric, Competency/KPI/policy, annual
+  configuration, Evaluation Plan/Period, Assessment Cycle definition and lifecycle) requires its existing
+  semantic permission (default Administrator-only) AND organization/global scope, enforced in each router's
+  `_authorize`; a Branch-scoped Administrator can no longer author shared configuration (previously
+  `talent_programs.manage` alone sufficed). Reads, shared-configuration use, Assessment and results
+  permissions are unchanged. UI: server-derived capabilities withheld from Branch scope; "Shared by all
+  Branches" copy on Programs and Evaluation Plan.
+- Stored custom grants are not revoked. New read-only duplicate audit script
+  `scripts/audit_talent_program_duplicates_readonly.py`; no production data audited.
+- Tests: `test_talent_central_configuration_authority.py`, `test_audit_talent_program_duplicates_readonly.py`,
+  additions to `test_talent_ui.py` and `talent_program_workspace.test.cjs`; the old "Branch author can draft"
+  test was replaced deliberately. No schema, migration, new permission key or `tis.db` change. Web Service only;
+  not deployed.
+
+## 2026-09-25 - Final Production Follow-Up Closure Part A: Start Assessment must actually work
+
+- Root cause: the roster listed every placed Student (Grade-agnostic) but Start required criteria for
+  the Student's Grade, so an enabled Start could be guaranteed to fail (`assessment_tool_unavailable`).
+- Fix: backend per-row `can_start` / `start_block_code` / `start_block_reason` from the same predicate the
+  start route enforces (`roster_start_states`); the browser shows Start only when `can_start` is true and
+  otherwise a bounded reason (Program setup link only with `talent_programs.manage`). `POST
+  /api/talent/assessments` verifies an optional echoed Program/Academic Year against the Cycle
+  (409 `context_mismatch`); the roster is not listed for a stale `cycle_id`.
+- Tests: `test_talent_start_assessment_eligibility.py`, Node additions in `talent_operations.test.cjs`
+  (roster fixtures now carry `can_start`). No schema, migration, permission, privacy or `tis.db` change.
+  Web Service only; not deployed.
+
+## 2026-09-25 - Production follow-up Part 2: chart types, filter UX, comparisons, Progress Over Time
+
+- Chart selector now switches only distinct visualization types (Bar/Doughnut for full public
+  partitions of at most eight categories, Trend/Bar for series, Bar only for Learning Style, Rubric
+  and comparisons); the duplicate "Percentage" and redundant "Pie" modes were removed; single-type
+  charts show no selector. Overview defaults to Doughnut where valid with one reduced-motion-aware
+  entrance animation.
+- Results & Analytics filters refresh in the background (AbortController, newest-token-wins,
+  region-local busy state, held height, restored scroll and focus, retryable inline error) instead of
+  replacing the page root; chart-type change is client-only.
+- One "Selected comparisons" section at the bottom holds the selector, six-group limit and results.
+- Progress Over Time kept as a per-Program longitudinal trend over the existing ADR 0027 API with
+  honest gaps; Results & Analytics links to it. Raw arrow glyphs replaced by an inline SVG chevron.
+- Tests: `talent_part2_experience.test.cjs`; old mode pins updated deliberately. No schema,
+  migration, permission, privacy or `tis.db` change. Web Service only; not deployed.
+
+## 2026-09-25 - Production follow-up Part 1: Talent Branch authority, Start Assessment, Classification
+
+- Sidebar Branch selector lists real Branches only. Removed the Talent "All Branches" entry,
+  the `branch_scope=all` marker cookie, `user.scope_all_branches` and `branch_id=all` handling in
+  `POST /scope/branch` (legacy cookie ignored). Organization-authorized actors choose All Branches
+  or any authorized Branch in the Talent page-level filter (sidebar Branch = default);
+  Branch-limited actors stay confined (`tp-config.branchLocked`). ADR 0044 records the dated
+  owner-directed amendment. Tests: `test_talent_branch_hard_scope.py`, Node B1-B10.
+- Start Assessment: root cause was the generic mapping of stable safe 400 codes (chiefly
+  `assessment_tool_unavailable`); curated fixed copy per code, shown inline without scrolling.
+  Backend flow proven end to end (`test_talent_start_assessment_flow.py`).
+- Classification: diagnosed as the approved per-band cohort floor (no behavior change); added one
+  uniform value-free explanatory sentence (`test_talent_classification_aggregate_privacy.py`,
+  `talent_classification_withheld.test.cjs`). No schema, migration, permission, privacy-rule or
+  `tis.db` change. Web Service only; not deployed.
 
 ## 2026-09-25 - Deployment hotfix: PostgreSQL psycopg v3 driver requirement
 
@@ -62,6 +153,9 @@ only; the separate workflow revision is unaffected.
 
 
 ## 2026-09-25 - Batch 1 closure: the global Branch is a hard Talent scope
+
+> Superseded for organization-authorized actors by the 2026-09-25 Part 1 entry above (owner
+> direction); the ceiling continues to bind Branch-limited actors.
 
 - Supersedes the 2026-09-24 entry's "default Talent Branch scope": the active global
   Branch is now an upper ceiling (intersection of actor authorization and active

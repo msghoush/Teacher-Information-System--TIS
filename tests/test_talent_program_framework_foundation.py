@@ -234,18 +234,23 @@ def test_program_retirement_blocked_while_framework_active(db):
     assert p.status == "retired"
 
 
-def test_api_branch_author_can_draft_but_not_activate_and_ids_do_not_leak(db):
+def test_api_branch_administrator_cannot_author_shared_configuration_and_ids_do_not_leak(db):
+    # Final-closure Part B (owner-approved central authority): Programs/Frameworks are
+    # SchoolGroup-level shared configuration, so a Branch-SCOPED Administrator (who holds
+    # talent_programs.manage by role default) can read but no longer author or activate.
+    # This supersedes the earlier "Branch author may draft" behavior.
     branch_user = models.User(user_id="1000000001", username="branch.talent", role="Administrator", user_type="TENANT",
         access_scope="BRANCH", school_group_id=1, branch_id=10, academic_year_id=100, is_active=True)
     db.add(branch_user); db.commit(); branch_user.scope_school_group_id = 1; branch_user.scope_branch_id = 10
+    org_program = program(db, 1, "Organization Program")
     app = FastAPI(); app.include_router(router); app.dependency_overrides[get_db] = lambda: db; app.dependency_overrides[get_current_user] = lambda: branch_user
     with TestClient(app) as client:
-        created = client.post("/api/talent/programs", json={"name": "Branch-authored"}); assert created.status_code == 201
-        framework = client.post(f"/api/talent/programs/{created.json()['id']}/frameworks", json={"title": "Draft"}); assert framework.status_code == 201
-        denied = client.post(f"/api/talent/programs/{created.json()['id']}/frameworks/{framework.json()['id']}/activate", json={"expected_revision": 1, "expected_fingerprint": framework.json()["semantic_fingerprint"]})
-        assert denied.status_code == 403
-        audit = db.query(models.TalentConfigurationAudit).filter_by(resource_type="framework_version", action="create").one()
-        assert audit.actor_user_id == branch_user.user_id and audit.actor_branch_id == 10 and audit.school_group_id == 1
+        created = client.post("/api/talent/programs", json={"name": "Branch-authored"})
+        assert created.status_code == 403 and created.json()["code"] == "organization_authority_required"
+        assert client.post(f"/api/talent/programs/{org_program.id}/frameworks", json={"title": "Draft"}).status_code == 403
+        assert client.get(f"/api/talent/programs/{org_program.id}").status_code == 200
+        assert db.query(models.TalentConfigurationAudit).filter_by(resource_type="framework_version", action="create").count() == 0
+        assert db.query(models.TalentProgram).filter_by(name="Branch-authored").count() == 0
         outsider = program(db, 2, "Outside")
         assert client.get(f"/api/talent/programs/{outsider.id}").status_code == 404
 

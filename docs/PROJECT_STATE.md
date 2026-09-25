@@ -1,11 +1,222 @@
 ---
 title: TIS Project State
-documentation_version: 5.23
+documentation_version: 5.26
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Final Production Follow-Up Closure, Part B - central organization Talent configuration authority (2026-09-25)
+
+Implemented on `dev`; Web Service only; not deployed. No schema, migration, new permission key, stored
+grant change or `tis.db` change. Owner clarification: there is NO Branch copy/clone/enablement model; the
+SchoolGroup-level architecture is desired. Programs, Frameworks/Rubrics, Competencies/Indicators, KPI and
+review-candidate policy, annual Program configuration, Evaluation Plans/Periods and Assessment Cycle
+definitions are shared configuration created and governed ONCE by the organization Administrator and used
+by every Branch. Branch state is only Students, Academic Placements, Cycle population evidence,
+Assessments, results and Branch analytics/history. `TalentProgram` still has no `branch_id`.
+
+**Permission reality before Part B (code and tests inspected; production stored rows could not be read).**
+The default role matrix is code-defined (`permission_registry.DEFAULT_ROLE_PERMISSIONS`), not seeded data:
+Administrator holds every non-platform key including every `talent_*` key; Editor and User hold NO
+`talent_*` key (`_EDITOR_LIKE_PERMISSIONS`); Limited holds none and `constrain_role_permissions` strips any
+Talent grant; Platform Owner holds all; Platform Developer holds all assignable keys. Stored rows
+(`seed_*_role_permissions`, Role Permissions UI) and per-user overrides (ADR 0040: Deny always wins, Allow
+only where the role already allows) mean a stored role row can still grant an Editor/User a Talent key, but a per-user Allow cannot add a key the role denies. Route gates: Program /
+Framework / Competency / Rubric / KPI / policy / annual-configuration create and edit =
+`talent_programs.manage` ONLY (no organization-scope gate: a Branch-scoped Administrator could author
+organization-wide configuration, and an existing test pinned it as "Branch author may draft"); framework
+activate/retire and Program lifecycle = `talent_programs.govern` + organization scope; Program delete =
+`.delete` + organization scope; Competency / Rubric Level delete = `.delete_competency` /
+`.delete_rubric_level`; Evaluation Plan create, Period add/edit/reorder/remove, activate, cancel, close,
+rollover, Cycle link/unlink = `talent_evaluation_plans.manage/.manage_timeline/.delete_period/.govern`
+(+ `talent_assessment_cycles.manage`, `.select_period` for linking) with organization scope; Assessment
+Cycle create/edit-Draft = `talent_assessment_cycles.manage` ONLY; Cycle open/close/synchronize =
+`.govern` + organization scope. The UI already withheld only `programs.govern`, `plans.manage/.govern` and
+`cycles.govern` from Branch scope.
+
+**Change.** Authority = the existing semantic permission (default Administrator-only) AND organization/global
+access scope, enforced structurally in each router's `_authorize` (`CONFIG_MUTATION_KEYS`,
+`CYCLE_CONFIG_KEYS`, `PLAN_CONFIG_KEYS`; 403 `organization_authority_required`) rather than per handler.
+Reads (`.view`), shared-configuration use, `talent_evaluation_plans.select_period` and every assessment /
+result / analytics permission are untouched, so a Branch operational user (Start/complete Assessments,
+Branch results) is unaffected. Cycle open/close stays configuration governance (it freezes the whole
+SchoolGroup population), not a Branch operational action. `talent_ui` now also withholds
+`programs.manage`, `programs.delete_competency/.delete_rubric_level` and `cycles.manage` from Branch scope
+(server-derived capability hints for the existing `can()` mechanism), publishes `talent_can_configure`, and
+the Programs and Evaluation Plan views show "Shared by all Branches" copy (read-only wording for actors who
+cannot configure); the Program summary reads "View Evaluation Plan" instead of "Manage" when read-only. No
+Program Status lifecycle UI was reintroduced.
+
+**Residual (owner-visible).** (1) A Branch-scoped Administrator LOSES configuration authoring (deliberate;
+supersedes the earlier M2/M4 "Branch author may draft" wording, which is preserved as history). (2) Stored
+custom grants are NOT revoked: an ORGANIZATION-scoped non-Administrator whom an administrator explicitly
+granted a configuration key can still mutate; Branch-scoped holders of any role are denied server-side. If
+the owner wants strictly Administrator-role-only mutation, that is a one-line role check plus a stored-grant
+review, deliberately not done. (3) Existing duplicate Programs are NOT merged, deleted or rewritten. The
+read-only `scripts/audit_talent_program_duplicates_readonly.py` lists suspected duplicates per SchoolGroup
+(case/hyphen/whitespace, Branch-name variants, identical framework structure), per-Program framework /
+annual-configuration / plan / Period / history-reference counts, whether a merge would be destructive, and
+counts of non-Administrator configuration grants; production data was not audited here.
+
+Tests: `tests/test_talent_central_configuration_authority.py` (inventory of all 47 mutating configuration
+routes, role x route, per-route permission-key mapping, platform actors, a Branch operational Editor still
+starts Assessments, tenant isolation), `tests/test_audit_talent_program_duplicates_readonly.py`, UI additions
+in `tests/test_talent_ui.py`, Node additions in `tests/talent_program_workspace.test.cjs`, and the deliberate
+replacement of the old Branch-author test in `test_talent_program_framework_foundation.py`.
+
+## Final Production Follow-Up Closure, Part A - Start Assessment must actually work (2026-09-25)
+
+Implemented on `dev`; Web Service only; not deployed. No schema, migration, permission, privacy or
+`tis.db` change. Part B (central configuration authority) is separate and not started here.
+
+**Root cause (proven by failing-first tests).** The Student Assessments roster is Grade-agnostic
+(ADR 0035/0039: every currently placed Student in the Academic Year is listed) while Start Assessment
+is Grade-aligned (ADR 0039 amendment 2026-09-12: only criteria for the Student's Grade plus
+intentionally unscoped criteria; another Grade's criteria are never substituted). The roster therefore
+drew an enabled "Start Assessment" for Students whose Start was guaranteed to fail with the safe 400
+code `assessment_tool_unavailable`; Part 1 only curated the copy of that failure. Which exact code
+production returned could not be observed here, but every other realistic cause traced (grade format,
+string/number ids, planned-but-unmaterialized Periods, Draft/legacy Cycle, Branch filter, post-start
+workspace reads) was proven sound; Grade values are DB-constrained to the same canonical set on
+Placement and Competency, so a "Grade 3" versus "3" mismatch cannot exist.
+
+**Fix.** One backend predicate. `talent_student_assessment_service.roster_start_states` reuses
+`_newest_assessable_framework` (the exact check `start_assessment_for_evaluation` enforces, in the same
+order: criteria first, then the duplicate-current-Assessment guard). `GET
+/api/talent/assessment-cycles/{id}/eligible-students` now returns per row `can_start`,
+`start_block_code` (`assessment_tool_unavailable` or `duplicate_assessment`) and a fixed bounded
+`start_block_reason`; roster membership and Branch/Year/tenant scoping are unchanged. The browser
+renders the Start button only when `can_start === true` (never derived client-side); a blocked row shows
+the bounded reason instead, and names the Program setup as an enabled link only for an actor holding
+`talent_programs.manage` (others get text only). `POST /api/talent/assessments` accepts the optional
+displayed `program_id` / `academic_year_id` and answers 409 `context_mismatch` if either differs from the
+Cycle (the Cycle stays the only authority; nothing starts in another Program/Year); the client sends them
+and lists no roster (and offers no Start) when `cycle_id` is not among the server-filtered Evaluation
+contexts of the selected Program/Year. `context_mismatch` has curated copy.
+
+**Unchanged and proven.** Tenant isolation, Branch ceiling (a Branch-limited actor cannot start another
+Branch's Student; an organization actor can start any authorized Branch's Student under any page
+Branch), permission enforcement, immutable evidence, Start on an in-progress or completed Student is a
+409 duplicate (the roster opens the existing workspace / reassessment actions instead). Tests:
+`tests/test_talent_start_assessment_eligibility.py` (per-row `can_start` versus the real route as a
+property over criteria fixtures and three actors), Node additions in `tests/talent_operations.test.cjs`.
+Open decisions: a Closed Cycle is not blocked from Start (existing semantics, ADR 0035; unchanged); each
+Student started on a newer Framework gets a private derived Cycle (existing behavior, unchanged).
+Browser verification not performed.
+
+## Production follow-up Part 2 - chart types, Results & Analytics filter UX, comparisons, Progress Over Time (2026-09-25)
+
+Implemented on `dev`; Web Service only (static JS/CSS and one template script include); not deployed.
+No schema, migration, permission, analytics-semantics, privacy-threshold, Classification or Learning
+Style policy or `tis.db` change. Verified through the Node stub harness only (no browser).
+
+**D. Chart type semantics.** Root cause: the selector offered "Bar" and "Percentage", which drew the
+same picture (Bar already printed the percentage), and Pie beside Doughnut (same reading). Now
+`talent-charts.js` switches only genuinely different visualization types and renders no selector when
+only one type is valid: Classification and Assessment completion = Bar / Doughnut (only for a full
+public partition of at most `MAX_CIRCULAR_CATEGORIES` = 8 categories); Learning Style (eight styles plus
+Unassigned = nine) and Rubric levels (ordinal) = Bar only, keeping the stable per-index semantic colours
+(Unassigned is always the neutral last colour); time series = Trend / Bar (Trend only with two visible
+points); comparisons = one fixed Bar of the backend rate per group. Pie was dropped as a doughnut
+without a centre (owner decision open). Exact counts/percentages stay in every type (bar label, legend,
+trend legend) and in the accessible table. The Overview defaults Classification and completion to
+Doughnut where valid (Bar otherwise); Results & Analytics defaults to Bar. A deliberate choice is
+remembered across refetches. The Overview gets ONE restrained CSS entrance (fade, bar grow) on its first
+render only, decided in `talent.js` from `prefers-reduced-motion` (reduced or unknown = none), applied
+with opacity/transform only, and removed on a chart-type switch.
+
+**E. Results & Analytics filter UX.** Root cause: every dashboard filter change replaced the whole
+content root with a loading skeleton (`root.innerHTML = ...` then a second full replacement in `load()`),
+collapsing the page height so the browser clamped the scroll to the top, and re-created the form (focus
+lost). Now Branch/Grade/Section/Program/Period/Classification/Competency/Indicator/comparison changes
+call `refreshDashboard()`: local `params` + `history.replaceState` (no navigation, submit cancelled),
+a background fetch with its own `AbortController` and a monotonically increasing token (only the newest
+response renders), the previous analysis stays on screen with `aria-busy`, a dimmed region and a thin
+bounded progress bar, the region height is held while replacing and the reader position is restored
+(focused control re-focused with `preventScroll`, relative `scrollBy` compensation, `scrollTo` only if
+the browser clamped anyway). Comparison tick changes are debounced (350 ms). The existing 25 s bounded
+request applies; a failure keeps the old analysis and shows an inline retryable error. Chart-type change
+is purely client-side (no fetch, no URL change). `load()` also holds height and restores the anchor for
+other views. The `scrollIntoView` in `talent-operations.js` belongs to the assessment editor and is not
+on this path.
+
+**F. Selected Comparisons.** One dedicated section, last in Results & Analytics, contains the Compare-by
+selector, the group checkboxes (up to six; the seventh is disabled/refused, count announced), then the
+"Completion rate by group" chart and the per-group Completion/Classification/Result cards, with explicit
+empty, protected and unavailable states. The selector was removed from the top filter form. Group values
+are the backend's own per-group rates; nothing averages Programs or frameworks.
+
+**G. Progress Over Time - decision: KEEP as a real per-Program longitudinal view.** Evidence: the view is
+backed by the governed ADR 0027 route `/api/talent/organization-analytics/programs/{id}/longitudinal`
+(one Program x one Academic Year, ordered by governed Evaluation Period, each point independently
+privacy-closed, five metrics incl. counts and started coverage, comparability state, no computed
+delta). Results & Analytics offers only a completion-by-period line, so the view has distinct value
+(counts, started coverage, comparability context). The previous plot drew percentage bars only; it now
+uses the shared trend chart with honest gaps (a suppressed or not-yet-available period is a dashed gap
+with no coordinate; "No data yet" is never 0%; count metrics plot counts) plus the accessible table, and
+Results & Analytics links to it for a chosen Program. Not done (needs new backend semantics or owner
+decision): multi-year series, Classification-over-time, Branch comparison trend, rubric-indicator trend.
+Comparability closure (2026-09-25, ADR 0044): the line also breaks between two visible points whose adjacent
+backend `comparisons` record is not `comparable` (or is missing); each Period stays individually visible; the
+frontend never derives comparability. Results & Analytics completion-by-period supplies no list and is unchanged.
+The nav key and route are unchanged, so old links keep working; the template now loads `talent-charts.js`
+on that view.
+
+**I. Cleanup.** Raw arrow glyphs in actions replaced by a shared inline SVG chevron; duplicate chart
+controls removed (D). Tests: `tests/talent_part2_experience.test.cjs` (P1-P22) plus deliberate updates to
+the old mode pins in the `talent_dashboard`, `talent_visual_system`, `talent_classification_withheld`
+and `talent_results_experience` tests and the harness (scroll model, writable hooks).
+
+## Production follow-up Part 1 - Talent Branch authority, Start Assessment, Classification (2026-09-25)
+
+Implemented on `dev`; Web Service only; not deployed. No schema, migration, permission,
+privacy-threshold or `tis.db` change.
+
+**A. Branch authority (owner-directed amendment to the Batch 1 closure).** The sidebar
+selector lists real Branches only; the Talent "All Branches" option, the `branch_scope=all`
+marker cookie, `user.scope_all_branches` and `POST /scope/branch branch_id=all` are removed
+(an old cookie is ignored and grants nothing; choosing a Branch still clears it).
+`talent_branch_scope.talent_branch_ceiling` is always `None`; `branch_scope_unrestricted`
+is `auth.can_access_all_branches`. Organization-authorized actor: ceiling = own authorization
+(all Branches of the SchoolGroup); the sidebar Branch is the page default (`tp-config.branch`);
+the page-level Branch filter offers All Branches (URL marker `branch_scope=all`, no `branch_id`
+sent) and every authorized Branch; a stale marker from another sidebar Branch resets to the new
+default. Branch-limited actor: `tp-config.branchLocked`; the ceiling stays their authorized
+Branch on every read surface (server enforced, regression: `tests/test_talent_branch_hard_scope.py`);
+an explicit foreign or cross-tenant Branch is rejected as before. Omitted `branch_id` = all
+authorized Branches (it is how All Branches is expressed); the default is applied by the page.
+Branch display: legacy startup seeding uses hyphenated Branch names (`X-Boys`); persisted names
+and Talent presentation were NOT changed (reported as a separate data/presentation decision).
+
+**B. Start Assessment.** Trace: roster button (`type="button"`, no form/`#`) -> POST
+`/api/talent/assessments {cycle_id, student_id}` -> navigation with `assessment_id`, `cycle_id`,
+`academic_year_id`, `program_id` -> workspace reads. Backend regression proves the whole chain for
+organization actors under every sidebar Branch and for a Branch-limited actor
+(`tests/test_talent_start_assessment_flow.py`); string/number id typing does not matter. Root
+cause of the banner: a stable, safe 400 business code (chiefly `assessment_tool_unavailable`, a
+Student whose Grade has no saved criteria in the Program; also `student_not_eligible`,
+`invalid_student_context`, duplicate/conflict) was collapsed by `talent-api-errors.js` into the
+generic 400 copy and shown in the page-top banner via `scrollIntoView`. Fix: curated fixed copy per
+code (`CODE_COPY`, backend `detail` still never echoed) shown inline beside the row; no scroll jump,
+no navigation on failure. Which code production returned could not be observed here.
+
+**C. Classification "Unavailable".** Diagnosis (reproduced, `tests/test_talent_classification_aggregate_privacy.py`):
+every Student is classified; the aggregate is hidden at the PRIMARY privacy stage
+(`apply_primary_privacy` inside `build_bucket_projection`, class P4) by the approved Release 1
+provider (`ConfiguredRelease1PrivacyPolicy`, minimum cohort 5 per Classification band cell, zero
+counts included; ADR 0028, B11-E F1), then complementary suppression; a total below the floor hides
+the whole family; an absent provider configuration fails closed (`restricted`). Broader selections
+publish exactly the bands that clear the floor. Behavior is unchanged. UI: one uniform, value-free
+sentence (`data-chart-withheld-note`) and a precise whole-family message; no threshold, cell-level
+reason, or hidden value is emitted. Showing small cohorts would require an owner decision and an
+ADR 0028/0044 amendment. Production privacy configuration (the cohort environment value) could not
+be verified here; if it were absent every protected metric would read Unavailable.
+
+Tests: Python `test_talent_branch_hard_scope.py`, `test_talent_start_assessment_flow.py`,
+`test_talent_classification_aggregate_privacy.py`; Node B1-B10, Start Assessment cases in
+`talent_operations.test.cjs`, `talent_classification_withheld.test.cjs`. Browser verification not performed.
 
 ## Talent product transformation (Agent 3, 2026-09-25)
 
@@ -76,6 +287,11 @@ is no longer attached.
 
 
 ## Batch 1 Closure - The Global Branch Is A Hard Talent Scope (2026-09-25)
+
+> Amended 2026-09-25 (Part 1 production follow-up, owner decision): the ceiling described here now
+> applies only to Branch-limited actors. Organization-authorized actors choose All Branches or any
+> authorized Branch inside Talent, the sidebar Branch being only the default, and the `branch_scope=all`
+> marker cookie / `user.scope_all_branches` were removed. Original text below is preserved as history.
 
 **Status: implemented on `dev` only; not deployed, not merged. Web Service only
 (no worker/timetable/workflow change). No schema, migration, permission or `tis.db`
@@ -3920,7 +4136,7 @@ audited additive synchronization of newly eligible Students while Open.
 
 Dedicated `talent_assessment_cycles.view/manage/view_population/govern`
 permissions are Administrator-only by default. Branch authors may manage
-Draft metadata but cannot Open/Close. Governance additionally requires
+Draft metadata but cannot Open/Close [superseded 2026-09-25 by Final Closure Part B: Cycle create/edit now also requires organization/global scope]. Governance additionally requires
 organization/global scope. Population reads are separately permissioned:
 Branch actors see only authorized preview/frozen Branch members and subset
 counts, never the full count/fingerprint; organization/global population

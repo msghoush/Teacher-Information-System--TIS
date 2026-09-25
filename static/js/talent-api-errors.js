@@ -23,7 +23,16 @@
 
   // Known stable backend error codes that are intentionally user-facing. Only
   // these exact codes may map to curated copy; arbitrary detail is never shown.
-  const CODE_COPY = {};
+  const CODE_COPY = {
+    // Start Assessment: stable business-rule codes whose specific, actionable reason
+    // is safe to show (fixed copy; the backend detail text is still never echoed).
+    assessment_tool_unavailable: 'The Grade of this Student has no saved assessment criteria in this Program yet. Open the Program, configure the Competencies, KPIs and Levels for that Grade, then start the Assessment.',
+    student_not_eligible: 'This Student has no current Academic Placement in the selected Academic Year, so an Assessment cannot be started.',
+    invalid_student_context: 'This Student is not available in the selected Evaluation. Reload the Student list and try again.',
+    duplicate_assessment: 'An Assessment for this Student already exists in this Evaluation. Reload the Student list.',
+    context_mismatch: 'The selected Program or Academic Year no longer matches this Evaluation. Choose the Evaluation Period and Program again.',
+    assessment_conflict: 'This Assessment was just changed elsewhere. Reload the Student list and try again.',
+  };
 
   function messageFor(status, code) {
     if (code != null && String(code) !== '' && Object.prototype.hasOwnProperty.call(CODE_COPY, String(code))) {

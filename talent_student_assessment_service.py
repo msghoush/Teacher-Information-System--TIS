@@ -417,6 +417,55 @@ def _newest_assessable_framework(db: Session, *, cycle, grade):
     return None
 
 
+START_BLOCK_REASONS = {
+    "assessment_tool_unavailable": "No assessment criteria are configured for this Grade in this Program.",
+    "duplicate_assessment": "An Assessment already exists for this Student in this Evaluation.",
+}
+
+
+def roster_start_states(db: Session, *, cycle, grades_by_student, students_with_current_assessment):
+    """Per-Student Start Assessment eligibility for one Evaluation roster.
+
+    This is the SAME predicate ``start_assessment_for_evaluation`` enforces, so
+    the roster can never offer a Start that is guaranteed to fail: (1) a current
+    Assessment already exists for the Student in the Evaluation
+    (``duplicate_assessment``), or (2) the Student's Grade has no saved
+    assessable Competency -> KPI -> Level structure in the Program
+    (``assessment_tool_unavailable``; ADR 0039 Grade-aligned criteria), checked
+    in that order like the route. Current Placement itself is what put the
+    Student on the roster. The result is
+    keyed by Student id: ``(can_start, code, reason)``; code/reason are fixed
+    bounded values, never free text.
+    """
+    grade_ready = {}
+    for grade in {grade for grade in grades_by_student.values()}:
+        grade_ready[grade] = _newest_assessable_framework(db, cycle=cycle, grade=grade) is not None
+    states = {}
+    for student_id, grade in grades_by_student.items():
+        # Same evaluation order as the start route: criteria first, then duplicate guard.
+        if not grade_ready.get(grade):
+            code = "assessment_tool_unavailable"
+        elif student_id in students_with_current_assessment:
+            code = "duplicate_assessment"
+        else:
+            code = None
+        states[student_id] = (code is None, code, START_BLOCK_REASONS.get(code))
+    return states
+
+
+CYCLE_TITLE_MAXIMUM = 180  # talent_assessment_cycle_service._clean default maximum
+
+
+def _derived_cycle_title(base_title, suffix):
+    """Private derived-Cycle title that always fits the Cycle title limit.
+
+    The visible Evaluation title may already be at the limit; a derived context
+    must never make a roster ``can_start`` row fail with ``invalid_input``.
+    """
+    base = " ".join(str(base_title or "").split())
+    return base[: max(0, CYCLE_TITLE_MAXIMUM - len(suffix))].rstrip() + suffix
+
+
 def start_assessment_for_evaluation(
     db: Session, *, school_group_id, evaluation_cycle_id, student_id, actor=None
 ):
@@ -465,10 +514,11 @@ def start_assessment_for_evaluation(
         program_id=root_cycle.program_id,
         academic_year_id=root_cycle.academic_year_id,
         framework_version_id=newest.id,
-        title=(
-            f"{root_cycle.title} · Re-assessment"
+        title=_derived_cycle_title(
+            root_cycle.title,
+            " · Re-assessment"
             if prior_on_root and newest.id == root_cycle.framework_version_id
-            else f"{root_cycle.title} · Current rubric"
+            else " · Current rubric",
         ),
         description=(
             "Internal re-assessment attempt context; prior completed evidence remains historical."
@@ -536,7 +586,7 @@ def continue_empty_assessment_on_current_rubric(
         program_id=assessment.program_id,
         academic_year_id=assessment.academic_year_id,
         framework_version_id=newest.id,
-        title=f"{root_cycle.title} · Current rubric",
+        title=_derived_cycle_title(root_cycle.title, " · Current rubric"),
         description="Internal rubric-version context for an empty current Assessment.",
         population_effective_at=datetime.utcnow(),
         actor=actor,

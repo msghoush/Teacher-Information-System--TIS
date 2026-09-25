@@ -86,7 +86,8 @@ REQUIRED_SCRIPTS_BY_VIEW = {
     'branch': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
     'overlap': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
     'students': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
-    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
+    # Part 2: the Progress Over Time trend is drawn by the shared chart module.
+    'longitudinal': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-charts.js'),
 }
 
 
@@ -204,6 +205,46 @@ def test_branch_scope_never_advertises_organization_only_talent_actions(db, clie
     assert '"talent_evaluation_plans.govern": false' in response.text
     assert '"talent_assessment_cycles.govern": false' in response.text
     assert '"talent_official_identifications.record": false' in response.text
+
+
+CONFIG_MUTATION_KEYS = (
+    'talent_programs.manage', 'talent_programs.govern', 'talent_programs.delete_competency',
+    'talent_programs.delete_rubric_level', 'talent_evaluation_plans.manage',
+    'talent_evaluation_plans.govern', 'talent_assessment_cycles.manage', 'talent_assessment_cycles.govern',
+)
+
+
+def test_branch_scope_is_read_only_for_shared_configuration_with_explanatory_copy(db, client):
+    # Final-closure Part B: even holding every configuration key (e.g. a Branch-scoped
+    # Administrator), a Branch-scoped actor gets NO enabled mutation capability and
+    # sees the shared-by-all-Branches read-only notice on both configuration views.
+    permissions(db, 'talent_programs.view', 'talent_evaluation_plans.view', *CONFIG_MUTATION_KEYS)
+    client.app.dependency_overrides[get_current_user] = lambda: actor(scope='BRANCH')
+    for view in ('programs', 'evaluation-plans'):
+        response = client.get(f'/talent/{view}')
+        assert response.status_code == 200
+        config = _tp_config(response.text)
+        for key in CONFIG_MUTATION_KEYS:
+            assert config['permissions'][key] is False, key
+        assert config['permissions']['talent_programs.view'] is True
+        assert 'data-shared-config="read-only"' in response.text
+        assert 'Shared by all Branches.' in response.text
+        assert 'managed by your organization Administrator' in response.text
+        assert 'Changes you make here apply to every Branch.' not in response.text
+
+
+def test_organization_administrator_sees_configuration_capabilities_and_shared_copy(db, client):
+    permissions(db, 'talent_programs.view', 'talent_evaluation_plans.view', *CONFIG_MUTATION_KEYS)
+    for view in ('programs', 'evaluation-plans'):
+        response = client.get(f'/talent/{view}')
+        config = _tp_config(response.text)
+        for key in CONFIG_MUTATION_KEYS:
+            assert config['permissions'][key] is True, key
+        assert 'data-shared-config="manage"' in response.text
+        assert 'Changes you make here apply to every Branch.' in response.text
+    # Non-configuration views never carry the notice.
+    permissions(db, 'talent_analytics.view')
+    assert 'data-shared-config' not in client.get('/talent/analytics').text
 
 
 def test_evaluation_plan_action_permissions_reach_browser_payload(db, client):
@@ -376,19 +417,20 @@ def _tp_config(html):
 
 def test_workspace_publishes_the_server_validated_active_branch(db, client):
     permissions(db, 'talent_programs.view')
-    # Batch 1 closure: an organization actor's single-Branch global scope (the request's
-    # scope_branch_id, always set by get_current_user) is a hard ceiling and is
-    # published as tp-config.branch; the explicit global All Branches publishes none.
+    # Part 1 amendment: for an organization actor the validated sidebar Branch
+    # (scope_branch_id) is published as the DEFAULT page Branch and is not a lock;
+    # a legacy scope_all_branches attribute grants and changes nothing.
     scoped = actor()
     scoped.scope_branch_id = 10
     client.app.dependency_overrides[get_current_user] = lambda: scoped
     config = _tp_config(client.get('/talent/overview').text)
-    assert config['branch'] == 10 and config['branchName'] == 'North'
-    all_branches = actor()
-    all_branches.scope_branch_id = 10
-    all_branches.scope_all_branches = True
-    client.app.dependency_overrides[get_current_user] = lambda: all_branches
-    assert _tp_config(client.get('/talent/overview').text)['branch'] is None
+    assert config['branch'] == 10 and config['branchName'] == 'North' and config['branchLocked'] is False
+    legacy = actor()
+    legacy.scope_branch_id = 10
+    legacy.scope_all_branches = True
+    client.app.dependency_overrides[get_current_user] = lambda: legacy
+    legacy_config = _tp_config(client.get('/talent/overview').text)
+    assert legacy_config['branch'] == 10 and legacy_config['branchLocked'] is False
 
 
 def test_workspace_never_publishes_a_branch_outside_the_actors_tenant(db):

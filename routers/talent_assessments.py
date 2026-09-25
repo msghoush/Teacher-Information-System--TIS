@@ -223,6 +223,30 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
     except (TypeError, ValueError):
         return JSONResponse({"detail": "Invalid Assessment payload.", "code": "invalid_input"}, status_code=400)
 
+    # Final Closure Part A: the client may echo the Program / Academic Year it
+    # displayed. The Cycle is the only authority for the resulting Assessment's
+    # context; a stale selection is rejected and can never start an Assessment in
+    # a different Program/Year than the roster row the user clicked.
+    echoed = {}
+    for key in ("program_id", "academic_year_id"):
+        if payload.get(key) not in (None, ""):
+            try:
+                echoed[key] = int(payload.get(key))
+            except (TypeError, ValueError):
+                return JSONResponse({"detail": "Invalid Assessment payload.", "code": "invalid_input"}, status_code=400)
+    if echoed:
+        context_cycle = db.query(models.TalentAssessmentCycle).filter_by(
+            id=cycle_id, school_group_id=group_id
+        ).one_or_none()
+        if context_cycle is not None and any(
+            echoed.get(key) is not None and echoed[key] != getattr(context_cycle, key)
+            for key in ("program_id", "academic_year_id")
+        ):
+            return JSONResponse({
+                "detail": "Evaluation context does not match the selected Program or Academic Year.",
+                "code": "context_mismatch",
+            }, status_code=409)
+
     # ADR 0035: the normal path starts from a Student's current Academic
     # Placement, not from a pre-frozen population-member id. The legacy member
     # form remains accepted for backward compatibility with existing clients.

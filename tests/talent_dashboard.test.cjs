@@ -17,21 +17,50 @@ test('suppressed cell never contributes a magnitude, percentage, tooltip or circ
   const p={state:'visible',buckets:[...visible.buckets,{label:'Protected band',state:'suppressed',count:847,percentage:87.61}]};
   const html=charts.chart('Classification',p);
   assert.ok(!html.includes('847'));assert.ok(!html.includes('87.61'));
-  assert.deepEqual(charts.modes(p,'classification'),['bar','percentage']);
+  assert.deepEqual(charts.modes(p,'classification'),['bar']);
   assert.match(html,/Unavailable/);
   // M18a: the generic badge copy is gone; only the Classification-cohort explanation may say "protected for privacy".
   assert.doesNotMatch(html,/protected for privacy/i);
 });
-test('classification supports only valid bar, percentage, doughnut views',()=>assert.deepEqual(charts.modes(visible,'classification'),['bar','percentage','doughnut']));
-test('Learning Style supports pie and doughnut only for a full public partition',()=>assert.deepEqual(charts.modes(visible,'learning-style'),['bar','percentage','pie','doughnut']));
-test('completion cannot offer pie and rubric cannot offer meaningless trend',()=>{assert.deepEqual(charts.modes(visible,'completion'),['bar','percentage']);assert.deepEqual(charts.modes(visible,'rubric'),['bar','percentage']);});
-test('trend requires multiple public ordered data points',()=>{assert.deepEqual(charts.modes(visible,'trend'),['bar','trend']);assert.deepEqual(charts.modes({state:'visible',buckets:visible.buckets.slice(0,1)},'trend'),['bar']);});
-test('all chart modes include equivalent exact tables and keyboard buttons',()=>{
-  for(const mode of charts.modes(visible,'learning-style')){
-    const html=charts.chart('Styles',visible,'learning-style',mode);
-    assert.match(html,/<table>/);assert.match(html,/<caption>Styles/);assert.match(html,/<th scope="row">A/);
-    assert.match(html,/type="button"/);assert.match(html,/aria-pressed="true"/);assert.match(html,/>12<\/td>/);
+// Part 2 D (deliberate update of the old mode pins): the selector switches VISUALIZATION TYPES.
+// "percentage" duplicated the count bar and "pie" duplicated doughnut, so both are gone; Learning
+// Style (eight styles plus Unassigned) is bar-only because nine slices are not legible.
+test('classification and completion offer Bar and Doughnut only for a full public partition',()=>{
+  assert.deepEqual(charts.modes(visible,'classification'),['bar','doughnut']);
+  assert.deepEqual(charts.modes(visible,'completion'),['bar','doughnut']);
+});
+test('Learning Style, rubric levels and comparisons are bar-only (high cardinality or ordinal)',()=>{
+  for(const family of ['learning-style','rubric','comparison'])assert.deepEqual(charts.modes(visible,family),['bar'],family);
+  const nine={state:'visible',buckets:Array.from({length:9},(_,i)=>({label:'S'+i,state:'visible',count:1,percentage:i<8?11.1:11.2}))};
+  assert.deepEqual(charts.modes(nine,'classification'),['bar'],'more than eight categories never becomes a circular chart');
+  assert.equal(charts.MAX_CIRCULAR_CATEGORIES,8);
+});
+test('trend offers Trend and Bar only with two public ordered points and never a circular type',()=>{
+  assert.deepEqual(charts.modes(visible,'trend'),['trend','bar']);
+  assert.deepEqual(charts.modes({state:'visible',buckets:visible.buckets.slice(0,1)},'trend'),['bar']);
+  assert.ok(!charts.modes(visible,'trend').includes('doughnut'));
+});
+test('every offered mode renders exact values and a table, and no two modes render the same picture',()=>{
+  for(const family of ['classification','completion','trend']){
+    const modes=charts.modes(visible,family),seen=new Set();
+    for(const mode of modes){
+      const html=charts.chart('Styles',visible,family,mode);
+      assert.match(html,/<table>/);assert.match(html,/<caption>Styles/);assert.match(html,/<th scope="row">A/);
+      assert.match(html,/>12<\/td>/);assert.match(html,/12/);assert.match(html,/40%/);
+      const visual=html.match(/<div data-chart-visual>([\s\S]*?)<\/div><details>/)[1];
+      assert.ok(!seen.has(visual),`${family}/${mode} duplicates another mode`);seen.add(visual);
+    }
+    if(modes.length>1){
+      const html=charts.chart('Styles',visible,family);
+      assert.equal((html.match(/data-chart-mode=/g)||[]).length,modes.length);
+      assert.match(html,/type="button"/);assert.match(html,/aria-pressed="true"/);
+    }
   }
+});
+test('a chart with a single valid type renders no selector at all',()=>{
+  const html=charts.chart('Styles',visible,'learning-style');
+  assert.ok(!html.includes('data-chart-mode')&&!html.includes('tp-chart-switch'));
+  assert.match(html,/<table>/);
 });
 test('zero population is not a false zero percentage and unsafe modes fall back',()=>{
   const p={state:'empty',levels:[{label:'Visual',state:'visible',count:0,percentage:null}]};
@@ -54,7 +83,7 @@ test('All context options do not cross the Branch ceiling',()=>{
   assert.ok(!html.includes('Forbidden'));assert.match(html,/Allowed/);
 });
 test('M16 chart bundles remain surface-specific and old duplicate rubric augmentation is disabled',()=>{
-  const template=fs.readFileSync('templates/talent/workspace.html','utf8');assert.match(template,/talent_view in \['overview', 'analytics', 'assessments'\]/);
+  const template=fs.readFileSync('templates/talent/workspace.html','utf8');assert.match(template,/talent_view in \['overview', 'analytics', 'assessments', 'longitudinal'\]/);
   const experience=fs.readFileSync('static/js/talent-experience.js','utf8');assert.match(experience,/window.TalentDashboard\) return/);
 });
 test('new dashboard loads one unified request without Student previews or old duplicate analytics',async()=>{

@@ -117,7 +117,11 @@ def test_roster_keeps_authorized_individual_rows_while_style_aggregate_protected
                 assert data['count'] == len(data['members'])
                 assert all(row['student_id'] and 'learning_style' in row for row in data['members'])
         assert found, 'fixture must exercise an individually visible classified Student'
+        # Branch-limited actor: the hard ceiling is their authorized Branch. (An
+        # organization actor may name any authorized Branch: sidebar Branch is a default.)
         world.as_admin(world.north)
+        assert world.get(url + f'?branch_id={world.south}').status_code == 200
+        world.branch_limited_user(world.north)
         denied = world.get(url + f'?branch_id={world.south}')
         assert denied.status_code == 403
         scoped = world.get(url).json()
@@ -133,8 +137,15 @@ def test_dashboard_route_hard_ceiling_and_no_identity_payload():
     from test_talent_batch1_data_scope import World
     world = World(foreign_keys=True)
     try:
-        world.as_admin(world.north)
         url = f'/api/talent/results-analytics/academic-years/{world.year}/dashboard'
+        # Organization actor: the sidebar Branch is only a default, every authorized Branch is offered.
+        world.as_admin(world.north)
+        org = world.get(url)
+        assert org.status_code == 200, org.text
+        assert {int(row['id']) for row in org.json()['options']['branch']} == {world.north, world.south}
+        assert world.get(url + f'?branch_id={world.south}').status_code == 200
+        # Branch-limited actor: hard ceiling.
+        world.branch_limited_user(world.north)
         response = world.get(url)
         assert response.status_code == 200, response.text
         data = response.json()

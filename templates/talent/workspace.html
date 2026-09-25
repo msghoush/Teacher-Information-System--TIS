@@ -17,7 +17,10 @@
     </div>
     {% if request.state.talent_synthetic_preview|default(false) %}<span class="tp-badge">{{ icon('shield') }}Synthetic data · Read-only preview</span>{% endif %}
   </div>
-  {% set analytics_family = ['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
+  {% if talent_view in ['programs', 'evaluation-plans'] %}
+  <p class="tp-note tp-shared-config" data-shared-config="{{ 'manage' if talent_can_configure else 'read-only' }}">{{ icon('shield') }}<strong>Shared by all Branches.</strong> Programs, rubrics, frameworks, evaluation plans, and evaluation periods are configured once for the whole organization. {% if talent_can_configure %}Changes you make here apply to every Branch.{% else %}They are managed by your organization Administrator; you can view them here but not change them.{% endif %}</p>
+  {% endif %}
+  {% set analytics_family =['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
   {% if talent_view in analytics_family %}
   <nav class="tp-results-nav" aria-label="Results and Analytics views">
     <span class="tp-results-nav-label">Results &amp; Analytics</span>
@@ -43,7 +46,7 @@
   <div id="tp-content" aria-busy="true"><p class="tp-empty" data-server-loader data-initial-loading>Loading your authorized workspace…</p><noscript><p class="tp-empty">JavaScript is required to use Talent &amp; Potential. Enable it and reload this page.</p></noscript></div>
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
-<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name}|tojson }}</script>
+<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name, "branchLocked": talent_branch_locked}|tojson }}</script>
 {# Deployment Acceptance Batch 1: the server-rendered loader is replaced synchronously as soon as talent.js runs (boot()). If it is STILL on screen after 15 s the page script never took over (for example a script failed to download or parse, or a stale cached copy from an earlier deployment). The page must never sit on a generic loader indefinitely, so this tiny inline watchdog turns that state into an explicit, retryable error. It only ever acts on the still-untouched server-rendered placeholder. #}
 <script>
 (function(){
@@ -67,7 +70,7 @@
 <script src="{{ url_for('static', path='js/talent-rubric-request.js') }}?v={{ talent_asset_version('js/talent-rubric-request.js') }}" defer></script>
 {# Shared Student identity presentation (name / Learning Style / Classification / Talented): every Talent view that renders an identifiable Student needs it, so it is loaded everywhere like the other tiny shared helpers. #}
 <script src="{{ url_for('static', path='js/talent-student-identity.js') }}?v={{ talent_asset_version('js/talent-student-identity.js') }}" defer></script>
-{% if talent_view in ['overview', 'analytics', 'assessments'] %}
+{% if talent_view in ['overview', 'analytics', 'assessments', 'longitudinal'] %}
 <script src="{{ url_for('static', path='js/talent-charts.js') }}?v={{ talent_asset_version('js/talent-charts.js') }}" defer></script>
 {% endif %}
 {% if talent_view in ['overview', 'analytics'] %}

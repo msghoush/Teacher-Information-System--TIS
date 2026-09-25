@@ -1,6 +1,6 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.13
+documentation_version: 3.14
 last_updated: 2026-09-25
 source_of_truth: true
 ---
@@ -29,7 +29,50 @@ source_of_truth: true
    well as visible charts. Ordered periods do not imply growth.
 
 
+## Talent Configuration Authority Flow (Final Closure Part B, 2026-09-25)
+
+1. The organization Administrator creates and maintains Programs, Frameworks/Rubrics, Competencies/KPI,
+   annual Program configuration, Evaluation Plans/Periods and Cycle definitions once for the whole
+   SchoolGroup. There is no per-Branch copy or enablement.
+2. Branch users see the shared configuration they need (Programs, Frameworks, Evaluation Periods) with a
+   "Shared by all Branches" notice and no enabled mutation control; the server independently answers 403
+   `organization_authority_required` to any configuration mutation from Branch scope.
+3. Branch operational work is unchanged: Students, placements, Cycle population, Start/complete Assessments
+   and Branch results stay under the operational permissions and Branch authorization.
+
+## Start Assessment Flow (Final Closure Part A, 2026-09-25)
+
+1. Choose an Evaluation Period and Program; the roster lists every currently placed authorized Student
+   with its backend `can_start`, `start_block_code` and bounded `start_block_reason`.
+2. Start Assessment appears only where `can_start` is true. A Student whose Grade has no saved
+   assessment criteria in the Program shows the reason instead (Program setup is a link only for an actor
+   who can manage Programs). In-progress or completed Students open the existing workspace or
+   reassessment actions.
+3. The click posts `{cycle_id, student_id}` plus the displayed Program/Academic Year; the server verifies
+   them against the Cycle (409 `context_mismatch` on a stale selection), re-checks placement, Branch scope,
+   Grade-aligned criteria and the duplicate guard, then creates the Assessment and the browser navigates
+   with the server-returned Program/Year and the roster's Evaluation.
+
+## Results & Analytics Filter Flow (Production Follow-up Part 2, 2026-09-25)
+
+Changing any dashboard filter (Branch, Grade, Section, Program, Evaluation Period, Classification,
+Competency, Indicator, comparison dimension or groups) updates local state and the URL with
+`history.replaceState`, cancels any in-flight refresh, and fetches the same authorized dashboard read in
+the background. The current analysis stays visible (region `aria-busy`, thin progress bar) and only the
+newest response replaces it; the reader's scroll position and focused control are preserved and a
+failure shows an inline Retry while keeping the previous analysis. Changing a chart type only re-renders
+the chart client-side. Selected comparisons (dimension, up to six groups, results) live in one section at
+the bottom. Progress Over Time opens per Program from the Results navigation or the Evaluation Periods
+section.
+
 ## Global Branch -> Talent Flow (Batch 1 Closure, 2026-09-25)
+
+> Amended 2026-09-25 (Part 1 production follow-up): the sidebar Branch switch lists real Branches only
+> and no longer offers a Talent All Branches option. On `/talent` pages the validated sidebar Branch is
+> the DEFAULT page Branch for an organization-authorized actor, who may choose All Branches or another
+> authorized Branch in the Talent Branch filter (URL marker `branch_scope=all`); a Branch-limited actor
+> stays locked to their Branch (`branchLocked`). The API still validates every `branch_id`. Start
+> Assessment failures show a curated, code-specific reason inline beside the Student row.
 
 Supersedes step 2 of the Batch 1 flow below ("default ... honors explicit
 `branch_scope=all`").
