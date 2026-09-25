@@ -390,7 +390,8 @@
       annotateDisclosures(scope);
       restoreDisclosureState(scope, rememberedDisclosureState);
       cleanupAssessmentContexts(scope);
-      addAssessmentRosterFilters(scope);
+      // Student Assessment filtering is request-backed in TalentOperations.
+      // Do not attach the former DOM-only Grade/Section/Status projection here.
       clarifyAnalyticsEmptyStates(scope);
       applyAnalyticsMagnitudeColors(scope);
       ensureRubricSection(scope).catch(() => {});

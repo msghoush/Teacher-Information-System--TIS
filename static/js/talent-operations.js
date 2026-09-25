@@ -281,7 +281,14 @@
     const cycleId=params.get('cycle_id'),pid=params.get('program_id');
     // The roster is scoped to the selected/active Branch (Batch 1); with no Branch
     // scope the URL is exactly the pre-existing organization-wide roster URL.
-    const rosterBranchQuery=query({branch_id:params.get('branch_id')});
+    // The server owns all roster filtering and both aggregate distributions.
+    // Keeping the values in the URL lets talent.js cancel superseded loads and
+    // prevents a stale DOM-only filter from becoming an analytics authority.
+    const rosterBranchQuery=query({
+      branch_id:params.get('branch_id'), search:params.get('search'),
+      grade_level:params.get('grade_level'), section_name:params.get('section_name'),
+      assessment_state:params.get('assessment_state'), classification:params.get('classification'),
+    });
     const eligibleUrl=id=>`/api/talent/assessment-cycles/${id}/eligible-students${rosterBranchQuery?`?${rosterBranchQuery}`:''}`;
     const [allRows,cycles,programs,plans,explicitEligible]=await Promise.all([
       // Server-side Academic Year + Program scope: the Student Assessments page only
@@ -336,6 +343,23 @@
         :current?'<span class="tp-muted">Not available for this rubric</span>':'<span class="tp-muted">Not assessed</span>';
       return `<tr><th scope="row"><span class="tp-student-cell"><span class="tp-avatar" aria-hidden="true">👤</span>${identity}</span></th><td>${esc(m.grade_level)}</td><td>${esc(sectionDisplay)}</td><td><span class="tp-status-chip ${a?.reassessment?.required?'is-warning':a?.status==='completed'?'is-positive':'is-neutral'}">${esc(statusLabel)}</span></td><td>${classificationCell}</td><td>${action}</td></tr>`;
     }).join(''):'';
+    const rosterFilters=eligible?`<form class="tp-local-filterbar" data-operation="roster-filters">
+      <label>Student search<input name="search" value="${esc(params.get('search')||'')}" autocomplete="off"></label>
+      <label>Grade<select name="grade_level"><option value="">All Grades</option>${[...new Set(eligible.members.map(m=>m.grade_level).filter(Boolean))].sort().map(v=>`<option value="${esc(v)}" ${String(params.get('grade_level')||'')===String(v)?'selected':''}>Grade ${esc(v)}</option>`).join('')}</select></label>
+      <label>Section<select name="section_name"><option value="">All Sections</option>${[...new Set(eligible.members.map(m=>m.section_name).filter(Boolean))].sort().map(v=>`<option value="${esc(v)}" ${String(params.get('section_name')||'')===String(v)?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
+      <label>Assessment state<select name="assessment_state"><option value="">All states</option>${[['not_started','Not started'],['in_progress','In progress'],['completed','Completed'],['incomplete','Incomplete'],['insufficient_evidence','Insufficient evidence']].map(([v,l])=>`<option value="${v}" ${params.get('assessment_state')===v?'selected':''}>${l}</option>`).join('')}</select></label>
+      <label>Classification<select name="classification"><option value="">All classifications</option>${['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'].map(v=>`<option value="${esc(v)}" ${params.get('classification')===v?'selected':''}>${esc(v)}</option>`).join('')}</select></label>
+      <button type="submit" class="tp-primary">Apply filters</button><button type="button" data-action="clear-roster-filters">Clear filters</button>
+    </form>`:'';
+    const insightBars=(title,distribution)=>{
+      const buckets=distribution?.buckets||distribution?.levels||[];
+      if(distribution?.state==='restricted')return `<section class="tp-card"><h3>${esc(title)}</h3><p class="tp-empty">This summary is unavailable for the selected population.</p></section>`;
+      return `<section class="tp-card tp-insight-summary"><h3>${esc(title)}</h3><div class="tp-insight-bars">${buckets.map(b=>{
+        const visible=b.state==='visible', pct=visible&&b.percentage!=null?Number(b.percentage):null;
+        return `<div class="tp-insight-row"><span>${esc(b.label||b.key)}</span><span class="tp-progress-track" role="progressbar" aria-label="${esc(b.label||b.key)} ${visible?`${b.count} Students, ${pct}%`:'Protected for privacy'}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct==null?'':pct}"><i style="width:${pct==null?0:Math.max(0,Math.min(100,pct))}%"></i></span><strong>${visible?`${esc(b.count)} (${esc(pct)}%)`:'Protected for privacy'}</strong></div>`;
+      }).join('')}</div><table class="tp-sr-only"><caption>${esc(title)} exact values</caption><tbody>${buckets.map(b=>`<tr><th>${esc(b.label||b.key)}</th><td>${b.state==='visible'?`${esc(b.count)} (${esc(b.percentage)}%)`:'Protected for privacy'}</td></tr>`).join('')}</tbody></table></section>`;
+    };
+    const insightHtml=eligible?`<div class="tp-insight-grid">${insightBars('Current Classification',eligible.insights?.classification)}${insightBars('Learning Style',eligible.insights?.learning_style)}</div>`:'';
 
     // Evaluation Period -> unique Programs. Planned Periods are the display
     // authority; linked Cycles provide the assessable context when one exists.
@@ -408,7 +432,12 @@
     // The selected real Evaluation is marked in place on its own card above
     // (is-selected class + aria-current) rather than repeated in a separate
     // duplicated "Selected Evaluation" panel here.
-    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note('No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+    const hasRosterFilters=['search','grade_level','section_name','assessment_state','classification'].some(key=>params.get(key));
+    mount(`${cardsHtml}${eligible?`<div class="tp-section-heading"><div><h3>Students</h3></div><p>Current Academic Placement + Program eligible Grades determine this list.</p></div>${rosterFilters}${insightHtml}${eligible.members.length?`<div class="tp-table-wrap"><table class="tp-compact-table"><thead><tr><th>Student</th><th>Grade</th><th>Section</th><th>Assessment Status</th><th>Classification</th><th>Action</th></tr></thead><tbody>${eligibleRows}</tbody></table></div>`:note(hasRosterFilters?'No currently enrolled Students match these filters.':'No currently enrolled Students match this Program and Academic Year.')}`:''}`);
+
+    const rosterFilterForm=root.querySelector('[data-operation="roster-filters"]');
+    rosterFilterForm?.addEventListener('submit', event=>{event.preventDefault(); const values=Object.fromEntries(new FormData(rosterFilterForm)); navigate('assessments',{cycle_id:cycle?.id,program_id:cycle?.program_id||pid,...values});});
+    on('clear-roster-filters',async()=>navigate('assessments',{cycle_id:cycle?.id,program_id:cycle?.program_id||pid}));
 
     on('select-planned-evaluation',async el=>{
       const programId=Number(el.dataset.program), periodId=Number(el.dataset.period);

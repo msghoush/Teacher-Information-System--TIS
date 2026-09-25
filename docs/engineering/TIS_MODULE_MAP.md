@@ -7,6 +7,18 @@ source_of_truth: true
 
 # TIS Module Map
 
+## Student Assessment filtered roster and insights (Agent 2, 2026-09-25)
+
+- `routers/talent_assessment_cycles.py` `cycles_eligible_students`: owns the
+  server-filtered live roster for an Evaluation context. It composes the existing
+  Branch ceiling before search/Grade/Section/state/classification filtering, then
+  produces identity-free Classification and Learning Style aggregate projections
+  for precisely that response population.
+- `static/js/talent-operations.js`: serializes roster controls into the route
+  query, renders backend projections with progress bars and screen-reader tables,
+  and never derives a Classification or Learning Style aggregate. `talent-experience`
+  no longer installs the retired DOM-only roster filter.
+
 
 ## Talent Branch ceiling (Batch 1 Closure, 2026-09-25)
 

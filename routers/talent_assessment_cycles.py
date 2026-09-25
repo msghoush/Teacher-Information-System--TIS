@@ -13,6 +13,12 @@ import models
 from academic_grade import format_section_display
 from talent_operational_context import student_identity_metadata
 from talent_request_permissions import branch_in_authorized_scope
+from student_learning_style_analytics import build_distribution as build_learning_style_distribution
+from talent_classification_service import CLASSIFICATION_LABELS
+from talent_results_analytics_service import (
+    build_bucket_projection, classify_rows, sum_raw_counts_across_branches,
+)
+from talent_analytics_privacy import resolve_privacy_policy_provider
 from auth import get_current_user
 from dependencies import get_db
 from talent_assessment_cycle_service import (
@@ -158,7 +164,14 @@ def cycles_update(cycle_id: int, request: Request, payload: dict = Body(...), db
 
 
 @router.get("/{cycle_id}/eligible-students")
-def cycles_eligible_students(cycle_id: int, request: Request, branch_id: int | None = Query(None, gt=0), db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def cycles_eligible_students(cycle_id: int, request: Request,
+                            branch_id: int | None = Query(None, gt=0),
+                            search: str | None = Query(None, max_length=120),
+                            grade_level: str | None = Query(None, max_length=8),
+                            section_name: str | None = Query(None, max_length=20),
+                            assessment_state: str | None = Query(None, max_length=32),
+                            classification: str | None = Query(None, max_length=32),
+                            db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     """Current assessable Students for an Evaluation context (ADR 0035).
 
     This is live Academic Placement eligibility, not a frozen roster and not a
@@ -186,6 +199,51 @@ def cycles_eligible_students(cycle_id: int, request: Request, branch_id: int | N
         population = [row for row in population if row["branch_id"] == branch_id]
     names = _student_names(db, group_id, [row["student_id"] for row in population])
     identity_metadata = student_identity_metadata(db, group_id, [row["student_id"] for row in population])
+    assessments = db.query(models.TalentStudentAssessment).filter(
+        models.TalentStudentAssessment.school_group_id == group_id,
+        models.TalentStudentAssessment.cycle_id == cycle.id,
+        models.TalentStudentAssessment.is_current.is_(True),
+    ).all()
+    assessment_by_student = {row.student_id: row for row in assessments}
+    branch_by_student = {row["student_id"]: row["branch_id"] for row in population}
+    classified_by_student = {}
+    def state_for(student_id):
+        return getattr(assessment_by_student.get(student_id), "status", "not_started")
+    normalized_search = (search or "").strip().lower()
+    valid_states = {"not_started", "in_progress", "completed", "incomplete", "insufficient_evidence"}
+    if assessment_state and assessment_state not in valid_states:
+        return JSONResponse({"detail": "assessment_state is not recognized.", "code": "invalid_filter"}, status_code=400)
+    if classification and classification not in CLASSIFICATION_LABELS:
+        return JSONResponse({"detail": "classification is not recognized.", "code": "invalid_filter"}, status_code=400)
+    # Classification is intentionally not re-derived in the browser.  The
+    # roster can only narrow to a classification that the authoritative
+    # assessment projection supplied; unavailable/non-completed rows never
+    # satisfy this filter.
+    if classification:
+        completed = [row for row in assessments if row.status == "completed"]
+        from talent_classification_service import assessment_classification
+        classified_by_student = {
+            row.student_id: result.get("classification")
+            for row in completed
+            if (result := assessment_classification(db, row)).get("available")
+        }
+    population = [row for row in population if (
+        (not grade_level or row.get("grade_level") == grade_level)
+        and (not section_name or row.get("section_name") == section_name)
+        and (not normalized_search or normalized_search in " ".join(str(names.get(row["student_id"], {}).get(key, "")) for key in ("first_name", "father_name", "last_name", "student_name")).lower())
+        and (not assessment_state or state_for(row["student_id"]) == assessment_state)
+        and (not classification or classified_by_student.get(row["student_id"]) == classification)
+    )]
+    selected_student_ids = {row["student_id"] for row in population}
+    by_branch, _ = classify_rows(db, [
+        (branch_by_student[row.student_id], row)
+        for row in assessments
+        if row.student_id in selected_student_ids and row.status == "completed"
+    ])
+    # ``classify_rows`` deliberately does not return an identity projection.
+    # The roster's already-authorized individual classification continues to
+    # come from /assessments; this aggregate is intentionally identity-free.
+    raw_classification = sum_raw_counts_across_branches(by_branch)
     branches = _branch_names(db, group_id, [row["branch_id"] for row in population])
     school_group = db.get(models.SchoolGroup, group_id)
     workspace_uuid = school_group.workspace_uuid if school_group else None
@@ -203,6 +261,16 @@ def cycles_eligible_students(cycle_id: int, request: Request, branch_id: int | N
         }
         for row in population
     ]
+    # Learning Style is a governed eight-category learner-profile distribution
+    # over this exact, already-authorized roster population.  It is not the
+    # Students-page organization distribution and is never calculated by JS.
+    style_rows = [{"learning_style": identity_metadata.get(row["student_id"], {}).get("learning_style")} for row in population]
+    policy = resolve_privacy_policy_provider()
+    classification_distribution = build_bucket_projection(
+        name="student_assessment_classification",
+        raw_counts={label: raw_classification.get(label, 0) for label in CLASSIFICATION_LABELS},
+        policy=policy,
+    ) if policy is not None else {"state": "restricted", "total": {"state": "restricted", "value": None}, "buckets": []}
     return jsonable_encoder({
         "cycle_id": cycle.id,
         "eligibility_state": "live_academic_placement",
@@ -210,6 +278,10 @@ def cycles_eligible_students(cycle_id: int, request: Request, branch_id: int | N
         "is_filtered": not organization,
         "count": len(members),
         "members": members,
+        "insights": {
+            "learning_style": build_learning_style_distribution(style_rows),
+            "classification": classification_distribution,
+        },
     })
 
 

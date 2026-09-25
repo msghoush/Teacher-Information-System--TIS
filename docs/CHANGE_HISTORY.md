@@ -7,6 +7,19 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-25 - Student Assessment request-backed filters and filtered insights
+
+- Added bounded query filters to the live eligible Student roster: search, Grade,
+  Section, Assessment state and canonical Classification, while retaining the
+  existing hard global Branch ceiling.
+- Added backend roster-population Classification (privacy-projected) and Learning
+  Style (eight categories plus Unassigned) summaries. Classification is derived
+  only from current completed Assessments through the M17 authority; the frontend
+  displays the backend contract and accessible equivalent table data.
+- Removed the Student Assessment page's DOM-only Grade/Section/Status filtering.
+  No schema, migration, permission, `tis.db`, Results & Analytics, or deployment
+  change.
+
 
 ## 2026-09-25 - Batch 1 closure: the global Branch is a hard Talent scope
 

@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-25T04:26:02.488177+03:00",
+  "generated_at": "2026-09-25T05:33:39.504288+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "d0fa053",
+  "commit_sha": "6d5f9a9",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "848ef18d352c6df4f81192c4669f667a84b671c0d4f575d98565d37beeb14bf4",
-  "pdf_size_bytes": 2306267,
+  "pdf_sha256": "e16f3ec70e5ba65ffd5762e188dfa3c8f4aaf595be8e7d48c5cd7d2a2119c0ed",
+  "pdf_size_bytes": 2310188,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -46,16 +46,16 @@
     },
     {
       "path": "docs/PROJECT_STATE.md",
-      "modified_at": "2026-09-25T03:54:23.261459+03:00",
-      "size_bytes": 363667,
-      "sha256": "ce01ff5f7d3a9c234f79d580a70f9a61737916a139a23e3b1b1d3adaeb8d233a",
+      "modified_at": "2026-09-25T05:30:49.359184+03:00",
+      "size_bytes": 364814,
+      "sha256": "35adc948404840ade049679d7b01a22b7213537a836347ca44e73c9ca8b94e48",
       "pdf_page": 122
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-25T03:54:23.261459+03:00",
-      "size_bytes": 303069,
-      "sha256": "4ac21a21d3e9fe9f1e16c8314d144bb338ad65a6a2ed9450daf4d36eb5314982",
+      "modified_at": "2026-09-25T05:30:49.364912+03:00",
+      "size_bytes": 303836,
+      "sha256": "4d75bbaf4a18d42f827d8e4183df7248848418cf7e9259b9721b8b23d3867e7b",
       "pdf_page": 210
     },
     {
@@ -74,9 +74,9 @@
     },
     {
       "path": "docs/engineering/TIS_MODULE_MAP.md",
-      "modified_at": "2026-09-25T03:54:23.278050+03:00",
-      "size_bytes": 93014,
-      "sha256": "ac86737787f961c7efa6186e8ce3b8ace67adef039e4b345901a5f99806157b9",
+      "modified_at": "2026-09-25T05:30:49.368937+03:00",
+      "size_bytes": 93756,
+      "sha256": "fecc35e5633288fa7dceecdc0fea155208afc62c10a1a83a84b459561feb16b7",
       "pdf_page": 311
     },
     {

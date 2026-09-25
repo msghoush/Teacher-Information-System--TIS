@@ -7,6 +7,23 @@ source_of_truth: true
 
 # TIS Project State
 
+## Student Assessment Filtered Insights (Agent 2, 2026-09-25)
+
+**Status: implemented on `dev` only; not deployed or merged. No schema,
+migration, permission, or `tis.db` change.** The Student Assessment roster now
+uses request-backed search, Grade, Section, Assessment-state, Classification and
+existing Branch ceiling filters. `GET /api/talent/assessment-cycles/{cycle_id}/eligible-students`
+applies the active global Branch ceiling before every filter, rejects invalid state
+or classification values, and returns the exact filtered roster population plus
+backend-produced summaries. Classification is the current completed M17 result
+only, uses the canonical service and its existing privacy projection, and remains
+Exceptional-only for Talented presentation. Learning Style is the approved eight
+categorical values plus Unassigned over this roster population; it is never the
+deprecated four-dimension profile or the Students-page organization aggregate.
+The browser renders supplied values and accessible tables/progress labels; it does
+not calculate classifications or distributions. The former DOM-only roster filter
+is no longer attached.
+
 
 ## Batch 1 Closure - The Global Branch Is A Hard Talent Scope (2026-09-25)
 
