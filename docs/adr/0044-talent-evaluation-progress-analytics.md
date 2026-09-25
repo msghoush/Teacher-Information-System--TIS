@@ -247,6 +247,16 @@ unchanged.
 
 ## Batch 1 Amendment (2026-09-24): Distinct-Student Headline And Current-Student Reads
 
+
+> **Correction (2026-09-25).** Wording elsewhere in the Batch 1 documentation that the
+> global Branch is only a "default" Talent scope is superseded: the global Branch is a
+> hard ceiling enforced server-side (`talent_branch_scope`; M10 `resolve_access_context`
+> becomes Branch-scoped when the actor's global scope is one Branch, so
+> `accessible_historical_branch_ids` = that Branch and every Evaluation Progress /
+> analytics route inherits it). Branch comparison and the Organization Talent Map remain
+> available only under an explicit global All Branches. No `MetricCode`, privacy or
+> Evaluation Progress semantics changed.
+
 Owner rule: current Talent figures use only Students that currently exist. This ADR's
 population queries (`population_query`, and the M10 `frozen_membership_query`) now
 require the Student to exist in the same SchoolGroup, and the Evaluation Progress

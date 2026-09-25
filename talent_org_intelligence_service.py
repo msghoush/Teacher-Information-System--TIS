@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 import academic_grade
 import auth
+import talent_branch_scope
 import models
 from talent_current_students import current_student_exists
 from talent_request_permissions import request_permission_checker
@@ -204,10 +205,13 @@ def resolve_access_context(
     ).one_or_none()
     if year is None:
         raise OrganizationAnalyticsError("not_found", "Academic Year was not found.")
-    all_branches = auth.can_access_all_branches(user)
+    # Batch 1 closure: organization scope is bounded by the active global Branch
+    # (talent_branch_scope.talent_branch_ceiling); with a single-Branch global scope
+    # this context is Branch-scoped, so every downstream population query,
+    # filter validation, Branch list and comparison inherits the ceiling.
+    all_branches = talent_branch_scope.branch_scope_unrestricted(user)
     branch_ids = () if all_branches else tuple(sorted(
-        int(row[0]) for row in auth.get_accessible_branch_query(db, user)
-        .with_entities(models.Branch.id).all()
+        int(branch_id) for branch_id in talent_branch_scope.visible_branch_ids(db, user)
     ))
     capabilities = {
         "candidate": permitted("talent_review_candidates.view"),

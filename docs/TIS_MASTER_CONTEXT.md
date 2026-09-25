@@ -1,11 +1,26 @@
 ---
 title: TIS Master Context
-documentation_version: 4.12
-last_updated: 2026-09-24
+documentation_version: 4.13
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+
+## Global Branch Is A Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+The active global Branch bounds Talent & Potential: it is an upper ceiling, not a
+default. The ceiling is the intersection of the actor's authorization and the active
+global scope (`talent_branch_scope.talent_branch_ceiling`, from the authenticated
+request user), composed into the existing visible-Branch resolution of every Talent
+read route, so a stale or hand-crafted `branch_id` naming another Branch is rejected
+and an omitted Branch resolves to the ceiling. "All Branches" inside Talent means all
+Branches permitted by the current global scope; only an explicit global "All Branches"
+(the `branch_scope=all` marker, `user.scope_all_branches`, offered on `/talent` pages
+only) exposes All Branches, the Organization Talent Map and cross-Branch comparison.
+Supersedes the Batch 1 "default only" wording. Details and the coverage table are in
+`docs/PROJECT_STATE.md`.
 
 ## Talent Current-Student Integrity, Branch Scope And Loading (Deployment Acceptance Batch 1, 2026-09-24)
 

@@ -79,17 +79,27 @@ test('B2. Boys -> Girls: a stale Branch (and its Grade/Section) from the previou
   assert.ok(urls.some(url => /branch_id=7(&|$)/.test(url)), 'the new global Branch is what is requested');
 });
 
-test('B3. an explicit Branch chosen inside Talent (drill link) is kept and authorized by the backend', async () => {
+test('B3. HARD CEILING: an explicit different Branch in the URL (drill link, hand-edited) is clamped to the global Branch', async () => {
+  // Batch 1 pinned "explicit Branch is kept"; superseded by the closure decision:
+  // the global Branch is an upper ceiling, so Branch 3 can never be requested.
   const env = await createEnv({view: 'branch', permissions: FULL, search: '?academic_year_id=1&branch_id=3',
-    config: {branch: 7, branchName: 'Girls'}, handler: handler({'/branches/3': {body: {programs: [], branch: {id: 3, name: 'Boys'}}}})}).start();
-  assert.ok(env.calls.some(call => String(call.url).includes('/branches/3')), 'explicit Branch drill is honored');
+    config: {branch: 7, branchName: 'Girls'}, handler: handler({'/branches/': {body: {programs: [], branch: {id: 7, name: 'Girls'}}}})}).start();
+  const urls = env.calls.map(call => String(call.url));
+  assert.ok(urls.some(url => url.includes('/branches/7')), 'the ceiling Branch is what is requested');
+  assert.equal(urls.filter(url => /branches\/3|branch_id=3(&|$)/.test(url)).length, 0, 'the other Branch is never requested');
 });
 
-test('B4. an explicit "All Branches" choice is honored (no branch filter is sent)', async () => {
+test('B4. HARD CEILING: a stale branch_scope=all URL cannot widen a single-Branch global scope', async () => {
   const env = await createEnv({view: 'analytics', permissions: FULL,
     search: '?program_id=5&academic_year_id=1&branch_scope=all&scope_branch_id=7',
     config: {branch: 7, branchName: 'Girls'}, handler: handler()}).start();
-  assert.equal(branchParams(env).length, 0);
+  const calls = dataCalls(env).filter(c => !/branch-comparison/.test(c.url));
+  assert.ok(calls.length >= 5);
+  for (const call of calls) {
+    assert.equal(new URL(call.url, 'http://tis.test').searchParams.get('branch_id'), '7', call.url);
+  }
+  assert.ok(!env.calls.some(c => /branch_scope=all/.test(c.url)));
+  assert.doesNotMatch(env.replaced.map(args => String(args[2])).join(' '), /branch_scope=all/);
 });
 
 test('B5. without an active Branch no Branch filter is invented', async () => {
@@ -98,10 +108,12 @@ test('B5. without an active Branch no Branch filter is invented', async () => {
   assert.equal(branchParams(env).length, 0);
 });
 
-test('B6. switching the Talent Branch selector to All Branches drops the filter and records the explicit choice', async () => {
-  const env = await createEnv({view: 'overlap', permissions: FULL, search: '?academic_year_id=1',
-    config: {branch: 7, branchName: 'Girls'}, handler: handler()}).start();
-  assert.match(String(env.calls.find(c => /participation-overlap/.test(c.url)).url), /branch_id=7/);
+test('B6. organization-wide global scope: the Branch selector offers All Branches and it sends no Branch filter', async () => {
+  const env = await createEnv({view: 'overlap', permissions: FULL, search: '?academic_year_id=1&branch_id=3',
+    config: {}, handler: handler()}).start();
+  const options = env.elements['tp-branch'].options.map(option => option.textContent);
+  assert.ok(options.includes('All Branches'), options.join('|'));
+  assert.ok(options.includes('Girls') && options.includes('Boys'), 'individual Branch comparison stays available');
   const before = env.calls.length;
   const select = env.elements['tp-branch'];
   select.value = '';
@@ -111,6 +123,20 @@ test('B6. switching the Talent Branch selector to All Branches drops the filter 
   assert.ok(after.length >= 1);
   assert.ok(after.every(c => !/branch_id=/.test(c.url)), 'All Branches sends no Branch filter');
   assert.match(env.replaced.map(args => String(args[2])).join(' '), /branch_scope=all/);
+});
+
+test('B6b. single-Branch global scope: the selector offers ONLY the global Branch (no All Branches, no other Branch)', async () => {
+  const env = await createEnv({view: 'overlap', permissions: FULL, search: '?academic_year_id=1',
+    config: {branch: 7, branchName: 'Girls'}, handler: handler()}).start();
+  const options = env.elements['tp-branch'].options.map(option => option.textContent);
+  assert.deepEqual(options, ['Girls']);
+  const before = env.calls.length;
+  const select = env.elements['tp-branch'];
+  select.value = '3';
+  env.elements['tp-filters'].emit('change', {target: select});
+  await env.tick(600);
+  const after = env.calls.slice(before).filter(c => /participation-overlap/.test(c.url));
+  assert.ok(after.every(c => /branch_id=7(&|$)/.test(c.url) && !/branch_id=3/.test(c.url)), 'a forced selector value cannot escape the ceiling');
 });
 
 test('B7. the Overview requests the Branch-scoped headline and names the scope', async () => {

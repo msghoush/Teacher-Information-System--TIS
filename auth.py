@@ -1035,6 +1035,14 @@ def get_current_user(
         return None
 
     user.scope_branch_id = scoped_branch_id
+    # Talent & Potential only: an explicit global "All Branches" choice (marker
+    # cookie set by /scope/branch). It never changes scope_branch_id, so every other
+    # module keeps resolving its single working Branch exactly as before; it only
+    # lifts the Talent Branch ceiling (talent_branch_scope) for an actor who may
+    # access all Branches anyway.
+    user.scope_all_branches = bool(
+        can_all_branch_scope and request.cookies.get("branch_scope") == "all"
+    )
     user.scope_academic_year_id = scoped_academic_year_id
     user.scope_school_group_id = scoped_school_group_id
     user.effective_role = (

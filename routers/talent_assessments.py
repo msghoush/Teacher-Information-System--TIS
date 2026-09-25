@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from auth import get_current_user
@@ -106,11 +107,12 @@ def _authorize(request, db, user, key):
 
 
 def _visible_branch_ids(db, user):
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Accessible Branches within the active global Branch ceiling (Batch 1 closure).
+    return branch_scope.visible_branch_ids(db, user)
 
 
 def _assessment_authorized(db, user, assessment):
-    if auth.can_access_all_branches(user):
+    if branch_scope.branch_scope_unrestricted(user):
         return True
     member = db.query(models.TalentAssessmentCyclePopulationMember).filter_by(
         id=assessment.cycle_population_member_id, school_group_id=assessment.school_group_id,
@@ -243,7 +245,7 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
             db, school_group_id=group_id, student_id=student_id,
             academic_year_id=cycle.academic_year_id, at=datetime.utcnow(),
         )
-        if placement is not None and not auth.can_access_all_branches(user) and placement.branch_id not in _visible_branch_ids(db, user):
+        if placement is not None and not branch_scope.branch_scope_unrestricted(user) and placement.branch_id not in _visible_branch_ids(db, user):
             return JSONResponse({"detail": "Assessment is outside your authorized Branch scope."}, status_code=403)
         return _run(db, lambda: _display_payload(db, user, start_assessment_for_evaluation(
             db, school_group_id=group_id, evaluation_cycle_id=cycle_id,
@@ -259,7 +261,7 @@ def assessments_start(request: Request, payload: dict = Body(...), db: Session =
     ).one_or_none()
     if member is None:
         return JSONResponse({"detail": "Student Assessment context is unavailable.", "code": "invalid_student_context"}, status_code=400)
-    if not auth.can_access_all_branches(user) and member.branch_id not in _visible_branch_ids(db, user):
+    if not branch_scope.branch_scope_unrestricted(user) and member.branch_id not in _visible_branch_ids(db, user):
         return JSONResponse({"detail": "Assessment is outside your authorized Branch scope."}, status_code=403)
     return _run(db, lambda: _display_payload(db, user, start_assessment(
         db, school_group_id=group_id, cycle_id=cycle_id,
@@ -278,7 +280,7 @@ def assessments_list(request: Request, cycle_id: int | None = Query(None),
         db, school_group_id=group_id, cycle_id=cycle_id,
         academic_year_id=academic_year_id, program_id=program_id,
     )
-    if not auth.can_access_all_branches(user):
+    if not branch_scope.branch_scope_unrestricted(user):
         visible = _visible_branch_ids(db, user)
         member_ids = {row[0] for row in db.query(models.TalentAssessmentCyclePopulationMember.id).filter(
             models.TalentAssessmentCyclePopulationMember.school_group_id == group_id,

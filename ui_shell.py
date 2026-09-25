@@ -767,6 +767,7 @@ def build_shell_context(
             "available_scope_branches": available_scope_branches,
             "all_years": all_years,
             "scoped_branch_id": scoped_branch_id,
+            "scope_all_branches": bool(getattr(current_user, "scope_all_branches", False)),
             "scoped_academic_year_id": scoped_academic_year_id,
             "active_year_id": active_year_id,
             "notice": resolved_notice,

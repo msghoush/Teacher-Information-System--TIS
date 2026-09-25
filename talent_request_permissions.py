@@ -46,5 +46,9 @@ def branch_in_authorized_scope(db, user, school_group_id: int, branch_id: Option
 
     if not branch_id:
         return False
+    from talent_branch_scope import branch_within_ceiling
+
+    if not branch_within_ceiling(user, branch_id):
+        return False
     exists = db.query(models.Branch.id).filter_by(id=int(branch_id), school_group_id=int(school_group_id)).first()
     return exists is not None and auth.can_access_branch(db, user, int(branch_id))

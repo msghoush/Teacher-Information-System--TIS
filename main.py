@@ -189,6 +189,7 @@ AUTH_SESSION_COOKIE_KEYS = (
     auth.SESSION_COOKIE_KEY,
     "user_id",
     "branch_id",
+    "branch_scope",
     "school_group_id",
     "academic_year_id",
     IDLE_TIMEOUT_COOKIE_KEY,
@@ -9530,6 +9531,7 @@ def login(
     )
     request.state.audit_actor_branch_id = branch_scope_id
     auth.set_auth_session_cookie(response, user, request)
+    response.delete_cookie("branch_scope")
     if auth.is_platform_user(user):
         response.delete_cookie("school_group_id")
         response.delete_cookie("branch_id")
@@ -15563,6 +15565,7 @@ def set_scope_organization(
     response = RedirectResponse(url=_safe_redirect_path(return_to), status_code=302)
     auth.set_scope_cookie(response, "school_group_id", target_group.id, request)
     response.delete_cookie("branch_id")
+    response.delete_cookie("branch_scope")
     response.delete_cookie("academic_year_id")
     return response
 
@@ -15573,7 +15576,7 @@ def set_scope_organization(
 @app.post("/scope/branch")
 def set_scope_branch(
     request: Request,
-    branch_id: int = Form(...),
+    branch_id: str = Form(...),
     return_to: str = Form("/dashboard"),
     db: Session = Depends(get_db)
 ):
@@ -15590,6 +15593,19 @@ def set_scope_branch(
             permission_keys=("schools.manage_all_schools", "dashboard.view_all_schools", "system_owner.switch_all_schools"),
             page_key="dashboard",
         )
+
+    if str(branch_id).strip().lower() == "all":
+        # Explicit global "All Branches" (organization-wide) scope for Talent &
+        # Potential. Only a marker cookie: every other module keeps its single
+        # working Branch (branch_id cookie untouched); the marker only lifts the
+        # Talent Branch ceiling for an actor who may access all Branches anyway.
+        response = RedirectResponse(url=_safe_redirect_path(return_to), status_code=302)
+        auth.set_scope_cookie(response, "branch_scope", "all", request)
+        return response
+    try:
+        branch_id = int(branch_id)
+    except (TypeError, ValueError):
+        return RedirectResponse(url=_safe_redirect_path(return_to), status_code=302)
 
     target_branch = auth.get_accessible_branch_query(db, current_user).filter(
         models.Branch.id == branch_id
@@ -15621,6 +15637,8 @@ def set_scope_branch(
         status_code=302,
     )
     auth.set_scope_cookie(response, "branch_id", target_branch.id, request)
+    # Choosing a specific Branch ends any explicit Talent "All Branches" scope.
+    response.delete_cookie("branch_scope")
     auth.set_scope_cookie(response, "school_group_id", target_group_id, request)
     auth.set_scope_cookie(response, "academic_year_id", target_year.id, request)
     return response

@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from auth import get_current_user
@@ -39,9 +40,8 @@ def _scope(db, user):
 
 
 def _visible_branches(db, user):
-    if auth.can_access_all_branches(user):
-        return None
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Batch 1 closure: organization scope is bounded by the active global Branch.
+    return branch_scope.visible_branch_ids_or_none(db, user)
 
 
 def _permissions(db, user, group_id):

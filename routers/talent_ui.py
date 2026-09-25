@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 import auth
 import authorization
 import models
+import talent_branch_scope
 from auth import get_current_user
 from dependencies import get_db
 from ui_shell import build_shell_context
@@ -114,14 +115,18 @@ def talent_page(request: Request, view: str = "overview", db: Session = Depends(
         permission_keys=allowed_keys,
     )
     years = db.query(models.AcademicYear).filter_by(school_group_id=int(group_id)).order_by(models.AcademicYear.id).all()
-    # Batch 1 (global Branch context): the active application Branch (the sidebar
-    # "Change Branch / Campus" selector -> session scope) is the workspace's DEFAULT
-    # Branch scope. It is server-validated here (a Branch of this tenant that the
-    # actor may access) and only ever a default: every Talent API still authorizes
-    # its own explicit branch_id, so the value below is never a security boundary.
+    # Batch 1 closure (global Branch = HARD Talent scope): the active application
+    # Branch (sidebar "Change Branch / Campus" -> session scope) is an upper ceiling
+    # for organization actors, enforced by every Talent API through
+    # talent_branch_scope. It is rendered here only so the client can hide options
+    # outside the ceiling (never a security boundary). `branch` is the locked Branch
+    # (organization actor with a single-Branch global scope, or a Branch-limited
+    # actor); it is empty only when the actor's global scope is "All Branches".
     active_branch_id = None
     active_branch_name = None
-    candidate_branch_id = getattr(user, "scope_branch_id", None) or getattr(user, "branch_id", None)
+    candidate_branch_id = talent_branch_scope.talent_branch_ceiling(user)
+    if candidate_branch_id is None and not auth.can_access_all_branches(user):
+        candidate_branch_id = getattr(user, "scope_branch_id", None) or getattr(user, "branch_id", None)
     if candidate_branch_id:
         active_branch = db.query(models.Branch).filter_by(id=int(candidate_branch_id), school_group_id=int(group_id)).one_or_none()
         if active_branch is not None and auth.can_access_branch(db, user, active_branch.id):

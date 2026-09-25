@@ -1,11 +1,26 @@
 ---
 title: TIS Module Map
-documentation_version: 4.7
-last_updated: 2026-09-24
+documentation_version: 4.8
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+
+## Talent Branch ceiling (Batch 1 Closure, 2026-09-25)
+
+- `talent_branch_scope.py`: `talent_branch_ceiling`, `branch_scope_unrestricted`,
+  `visible_branch_ids`, `visible_branch_ids_or_none`, `branch_within_ceiling`. Consumed
+  by `talent_org_intelligence_service.resolve_access_context`, the Talent routers
+  (`talent_analytics`, `talent_results_analytics`, `talent_evaluation_progress`,
+  `talent_assessments`, `talent_assessment_cycles`, `talent_learner_profiles`,
+  `talent_review_candidates`, `talent_official_identifications`,
+  `talent_educator_inputs`, `talent_programs` selector lists), `talent_ui` and
+  `talent_request_permissions.branch_in_authorized_scope`.
+- `auth.get_current_user` sets `user.scope_all_branches` from the `branch_scope=all`
+  cookie (only for `can_access_all_branches` actors); `main.py` `POST /scope/branch`
+  accepts `branch_id=all`; `templates/base.html` offers it on `/talent` pages only.
 
 ## Talent current-Student, read-batch and permission helpers (Deployment Acceptance Batch 1, 2026-09-24)
 

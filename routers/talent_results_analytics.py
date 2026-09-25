@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 import talent_analytics_service as svc
@@ -50,9 +51,8 @@ def _scope(db, user):
 
 
 def _visible_branches(db, user):
-    if auth.can_access_all_branches(user):
-        return None
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Batch 1 closure: organization scope is bounded by the active global Branch.
+    return branch_scope.visible_branch_ids_or_none(db, user)
 
 
 def _fail_closed():
@@ -85,6 +85,13 @@ def learning_style(academic_year_id: int, request: Request,
     group_id = _scope(db, user)
     if not group_id:
         return JSONResponse({"detail": "Select an organization scope.", "code": "organization_scope_required"}, status_code=403)
+    # Batch 1 closure: the active global Branch is a hard ceiling. An omitted
+    # Branch resolves to it (never organization-wide); another Branch is rejected.
+    ceiling = branch_scope.talent_branch_ceiling(user)
+    if ceiling is not None:
+        if branch_id is not None and int(branch_id) != ceiling:
+            return JSONResponse({"detail": "Branch is outside your authorized scope.", "code": "invalid_filter"}, status_code=403)
+        branch_id = ceiling
     rows = resolve_learning_style_population(
         db, school_group_id=group_id, user=user, branch_id=branch_id,
         grade_level=grade_level, section_name=section_name,

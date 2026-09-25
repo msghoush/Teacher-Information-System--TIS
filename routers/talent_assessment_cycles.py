@@ -7,6 +7,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 import auth
+import talent_branch_scope as branch_scope
 import authorization
 import models
 from academic_grade import format_section_display
@@ -83,7 +84,8 @@ def _run(db, work, *, created=False):
 
 
 def _visible_branch_ids(db, user):
-    return {row[0] for row in auth.get_accessible_branch_query(db, user).with_entities(models.Branch.id).all()}
+    # Accessible Branches within the active global Branch ceiling (Batch 1 closure).
+    return branch_scope.visible_branch_ids(db, user)
 
 
 def _student_names(db, group_id, student_ids):
@@ -171,7 +173,7 @@ def cycles_eligible_students(cycle_id: int, request: Request, branch_id: int | N
         population = current_placements_for_assessment(db, cycle=cycle, effective_at=datetime.utcnow())
     except TalentAssessmentCycleError as exc:
         return _error(exc)
-    organization = _organization_authorized(user)
+    organization = branch_scope.branch_scope_unrestricted(user)
     if not organization:
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
@@ -220,7 +222,7 @@ def cycles_preview(cycle_id: int, request: Request, db: Session = Depends(get_db
         cycle, population = preview_population(db, school_group_id=group_id, cycle_id=cycle_id)
     except TalentAssessmentCycleError as exc:
         return _error(exc)
-    organization = _organization_authorized(user)
+    organization = branch_scope.branch_scope_unrestricted(user)
     if not organization:
         visible = _visible_branch_ids(db, user)
         population = [row for row in population if row["branch_id"] in visible]
@@ -304,7 +306,7 @@ def cycles_population(cycle_id: int, request: Request, db: Session = Depends(get
         cycle, rows = frozen_population(db, school_group_id=group_id, cycle_id=cycle_id)
     except TalentAssessmentCycleError as exc:
         return _error(exc)
-    organization = _organization_authorized(user)
+    organization = branch_scope.branch_scope_unrestricted(user)
     if not organization:
         visible = _visible_branch_ids(db, user)
         rows = [row for row in rows if row.branch_id in visible]

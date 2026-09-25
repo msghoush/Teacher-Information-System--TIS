@@ -490,12 +490,18 @@
   const CLASSIFICATION_LABELS = ['Needs Improvement','Developing','Meets Expectations','Advanced','Exceptional'];
   let params = new URLSearchParams(location.search), generation = 0, controller, programCatalog=new Map(), activeSections = null;
   const can = key => permissions[key] === true;
-  const qs = values => new URLSearchParams(Object.entries(values).filter(([,v]) => v !== '' && v != null)).toString();
-  // Batch 1 (global Branch context). The sidebar "Change Branch / Campus" selector
-  // sets the active application Branch; the server validates it and renders it as
-  // config.branch. It is the workspace's DEFAULT Branch scope on every Student-data
-  // view. Only a convenience: each API still authorizes its own explicit branch_id.
+  // Batch 1 closure (global Branch = HARD Talent scope). The sidebar "Change Branch
+  // / Campus" selector sets the active application Branch; the server validates it
+  // and renders it as config.branch, the UPPER CEILING of every Talent request:
+  // when set, no Branch other than it is ever offered, kept in the URL or sent
+  // (qs clamps any branch_id to it). When empty the global scope is "All Branches"
+  // and the Branch selector/All Branches/Branch comparison work as before. The
+  // server enforces the same ceiling from the session (talent_branch_scope); this
+  // is presentation, never the security boundary.
   const activeBranch = config.branch!=null && config.branch!=='' ? String(config.branch) : '';
+  const qs = values => new URLSearchParams(Object.entries(values)
+    .map(([k,v]) => (k==='branch_id' && activeBranch && v!=='' && v!=null ? [k,activeBranch] : [k,v]))
+    .filter(([,v]) => v !== '' && v != null)).toString();
   const BRANCH_SCOPED_VIEWS = ['overview','assessments','reviews','analytics','talent-map','portfolio','branch','overlap','students','longitudinal'];
   function reconcileBranchScope() {
     if(!BRANCH_SCOPED_VIEWS.includes(config.view)) return;
@@ -505,9 +511,12 @@
     const marker=params.get('scope_branch_id');
     if(marker!==null && marker!==activeBranch) ['branch_id','grade_level','planning_section_id','branch_scope','offset'].forEach(key=>params.delete(key));
     if(activeBranch) params.set('scope_branch_id',activeBranch); else params.delete('scope_branch_id');
-    // Default to the active Branch unless the user explicitly chose "All Branches".
-    if(params.get('branch_id')) params.delete('branch_scope');
-    else if(activeBranch && params.get('branch_scope')!=='all') params.set('branch_id',activeBranch);
+    if(activeBranch) {
+      // Hard ceiling: the Branch is always exactly the global Branch. A different
+      // branch_id (hand-edited or stale URL) is overwritten, "All Branches" is gone.
+      params.set('branch_id',activeBranch);
+      params.delete('branch_scope');
+    } else if(params.get('branch_id')) params.delete('branch_scope');
     // Persist the reconciled scope so every consumer that reads the URL (for
     // example talent-experience.js) sees the same Branch this script requests.
     try { history.replaceState(null,'',`${location.pathname}?${params}${location.hash||''}`); } catch { /* bookkeeping only */ }
@@ -1004,8 +1013,10 @@
       params.set('academic_year_id',year.value);
       if(!program.parentElement.hidden){program.value?params.set('program_id',program.value):params.delete('program_id');}
       if(!branch.parentElement.hidden){
-        // A chosen Branch replaces the default; the blank option is an explicit "All Branches".
-        if(branch.value){params.set('branch_id',branch.value);params.delete('branch_scope');}
+        // Under a single-Branch global scope the Branch can only be that Branch;
+        // otherwise the blank option is "All Branches" (organization-wide scope).
+        if(activeBranch){params.set('branch_id',activeBranch);params.delete('branch_scope');}
+        else if(branch.value){params.set('branch_id',branch.value);params.delete('branch_scope');}
         else{params.delete('branch_id');params.set('branch_scope','all');}
       }
       if(BRANCH_SCOPED_VIEWS.includes(config.view)){if(activeBranch)params.set('scope_branch_id',activeBranch);else params.delete('scope_branch_id');}
@@ -1090,11 +1101,17 @@
     const previous=params.get('branch_id')||branch.value;
     try {
       const items=await api(`programs/planning-branches?${qs({academic_year_id:year.value})}`,undefined,CONTEXT_REQUEST_TIMEOUT_MS);
-      branch.innerHTML=(items.length>1?'<option value="">All Branches</option>':'')+items.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
-      if(previous&&items.some(item=>String(item.id)===String(previous)))branch.value=previous;
+      // Under a single-Branch global scope only that Branch is offered (no All Branches).
+      const offered=activeBranch?items.filter(item=>String(item.id)===activeBranch):items;
+      branch.innerHTML=(!activeBranch&&offered.length>1?'<option value="">All Branches</option>':'')+offered.map(item=>`<option value="${esc(item.id)}">${esc(item.name)}</option>`).join('');
+      if(activeBranch){branch.value=activeBranch;params.set('branch_id',activeBranch);}
+      else if(previous&&items.some(item=>String(item.id)===String(previous)))branch.value=previous;
       else if(items.length===1){branch.value=String(items[0].id);params.set('branch_id',String(items[0].id));}
       else params.delete('branch_id');
-    } catch {branch.innerHTML='<option value="">All Branches</option>';params.delete('branch_id');}
+    } catch {
+      if(activeBranch){branch.innerHTML=`<option value="${esc(activeBranch)}">${esc(config.branchName||'Active Branch')}</option>`;branch.value=activeBranch;params.set('branch_id',activeBranch);}
+      else{branch.innerHTML='<option value="">All Branches</option>';params.delete('branch_id');}
+    }
     if(!grade.parentElement.hidden)await refreshPlanningGrades();
   }
   async function init() {

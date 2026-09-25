@@ -71,7 +71,11 @@ class World:
         self.cycle_a, self.cycle_b, self.cycle_c = self.summary["cycle_ids"]
         self.student_ids = self.summary["student_ids"]
         self.admin_user_id = self.summary["local_test_user_id"]
-        self.current = {"user_id": self.admin_user_id}
+        # Batch 1 closure: the global Branch is a hard Talent ceiling for an
+        # organization actor, so the default World actor has the explicit global
+        # "All Branches" scope (scope_all_branches). Use as_admin(branch) for a
+        # single-Branch global scope.
+        self.current = {"user_id": self.admin_user_id, "scope_all": True}
         self.statements: list[str] = []
 
         @event.listens_for(self.engine, "before_cursor_execute")
@@ -98,6 +102,7 @@ class World:
             user = session.query(models.User).filter_by(user_id=self.current["user_id"]).one()
             user.scope_school_group_id = self.group_id
             user.scope_branch_id = self.current.get("scope_branch_id", self.north)
+            user.scope_all_branches = bool(self.current.get("scope_all", False))
             user.scope_academic_year_id = self.year
             user.effective_role = "Administrator"
             return user
@@ -128,7 +133,10 @@ class World:
         self.current = {"user_id": user.user_id, "scope_branch_id": branch_id}
 
     def as_admin(self, scope_branch_id=None):
-        self.current = {"user_id": self.admin_user_id, "scope_branch_id": scope_branch_id or self.north}
+        if scope_branch_id:
+            self.current = {"user_id": self.admin_user_id, "scope_branch_id": scope_branch_id, "scope_all": False}
+        else:
+            self.current = {"user_id": self.admin_user_id, "scope_branch_id": self.north, "scope_all": True}
 
     def get(self, path):
         return self.client.get(path)

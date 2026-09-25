@@ -1,11 +1,100 @@
 ---
 title: TIS Project State
-documentation_version: 5.21
-last_updated: 2026-09-24
+documentation_version: 5.22
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+
+## Batch 1 Closure - The Global Branch Is A Hard Talent Scope (2026-09-25)
+
+**Status: implemented on `dev` only; not deployed, not merged. Web Service only
+(no worker/timetable/workflow change). No schema, migration, permission or `tis.db`
+change. Frontend verified only with the DOM-stub harness and Python route/template
+tests, not in a real browser.**
+
+**Correction (supersedes the Batch 1 wording below).** The Batch 1 sections state
+that the active global Branch is only the workspace *default* and that an
+organization actor may widen to all Branches from inside Talent (`branch_scope=all`).
+That is withdrawn. Owner decision: **the global Branch is a HARD upper ceiling for
+every Talent page/API/filter.** A single-Branch global scope (for example one of two
+sibling Branches) -> Talent shows that Branch only; an internal "All Branches" choice
+inside Talent can never exceed the global scope. Only an explicit global "All
+Branches" (organization-wide) scope lets Talent expose All Branches, the Organization
+Talent Map and cross-Branch comparison.
+
+**Finding that shaped the design.** Before this closure there was no global "All
+Branches" state at all: every tenant user always resolves to one Branch
+(`get_current_user` -> `user.scope_branch_id`), and the sidebar switcher lists
+Branches only. A ceiling taken from `scope_branch_id` alone would have removed
+organization-wide Talent for every organization user. The closure therefore adds an
+explicit organization-wide marker, scoped to Talent: the sidebar switcher shows
+"All Branches (Talent & Potential organization-wide)" only on `/talent` pages;
+`POST /scope/branch` with `branch_id=all` sets the `branch_scope=all` cookie (only for
+an actor who `can_access_all_branches`) and leaves the `branch_id` cookie untouched,
+so every other module keeps resolving its single working Branch exactly as before;
+choosing a specific Branch, switching organization, login and logout clear it.
+`get_current_user` exposes it as `user.scope_all_branches`.
+
+**Enforcement (server-side, one helper).** `talent_branch_scope.py`:
+`talent_branch_ceiling(user)` = the single Branch id an actor is confined to in Talent,
+or `None`. It is the INTERSECTION of the actor's authorization and the active global
+scope: organization/global actor with a single-Branch scope -> that Branch;
+organization actor with `scope_all_branches`, or a platform actor with no Branch
+selected -> no extra ceiling; Branch-limited actor -> no extra ceiling (their own
+Branch is already the only accessible one). It reads the authenticated request user
+(never a client parameter). `visible_branch_ids` / `visible_branch_ids_or_none` /
+`branch_scope_unrestricted` / `branch_within_ceiling` compose the ceiling into the
+existing visible-Branch resolution, so every route inherits it and there is no second
+authorization system. A Branch outside the ceiling is treated exactly like a Branch
+outside the actor's authorization (same 400/403/404 conventions as the sibling routes);
+an omitted Branch resolves to the ceiling, never to every Branch of the organization.
+
+| Surface | Ceiling enforced server-side | How |
+| --- | --- | --- |
+| `organization-analytics` overview, talent-map, program-portfolio, branches/{id}, participation-overlap, longitudinal, students (drill) | yes | `talent_org_intelligence_service.resolve_access_context`: `all_branches` false + `accessible_historical_branch_ids` = {ceiling}; every population query, filter validation, Branch list and Branch existence check reads it |
+| `analytics/...` context, overview, rubric/kpi distribution, competencies, breakdowns, period-comparison, students | yes | `routers/talent_analytics._visible_branches` -> helper; population query + `resolve_filters` branch scope |
+| `results-analytics` classification, talented | yes | `_visible_branches` -> helper |
+| `results-analytics` learning-style | yes | route clamps `branch_id` to the ceiling (other Branch -> 403 `invalid_filter`), then the existing `resolve_population`; the Students module is unchanged |
+| `evaluation-progress` student, branch/{id}, organization, branch-comparison | yes | `_visible_branches` -> helper; `branches/{id}` also requires `branch_within_ceiling` (404) |
+| `assessments` list and per-Assessment authorization, start | yes | Branch filters use `visible_branch_ids` / `branch_scope_unrestricted` |
+| `assessment-cycles` eligible-students, preview, population | yes | same; explicit `branch_id` via `branch_in_authorized_scope` (ceiling-aware, 403) |
+| `learner-profiles/{id}` | yes | `visible_branch_ids_or_none` (profile shows only records inside the ceiling; 404 if none) |
+| `review-candidates`, `official-identifications`, `educator-inputs` lists and per-record authorization | yes | same helper |
+| `programs/planning-branches`, `planning-grades`, `planning-sections` (selector option lists) | yes | Branch list limited to the ceiling; other Branch -> 404 |
+| `/talent/{view}` `tp-config` | presentational | publishes the locked Branch (empty only for global All Branches) |
+
+**Client.** `static/js/talent.js`: `config.branch` is now a ceiling. When set,
+`reconcileBranchScope` forces `branch_id` to it and deletes `branch_scope`
+(stale/hand-edited URLs and `branch_scope=all` cannot widen), the Branch selector
+offers only that Branch (no All Branches), `applyContext` cannot choose another
+Branch, and `qs()` clamps any `branch_id` it serialises. With an empty
+`config.branch` (global All Branches) All Branches, the Talent Map and individual
+Branch comparison behave exactly as before. Acceptance A loader hardening and
+section isolation are unchanged.
+
+**Deletion / inactive Students / Talented KPI (owner decisions, unchanged).** No
+permission was widened; `force_delete_student_history` (the already-authorized
+history-delete path) still removes every Student-owned Talent table and the existing
+deletion tests were re-run. Bulk-delete history/force behaviour is out of scope.
+ADR 0039 status semantics unchanged. The Talented KPI keeps the honest "Talented
+results" grain; no distinct-Student Talented metric was invented.
+
+Tests: `tests/test_talent_branch_hard_scope.py` (real tenants/Branches: mirror
+across every read surface, global All Branches keeps organization comparison,
+stale explicit Branch rejected, Branch-limited actor and tenant isolation unchanged,
+`tp-config`), `tests/talent_branch_scope_and_metrics.test.cjs` (B3/B4/B6 re-pinned,
+B6b added). Batch 1 tests that pinned "default, overridable" semantics were updated
+deliberately (the shared `World` fixture's org actor now has the explicit global
+All Branches scope).
+
+**Not verified / residual.** No real browser. Another already-open tab keeps its own
+URL until reloaded but the server ceiling applies to every request. The
+`branch_scope=all` marker is a per-browser cookie; it only lifts the Talent ceiling
+and never widens authorization. Offering the All Branches option on other modules'
+switchers is not done (out of scope).
 
 
 ## Deployment Acceptance Batch 1 - Data Correctness, Scope Integrity, Student Deletion And Loading (2026-09-24)
@@ -98,7 +187,10 @@ Grade projections from the remaining 8 (`tests/test_talent_batch1_data_scope.py`
 The historical `test_student_academic_foundation` ObjectDeletedError was a test
 defect (reading `.id` of a just-deleted instance), fixed in the test.
 
-**Global Branch context.** Root cause: the sidebar Branch selector only sets the
+**Global Branch context.** *(Correction 2026-09-25: the "default only" / "explicit
+All Branches" wording in this paragraph is superseded - the global Branch is a hard
+Talent ceiling; see "Batch 1 Closure - The Global Branch Is A Hard Talent Scope".)*
+Root cause: the sidebar Branch selector only sets the
 session scope Branch; Talent never read it. All-Branch (Organization) actors got
 every Branch's Students on every Talent page unless a per-view Branch filter was
 chosen, and `/program-portfolio` silently ignored the `branch_id` the Results

@@ -1,11 +1,28 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.11
-last_updated: 2026-09-24
+documentation_version: 3.12
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+
+## Global Branch -> Talent Flow (Batch 1 Closure, 2026-09-25)
+
+Supersedes step 2 of the Batch 1 flow below ("default ... honors explicit
+`branch_scope=all`").
+
+1. Sidebar Branch switch (`/scope/branch`, session scope) sets the working Branch;
+   on `/talent` pages the switcher also offers "All Branches (Talent & Potential
+   organization-wide)" (marker cookie `branch_scope=all`; other modules unaffected).
+2. `/talent/{view}` publishes `tp-config.branch` = the ceiling Branch (empty only for
+   the explicit global All Branches). The client forces `branch_id` to it and offers no
+   other Branch or All Branches.
+3. Every Talent API recomputes the ceiling from the authenticated request user
+   (`talent_branch_scope`), so an explicit other Branch is rejected (400/403/404) and
+   an omitted Branch resolves to the ceiling; only the explicit global All Branches
+   returns organization-wide data and cross-Branch comparison.
 
 ## Student Deletion, Branch Scope And Talent Loading Flows (Deployment Acceptance Batch 1, 2026-09-24)
 

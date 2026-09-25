@@ -1,11 +1,27 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.9
-last_updated: 2026-09-24
+documentation_version: 4.10
+last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+
+## Global Branch = Hard Talent Scope (Batch 1 Closure, 2026-09-25)
+
+Read before adding any Talent route or Branch filter. The global Branch is a hard
+ceiling, NOT the "default" described in the Batch 1 section below (that wording is
+superseded). Never accept an explicit `branch_id` in a Talent route without going
+through the ceiling: use `talent_branch_scope.visible_branch_ids(_or_none)` /
+`branch_scope_unrestricted` / `branch_within_ceiling` (or `resolve_access_context`
+for M10 org routes) instead of `auth.can_access_all_branches`, which alone would let an
+organization actor widen past the active Branch. An omitted Branch must resolve to the
+ceiling. The ceiling is lifted only by an explicit global All Branches
+(`user.scope_all_branches`, cookie `branch_scope=all`, set via `POST /scope/branch`
+with `branch_id=all`; other modules ignore it). Client: `config.branch` is the ceiling
+(`qs()` clamps `branch_id`; no All Branches option when set). Tests:
+`tests/test_talent_branch_hard_scope.py`.
 
 
 ## Talent Current-Student Data Integrity, Branch Scope And Loading Cost (Deployment Acceptance Batch 1, 2026-09-24)

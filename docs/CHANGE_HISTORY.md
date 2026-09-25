@@ -1,11 +1,32 @@
 ---
 title: TIS Change History
-documentation_version: 5.12
-last_updated: 2026-09-24
+documentation_version: 5.13
+last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+
+## 2026-09-25 - Batch 1 closure: the global Branch is a hard Talent scope
+
+- Supersedes the 2026-09-24 entry's "default Talent Branch scope": the active global
+  Branch is now an upper ceiling (intersection of actor authorization and active
+  global scope) enforced server-side by `talent_branch_scope.py` on every Talent read
+  surface (organization analytics, analytics, results analytics incl. Learning Style,
+  Evaluation Progress, Assessments, Cycle roster/population, learner profile, legacy
+  review/identification/educator lists, selector option lists). A Branch outside the
+  ceiling is rejected; an omitted Branch resolves to the ceiling.
+- Added an explicit global "All Branches" state for Talent (`branch_scope=all` marker
+  cookie set by `POST /scope/branch` `branch_id=all`, exposed as
+  `user.scope_all_branches`; option shown only on `/talent` pages; other modules keep
+  their single working Branch). Without it organization users could never reach
+  organization-wide Talent again.
+- `static/js/talent.js`: `config.branch` is a ceiling; no All Branches / other Branch
+  offered or sent under a single-Branch scope; stale URL Branch params are clamped.
+- Tests: `tests/test_talent_branch_hard_scope.py`; Node B3/B4/B6/B6b. No schema,
+  migration, permission or `tis.db` change; Student deletion, inactive-Student and
+  Talented-KPI semantics unchanged. Web Service only; not deployed.
 
 ## 2026-09-24 - Deployment Acceptance Batch 1: data correctness, scope integrity, Student deletion, loading
 
