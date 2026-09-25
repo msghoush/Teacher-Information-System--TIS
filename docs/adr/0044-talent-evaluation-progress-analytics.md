@@ -370,7 +370,7 @@ a continuous line. Rule:
 - A missing, unknown or unmappable comparison record fails toward NOT connecting.
 - Each visible Period still renders its own dot, legend value and table row; nothing is hidden, bridged,
   interpolated or invented. Suppressed and no-data periods still break the line with a value-free gap. A broken
-  pair adds a value-free dashed break marker and the legend note "not connected: periods are not comparable".
+  pair draws no connecting line and no midpoint marker (both dots stay) and adds the legend note "not connected: periods are not comparable".
 - When a chart supplies no comparability list (the Results & Analytics completion-by-period trend, which is a
   single-Program series of the Framework-independent completion metric), behavior is unchanged. `comparable`
   still means only that two factual points may be viewed side by side, never growth or improvement.

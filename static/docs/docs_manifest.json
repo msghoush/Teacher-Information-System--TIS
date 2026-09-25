@@ -1,13 +1,13 @@
 {
   "pdf_path": "static/docs/TIS_Project_Reference_Booklet.pdf",
   "manifest_path": "static/docs/docs_manifest.json",
-  "generated_at": "2026-09-25T16:57:44.526481+03:00",
+  "generated_at": "2026-09-25T17:06:36.647200+03:00",
   "documentation_version": "3.1",
   "branch": "dev",
-  "commit_sha": "cfaadc4",
+  "commit_sha": "95c0378",
   "source_of_truth": "Markdown files under docs/ are authoritative. This PDF is a generated snapshot.",
-  "pdf_sha256": "a8f8c821af49e6fce9ac280edd0f3e87e7441bd298cb0cbfbd87e601671ae344",
-  "pdf_size_bytes": 2370542,
+  "pdf_sha256": "cf047a65ea3d43b28f467aa0cbc423901626b59ea9b26ae2e101a80b5b5b0220",
+  "pdf_size_bytes": 2370607,
   "included_source_files": [
     {
       "path": "docs/README.md",
@@ -53,9 +53,9 @@
     },
     {
       "path": "docs/CHANGE_HISTORY.md",
-      "modified_at": "2026-09-25T16:56:46.204359+03:00",
-      "size_bytes": 314251,
-      "sha256": "25f1ff974220ca6032abb68fb214fdc1a507afc84915115b387492c1dc5552cd",
+      "modified_at": "2026-09-25T17:06:10.532484+03:00",
+      "size_bytes": 314275,
+      "sha256": "9af0db6efcfb706c0367378e79890f176d8a602620119ef4c6d7080892dadc74",
       "pdf_page": 217
     },
     {
@@ -508,9 +508,9 @@
     },
     {
       "path": "docs/adr/0044-talent-evaluation-progress-analytics.md",
-      "modified_at": "2026-09-25T16:56:35.100480+03:00",
-      "size_bytes": 23968,
-      "sha256": "d890a15d22c16d700a8a80ca9a484967e4f62379545844f3741e0bccec130bcd",
+      "modified_at": "2026-09-25T17:06:10.529022+03:00",
+      "size_bytes": 24000,
+      "sha256": "467b68e2e821cd3321403233e5cf6e4a12e562b3d9f701c4c72911a46b5f296f",
       "pdf_page": 602
     },
     {

@@ -33,7 +33,8 @@ test('C2. a framework_changed (non-comparable) pair is not connected but both do
   const html = trend([pt(1, 'A', 20), pt(2, 'B', 40)], [cmp(1, 2, 'not_comparable', 'framework_changed')]);
   assert.equal(polylines(html).length, 0, 'no polyline spans the boundary');
   assert.equal(dots(html), 2);
-  assert.match(html, /tp-trend-break/);
+  assert.doesNotMatch(html, /tp-trend-break/, 'no midpoint marker between non-comparable points');
+  assert.doesNotMatch(svgOf(html), /<line class="tp-trend-(break|gap)"/);
   assert.match(html, /B: 40% \(40 of 100\) \(not connected: periods are not comparable\)/);
   assert.match(html, /<li>A: 20% \(20 of 100\)<\/li>/, 'the earlier period carries no note');
 });
@@ -55,7 +56,7 @@ test('C4. mixed comparable -> non-comparable -> comparable yields the exact sepa
   const y = v => 110 - v;
   assert.deepEqual(polylines(html), [`${X(0, 4)},${y(10)} ${X(1, 4)},${y(20)}`, `${X(2, 4)},${y(30)} ${X(3, 4)},${y(40)}`]);
   assert.equal(dots(html), 4);
-  assert.equal((svgOf(html).match(/tp-trend-break/g) || []).length, 1);
+  assert.doesNotMatch(html, /tp-trend-break/);
 });
 
 test('C5. a missing comparison record for a pair does not connect (fail toward not connecting)', () => {

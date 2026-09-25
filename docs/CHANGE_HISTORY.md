@@ -13,7 +13,7 @@ source_of_truth: true
   non-comparable adjacent pair (for example `framework_changed`) were joined by a continuous line although the same
   view listed the pair as not comparable. Fix: `talent.js` passes each point's Period id and the backend
   `comparisons` list to `talent-charts.js` `series()`, which connects a pair only when its record is `comparable`
-  (a missing record does not connect); broken pairs add a value-free break marker and legend note; every Period
+  (a missing record does not connect); broken pairs draw no line or midpoint marker, keep both dots and add a legend note; every Period
   value stays visible. The frontend derives no comparability. No analytics formula, privacy, permission, schema,
   migration or `tis.db` change; Web Service only. Rule recorded in ADR 0044. Tests:
   `tests/talent_progress_comparability.test.cjs`.

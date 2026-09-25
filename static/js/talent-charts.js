@@ -80,8 +80,7 @@
     const dots=runs.flat().map(p=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.5" fill="currentColor"/>`).join('');
     const gaps=values.map((v,i)=>v===null?`<line class="tp-trend-gap" x1="${x(i)}" x2="${x(i)}" y1="12" y2="110" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4"/>`:'').join('');
     const broken=i=>i>0&&rows[i].link===false&&values[i]!==null&&values[i-1]!==null;
-    const breaks=values.map((v,i)=>broken(i)?`<line class="tp-trend-break" x1="${(x(i-1)+x(i))/2}" x2="${(x(i-1)+x(i))/2}" y1="12" y2="110" stroke="currentColor" stroke-width="1" stroke-dasharray="1 5"/>`:'').join('');
-    return `<svg class="tp-trend" viewBox="0 0 300 120" aria-hidden="true" focusable="false"><line x1="6" x2="294" y1="110" y2="110" stroke="currentColor" stroke-opacity=".25"/>${gaps}${breaks}${lines}${dots}</svg><ol class="tp-chart-legend tp-trend-legend">${rows.map((r,i)=>`<li>${esc(r.label)}: ${r.state==='visible'?rowText(r,'series'):stateText(r)}${broken(i)?' (not connected: periods are not comparable)':''}</li>`).join('')}</ol>`;
+    return `<svg class="tp-trend" viewBox="0 0 300 120" aria-hidden="true" focusable="false"><line x1="6" x2="294" y1="110" y2="110" stroke="currentColor" stroke-opacity=".25"/>${gaps}${lines}${dots}</svg><ol class="tp-chart-legend tp-trend-legend">${rows.map((r,i)=>`<li>${esc(r.label)}: ${r.state==='visible'?rowText(r,'series'):stateText(r)}${broken(i)?' (not connected: periods are not comparable)':''}</li>`).join('')}</ol>`;
   }
   function visual(rows,mode,family='classification'){
     if(mode==='doughnut'){
