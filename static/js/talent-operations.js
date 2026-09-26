@@ -76,6 +76,16 @@
     const reload=()=>render(ctx);
     const url=(view,values={})=>`/talent/${view}?${query({academic_year_id:year,program_id:params.get('program_id'),...values})}`;
     const link=(view,label,values={})=>`<a href="${esc(url(view,values))}">${esc(label)} →</a>`;
+    // Program and Evaluation configuration lives ONLY in System Configuration >
+    // Talent & Potential. ctx.configurationUrl is non-empty just for an organization-
+    // level configuration actor (server-derived); everyone else sees plain guidance.
+    // The link is non-mutating and never replaces the API authorization gates.
+    const configLink=(label,values={})=>{
+      if(!ctx.configurationUrl)return '';
+      const q=new URLSearchParams();
+      for(const [k,v] of Object.entries({academic_year_id:year,program_id:params.get('program_id'),...values}))if(v!==''&&v!=null)q.set(k,v);
+      return `<a class="tp-action-link" href="${esc(`${ctx.configurationUrl}?${q}`)}">${esc(label)} →</a>`;
+    };
     const mount=html=>{root.innerHTML=`<div class="tp-operational"><p id="op-message" class="tp-op-feedback" role="status" aria-live="polite"></p>${html}</div>`;};
     const guard=event=>{if(dirtyForms.size||busy){event.preventDefault();event.returnValue='';}};
     if (window.__talentUnsavedGuard) window.removeEventListener('beforeunload',window.__talentUnsavedGuard);
@@ -223,7 +233,7 @@
         ? gradeScoped
         : allCompetencies.filter(c=>gradeScoped.includes(c)||savedCompetencyIds.has(Number(c.id)));
       const gradeCriteriaNotice=!competencies.length
-        ? `<aside class="tp-note tp-grade-criteria-empty"><strong>No assessment criteria for Grade ${esc(assessmentGrade||'—')}.</strong> Configure Competency → KPI → Level criteria for this Grade in the Program before assessing this Student. Criteria from another Grade are never substituted.</aside>`
+        ? `<aside class="tp-note tp-grade-criteria-empty"><strong>No assessment criteria for Grade ${esc(assessmentGrade||'—')}.</strong> Competency → KPI → Level criteria for this Grade must be configured in System Configuration before assessing this Student. Criteria from another Grade are never substituted.</aside>`
         : '';
       const descriptor=(cid,lid)=>configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&String(d.grade_level||'')===assessmentGrade)?.descriptor || configuration.descriptors?.find(d=>d.framework_competency_id===cid&&d.rubric_level_id===lid&&!d.grade_level)?.descriptor || '';
       const reassessmentNotice=assessment.reassessment?.required
@@ -337,9 +347,9 @@
       // The configuration area is named for everyone but is an enabled link only for
       // an actor who can manage Programs (the server still authorizes every change).
       const remedy=code==='assessment_tool_unavailable'
-        ?(can('talent_programs.manage')
-          ?` <a class="tp-action-link" href="${esc(url('programs',{program_id:cycle?.program_id||pid||''}))}">Open Program setup →</a>`
-          :' A Program administrator can configure them in the Program setup.')
+        ?(ctx.configurationUrl
+          ?` ${configLink('Configure in System Configuration',{program_id:cycle?.program_id||pid||''})}`
+          :' Your organization Administrator can configure them in System Configuration.')
         :'';
       return `<span class="tp-start-blocked" data-start-blocked="${esc(code||'unavailable')}" role="note">${esc(reason)}${remedy}</span>`;
     };
@@ -453,7 +463,7 @@
         :can('talent_assessment_cycles.manage')&&can('talent_evaluation_plans.manage')&&can('talent_evaluation_plans.select_period')
           ?`<button type="button" class="tp-evaluation-program-card" data-action="select-planned-evaluation" data-program="${context.program_id}" data-period="${context.evaluation_period_id}" data-plan-revision="${context.plan_revision}" data-label="${esc(context.evaluation_label||group.label)}"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Select this Program for ${esc(group.label)} and view eligible Students</small></span><span aria-hidden="true">→</span></button>`
           :`<span class="tp-evaluation-program-card is-disabled" aria-disabled="true"><span class="tp-program-icon" aria-hidden="true">✦</span><span><strong>${title}</strong><small>Evaluation configured · ask an organization-authorized manager to open Student Assessments</small></span><span aria-hidden="true">—</span></span>`;}).join('')}</div></section>`;}).join('')}</div>`
-      :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Open the Evaluation Plan',{program_id:pid}):''}</p>`:'');
+      :(pid?note('No Evaluation Period is available for this Program in this Academic Year yet.')+`<p class="tp-actions">${ctx.configurationUrl?configLink('Configure Evaluation Periods in System Configuration',{program_id:pid,tab:'evaluation-periods'}):(can('talent_evaluation_plans.view')?link('evaluation-plans','View Evaluation Periods',{program_id:pid}):'')}</p>`:'');
 
     // The selected real Evaluation is marked in place on its own card above
     // (is-selected class + aria-current) rather than repeated in a separate

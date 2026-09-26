@@ -1,11 +1,28 @@
 ---
 title: TIS Module Map
-documentation_version: 4.10
+documentation_version: 4.11
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent Executive Overview (2026-09-25)
+
+- `talent_executive_overview_service.py`: bounded Expected Assessment coordinates,
+  canonical completion partition, backend Classification, categorical Learning Style,
+  privacy-closed Branch completion, and separately permissioned one-row-per-Student
+  Program projections. Reuses ADR 0037 results and delegates All-Periods Program cells
+  to ADR 0044's `talent_evaluation_progress_service.current_overall_result`; performs no write.
+- `routers/talent_results_analytics.py` GET
+  `/api/talent/results-analytics/academic-years/{academic_year_id}/executive-overview`:
+  repeatable-snapshot dependency, tenant/Branch scope, fail-closed privacy provider,
+  separate Student identity permission, and organization configuration affordance.
+- `static/js/talent-dashboard.js`, `static/js/talent-charts.js`,
+  `static/js/talent.js`, `static/css/talent-experience.css`: approved Overview
+  composition, shared filters, privacy-safe chart modes, one Student Program table and
+  responsive/forced-colors presentation. The browser never calculates Classification,
+  eligibility, completion or privacy.
 
 ## Talent filtered aggregate workspace (Agent 3, 2026-09-25)
 
@@ -60,6 +77,29 @@ source_of_truth: true
   access scope. `routers/talent_ui.py` withholds the same capabilities from Branch scope and publishes
   `talent_can_configure`; `templates/talent/workspace.html` shows the shared-configuration notice.
   `scripts/audit_talent_program_duplicates_readonly.py` is a read-only owner audit (never imported by the app).
+
+## System Configuration workspace for Talent & Potential (2026-09-26)
+
+- `talent_configuration_access.py`: single access rule (an existing `talent_programs.manage`/
+  `talent_evaluation_plans.manage` permission AND organization/global scope); no new permission key.
+- `routers/talent_configuration_ui.py`: presentation-only route `GET /system-configuration/talent-potential`,
+  gated by the rule above; registered in `main.py` `CONFIGURATION_MODULES` and `authorization.py`
+  `PROTECTED_ROUTE_RULES`; `ui_shell.py` renders the sidebar entry only when authorized.
+- `templates/talent/configuration.html`, `static/js/talent-configuration.js`: the three-column workspace
+  shell (Programs list, selected Program with Program Setup/Rubric & Competencies/Evaluation
+  Periods/Criteria-KPI sub-tabs, detail drawer); mounts the existing `TalentProgramWorkspace`/
+  `TalentEvaluationWorkspace` editors unchanged for every sub-tab except Rubric & Competencies.
+- `static/js/talent-configuration-tree.js`: Grade -> Competency -> Rubric -> ordered Level tree and the
+  right-side Level editor, reading/writing only the existing revision-guarded framework/rubric/competency/
+  level routes; read-only when the framework is not an editable Draft; delegated `click`/`submit` handlers
+  are removed and reattached on every render (stored on the container) so a rerender cannot fire a mutation
+  more than once per interaction.
+- `static/js/talent-program-grades.js`: shared "Grades N-M" label helper (operational and configuration
+  Program cards).
+- Operational surfaces (`static/js/talent.js`, `static/js/talent-operations.js`,
+  `templates/talent/workspace.html`) no longer contain any Program/Rubric/Competency/Level/KPI/Evaluation
+  Plan mutation control; a bookmarked `#tp-*` Program-setup deep link redirects an authorized actor into the
+  System Configuration workspace instead of a removed operational editor.
 
 ## Start Assessment eligibility (Final Closure Part A, 2026-09-25)
 

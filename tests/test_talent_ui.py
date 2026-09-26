@@ -43,10 +43,14 @@ def test_navigation_and_html_use_actual_shared_shell(db, client):
 @pytest.mark.parametrize(
     ('view', 'present', 'absent'),
     (
-        ('programs', ('talent-rubric-visual.js', 'talent-program-workspace.js'),
-         ('talent-operations.js', 'talent-evaluation-workspace.js')),
-        ('evaluation-plans', ('talent-rubric-visual.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
-         ('talent-operations.js',)),
+        # Configuration/System Configuration separation: the Program and Evaluation Plan
+        # EDITOR bundles are never loaded by an operational Talent page. (The view
+        # keys used here are view-only, so /talent/evaluation-plans renders its
+        # read-only period list instead of redirecting a configuration actor.)
+        ('programs', ('talent-rubric-visual.js', 'talent-program-grades.js'),
+         ('talent-operations.js', 'talent-evaluation-workspace.js', 'talent-program-workspace.js')),
+        ('evaluation-plans', ('talent-rubric-visual.js',),
+         ('talent-operations.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js')),
         ('assessments', ('talent-rubric-visual.js', 'talent-operations.js'),
          ('talent-program-workspace.js', 'talent-evaluation-workspace.js')),
         ('reviews', ('talent-rubric-visual.js', 'talent-operations.js'),
@@ -75,8 +79,8 @@ def test_talent_views_load_only_their_required_script_bundles(db, client, view, 
 # server-rendered "Loading your authorized workspace" placeholder forever.
 REQUIRED_SCRIPTS_BY_VIEW = {
     'overview': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
-    'programs': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-program-workspace.js'),
-    'evaluation-plans': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-program-workspace.js', 'talent-evaluation-workspace.js'),
+    'programs': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-program-grades.js'),
+    'evaluation-plans': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
     'assessments': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-operations.js'),
     'reviews': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js', 'talent-operations.js'),
     'learner-profile': ('talent-rubric-visual.js', 'talent-api-errors.js', 'talent-rubric-request.js', 'talent-student-identity.js'),
@@ -233,26 +237,58 @@ def test_branch_scope_is_read_only_for_shared_configuration_with_explanatory_cop
         assert 'Changes you make here apply to every Branch.' not in response.text
 
 
-def test_organization_administrator_sees_configuration_capabilities_and_shared_copy(db, client):
+def test_organization_administrator_sees_one_configure_link_and_no_configuration_editor_on_the_operational_page(db, client):
+    # System Configuration separation: even an organization Administrator configures ONLY
+    # in System Configuration. The operational Programs page carries one non-mutating link
+    # and never loads the editor bundles; semantic hints stay for operational use
+    # (e.g. selecting a planned Evaluation Period), the API gates stay authoritative.
     permissions(db, 'talent_programs.view', 'talent_evaluation_plans.view', *CONFIG_MUTATION_KEYS)
-    for view in ('programs', 'evaluation-plans'):
-        response = client.get(f'/talent/{view}')
-        config = _tp_config(response.text)
-        for key in CONFIG_MUTATION_KEYS:
-            assert config['permissions'][key] is True, key
-        assert 'data-shared-config="manage"' in response.text
-        assert 'Changes you make here apply to every Branch.' in response.text
+    response = client.get('/talent/programs')
+    assert response.status_code == 200
+    config = _tp_config(response.text)
+    assert config['configurationUrl'] == '/system-configuration/talent-potential'
+    assert 'data-shared-config="configure-link"' in response.text
+    assert 'href="/system-configuration/talent-potential"' in response.text
+    assert 'Configure in System Configuration' in response.text
+    assert 'Changes you make here apply to every Branch.' not in response.text
+    assert 'talent-program-workspace.js' not in response.text
+    assert 'talent-evaluation-workspace.js' not in response.text
     # Non-configuration views never carry the notice.
     permissions(db, 'talent_analytics.view')
     assert 'data-shared-config' not in client.get('/talent/analytics').text
 
 
+def test_no_configure_link_without_organization_configuration_authority(db, client):
+    permissions(db, 'talent_programs.view', 'talent_evaluation_plans.view')  # view only
+    response = client.get('/talent/programs')
+    assert _tp_config(response.text)['configurationUrl'] == ''
+    assert 'data-shared-config="read-only"' in response.text
+    assert '/system-configuration/talent-potential' not in response.text
+    permissions(db, *CONFIG_MUTATION_KEYS)
+    client.app.dependency_overrides[get_current_user] = lambda: actor(scope='BRANCH')
+    branch_response = client.get('/talent/programs')
+    assert _tp_config(branch_response.text)['configurationUrl'] == ''
+    assert '/system-configuration/talent-potential' not in branch_response.text
+
+
+def test_old_evaluation_plan_deep_link_redirects_only_an_authorized_actor_to_system_configuration(db, client):
+    permissions(db, 'talent_evaluation_plans.view', 'talent_evaluation_plans.manage')
+    response = client.get('/talent/evaluation-plans?program_id=7&academic_year_id=100&x=<b>', follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers['location'] == '/system-configuration/talent-potential?tab=evaluation-periods&program_id=7&academic_year_id=100'
+    # A Branch-scoped actor holding the same keys gets the read-only period list, not a redirect.
+    client.app.dependency_overrides[get_current_user] = lambda: actor(scope='BRANCH')
+    assert client.get('/talent/evaluation-plans', follow_redirects=False).status_code == 200
+
+
 def test_evaluation_plan_action_permissions_reach_browser_payload(db, client):
-    permissions(db, 'talent_evaluation_plans.view',
+    # Operational hint: selecting a planned Evaluation Period (Student Assessments) is not
+    # configuration and keeps its semantic permission hints on the operational page.
+    permissions(db, 'talent_assessments.view', 'talent_evaluation_plans.view',
                 'talent_evaluation_plans.manage',
                 'talent_evaluation_plans.govern',
                 'talent_evaluation_plans.select_period')
-    response = client.get('/talent/evaluation-plans')
+    response = client.get('/talent/assessments')
     assert response.status_code == 200
     # actor() is durably organization-scoped while retaining Branch 10 as the
     # selected/visible working context. A Branch selection must not suppress

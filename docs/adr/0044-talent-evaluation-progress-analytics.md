@@ -374,3 +374,24 @@ a continuous line. Rule:
 - When a chart supplies no comparability list (the Results & Analytics completion-by-period trend, which is a
   single-Program series of the Framework-independent completion metric), behavior is unchanged. `comparable`
   still means only that two factual points may be viewed side by side, never growth or improvement.
+
+## System Configuration Centralization Amendment (2026-09-26)
+
+Dated presentation/IA amendment; it completes the Final Closure Part B decision above with no new
+authority, no new permission key, and no analytics, privacy, schema, migration or `tis.db` change. The
+governed rule from Part B - Talent configuration is SchoolGroup-level shared configuration, mutation
+requires the existing semantic permission AND organization/global scope - now has a single, canonical UI
+home: SYSTEM CONFIGURATION = DEFINE Talent & Potential; the normal Talent module = USE Talent & Potential.
+`GET /system-configuration/talent-potential` (gated by `talent_configuration_access.is_authorized`, the same
+rule Part B's `CONFIG_MUTATION_KEYS`/`PLAN_CONFIG_KEYS` already enforce - an existing configuration
+permission AND organization/global scope, no new key) hosts Program, eligible-Grade, Framework/Rubric,
+Competency, ordered Rubric Level, KPI/criteria and Evaluation Plan/Period configuration as a Programs list
+plus a Grade -> Competency -> Rubric -> Level tree with a right-side Level editor, reusing the existing
+canonical `/api/talent/*` routes and their revision guards and lifecycle locks unchanged. The normal Talent
+module's Programs/Overview/Assessments/Results & Analytics pages now contain no configuration mutation
+control at all (not merely a disabled one); an organization-authorized actor sees one non-mutating
+"Configure in System Configuration" link, and a bookmarked Program-setup deep link (`#tp-basics`,
+`#tp-rubric`, `#tp-schedule`, `#tp-builder`) redirects there instead of a removed operational editor. The
+pre-existing `select-planned-evaluation` operational trigger is unchanged and stays gated exactly as Part B
+already requires. No Branch copy, clone or enablement model exists; `TalentProgram` still carries no
+`branch_id`.

@@ -18,7 +18,8 @@
     {% if request.state.talent_synthetic_preview|default(false) %}<span class="tp-badge">{{ icon('shield') }}Synthetic data · Read-only preview</span>{% endif %}
   </div>
   {% if talent_view in ['programs', 'evaluation-plans'] %}
-  <p class="tp-note tp-shared-config" data-shared-config="{{ 'manage' if talent_can_configure else 'read-only' }}">{{ icon('shield') }}<strong>Shared by all Branches.</strong> Programs, rubrics, frameworks, evaluation plans, and evaluation periods are configured once for the whole organization. {% if talent_can_configure %}Changes you make here apply to every Branch.{% else %}They are managed by your organization Administrator; you can view them here but not change them.{% endif %}</p>
+  {# Operational page: Program and Evaluation configuration is READ-ONLY here. It is defined once for the whole organization in System Configuration > Talent & Potential; an authorized organization-level actor gets that single non-mutating link. #}
+  <p class="tp-note tp-shared-config" data-shared-config="{{ 'configure-link' if talent_configuration_url else 'read-only' }}">{{ icon('shield') }}<strong>Shared by all Branches.</strong> Programs, rubrics, frameworks, evaluation plans, and evaluation periods are configured once for the whole organization in System Configuration. {% if talent_configuration_url %}<a class="tp-configure-link" href="{{ talent_configuration_url }}">Configure in System Configuration</a>{% else %}They are managed by your organization Administrator; you can view them here but not change them.{% endif %}</p>
   {% endif %}
   {% set analytics_family =['analytics','talent-map','portfolio','branch','overlap','students','longitudinal'] %}
   {% if talent_view in analytics_family %}
@@ -46,7 +47,7 @@
   <div id="tp-content" aria-busy="true"><p class="tp-empty" data-server-loader data-initial-loading>Loading your authorized workspace…</p><noscript><p class="tp-empty">JavaScript is required to use Talent &amp; Potential. Enable it and reload this page.</p></noscript></div>
   <aside class="tp-note"><strong>{{ icon('shield') }}Evidence in context</strong><p>Historical assessments retain the Program, assessment setup, and Student placement recorded when each evaluation started. Results never combine Programs into one score.</p></aside>
 </section>
-<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name, "branchLocked": talent_branch_locked}|tojson }}</script>
+<script type="application/json" id="tp-config">{{ {"view": talent_view, "permissions": talent_permissions, "year": shell.scoped_academic_year_id, "branch": talent_active_branch_id, "branchName": talent_active_branch_name, "branchLocked": talent_branch_locked, "configurationUrl": talent_configuration_url}|tojson }}</script>
 {# Deployment Acceptance Batch 1: the server-rendered loader is replaced synchronously as soon as talent.js runs (boot()). If it is STILL on screen after 15 s the page script never took over (for example a script failed to download or parse, or a stale cached copy from an earlier deployment). The page must never sit on a generic loader indefinitely, so this tiny inline watchdog turns that state into an explicit, retryable error. It only ever acts on the still-untouched server-rendered placeholder. #}
 <script>
 (function(){
@@ -79,11 +80,9 @@
 {% if talent_view in ['assessments', 'reviews'] %}
 <script src="{{ url_for('static', path='js/talent-operations.js') }}?v={{ talent_asset_version('js/talent-operations.js') }}" defer></script>
 {% endif %}
-{% if talent_view in ['programs', 'evaluation-plans'] %}
-<script src="{{ url_for('static', path='js/talent-program-workspace.js') }}?v={{ talent_asset_version('js/talent-program-workspace.js') }}" defer></script>
-{% endif %}
-{% if talent_view == 'evaluation-plans' %}
-<script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}?v={{ talent_asset_version('js/talent-evaluation-workspace.js') }}" defer></script>
+{# The Program and Evaluation Plan EDITORS (talent-program-workspace.js, talent-evaluation-workspace.js) are loaded only by System Configuration > Talent & Potential, never by an operational Talent page. #}
+{% if talent_view == 'programs' %}
+<script src="{{ url_for('static', path='js/talent-program-grades.js') }}?v={{ talent_asset_version('js/talent-program-grades.js') }}" defer></script>
 {% endif %}
 <script src="{{ url_for('static', path='js/talent.js') }}?v={{ talent_asset_version('js/talent.js') }}" defer></script>
 <script src="{{ url_for('static', path='js/talent-experience.js') }}?v={{ talent_asset_version('js/talent-experience.js') }}" defer></script>

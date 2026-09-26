@@ -1,11 +1,26 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.13
+documentation_version: 4.14
 last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Executive Overview invariant (2026-09-25)
+
+Do not calculate Overview values in the browser. The Executive Overview backend owns one
+Expected Assessment coordinate: authorized current Academic-Year placement x enabled
+Grade-applicable Program x planned Evaluation Period with a linked open/closed Cycle.
+Completed/Remaining partition that set, and organization totals sum raw counts. M17
+Classification/P4 privacy, M14 Learning Style (eight categories plus Unassigned), ADR
+0044 active-Period weighting/framework comparability, tenant/Branch scope and separate
+Student identity permissions remain authoritative. Only Exceptional is Talented; legacy
+Review Candidate and Official Identification are never current Overview inputs.
+All-Periods Program cells delegate to
+`talent_evaluation_progress_service.current_overall_result`; the Overview must not own
+a second longitudinal averaging formula. Missing Cycle population membership never
+removes an otherwise eligible Expected Assessment.
 
 ## Talent Configuration Is Organization-Level (Final Closure Part B, 2026-09-25)
 
@@ -17,6 +32,10 @@ Editor/User/Limited hold no `talent_*` key by default) AND organization/global a
 router's `_authorize` (`CONFIG_MUTATION_KEYS`, `CYCLE_CONFIG_KEYS`, `PLAN_CONFIG_KEYS`). A new mutating Talent
 configuration route must be added to `tests/test_talent_central_configuration_authority.py`
 `EXPECTED_MUTATIONS`. The earlier "Branch-scoped `.manage` holder may author Draft" behavior is superseded.
+This authority's UI home is `System Configuration -> Talent & Potential` (System Configuration
+Centralization, 2026-09-26; ADR 0044 dated amendment) - the normal Talent module contains no
+configuration mutation control, only an authorized "Configure in System Configuration" link;
+`talent_configuration_access.py` names the same rule with no new permission key.
 
 ## Talent Chart Types, Background Refresh And Progress Over Time (Production Follow-up Part 2, 2026-09-25)
 

@@ -26,7 +26,7 @@
   const CODE_COPY = {
     // Start Assessment: stable business-rule codes whose specific, actionable reason
     // is safe to show (fixed copy; the backend detail text is still never echoed).
-    assessment_tool_unavailable: 'The Grade of this Student has no saved assessment criteria in this Program yet. Open the Program, configure the Competencies, KPIs and Levels for that Grade, then start the Assessment.',
+    assessment_tool_unavailable: 'The Grade of this Student has no saved assessment criteria in this Program yet. The organization Administrator configures the Competencies, KPIs and Levels for that Grade in System Configuration; then start the Assessment.',
     student_not_eligible: 'This Student has no current Academic Placement in the selected Academic Year, so an Assessment cannot be started.',
     invalid_student_context: 'This Student is not available in the selected Evaluation. Reload the Student list and try again.',
     duplicate_assessment: 'An Assessment for this Student already exists in this Evaluation. Reload the Student list.',

@@ -211,6 +211,30 @@ def nominal_weight(active_period_count: int) -> Optional[float]:
     return 1 / active_period_count
 
 
+def current_overall_result(active_periods, normalized_percent_by_cycle) -> dict:
+    """Canonical ADR 0044 current/overall Student Program result.
+
+    Every active/opened Period participates in the Framework comparability
+    decision. Only available governed ADR 0037 Period results contribute to
+    the mean; a missing/pending result is never converted to zero.
+    """
+    framework_ids = {cycle.framework_version_id for _, cycle in active_periods}
+    numeric_results = [
+        normalized_percent_by_cycle[cycle.id]
+        for _, cycle in active_periods
+        if normalized_percent_by_cycle.get(cycle.id) is not None
+    ]
+    comparable = len(framework_ids) <= 1
+    return {
+        "active_period_count": len(active_periods),
+        "available_result_count": len(numeric_results),
+        "pending_or_unavailable_count": len(active_periods) - len(numeric_results),
+        "comparability_state": "comparable" if comparable else "not_comparable",
+        "comparability_reason_code": None if comparable else "framework_changed",
+        "current_overall_result": _mean_percent(numeric_results) if comparable else None,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Student Evaluation Progress (Decision 2: authorization-governed, no
 # aggregate cohort-size suppression)
@@ -276,13 +300,11 @@ def resolve_student_progress_access(db: Session, *, school_group_id: int, progra
 def build_student_progress(db: Session, ctx: "svc.AnalyticsContext", *, student_id: int) -> dict:
     active_periods = resolve_active_periods(ctx)
     weight = nominal_weight(len(active_periods))
-    framework_ids = set()
     periods_payload = []
-    numeric_results = []
+    normalized_percent_by_cycle = {}
     for period, cycle in active_periods:
         assessment = _current_assessment_for_cycle(db, ctx.school_group_id, student_id, cycle.id)
         result_state, value = _period_result_for_student(db, assessment)
-        framework_ids.add(cycle.framework_version_id)
         periods_payload.append({
             "period_id": period.id, "label": period.label, "sequence": period.sequence,
             "lifecycle_state": "active", "nominal_weight": weight,
@@ -291,20 +313,12 @@ def build_student_progress(db: Session, ctx: "svc.AnalyticsContext", *, student_
             "normalized_percent": value if result_state == RESULT_STATE_AVAILABLE else None,
         })
         if result_state == RESULT_STATE_AVAILABLE:
-            numeric_results.append(value)
-
-    comparable = len(framework_ids) <= 1
-    current_overall_result = _mean_percent(numeric_results) if comparable else None
+            normalized_percent_by_cycle[cycle.id] = value
 
     return {
         "student_id": student_id,
-        "active_period_count": len(active_periods),
-        "available_result_count": len(numeric_results),
-        "pending_or_unavailable_count": len(active_periods) - len(numeric_results),
-        "comparability_state": "comparable" if comparable else "not_comparable",
-        "comparability_reason_code": None if comparable else "framework_changed",
         "periods": periods_payload,
-        "current_overall_result": current_overall_result,
+        **current_overall_result(active_periods, normalized_percent_by_cycle),
     }
 
 

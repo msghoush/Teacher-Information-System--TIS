@@ -41,10 +41,52 @@ from student_learning_style_analytics import build_distribution as build_learnin
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
 from talent_analytics_privacy import resolve_privacy_policy_provider
 from talent_dashboard_service import build_dashboard, DashboardError
+from talent_executive_overview_service import build_executive_overview
 
 router = APIRouter(prefix="/api/talent/results-analytics", tags=["Talent Results Analytics"])
 
 _FILTER_KEYS = ("period_id", "cycle_id", "branch_id", "grade", "section_id", "framework_version_id")
+
+
+@router.get('/academic-years/{academic_year_id}/executive-overview')
+def executive_overview(academic_year_id: int, request: Request,
+                       db: Session = Depends(get_m10_organization_analytics_db),
+                       current_user=Depends(get_current_user),
+                       policy=Depends(resolve_privacy_policy_provider)):
+    user, denied = authorization.require_any_permission(
+        request, db, 'talent_analytics.view', current_user=current_user,
+        page_key='talent_executive_overview',
+    )
+    if denied:
+        return denied
+    if policy is None:
+        return _fail_closed()
+    group_id = _scope(db, user)
+    if not group_id:
+        return JSONResponse({'detail': 'Select an organization scope.'}, status_code=403)
+    filters = {key: request.query_params.get(key) for key in
+               ('branch_id', 'grade_level', 'program_id', 'period_id')}
+    organization_authorized = auth.get_access_scope(user) in {
+        auth.ACCESS_SCOPE_ORGANIZATION, auth.ACCESS_SCOPE_GLOBAL,
+    }
+    try:
+        payload = build_executive_overview(
+            db, group_id=int(group_id), year_id=academic_year_id,
+            visible_branches=_visible_branches(db, user), filters=filters, policy=policy,
+            identity_allowed=(
+                auth.has_permission(db, user, 'talent_analytics.view_students', school_group_id=int(group_id))
+                and auth.has_permission(db, user, 'students.view', school_group_id=int(group_id))
+            ),
+            can_configure=organization_authorized and (
+                auth.has_permission(db, user, 'talent_programs.manage', school_group_id=int(group_id))
+                or auth.has_permission(db, user, 'talent_evaluation_plans.manage', school_group_id=int(group_id))
+            ),
+        )
+    except DashboardError as exc:
+        return JSONResponse({'detail': str(exc), 'code': 'invalid_filter'}, status_code=400)
+    except ValueError:
+        return JSONResponse({'detail': 'Invalid analytics filter.', 'code': 'invalid_filter'}, status_code=400)
+    return jsonable_encoder(payload)
 
 
 @router.get('/academic-years/{academic_year_id}/dashboard')

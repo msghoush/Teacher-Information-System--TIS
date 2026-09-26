@@ -15,6 +15,7 @@ from branding_storage import (
 from design_tokens import build_design_css, merge_design_settings
 import permission_registry
 import role_permission_service
+import talent_configuration_access
 from visual_design import build_visual_design_config, build_visual_design_css, rows_to_visual_settings
 
 
@@ -329,6 +330,7 @@ def _build_nav_items(
     new_notification_count: int = 0,
     new_demo_request_count: int = 0,
     has_teacher_identity: bool = False,
+    can_configure_talent: bool = False,
 ):
     def is_active(target: str) -> bool:
         if target == "/dashboard":
@@ -469,6 +471,16 @@ def _build_nav_items(
             if item["href"] != "/dashboard"
             else is_active("/dashboard")
         }
+        if item["href"] == "/system-configuration" and can_configure_talent:
+            # Organization-level Talent configuration lives here (not under the
+            # operational Talent module). Shown only to an authorized
+            # organization-level actor; see talent_configuration_access.
+            nav_item["children"] = [{
+                "label": "Talent & Potential",
+                "href": talent_configuration_access.TALENT_CONFIGURATION_PATH,
+                "icon": "sparkles",
+                "active": is_active(talent_configuration_access.TALENT_CONFIGURATION_PATH),
+            }]
         if item["href"] == "/talent":
             if current_path == "/students" or current_path.startswith("/students/"):
                 nav_item["active"] = True
@@ -749,6 +761,9 @@ def build_shell_context(
                 new_notification_count=new_notification_count,
                 new_demo_request_count=new_demo_request_count,
                 has_teacher_identity=has_teacher_identity,
+                can_configure_talent=talent_configuration_access.is_authorized(
+                    current_user, permission_keys
+                ),
             ),
             "user_name": f"{current_user.first_name} {current_user.last_name}".strip(),
             "role_label": effective_role,

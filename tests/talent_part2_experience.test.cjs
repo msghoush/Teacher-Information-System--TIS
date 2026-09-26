@@ -97,15 +97,17 @@ test('P5. a deliberate chart-type choice survives a data refresh and never re-tr
   assert.match(again.split('data-chart-family="completion"')[1], /is-doughnut/);
 });
 
-test('P6. reduced-motion: entrance animation is absent when the user prefers reduced motion, when the preference is unknown, and after the first render', async () => {
+test('P6. final Executive Overview is motion-neutral for every motion preference', async () => {
+  const executive = {filters:{branches:[],grades:[],programs:[],periods:[]},summary:{},classification,learning_style:styles,completion:partition,programs:[],students:[],student_rows_state:'restricted'};
   const run = async matchMedia => {
     const globals = matchMedia === undefined ? {} : {matchMedia};
-    const env = createEnv({view: 'overview', permissions: FULL, globals: {TalentCharts: charts, TalentDashboard: dashboard, ...globals}, handler: url => url.includes('/dashboard?') ? {body: payload()} : {body: {metrics: {}}}});
+    const env = createEnv({view: 'overview', permissions: FULL, globals: {TalentCharts: charts, TalentDashboard: dashboard, ...globals}, handler: url => url.includes('/executive-overview') ? {body: executive} : {body: []}});
     await env.start();
     return env;
   };
   const animated = await run(() => ({matches: false}));
-  assert.match(animated.text(), /tp-overview-insights tp-motion-enter/);
+  assert.doesNotMatch(animated.text(), /tp-motion-enter/);
+  assert.match(animated.text(), /Executive Overview/);
   const reduced = await run(() => ({matches: true}));
   assert.doesNotMatch(reduced.text(), /tp-motion-enter/);
   assert.match(reduced.text(), /<table>/, 'values and tables are present regardless of motion');

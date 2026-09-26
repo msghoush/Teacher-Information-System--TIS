@@ -27,11 +27,20 @@ const overviewBody = {metrics: {
   distinct_students: visible(9), frozen_eligible_memberships: visible(63),
   completion_coverage: {state: 'visible', percentage: 50, numerator: 31, denominator: 63},
 }};
+const executiveBody = {
+  filters: {branches: [{id: '7', label: 'Girls'}, {id: '3', label: 'Boys'}], grades: ['3'], programs: [], periods: []},
+  summary: {students: visible(9), expected: visible(18), completed: {...visible(13), percentage: 72.22}, remaining: {...visible(5), percentage: 27.78}},
+  completion: {state: 'visible', total: visible(18), buckets: [{label: 'Completed', state: 'visible', count: 13, percentage: 72.22}, {label: 'Remaining', state: 'visible', count: 5, percentage: 27.78}]},
+  classification: {state: 'visible', total: visible(0), buckets: []},
+  learning_style: {state: 'visible', total: visible(0), levels: []},
+  programs: [], students: [], student_rows_state: 'restricted', can_configure: false,
+};
 const mapBody = {metric: 'completion_coverage', columns: [], rows: [], cells: [], row_totals: [], column_totals: [], organization_total: null};
 
 function handler(overrides = {}) {
   return (url) => {
     for (const [fragment, outcome] of Object.entries(overrides)) if (url.includes(fragment)) return outcome;
+    if (url.includes('/executive-overview')) return {body: executiveBody};
     if (url.includes('organization-analytics/overview')) return {body: overviewBody};
     if (url.includes('talent-map')) return {body: mapBody};
     if (url.includes('program-portfolio')) return {body: {programs: [], totals: {}}};
@@ -139,19 +148,40 @@ test('B6b. Branch-limited actor: the selector offers ONLY their Branch (no All B
   assert.ok(after.every(c => /branch_id=7(&|$)/.test(c.url) && !/branch_id=3/.test(c.url)), 'a forced selector value cannot escape the ceiling');
 });
 
-test('B7. the Overview requests the Branch-scoped headline and names the scope', async () => {
+test('B7. the Overview requests the Branch-scoped canonical projection and selects that Branch', async () => {
   const env = await createEnv({view: 'overview', permissions: FULL, config: {branch: 7, branchName: 'Girls'},
     handler: handler()}).start();
-  assert.match(String(env.callsTo('organization-analytics/overview')[0].url), /branch_id=7/);
-  assert.match(env.text(), /Academic Year [^<]* · Girls/);
+  assert.match(String(env.callsTo('/executive-overview')[0].url), /branch_id=7/);
+  assert.match(env.text(), /value="7" selected>Girls/);
 });
 
-test('M1. "Distinct current Students" is the distinct-Student figure; memberships are "Program participations"', async () => {
+test('B7c. Executive Overview switching from All Branches to one Branch clears the All marker', async () => {
+  const env = await createEnv({view: 'overview', permissions: FULL,
+    search: '?academic_year_id=1&branch_scope=all&scope_branch_id=7',
+    config: {branch: 7, branchName: 'Girls', branchLocked: false}, handler: handler()}).start();
+  const before = env.callsTo('/executive-overview').length;
+  env.root.emit('change', {target: {
+    name: 'branch_id', value: '3',
+    closest: selector => selector === '[data-executive-filters]' ? {} : null,
+  }});
+  await env.flush();
+  const calls = env.callsTo('/executive-overview').slice(before);
+  assert.equal(calls.length, 1);
+  const request = new URL(calls[0].url, 'http://tis.test');
+  assert.equal(request.searchParams.get('branch_id'), '3');
+  assert.equal(request.searchParams.has('branch_scope'), false);
+  const mirrored = new URL(String(env.replaced.at(-1)[2]), 'http://tis.test');
+  assert.equal(mirrored.searchParams.get('branch_id'), '3');
+  assert.equal(mirrored.searchParams.has('branch_scope'), false);
+});
+
+test('M1. final Overview KPIs use Students, Expected, Completed and Remaining only', async () => {
   const env = await createEnv({view: 'overview', permissions: FULL, config: {branch: 7}, handler: handler()}).start();
   const html = env.text();
-  assert.match(html, /Distinct current Students<\/span><strong class="tp-stat-value"><strong>9<\/strong>/);
-  assert.match(html, /Program participations<\/span><strong class="tp-stat-value"><strong>63<\/strong>/);
-  assert.doesNotMatch(html, /Distinct current Students<\/span><strong class="tp-stat-value"><strong>63/);
+  for (const label of ['Students in Scope', 'Expected Assessments', 'Assessments Completed', 'Assessments Remaining']) assert.match(html, new RegExp(label));
+  assert.match(html, /Students in Scope<\/h3><strong>9<\/strong>/);
+  assert.match(html, /Assessments Completed<\/h3><strong>13 \/ 18<\/strong>/);
+  assert.doesNotMatch(html, /Program participations|Programs configured/);
 });
 
 test('M2. Talent Map / Longitudinal metric options never call a membership count "Students"', async () => {
