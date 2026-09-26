@@ -77,6 +77,12 @@
   async function render(ctx, options = {}) {
     const viaHash = options.viaHash === true;
     const {root,api,can} = ctx, params=ctx.params || new URLSearchParams();
+    // One generation number per render() call, cache hit or not, so a Program
+    // switch (or repeated switch) can always tell a superseded call it no
+    // longer owns `root` - including the embedded Evaluation Plan panel below,
+    // which used to run unguarded and could paint a still-in-flight earlier
+    // Program's schedule data after a newer Program had already been selected.
+    const token = ++renderToken;
     root.oninput=null; root.onsubmit=null; root.onclick=null; root.onreset=null;
     root.classList?.add('tp-program-workspace');
     if(typeof window!=='undefined' && unloadGuard)window.removeEventListener('beforeunload',unloadGuard);
@@ -205,7 +211,6 @@
       ({program, base, configuredGrades, annual, versions, bank, plans} = bundleCache.data);
       framework = bundleCache.data.framework; config = bundleCache.data.config;
     } else {
-      const token = ++renderToken;
       const alreadyRendered=Boolean(root.querySelector?.('.tp-wizard-panel,.tp-program-summary,[data-program-row]'));
       const existingStatus=root.querySelector?.('[data-status]');
       if(alreadyRendered){
@@ -214,6 +219,7 @@
       }else{
         root.innerHTML='<p role="status">Loading Programs…</p>';
       }
+      try {
       if(!pid) {
         const programs=await api('/api/talent/programs');
         if (token !== renderToken) return;
@@ -300,6 +306,22 @@
       }
       bundleCache={key:bundleKey,data:{program,base,configuredGrades,annual,versions,bank,framework,config,plans}};
       root.removeAttribute?.('aria-busy');
+      } catch(error) {
+        // A superseded call (a newer Program/context switch already moved on)
+        // must never paint an error over the newer render's own content or
+        // loading state - only the still-current call may touch the DOM here.
+        if (token !== renderToken) return;
+        bundleCache=null;
+        root.removeAttribute?.('aria-busy');
+        const message=(error && error.userSafe && error.message) || 'This view could not be loaded. Retry, or contact your administrator if the problem continues.';
+        if (alreadyRendered && existingStatus) {
+          existingStatus.textContent=message;
+          existingStatus.setAttribute('role','alert');
+        } else {
+          root.innerHTML=`<p class="tp-error" role="alert">${esc(message)}</p>`;
+        }
+        return;
+      }
     }
     members=framework?.competencies || [];
     const fp=framework?`${base}/frameworks/${framework.id}`:'';
@@ -678,10 +700,15 @@
       const refreshMode=a==='program-state'?'full':a==='remove-logo'?'program':'framework';
       await mutate(path,method,body,undefined,refreshMode);
     };
-    if(activeStep==='schedule'&&can('talent_evaluation_plans.view')) {
+    // Guarded by the same generation token as the rest of this render(): a
+    // superseded call (Program/context already changed again) must never
+    // start - or let a still-in-flight - embedded schedule fetch land in a
+    // container this render() no longer owns.
+    if(token===renderToken && activeStep==='schedule'&&can('talent_evaluation_plans.view')) {
       const scheduleRoot=root.querySelector('[data-embedded-schedule]');
       const scheduleRenderer=ctx.renderSchedule||(typeof window!=='undefined'&&window.TalentEvaluationWorkspace?.render);
       if(scheduleRoot&&scheduleRenderer)await scheduleRenderer({...ctx,root:scheduleRoot,params:new URLSearchParams({academic_year_id:year||'',program_id:pid}),embedded:true});
+      if(token!==renderToken)return;
     }
   }
   // System Configuration renders the Rubric tree in the same container: release this editor's window listeners first.
