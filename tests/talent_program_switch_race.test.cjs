@@ -58,8 +58,10 @@ function makeRoot() {
       if (selector === '[data-status]') return this._status || (this._status = {textContent: '', setAttribute(){}, getAttribute(){return null;}});
       // "already rendered" detection: pretend a wizard panel exists once we have
       // written real content, so a *second* render() onto the same root takes the
-      // "Refreshing Program data…" path instead of the first-load path.
-      if (selector === '.tp-wizard-panel,.tp-program-summary,[data-program-row]') return state.html ? {} : null;
+      // "Refreshing Program data…" path instead of the first-load path. Matched by
+      // prefix (not an exact string) so this survives the selector list growing,
+      // e.g. to also recognise the shell's own [data-tpc-program-loading] placeholder.
+      if (selector.startsWith('.tp-wizard-panel,.tp-program-summary,[data-program-row]')) return state.html ? {} : null;
       return null;
     },
     querySelectorAll() { return []; },

@@ -47,6 +47,13 @@
       + (canManage && program.status !== 'retired' ? '<button type="button" class="tpc-secondary" data-tpc-edit-program>Edit Program</button>' : '') + '</div>';
   }
 
+  function programLoadingHtml(program) {
+    const name = program?.name || 'Program';
+    return `<section class="tpc-program-loading" data-tpc-program-loading aria-label="Loading ${esc(name)}">`
+      + `<div class="tpc-loading-identity">${logoBadge(program || {name}, 'tp-logo-md')}<div><h3>${esc(name)}</h3><p data-status role="status" aria-live="polite">Loading ${esc(name)} data…</p></div></div>`
+      + '<div class="tpc-loading-skeleton" aria-hidden="true"><span></span><span></span><span></span></div></section>';
+  }
+
   function periodsOverviewHtml(programs, plans, {canManage}) {
     const byProgram = new Map((plans || []).map(plan => [String(plan.program_id), plan]));
     if (!programs.length) return '<p class="tp-empty">No Programs exist yet. Create a Program first, then plan its Evaluation Periods.</p>';
@@ -237,12 +244,23 @@
     }
 
     async function selectProgram(id, {hash} = {}) {
+      const previousProgramId = state.programId;
       state.programId = String(id || '');
       if (state.programId) {
         const wanted = hash !== undefined ? hash : (win.location.hash || (state.tab === 'evaluation-periods' ? '#tp-schedule' : '#tp-basics'));
         setHash(wanted);
       }
       syncUrl();
+      if (state.programId && String(previousProgramId) !== state.programId) {
+        const nextProgram = selectedSummary();
+        const ws = win.TalentProgramWorkspace;
+        if (ws?.dispose) ws.dispose();
+        content.oninput = null; content.onsubmit = null; content.onclick = null; content.onreset = null;
+        content.setAttribute('aria-busy', 'true');
+        content.innerHTML = programLoadingHtml(nextProgram);
+        const drawer = $('tpc-drawer');
+        if (drawer) drawer.innerHTML = '<h3>Details</h3><p class="tp-empty">Program details will be available when loading finishes.</p>';
+      }
       await renderCenter();
     }
     async function showNewProgram() {
@@ -335,7 +353,7 @@
     return {ready, state, selectProgram, switchTab, refreshCatalog};
   }
 
-  const api = {gradesSummary, programCardHtml, headHtml, periodsOverviewHtml, subtabFromHash, resolveTab, mount, SUBTABS, TABS};
+  const api = {gradesSummary, programCardHtml, headHtml, programLoadingHtml, periodsOverviewHtml, subtabFromHash, resolveTab, mount, SUBTABS, TABS};
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') {
     window.TalentConfiguration = api;

@@ -30,12 +30,26 @@
     else root.setAttribute?.('aria-busy','true');
 
     let plans, programs, cycles, annual, frameworks;
+    const preloaded=ctx.preloadedEvaluationContext;
+    const usePreloaded=Boolean(embedded&&preloaded
+      &&String(preloaded.programId||'')===String(programId||'')
+      &&String(preloaded.academicYearId||'')===String(year||'')
+      &&String(preloaded.program?.id||'')===String(programId||'')
+      &&Array.isArray(preloaded.plans)&&Array.isArray(preloaded.annual)&&Array.isArray(preloaded.frameworks));
     if(planOnly){
       [plans,cycles]=await Promise.all([
         api(`/api/talent/evaluation-plans?${query}`),
         can('talent_assessment_cycles.view') ? api(`/api/talent/assessment-cycles?${query}`) : [],
       ]);
       ({programs,annual,frameworks}=workspaceCache);
+    }else if(usePreloaded){
+      plans=preloaded.plans;
+      programs=[preloaded.program];
+      annual=preloaded.annual;
+      frameworks=preloaded.frameworks;
+      cycles=can('talent_assessment_cycles.view')
+        ? await api(`/api/talent/assessment-cycles?${query}`)
+        : [];
     }else{
       const canViewPrograms=can('talent_programs.view');
       const directBase=programId?`/api/talent/programs/${programId}`:null;

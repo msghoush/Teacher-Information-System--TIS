@@ -26,6 +26,20 @@ test('selected Evaluation Plan loads the Program directly without fetching the f
   assert.equal(calls.filter(call=>call.path==='/api/talent/programs').length,0,'full Program catalog is not fetched for selected Evaluation Plan');
 });
 
+test('embedded Evaluation Plan reuses its parent Program context and reads only fresh Cycles',async()=>{
+  const {ctx,calls}=fixture();
+  ctx.embedded=true;
+  ctx.preloadedEvaluationContext={
+    academicYearId:'100',programId:'11',program:{id:11,name:'Performing Arts'},
+    plans:[],annual:[{id:21,academic_year_id:100,is_enabled:true}],
+    frameworks:[{id:31,title:'Arts rubric',version_number:1,status:'active'}],
+  };
+
+  await render(ctx);
+
+  assert.deepEqual(calls.map(call=>call.path),['/api/talent/assessment-cycles?academic_year_id=100&program_id=11']);
+});
+
 
 test('authorized empty context offers a free-text evaluation name, not a fixed picklist',async()=>{
   const {ctx,root}=fixture();await render(ctx);
