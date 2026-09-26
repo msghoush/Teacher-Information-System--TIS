@@ -7,6 +7,37 @@ source_of_truth: true
 
 # TIS Change History
 
+## 2026-09-26 - Fixed a duplicate DB session on Talent M10 analytics routes
+
+- Production incident: `QueuePool limit of size 5 overflow 10 reached,
+  connection timed out` under concurrent Talent Executive Overview /
+  organization-analytics traffic. Root cause: every route pairing
+  `Depends(get_m10_organization_analytics_db)` with `current_user =
+  Depends(get_current_user)` held two simultaneous connections checked out
+  for its whole lifetime, because `get_current_user`'s own `db` dependency
+  is a different callable (`get_db`) than the route's, so FastAPI's
+  per-request dependency cache never deduplicated them.
+- Fix: `auth.get_current_user_via_m10_analytics_db` runs the identical
+  current-user resolution logic (`auth._resolve_current_user`, unchanged),
+  bound to the M10 REPEATABLE READ session instead of `get_db`, so both
+  dependencies share one connection. Applied to every affected route in
+  `routers/talent_organization_analytics.py` and
+  `routers/talent_results_analytics.py` (`executive_overview`, `dashboard`);
+  every other route's `get_current_user` is unchanged.
+- Measured against an isolated Postgres instance with the production
+  pool defaults (`pool_size=5`, `max_overflow=10`, `timeout=30`): peak
+  simultaneous connections per request 2 -> 1; checkouts/request 3 -> 2;
+  concurrent-load timeouts (reproduced verbatim from ~22 concurrent
+  requests, consistent by 30+) eliminated through 60 concurrent requests,
+  0 errors, pool returns to 0 after every burst; statement count unchanged
+  at 75/request (a separate, later optimization).
+- No schema, migration, permission, tenant/organization-scope, or ADR 0029
+  snapshot-boundary change. Tests: `tests/test_talent_m10_session_reuse.py`
+  (new, 6, including an AST guard against regression); fixture updates in
+  11 existing test files that override `get_current_user` for these routes.
+  KMS: `docs/adr/0029-m10-organization-analytics-repeatable-read-boundary.md`
+  dated amendment.
+
 ## 2026-09-26 - Talent & Potential configuration centralized in System Configuration
 
 - SYSTEM CONFIGURATION = DEFINE Talent & Potential; the normal Talent module = USE Talent & Potential.

@@ -101,6 +101,18 @@ source_of_truth: true
   Plan mutation control; a bookmarked `#tp-*` Program-setup deep link redirects an authorized actor into the
   System Configuration workspace instead of a removed operational editor.
 
+## M10 analytics current-user session reuse (2026-09-26)
+
+- `auth._resolve_current_user(request, db)`: the current-user resolution logic, unchanged, taking a
+  plain `db` argument. `auth.get_current_user` (`Depends(get_db)`) and
+  `auth.get_current_user_via_m10_analytics_db` (`Depends(get_m10_organization_analytics_db)`) are thin
+  public wrappers over it. Every route pairing `dependencies.get_m10_organization_analytics_db` with a
+  current-user dependency must use the latter (`routers/talent_organization_analytics.py` imports it
+  under the alias `get_current_user`; `routers/talent_results_analytics.py`'s `executive_overview` and
+  `dashboard` import it directly) so FastAPI's per-request dependency cache shares one session instead of
+  opening a second, independent `get_db()` connection for the whole request. Guarded by an AST test in
+  `tests/test_talent_m10_session_reuse.py`.
+
 ## Start Assessment eligibility (Final Closure Part A, 2026-09-25)
 
 - `talent_student_assessment_service.roster_start_states` is the single predicate shared by the roster

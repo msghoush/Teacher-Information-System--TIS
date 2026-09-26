@@ -37,6 +37,23 @@ summary: "THIS TASK (Deployment Acceptance Batch 1 - data correctness, scope int
 # after reconciliation. Real-browser acceptance (desktop 1440x1000, narrow 768x900, mobile
 # 390x844) matched the approved visual reference, 0 console errors, 0 network failures.
 # No schema, migration, new permission key or tis.db change; Web Service only.
+#
+# M10 ANALYTICS DUPLICATE-SESSION FIX (2026-09-26): every route pairing
+# Depends(get_m10_organization_analytics_db) with current_user=Depends(get_current_user)
+# held two simultaneous DB connections for its whole lifetime, because get_current_user's
+# own db dependency (get_db) is a different FastAPI-cached callable than the route's own
+# M10 session - reproduced verbatim ("QueuePool ... connection timed out") under concurrency
+# against an isolated Postgres instance with the production-default pool_size=5/
+# max_overflow=10/timeout=30. Fix: auth.get_current_user_via_m10_analytics_db runs the
+# identical auth._resolve_current_user logic bound to the M10 session, so FastAPI resolves
+# it once and shares it; applied to every affected route in
+# routers/talent_organization_analytics.py and routers/talent_results_analytics.py. Measured
+# peak simultaneous connections/request 2 -> 1, checkouts/request 3 -> 2, timeouts (from ~22
+# concurrent requests) eliminated through 60 concurrent requests with 0 errors, statement
+# count unchanged at 75/request (separate, later optimization). No schema, migration,
+# permission, tenant/organization-scope or ADR 0029 snapshot-boundary change. Tests:
+# tests/test_talent_m10_session_reuse.py (new, 6, incl. AST regression guard); fixture
+# updates in 11 existing test files. KMS: docs/adr/0029 dated amendment.
 affected_areas:
   - architecture
   - analytics_privacy
@@ -49,11 +66,7 @@ affected_areas:
   - tests
 major_change_override: no
 kms_files_updated:
-  - docs/AI_PROJECT_CONTEXT.md
   - docs/CHANGE_HISTORY.md
-  - docs/PROJECT_STATE.md
-  - docs/TIS_MASTER_CONTEXT.md
-  - docs/adr/0044-talent-evaluation-progress-analytics.md
+  - docs/adr/0029-m10-organization-analytics-repeatable-read-boundary.md
   - docs/engineering/TIS_MODULE_MAP.md
-  - docs/engineering/USER_AND_SYSTEM_FLOWS.md
 no_impact_reason: ""

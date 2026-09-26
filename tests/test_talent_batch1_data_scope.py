@@ -31,7 +31,7 @@ from sqlalchemy.pool import StaticPool
 
 import models
 import talent_org_intelligence_service as osvc
-from auth import get_current_user
+from auth import get_current_user, get_current_user_via_m10_analytics_db
 from database import Base
 from dependencies import get_db, get_m10_organization_analytics_db
 from routers import (
@@ -110,6 +110,10 @@ class World:
         app.dependency_overrides[get_db] = request_db
         app.dependency_overrides[get_m10_organization_analytics_db] = request_db
         app.dependency_overrides[get_current_user] = request_user
+        # M10 analytics routes resolve current-user through the M10-bound
+        # dependency (production incident fix: shares the request's single
+        # M10 session instead of opening a second, independent get_db() one).
+        app.dependency_overrides[get_current_user_via_m10_analytics_db] = request_user
         app.dependency_overrides[resolve_privacy_policy_provider] = lambda: AllowAllTestPolicy()
         app.dependency_overrides[osvc.resolve_organization_analytics_availability_provider] = lambda: AllowAvailability()
         app.dependency_overrides[osvc.resolve_organization_analytics_breadth_policy] = lambda: AllowBreadth()

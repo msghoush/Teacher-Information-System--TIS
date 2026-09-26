@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
-from auth import get_current_user
+from auth import get_current_user_via_m10_analytics_db as get_current_user
 from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy import Cell, COARSENED, VISIBLE, resolve_privacy_policy_provider
 from talent_analytics_privacy_closure import PrivacyClosureError, apply_primary_privacy_and_close

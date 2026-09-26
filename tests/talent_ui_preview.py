@@ -13,7 +13,7 @@ os.chdir(Path(__file__).resolve().parents[1])
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from auth import get_current_user
+from auth import get_current_user, get_current_user_via_m10_analytics_db
 from dependencies import get_db, get_m10_organization_analytics_db
 import models
 from routers import (talent_ui, talent_programs, talent_evaluation_plans,
@@ -40,7 +40,7 @@ for module in (talent_ui, talent_programs, talent_evaluation_plans, talent_asses
     app.include_router(module.router)
 app.dependency_overrides[get_db] = lambda: session
 app.dependency_overrides[get_m10_organization_analytics_db] = lambda: session
-app.dependency_overrides[get_current_user] = lambda: actor()
+app.dependency_overrides[get_current_user] = lambda: actor(); app.dependency_overrides[get_current_user_via_m10_analytics_db]=app.dependency_overrides[get_current_user]
 app.dependency_overrides[resolve_privacy_policy_provider] = lambda: AllowAllTestPolicy()
 app.dependency_overrides[resolve_organization_analytics_availability_provider] = lambda: AllowAvailability()
 app.dependency_overrides[resolve_organization_analytics_breadth_policy] = lambda: AllowBreadth()

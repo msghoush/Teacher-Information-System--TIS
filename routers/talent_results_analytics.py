@@ -35,7 +35,7 @@ import authorization
 import models
 import talent_analytics_service as svc
 import talent_results_analytics_service as results_svc
-from auth import get_current_user
+from auth import get_current_user, get_current_user_via_m10_analytics_db
 from dependencies import get_db, get_m10_organization_analytics_db
 from student_learning_style_analytics import build_distribution as build_learning_style_distribution
 from student_learning_style_analytics import resolve_population as resolve_learning_style_population
@@ -51,7 +51,7 @@ _FILTER_KEYS = ("period_id", "cycle_id", "branch_id", "grade", "section_id", "fr
 @router.get('/academic-years/{academic_year_id}/executive-overview')
 def executive_overview(academic_year_id: int, request: Request,
                        db: Session = Depends(get_m10_organization_analytics_db),
-                       current_user=Depends(get_current_user),
+                       current_user=Depends(get_current_user_via_m10_analytics_db),
                        policy=Depends(resolve_privacy_policy_provider)):
     user, denied = authorization.require_any_permission(
         request, db, 'talent_analytics.view', current_user=current_user,
@@ -91,7 +91,7 @@ def executive_overview(academic_year_id: int, request: Request,
 
 @router.get('/academic-years/{academic_year_id}/dashboard')
 def dashboard(academic_year_id: int, request: Request,
-              db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user),
+              db: Session = Depends(get_m10_organization_analytics_db), current_user=Depends(get_current_user_via_m10_analytics_db),
               policy=Depends(resolve_privacy_policy_provider)):
     user, denied = authorization.require_any_permission(
         request, db, 'talent_analytics.view', current_user=current_user, page_key='talent_results_analytics',
