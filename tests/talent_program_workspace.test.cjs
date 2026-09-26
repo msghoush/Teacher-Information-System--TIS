@@ -426,11 +426,15 @@ test('a Program save refreshes only selected Program data and keeps the hash cac
   assert.match(root.innerHTML,/Updated description/);
   assert.doesNotMatch(root.innerHTML,/Original description/);
 });
-test('a failed initial fetch never populates the cache, so a subsequent hash-only render safely falls back to a real fetch instead of throwing or reusing a broken bundle',async()=>{
-  const {ctx,root}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
+test('a failed initial fetch never populates the cache, shows a retryable error instead of throwing (Program-switch race/stale-workspace fix), and a subsequent hash-only render safely falls back to a real fetch instead of reusing a broken bundle',async()=>{
+  const {ctx,root,feedback}=fixture(true,'draft',{step:'basics',hash:'#tp-basics'});
   const read=ctx.api;
   ctx.api=async(path,options)=>{if(!options&&(path==='/api/talent/programs/11'||path==='/api/talent/programs'))throw new Error('Network error');return read(path,options);};
-  await assert.rejects(render(ctx));
+  // render() itself must never reject: an uncaught rejection here used to propagate
+  // through renderCenter()/selectProgram() with no handler anywhere, leaving
+  // "Refreshing Program data…"/aria-busy stuck on screen forever.
+  await assert.doesNotReject(render(ctx));
+  assert.match(feedback.textContent,/could not be loaded|Network error/);
   ctx.api=read;
   await render(ctx,{viaHash:true});
   assert.match(root.innerHTML,/id="tp-basics" class="tp-wizard-panel"/);

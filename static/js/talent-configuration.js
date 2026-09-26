@@ -224,7 +224,16 @@
       }
       state.treeShown = false;
       if (!ws?.render) { content.innerHTML = errorHtml('A required page component did not load. Reload the page.', false); return; }
-      await ws.render(workspaceContext(content, state.programId));
+      try {
+        await ws.render(workspaceContext(content, state.programId));
+      } catch (error) {
+        // Defense in depth: the editor guards its own fetch chain against a
+        // superseded Program switch, but a stale render() call must never be
+        // allowed to leave this shell showing a stuck loading state either.
+        if (token !== state.token) return;
+        content.removeAttribute?.('aria-busy');
+        content.innerHTML = errorHtml(safe(error), true);
+      }
     }
 
     async function selectProgram(id, {hash} = {}) {
