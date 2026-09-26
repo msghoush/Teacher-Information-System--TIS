@@ -176,3 +176,33 @@ implementation is PASSED and checkpointable. As of 2026-09-09
 ADR 0028, ADR 0030), B11-E is CLOSED WITH ONE ENVIRONMENT-SPECIFIC DEPLOYMENT
 VERIFICATION ITEM REMAINING and B11 overall is CLOSED on that same basis; B12
 is CLOSED.
+
+## Duplicate-Session Incident Amendment (2026-09-26)
+
+Dated fix, no architectural or semantic change to this ADR. Production evidence
+(`QueuePool limit of size 5 overflow 10 reached, connection timed out`) traced to
+every route pairing `db: Session = Depends(get_m10_organization_analytics_db)`
+with `current_user = Depends(get_current_user)`: FastAPI's per-request
+dependency cache keys on the callable, and `get_current_user`'s own `db`
+parameter is hardcoded to the unrelated `get_db` dependency, so it was never
+deduplicated against the M10 dependency this ADR introduced - each such request
+held two simultaneous connections checked out for its whole lifetime (measured
+peak 2, 3 checkouts/request including the already-fixed idle-timeout middleware).
+Reproduced under concurrency against an isolated Postgres instance with the
+production-default pool (unconfigured `pool_size=5`/`max_overflow=10`/`timeout=30`):
+consistent timeouts from ~22 concurrent Executive Overview requests, exact
+production error verbatim by 30+.
+
+Fix: `auth.get_current_user_via_m10_analytics_db` resolves the identical
+`auth._resolve_current_user` logic this ADR's routes already used, bound to
+`get_m10_organization_analytics_db` instead of `get_db`, so FastAPI resolves
+the M10 REPEATABLE READ session exactly once per request and shares it. Every
+route depending on `get_m10_organization_analytics_db` (`routers/talent_organization_analytics.py`,
+`routers/talent_results_analytics.py`'s `executive_overview`/`dashboard`) now
+also depends on this dependency, never the plain one - guarded by an AST test
+(`tests/test_talent_m10_session_reuse.py`) against silent regression. Measured
+after: peak 1 simultaneous connection, 2 checkouts/request, 0 timeouts through
+60 concurrent requests, pool returns to 0 after every burst. No isolation
+level, snapshot boundary, query, schema, migration, or permission change; the
+75-statement-per-request cost this ADR's routes already carried is unchanged
+and remains separate, later optimization work.

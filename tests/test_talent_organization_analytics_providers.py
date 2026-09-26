@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.testclient import TestClient
 
-from auth import get_current_user
+from auth import get_current_user, get_current_user_via_m10_analytics_db
 from dependencies import get_db, get_m10_organization_analytics_db
 from routers import talent_organization_analytics, talent_ui
 from saas import customer_feature_policy, demo_feature_registry
@@ -184,6 +184,9 @@ def test_normal_local_endpoint_and_page_use_canonical_data(monkeypatch, db):
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_m10_organization_analytics_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: current
+    # organization-analytics routes resolve current-user through the M10-bound
+    # dependency (production incident fix: shares the single M10 session).
+    app.dependency_overrides[get_current_user_via_m10_analytics_db] = lambda: current
     client = TestClient(app)
 
     overview = client.get(

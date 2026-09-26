@@ -11,7 +11,7 @@ import pytest
 from sqlalchemy import event
 
 import models
-from auth import get_current_user
+from auth import get_current_user, get_current_user_via_m10_analytics_db
 from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy import (
     AllowAllTestPolicy, DeterministicSuppressionTestPolicy, resolve_privacy_policy_provider,
@@ -90,7 +90,7 @@ def client(db):
         "breadth": AllowBreadth(), "policy": AllowAllTestPolicy(),
     }
     app.dependency_overrides[get_m10_organization_analytics_db] = lambda: db
-    app.dependency_overrides[get_current_user] = lambda: state["user"]
+    app.dependency_overrides[get_current_user] = lambda: state["user"]; app.dependency_overrides[get_current_user_via_m10_analytics_db]=app.dependency_overrides[get_current_user]
     app.dependency_overrides[resolve_organization_analytics_availability_provider] = lambda: state["availability"]
     app.dependency_overrides[resolve_organization_analytics_breadth_policy] = lambda: state["breadth"]
     app.dependency_overrides[resolve_privacy_policy_provider] = lambda: state["policy"]

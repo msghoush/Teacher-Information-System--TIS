@@ -12,7 +12,7 @@ from sqlalchemy import or_
 from fastapi import Request, Depends
 import bcrypt
 import models
-from dependencies import get_db
+from dependencies import get_db, get_m10_organization_analytics_db
 
 ROLE_DEVELOPER = "Developer"  # Legacy value migrated to PLATFORM/Platform Developer.
 ROLE_ADMINISTRATOR = "Administrator"
@@ -895,6 +895,38 @@ def get_current_user(
     request: Request,
     db: Session = Depends(get_db)
 ):
+    return _resolve_current_user(request, db)
+
+
+def get_current_user_via_m10_analytics_db(
+    request: Request,
+    db: Session = Depends(get_m10_organization_analytics_db),
+):
+    """Identical current-user resolution, bound to the M10 REPEATABLE READ session.
+
+    Production incident fix: a route taking both `db: Session =
+    Depends(get_m10_organization_analytics_db)` and `current_user =
+    Depends(get_current_user)` held TWO simultaneous connections checked out
+    for its whole lifetime - FastAPI's per-request dependency cache keys on
+    the callable, and `get_current_user`'s own `db` parameter is hardcoded to
+    the unrelated `get_db` dependency, so it is never deduplicated against
+    `get_m10_organization_analytics_db`. Measured: peak 2 simultaneous
+    checked-out connections per request (verified via SQLAlchemy pool
+    checkout/checkin instrumentation), reproducing the exact production
+    `QueuePool ... connection timed out` traceback under concurrency.
+
+    Every M10/Talent-analytics route must use THIS dependency (never plain
+    `get_current_user`) alongside `Depends(get_m10_organization_analytics_db)`:
+    both then resolve the identical cached session for that one request, so
+    exactly one connection is checked out. No authentication, authorization,
+    tenant/organization-scope, or ADR 0029 REPEATABLE READ snapshot behavior
+    changes - `_resolve_current_user` is the single shared implementation
+    `get_current_user` itself calls; only the session it reads from differs.
+    """
+    return _resolve_current_user(request, db)
+
+
+def _resolve_current_user(request: Request, db: Session):
     user_id = get_session_user_id(request)
 
     if not user_id:

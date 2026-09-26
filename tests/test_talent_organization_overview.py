@@ -4,7 +4,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 import pytest
 
-from auth import get_current_user
+from auth import get_current_user, get_current_user_via_m10_analytics_db
 from dependencies import get_m10_organization_analytics_db
 from talent_analytics_privacy import (
     AllowAllTestPolicy, CoarsenWithReplacementTestPolicy,
@@ -23,7 +23,7 @@ def client(db):
     app.include_router(route.router)
     state = {"user": actor(scope="ORGANIZATION"), "availability": AllowAvailability(), "policy": AllowAllTestPolicy()}
     app.dependency_overrides[get_m10_organization_analytics_db] = lambda: db
-    app.dependency_overrides[get_current_user] = lambda: state["user"]
+    app.dependency_overrides[get_current_user] = lambda: state["user"]; app.dependency_overrides[get_current_user_via_m10_analytics_db]=app.dependency_overrides[get_current_user]
     app.dependency_overrides[resolve_organization_analytics_availability_provider] = lambda: state["availability"]
     app.dependency_overrides[resolve_privacy_policy_provider] = lambda: state["policy"]
     return TestClient(app), state
