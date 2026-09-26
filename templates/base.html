@@ -104,6 +104,25 @@
                 <h3 class="sidebar-section-title">Navigation</h3>
                 <nav class="sidebar-nav" aria-label="Primary navigation" data-design-component="shell.navigation" data-design-type="navigation">
                     {% for item in shell.nav_items %}
+                    {% if item.children %}
+                    <details class="sidebar-nav-group" {% if item.active %}open{% endif %}>
+                        <summary class="sidebar-link {% if item.active %}is-active{% endif %}">
+                            <span class="sidebar-link-main">
+                                {{ icon(item.icon, "shell-icon") }}
+                                <span class="sidebar-link-copy"><strong>{{ item.label }}</strong></span>
+                            </span>
+                            <span class="sidebar-chevron">{{ icon("chevron-right", "shell-icon") }}</span>
+                        </summary>
+                        <div class="sidebar-tree" role="group" aria-label="{{ item.label }} navigation">
+                            {% for child in item.children %}
+                            <a class="sidebar-tree-link {% if child.active %}is-active{% endif %}" href="{{ child.href }}">
+                                {{ icon(child.icon, "shell-icon") }}
+                                <span>{{ child.label }}</span>
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </details>
+                    {% else %}
                     <a class="sidebar-link {% if item.active %}is-active{% endif %}" href="{{ item.href }}">
                         <span class="sidebar-link-main">
                             {% if item.brand_logo %}
@@ -120,15 +139,6 @@
                         </span>
                         <span class="sidebar-chevron">{{ icon("chevron-right", "shell-icon") }}</span>
                     </a>
-                    {% if item.children and item.active %}
-                    <div class="sidebar-tree" role="group" aria-label="{{ item.label }} navigation">
-                        {% for child in item.children %}
-                        <a class="sidebar-tree-link {% if child.active %}is-active{% endif %}" href="{{ child.href }}">
-                            {{ icon(child.icon, "shell-icon") }}
-                            <span>{{ child.label }}</span>
-                        </a>
-                        {% endfor %}
-                    </div>
                     {% endif %}
                     {% endfor %}
                 </nav>

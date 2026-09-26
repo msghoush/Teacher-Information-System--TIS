@@ -28,7 +28,7 @@ def test_talent_capable_user_gets_one_students_entry_nested_under_talent():
 
     talent_item = next(item for item in items if item["href"] == "/talent")
     child_labels = [child["label"] for child in talent_item["children"]]
-    assert child_labels[0] == "Students", "Students must be the first child under Talent & Potential"
+    assert child_labels[:2] == ["Overview", "Students"]
     assert child_labels.count("Students") == 1, "Students must appear exactly once"
 
 

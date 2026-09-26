@@ -1,11 +1,22 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.14
-last_updated: 2026-09-25
+documentation_version: 4.15
+last_updated: 2026-09-26
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Navigation and System Configuration information architecture (2026-09-26)
+
+The light application sidebar is objective-based: Academic Planning owns Dashboard,
+Subjects, Teachers and Planning; Talent & Potential owns Overview, Students, Programs,
+Student Assessments and Results & Analytics; System Configuration owns Organization,
+Academic Setup, Users & Access and Talent & Potential. These are permission-filtered,
+native expandable trees and retain the existing child routes. The System Configuration
+landing page is a searchable tree/list, not a card dashboard; Talent & Potential is
+expanded by default with Programs, Rubrics & Competencies, Evaluation Periods and
+Criteria / KPI. This is presentation/navigation only and changes no authorization rule.
 
 ## Talent Executive Overview invariant (2026-09-25)
 

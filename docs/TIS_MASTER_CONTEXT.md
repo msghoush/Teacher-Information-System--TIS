@@ -1,11 +1,22 @@
 ---
 title: TIS Master Context
-documentation_version: 4.16
-last_updated: 2026-09-25
+documentation_version: 4.17
+last_updated: 2026-09-26
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Sidebar and configuration hierarchy (2026-09-26)
+
+Primary navigation is grouped into light expandable trees. Academic Planning contains
+Dashboard, Subjects, Teachers and Planning. Talent & Potential contains Overview,
+Students, Programs, Student Assessments and Results & Analytics. System Configuration
+contains Organization, Academic Setup, Users & Access and Talent & Potential. Child
+visibility remains permission-derived and every destination keeps its established route
+and backend gate. The System Configuration landing surface is a searchable tree/list;
+Talent & Potential opens expanded with Programs, Rubrics & Competencies, Evaluation
+Periods and Criteria / KPI. No permission, tenant, Branch, schema or API semantics changed.
 
 ## Talent Executive Overview authority (2026-09-25)
 

@@ -1,11 +1,24 @@
 ---
 title: TIS Change History
-documentation_version: 5.19
+documentation_version: 5.20
 last_updated: 2026-09-26
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-26 - Reorganized sidebar and System Configuration UI
+
+- Grouped Dashboard, Subjects, Teachers and Planning under Academic Planning; kept
+  Talent & Potential and System Configuration as permission-aware expandable trees.
+- Replaced the dark navigation treatment with the approved light pastel hierarchy,
+  visible indentation, active states and native disclosure behavior.
+- Replaced the System Configuration stat/module card dashboard with a searchable
+  tree/list. Talent & Potential is expanded with Programs, Rubrics & Competencies,
+  Evaluation Periods and Criteria / KPI, all targeting existing configuration routes.
+- No backend, permission, tenant/Branch, schema, migration, API or `tis.db` change.
+  Template compilation and 164 focused Python tests passed; no browser surface was
+  available for live visual verification in this session.
 
 ## 2026-09-26 - Fixed a duplicate DB session on Talent M10 analytics routes
 

@@ -1,11 +1,24 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.15
-last_updated: 2026-09-25
+documentation_version: 3.16
+last_updated: 2026-09-26
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Sidebar and System Configuration discovery flow (2026-09-26)
+
+1. The sidebar shows only parent/child destinations allowed by the actor's existing
+   permissions. Academic work is discovered under Academic Planning; operational Talent
+   work under Talent & Potential; administrative setup under System Configuration.
+2. Selecting a disclosure row expands or collapses that tree without navigation. The
+   tree containing the current route opens automatically and marks the active child.
+3. Opening System Configuration presents Organization, Academic Setup, Users & Access
+   and Talent & Potential as tree/list rows. Search filters these sections in place.
+4. Talent & Potential starts expanded; its four child rows enter the existing canonical
+   configuration workspace. Existing server-side permission and organization-scope
+   enforcement remains authoritative at every destination.
 
 ## Executive Overview flow (2026-09-25)
 
