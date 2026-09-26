@@ -485,8 +485,8 @@ def _build_nav_items(
             if current_path == "/students" or current_path.startswith("/students/"):
                 nav_item["active"] = True
             talent_children = [
-                {"label": "Students", "href": "/students/", "icon": "users", "allowed": can("students.view")},
                 {"label": "Overview", "href": "/talent/overview", "icon": "dashboard", "allowed": True},
+                {"label": "Students", "href": "/students/", "icon": "users", "allowed": can("students.view")},
                 {"label": "Programs", "href": "/talent/programs", "icon": "degree", "allowed": can("talent_programs.view")},
                 {"label": "Student Assessments", "href": "/talent/assessments", "icon": "exam", "allowed": can("talent_assessments.view")},
                 {"label": "Results & Analytics", "href": "/talent/analytics", "icon": "insights", "allowed": can("talent_analytics.view")},
@@ -520,6 +520,78 @@ def _build_nav_items(
                 if child["allowed"]
             ]
         items.append(nav_item)
+
+    # The application navigation is organized around product objectives rather
+    # than individual screens. Children retain their original destinations and
+    # permission checks; these parent nodes only provide the visual tree.
+    academic_hrefs = {"/dashboard", "/subjects/", "/teachers/", "/planning/"}
+    academic_children = [item for item in items if item["href"] in academic_hrefs]
+    if academic_children:
+        first_index = min(items.index(item) for item in academic_children)
+        items = [item for item in items if item["href"] not in academic_hrefs]
+        academic_item = {
+            "label": "Academic Planning",
+            "href": academic_children[0]["href"],
+            "icon": "planning",
+            "active": any(child["active"] for child in academic_children),
+            "children": [
+                {
+                    "label": child["label"],
+                    "href": child["href"],
+                    "icon": child["icon"],
+                    "active": child["active"],
+                }
+                for label in ("Dashboard", "Subjects", "Teachers", "Planning")
+                for child in academic_children
+                if child["label"] == label
+            ],
+        }
+        items.insert(first_index, academic_item)
+
+    for item in items:
+        if item["href"] != "/system-configuration":
+            continue
+        configuration_children = [
+            {
+                "label": "Organization",
+                "href": "/system-configuration/schools",
+                "icon": "branch",
+                "allowed": can_any("schools.view", "branches.view", "academic_years.view", "branding.view"),
+            },
+            {
+                "label": "Academic Setup",
+                "href": "/system-configuration/academic-years",
+                "icon": "degree",
+                "allowed": can_any(
+                    "academic_years.view", "configuration.manage_degrees",
+                    "configuration.manage_specializations", "timetable.manage_settings",
+                    "calendar.manage_event_types",
+                ),
+            },
+            {
+                "label": "Users & Access",
+                "href": "/users",
+                "icon": "users",
+                "allowed": can_any("users.view", "configuration.manage_permissions"),
+            },
+            {
+                "label": "Talent & Potential",
+                "href": talent_configuration_access.TALENT_CONFIGURATION_PATH,
+                "icon": "sparkles",
+                "allowed": can_configure_talent,
+            },
+        ]
+        item["children"] = [
+            {
+                "label": child["label"],
+                "href": child["href"],
+                "icon": child["icon"],
+                "active": is_active(child["href"]),
+            }
+            for child in configuration_children
+            if child["allowed"]
+        ]
+        item["active"] = is_active("/system-configuration")
 
     return items
 

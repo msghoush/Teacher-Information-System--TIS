@@ -1,11 +1,23 @@
 ---
 title: TIS Module Map
-documentation_version: 4.11
-last_updated: 2026-09-25
+documentation_version: 4.12
+last_updated: 2026-09-26
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Navigation and System Configuration presentation (2026-09-26)
+
+- `ui_shell.py`: permission-filtered Academic Planning, Talent & Potential and System
+  Configuration parent trees; existing child route ownership is unchanged.
+- `templates/base.html`, `static/css/app-shell.css`: native disclosure navigation with
+  a light pastel sidebar, hierarchy indentation and active states.
+- `templates/system_configuration_hub.html`: searchable four-section configuration
+  tree/list; the expanded Talent section links to the existing
+  `/system-configuration/talent-potential` workspace and its established tabs.
+- `tests/test_system_configuration_navigation_reorganization.py` plus updated shell and
+  Talent configuration tests lock hierarchy, permission filtering and non-card markup.
 
 ## Talent Executive Overview (2026-09-25)
 

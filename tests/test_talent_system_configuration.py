@@ -123,17 +123,21 @@ def test_system_configuration_sidebar_child_only_for_authorized_actors():
         can_configure_talent=flag,
     )
     config = next(item for item in items(True) if item['href'] == '/system-configuration')
-    assert [child['href'] for child in config['children']] == [PATH]
-    assert config['children'][0]['label'] == 'Talent & Potential'
-    assert config['children'][0]['active'] is True
-    assert 'children' not in next(item for item in items(False) if item['href'] == '/system-configuration')
+    assert [child['label'] for child in config['children']] == [
+        'Organization', 'Academic Setup', 'Users & Access', 'Talent & Potential',
+    ]
+    assert config['children'][-1]['href'] == PATH
+    assert config['children'][-1]['active'] is True
+    assert [child['label'] for child in next(item for item in items(False) if item['href'] == '/system-configuration')['children']] == [
+        'Organization', 'Academic Setup', 'Users & Access',
+    ]
 
 
-def test_operational_talent_navigation_is_unchanged():
+def test_operational_talent_navigation_uses_requested_tree_order():
     allowed = {'students.view', 'talent_programs.view', 'talent_assessments.view', 'talent_analytics.view'}
     items = _build_nav_items('/talent', can=lambda key: key in allowed, can_any=lambda *keys: any(k in allowed for k in keys))
     talent = next(item for item in items if item['href'] == '/talent')
-    assert [child['label'] for child in talent['children']] == ['Students', 'Overview', 'Programs', 'Student Assessments', 'Results & Analytics']
+    assert [child['label'] for child in talent['children']] == ['Overview', 'Students', 'Programs', 'Student Assessments', 'Results & Analytics']
     assert all('system-configuration' not in child['href'] for child in talent['children'])
 
 

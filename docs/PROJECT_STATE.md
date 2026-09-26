@@ -1,11 +1,30 @@
 ---
 title: TIS Project State
-documentation_version: 5.27
-last_updated: 2026-09-25
+documentation_version: 5.28
+last_updated: 2026-09-26
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Sidebar Navigation and System Configuration Reorganization (2026-09-26)
+
+Implemented locally on `dev`; Web Service only; not committed or deployed. The dark,
+flat sidebar is replaced by the approved light objective hierarchy: Academic Planning
+(Dashboard, Subjects, Teachers, Planning), Talent & Potential (Overview, Students,
+Programs, Student Assessments, Results & Analytics), and System Configuration
+(Organization, Academic Setup, Users & Access, Talent & Potential). Native disclosure
+groups provide expand/collapse behavior, active trees open automatically, and every
+child retains its existing permission check and route.
+
+The System Configuration landing page no longer renders KPI/module cards. It now has
+the reference-aligned title/subtitle, configuration search, soft colorful icon tiles and
+rounded tree/list rows. Talent & Potential is expanded by default with Programs, Rubrics
+& Competencies, Evaluation Periods and Criteria / KPI linking into the existing canonical
+configuration workspace. No backend behavior, route contract, permission, tenant/Branch
+scope, schema, migration or `tis.db` change. Focused verification: template compilation
+and 164 Python navigation/permission/configuration tests passed; browser automation was
+unavailable because this session exposed no browser surface.
 
 ## Talent Executive Overview final batch (2026-09-25)
 

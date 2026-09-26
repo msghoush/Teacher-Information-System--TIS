@@ -12383,8 +12383,8 @@ def system_configuration(
         current_user=current_user,
         template_name="system_configuration_hub.html",
         active_module_key="overview",
-        title="Configuration Hub",
-        intro="Open each configuration module from a clean landing page instead of managing everything on one screen.",
+        title="System Configuration",
+        intro="Configure organization-wide settings, academic structures, users, and system preferences.",
     )
 
 
