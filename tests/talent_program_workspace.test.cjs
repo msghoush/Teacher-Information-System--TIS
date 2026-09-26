@@ -138,6 +138,11 @@ test('Evaluation Plan is rendered inside the Program wizard without a standalone
   await render(ctx);
   assert.match(root.innerHTML,/id="tp-schedule" class="tp-wizard-panel"/);
   assert.ok(embedded?.embedded);
+  assert.equal(embedded.preloadedEvaluationContext.programId,'11');
+  assert.equal(embedded.preloadedEvaluationContext.program.id,11);
+  assert.ok(Array.isArray(embedded.preloadedEvaluationContext.annual));
+  assert.ok(Array.isArray(embedded.preloadedEvaluationContext.frameworks));
+  assert.ok(Array.isArray(embedded.preloadedEvaluationContext.plans));
   assert.doesNotMatch(root.innerHTML,/href="\/talent\/evaluation-plans/);
 });
 

@@ -151,6 +151,7 @@ class El {
   constructor(id) { this.id = id; this.innerHTML = ''; this.textContent = ''; this.hidden = false; this.dataset = {}; this.attrs = {}; this.listeners = {}; this.value = ''; this.options = []; this.selectedIndex = 0; this.classList = {add() {}}; }
   setAttribute(k, v) { this.attrs[k] = String(v); }
   getAttribute(k) { return this.attrs[k] ?? null; }
+  removeAttribute(k) { delete this.attrs[k]; }
   addEventListener(type, fn) { (this.listeners[type] ||= []).push(fn); }
   querySelector() { return null; }
 }
@@ -306,4 +307,55 @@ test('B10. in configuration mode the editor omits its "All Programs" back-link a
   const operationalLegacy = build(false);
   await render(operationalLegacy.ctx);
   assert.match(operationalLegacy.root.innerHTML, /All Programs/);
+});
+
+test('B11. a rejected selected-Program render clears busy state and exposes Retry', async () => {
+  const workspace = {
+    async render(ctx) {
+      ctx.root.setAttribute('aria-busy', 'true');
+      ctx.root.innerHTML = '<p>Refreshing Program data…</p><h2>Previous Program</h2>';
+      throw Object.assign(new Error('Program data failed.'), {userSafe: true});
+    },
+  };
+  const s = mountShell({permissions: ADMIN, workspace});
+  await s.api.ready;
+
+  s.click({'[data-tpc-select]': true, el: {dataset: {tpcSelect: '5'}}});
+  await new Promise(r => setImmediate(r));
+
+  assert.equal(s.els['tpc-content'].getAttribute('aria-busy'), null);
+  assert.match(s.els['tpc-content'].innerHTML, /This section could not be loaded/);
+  assert.match(s.els['tpc-content'].innerHTML, /Program data failed\./);
+  assert.match(s.els['tpc-content'].innerHTML, /data-tpc-retry/);
+  assert.doesNotMatch(s.els['tpc-content'].innerHTML, /Previous Program|Refreshing Program data/);
+});
+
+test('B12. selecting another Program immediately replaces old content with that Program loading state', async () => {
+  const gates = [];
+  const workspace = {
+    async render(ctx) {
+      await new Promise(resolve => gates.push(resolve));
+      const selected = ctx.programCatalog.get(ctx.params.get('program_id'));
+      ctx.root.removeAttribute('aria-busy');
+      ctx.root.innerHTML = `<h2>${selected.name}</h2>`;
+    },
+    dispose() {},
+  };
+  const s = mountShell({permissions: ADMIN, workspace});
+  await s.api.ready;
+
+  s.api.selectProgram('5');
+  assert.match(s.els['tpc-content'].innerHTML, /Loading Mental Math data/);
+  gates.shift()();
+  await new Promise(r => setImmediate(r));
+  assert.match(s.els['tpc-content'].innerHTML, /<h2>Mental Math<\/h2>/);
+
+  s.api.selectProgram('6');
+  assert.match(s.els['tpc-content'].innerHTML, /Loading Chess &lt;Club&gt; data/);
+  assert.doesNotMatch(s.els['tpc-content'].innerHTML, /Mental Math/);
+  assert.match(s.els['tpc-center-head'].innerHTML, /Chess &lt;Club&gt;/);
+  assert.equal(s.els['tpc-content'].getAttribute('aria-busy'), 'true');
+  gates.shift()();
+  await new Promise(r => setImmediate(r));
+  assert.match(s.els['tpc-content'].innerHTML, /<h2>Chess <Club><\/h2>/);
 });

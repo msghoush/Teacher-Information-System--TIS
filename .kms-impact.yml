@@ -77,9 +77,34 @@ summary: "PREVIOUS TASK (Deployment Acceptance Batch 1 - data correctness, scope
 # rejection - corrected to match). Full Node suite 380/380. No backend, schema,
 # migration, permission, or KMS-governed architecture change; Web Service only,
 # frontend static JS.
+#
+# PROGRAM-SWITCH LOADING/PERFORMANCE FIX (2026-09-26): selecting a Program now
+# immediately replaces stale prior-Program content with a loading state naming
+# the newly selected Program (talent-configuration.js selectProgram()), and the
+# embedded Evaluation Period panel reuses its parent Program-workspace render's
+# already-fetched Academic Year/Program/Framework/Evaluation Plan context
+# (preloadedEvaluationContext) instead of re-fetching it, cutting a completed
+# switch from 11 to 8 requests and removing 3 duplicate requests. Also fixed: a
+# double-UTF-8-encoded ellipsis in the new loading-state string (and its test
+# fixture), corrected to match every other ellipsis in the file. Presentation/
+# performance only; lifecycle, permission, invalidation and retry behavior
+# unchanged; no schema, migration, permission or tis.db change; Web Service
+# only. Browser-verified by the task owner (85 switches/67s; correct-content
+# time ~1084ms -> ~538ms; total switch ~1143ms -> ~596ms; 0 console errors; 0
+# unexpected 4xx/5xx; 0 pending-request accumulation) - not independently
+# reproduced here.
+#
+# RECONCILIATION (2026-09-26): rebased onto origin/dev's Program-switch
+# stabilization fix (same render() regions in talent-program-workspace.js).
+# Both preserved: the stabilization fix's hoisted token/try-catch/retryable-
+# error/embedded-panel staleness guard, and this batch's immediate stale-
+# content removal, named loading state, and preloadedEvaluationContext reuse
+# (still gated by the same token, so a superseded Program's preload can never
+# land after a newer selection). No semantics changed by the reconciliation
+# itself; verified by re-running the full focused and full Node suites.
 affected_areas:
   - frontend
   - tests
 major_change_override: no
 kms_files_updated:
-no_impact_reason: "Frontend reliability bug fix only: corrects a race condition and missing error handling in an already-documented UI surface (System Configuration Program switching). No new capability, API/permission/tenant contract, schema, or architectural decision is introduced or changed; nothing in docs/*.md becomes factually wrong. Verified via the real render()/renderCenter() functions under Node (no browser capability in this environment); full Node suite 380/380, git diff --check clean."
+no_impact_reason: "Frontend loading-state/performance fix only, on top of the already-documented System Configuration Program workspace: removes stale prior-Program content immediately on selection, shows a loading state naming the newly selected Program, and reuses the outer Program-workspace fetch's Academic Year/Program/Framework/Evaluation Plan context for the embedded Evaluation Period panel instead of re-fetching it (11 -> 8 requests per switch; duplicate requests 3 -> 0). No new capability, API/permission/tenant contract, schema, or architectural decision; lifecycle, permission, invalidation and retry behavior are unchanged. Also fixed, in scope: a double-UTF-8-encoded ellipsis ('data\xe2\x82\xac\xc2\xa6' style mojibake) in the new loading-state string and its test fixture, corrected to the same single-encoded ellipsis used elsewhere in the file. Browser-verified per the task owner (85 switches over 67s; correct-content time ~1084ms -> ~538ms; total switch duration ~1143ms -> ~596ms; 0 console errors; 0 unexpected 4xx/5xx; 0 pending-request accumulation) - not independently reproduced here (no browser capability in this environment). Rebased onto origin/dev's separate, later Program-switch stabilization fix (same render() regions in talent-program-workspace.js): both preserved - the hoisted token/try-catch/retryable-error/embedded-panel staleness guard from that fix, and this batch's immediate stale-content removal/named loading state/preloadedEvaluationContext reuse, still gated by the same token. Verified after reconciliation: focused Node (talent_configuration_separation, talent_evaluation_workspace, talent_program_workspace, talent_program_switch_race) and full Node suite all passing, git diff --check clean. No backend, schema, migration, or permission change; Web Service only, frontend static JS/CSS."

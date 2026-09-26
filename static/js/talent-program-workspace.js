@@ -211,11 +211,15 @@
       ({program, base, configuredGrades, annual, versions, bank, plans} = bundleCache.data);
       framework = bundleCache.data.framework; config = bundleCache.data.config;
     } else {
-      const alreadyRendered=Boolean(root.querySelector?.('.tp-wizard-panel,.tp-program-summary,[data-program-row]'));
+      // token is captured once at the top of render() (origin/dev fix), covering
+      // every path including the [data-tpc-program-loading] shell placeholder
+      // this batch adds (so a Program switch that replaces it is still detected
+      // as "already rendered" and takes the Refreshing-data path, not a blank one).
+      const alreadyRendered=Boolean(root.querySelector?.('.tp-wizard-panel,.tp-program-summary,[data-program-row],[data-tpc-program-loading]'));
       const existingStatus=root.querySelector?.('[data-status]');
       if(alreadyRendered){
         root.setAttribute?.('aria-busy','true');
-        if(existingStatus) existingStatus.textContent='Refreshing Program data…';
+        if(existingStatus&&!root.querySelector?.('[data-tpc-program-loading]')) existingStatus.textContent='Refreshing Program data…';
       }else{
         root.innerHTML='<p role="status">Loading Programs…</p>';
       }
@@ -707,7 +711,13 @@
     if(token===renderToken && activeStep==='schedule'&&can('talent_evaluation_plans.view')) {
       const scheduleRoot=root.querySelector('[data-embedded-schedule]');
       const scheduleRenderer=ctx.renderSchedule||(typeof window!=='undefined'&&window.TalentEvaluationWorkspace?.render);
-      if(scheduleRoot&&scheduleRenderer)await scheduleRenderer({...ctx,root:scheduleRoot,params:new URLSearchParams({academic_year_id:year||'',program_id:pid}),embedded:true});
+      if(scheduleRoot&&scheduleRenderer)await scheduleRenderer({
+        ...ctx,root:scheduleRoot,params:new URLSearchParams({academic_year_id:year||'',program_id:pid}),embedded:true,
+        preloadedEvaluationContext:{
+          academicYearId:String(year||''),programId:String(pid||''),program,
+          annual:Array.isArray(annual)?annual:[],frameworks:Array.isArray(versions)?versions:[],plans:Array.isArray(plans)?plans:[],
+        },
+      });
       if(token!==renderToken)return;
     }
   }
