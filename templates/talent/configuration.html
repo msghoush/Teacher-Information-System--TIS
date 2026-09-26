@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% from "_app_icons.html" import icon %}
+{% block title %}Talent &amp; Potential Configuration · System Configuration | TIS{% endblock %}
+{% block page_styles %}<link rel="stylesheet" href="{{ url_for('static', path='css/talent.css') }}?v={{ talent_asset_version('css/talent.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-program-workspace.css') }}?v={{ talent_asset_version('css/talent-program-workspace.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-rubric-visual.css') }}?v={{ talent_asset_version('css/talent-rubric-visual.css') }}"><link rel="stylesheet" href="{{ url_for('static', path='css/talent-configuration.css') }}?v={{ talent_asset_version('css/talent-configuration.css') }}">{% endblock %}
+{% block content %}
+{# System Configuration > Talent & Potential Configuration. Organization-level Talent configuration is defined here and nowhere else in the UI; the operational Talent pages only use it. Data and mutations stay owned by the canonical /api/talent/* routes (semantic permission AND organization/global scope). Tabs are limited to real concepts: Programs and Evaluation Periods. Criteria / KPI is a per-Program sub-tab because KPI and criteria are stored per Program Framework, never as a global resource. #}
+<section class="tpc" id="tpc-root" data-tab="programs">
+  <ol class="tpc-breadcrumb" aria-label="Breadcrumb">
+    <li><a href="/system-configuration">System Configuration</a></li>
+    <li aria-current="page">Talent &amp; Potential</li>
+  </ol>
+  <header class="tpc-header">
+    <span class="tpc-header-icon" aria-hidden="true">{{ icon('sparkles', 'tpc-header-svg') }}</span>
+    <div class="tpc-header-copy">
+      <h2>Talent &amp; Potential Configuration</h2>
+      <p>Configure organization-wide Talent Programs, eligible Grades, Rubrics, Competencies, KPIs and Evaluation Periods.</p>
+      <p class="tpc-shared">Shared across all Branches</p>
+    </div>
+    <aside class="tpc-banner" role="note" data-org-banner>
+      {{ icon('info', 'tpc-banner-icon') }}
+      <div><strong>Organization-wide configuration</strong><span>Changes here apply across all Branches.</span></div>
+    </aside>
+  </header>
+  <div class="tpc-toolbar">
+    <nav class="tpc-tabs" role="tablist" aria-label="Talent &amp; Potential configuration">
+      <button type="button" role="tab" id="tpc-tab-programs" data-tpc-tab="programs" aria-selected="true" aria-controls="tpc-columns">{{ icon('degree', 'tpc-tab-icon') }}Programs</button>
+      <button type="button" role="tab" id="tpc-tab-evaluation-periods" data-tpc-tab="evaluation-periods" aria-selected="false" aria-controls="tpc-columns">{{ icon('calendar', 'tpc-tab-icon') }}Evaluation Periods</button>
+    </nav>
+    <label class="tpc-year" for="tpc-year">Academic Year
+      <select name="academic_year_id" id="tpc-year">{% for year in talent_years %}<option value="{{ year.id }}" {% if year.id == shell.scoped_academic_year_id %}selected{% endif %}>{{ year.year_name }}</option>{% endfor %}</select>
+    </label>
+  </div>
+  <div id="tpc-status" role="status" aria-live="polite" class="tp-sr-status"></div>
+  <div class="tpc-columns" id="tpc-columns">
+    <section class="tpc-programs" aria-label="Programs">
+      <header class="tpc-panel-head"><h3>Programs</h3><button type="button" class="tpc-primary" data-tpc-action="new-program" hidden>+ New Program</button></header>
+      <label class="tpc-search">Search programs<input type="search" id="tpc-search" placeholder="Search programs..." autocomplete="off"></label>
+      <div id="tpc-program-list" class="tpc-program-list" aria-live="polite"><p class="tp-empty">Loading Programs…</p></div>
+    </section>
+    <section class="tpc-center" aria-label="Selected configuration">
+      <div id="tpc-center-head" class="tpc-center-head"></div>
+      <nav id="tpc-subtabs" class="tpc-subtabs" aria-label="Program configuration" hidden></nav>
+      <div id="tpc-content" class="tpc-content tp-program-workspace"><p class="tp-empty">Loading…</p></div>
+    </section>
+    <aside class="tpc-drawer" id="tpc-drawer" aria-label="Details">
+      <h3>Details</h3>
+      <p class="tp-empty">Select a Grade, Competency or Level to see its details here.</p>
+    </aside>
+  </div>
+</section>
+<script type="application/json" id="tpc-config">{{ {"permissions": talent_permissions, "year": shell.scoped_academic_year_id}|tojson }}</script>
+<script src="{{ url_for('static', path='js/talent-rubric-visual.js') }}?v={{ talent_asset_version('js/talent-rubric-visual.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-api-errors.js') }}?v={{ talent_asset_version('js/talent-api-errors.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-program-grades.js') }}?v={{ talent_asset_version('js/talent-program-grades.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-program-workspace.js') }}?v={{ talent_asset_version('js/talent-program-workspace.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-evaluation-workspace.js') }}?v={{ talent_asset_version('js/talent-evaluation-workspace.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-configuration-tree.js') }}?v={{ talent_asset_version('js/talent-configuration-tree.js') }}" defer></script>
+<script src="{{ url_for('static', path='js/talent-configuration.js') }}?v={{ talent_asset_version('js/talent-configuration.js') }}" defer></script>
+{% endblock %}

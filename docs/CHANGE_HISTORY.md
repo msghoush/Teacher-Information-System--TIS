@@ -1,11 +1,42 @@
 ---
 title: TIS Change History
-documentation_version: 5.18
-last_updated: 2026-09-25
+documentation_version: 5.19
+last_updated: 2026-09-26
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-26 - Talent & Potential configuration centralized in System Configuration
+
+- SYSTEM CONFIGURATION = DEFINE Talent & Potential; the normal Talent module = USE Talent & Potential.
+  Completes the Final Closure Part B decision's product surface with no new authority, permission key,
+  schema, migration or `tis.db` change.
+- New route `GET /system-configuration/talent-potential` (`talent_configuration_access.py`,
+  `routers/talent_configuration_ui.py`), gated by the existing configuration permission AND
+  organization/global scope; a "Talent & Potential" entry appears under System Configuration only for an
+  authorized organization actor.
+- New workspace (`templates/talent/configuration.html`, `static/js/talent-configuration.js`): a
+  three-column Programs / selected-Program / detail-drawer shell hosting Program Setup, a
+  Grade -> Competency -> Rubric -> ordered Level tree with a right-side Level editor
+  (`static/js/talent-configuration-tree.js`), Evaluation Periods and Criteria/KPI - all through the
+  existing canonical `/api/talent/*` routes and their revision guards and lifecycle locks.
+- Every configuration mutation control was removed from the normal Talent module (Overview, Programs,
+  Student Assessments, Results & Analytics); an authorized actor gets one non-mutating "Configure in
+  System Configuration" link, and a bookmarked Program-setup deep link redirects there.
+- Fixed along the way: Add Level was missing the backend-required `code` field (now generated
+  client-side, same as the existing editor); a rerender of the Rubric & Competencies tree (switching
+  Program or sub-tab) could accumulate duplicate delegated `click`/`submit` handlers, causing more than
+  one request per action - the handlers are now removed and reattached on every render.
+- Reconciled cleanly onto the Executive Overview commit (`f2237e9`): the Overview branch of `talent.js` is
+  the Executive Overview implementation unchanged; System Configuration's other `talent.js` changes
+  (read-only Programs, configuration links, deep-link redirect) sit outside that block.
+- Tests: `tests/talent_configuration_tree.test.cjs` (27, incl. the handler-accumulation regression),
+  `tests/talent_configuration_separation.test.cjs`, `tests/test_talent_system_configuration.py`; full
+  Node suite 373/373; scoped Talent authorization/tenant-isolation/permission-matrix regression 731
+  passed, 0 failed, unchanged before and after reconciliation. Real-browser acceptance (desktop 1440x1000,
+  narrow 768x900, mobile 390x844) matched the approved visual reference with 0 console errors and 0
+  network failures.
 
 ## 2026-09-25 - Talent Executive Overview final UI and backend semantics
 

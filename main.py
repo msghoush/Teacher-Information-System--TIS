@@ -34,6 +34,7 @@ from database import engine, SessionLocal
 import models
 import auth
 import authorization
+import talent_configuration_access
 import branding_storage
 import redirect_utils
 import email_service
@@ -1323,6 +1324,20 @@ CONFIGURATION_MODULES = (
         "description": "Configure calendar event types for the active scope.",
         "permission_keys": ("calendar.manage_event_types",),
     },
+    {
+        "key": "talent-potential",
+        "label": "Talent & Potential",
+        "href": "/system-configuration/talent-potential",
+        "icon": "sparkles",
+        "description": "Programs, Rubrics, Competencies, KPIs & Evaluation Periods",
+        "note": "Organization-wide - Shared across all Branches",
+        # Existing semantic Talent configuration permissions (no new key) AND
+        # organization/global access scope: the same authority the canonical
+        # /api/talent/* configuration routes enforce. See talent_configuration_access.
+        "permission_keys": talent_configuration_access.TALENT_CONFIGURATION_KEYS,
+        "permission_mode": "any",
+        "requires_talent_configuration_authority": True,
+    },
 )
 
 
@@ -1340,6 +1355,15 @@ def _get_configuration_modules(
     for module in CONFIGURATION_MODULES:
         if module.get("requires_billing_account_link") and (
             billing_account_context is None
+        ):
+            continue
+        if (
+            module.get("requires_talent_configuration_authority")
+            and db is not None
+            and current_user is not None
+            and not talent_configuration_access.is_authorized(
+                current_user, auth.get_allowed_permission_keys(db, current_user)
+            )
         ):
             continue
         permission_keys = tuple(module.get("permission_keys", ()))
@@ -1371,6 +1395,7 @@ def _get_configuration_modules(
                     "permission_keys",
                     "permission_mode",
                     "requires_billing_account_link",
+                    "requires_talent_configuration_authority",
                 }
             }
             | {"active": module["key"] == active_key}
@@ -8648,6 +8673,8 @@ app.include_router(students_ui.router)
 
 from routers import talent_ui
 app.include_router(talent_ui.router)
+from routers import talent_configuration_ui
+app.include_router(talent_configuration_ui.router)
 app.include_router(talent_programs.router)
 app.include_router(talent_assessment_cycles.router)
 app.include_router(talent_evaluation_plans.router)

@@ -37,6 +37,14 @@ Administrator-only) and organization/global access scope; Branch users read shar
 Students in their authorized Branch only. Existing stored grants are not rewritten. See the ADR 0044 Part B
 amendment and `docs/PROJECT_STATE.md`.
 
+## Talent Configuration Home Is System Configuration (2026-09-26)
+
+This authority's canonical UI home is `System Configuration -> Talent & Potential`
+(`/system-configuration/talent-potential`, `talent_configuration_access.py` - the same rule above, no new
+permission key). SYSTEM CONFIGURATION = DEFINE Talent & Potential; the normal Talent module = USE Talent &
+Potential and contains no configuration mutation control. See the ADR 0044 System Configuration
+Centralization amendment and `docs/PROJECT_STATE.md`.
+
 ## Talent Branch Authority Amendment (Production Follow-up Part 1, 2026-09-25)
 
 Owner decision: the global (sidebar) Branch selector contains real Branches only. Inside

@@ -702,11 +702,11 @@ test('curated Start Assessment error codes never echo backend detail and unknown
 
 
 // ---- Final Production Follow-Up Closure, Part A: Start Assessment must actually work ----
-function rosterCtx({members,can=()=>true,params='cycle_id=71&program_id=11',cycles,rows=[],year='2026',navigate=()=>{}}){
+function rosterCtx({members,can=()=>true,params='cycle_id=71&program_id=11',cycles,rows=[],year='2026',navigate=()=>{},configurationUrl=''}){
   const root=domRoot();
   const cycle={id:71,program_id:11,title:'Term 1',status:'open',population_effective_at:'2026-01-01'};
   const calls=[];
-  return {root,calls,ctx:{root,year,view:'assessments',params:new URLSearchParams(params),can,notify(){},navigate,
+  return {root,calls,ctx:{root,year,view:'assessments',params:new URLSearchParams(params),can,notify(){},navigate,configurationUrl,
     api:async(path,options)=>{
       calls.push({path,options});
       if(path.startsWith('/api/talent/assessments?'))return rows;
@@ -727,13 +727,22 @@ test('Start is rendered only for rows the backend marks can_start; a blocked Gra
   assert.equal((root.innerHTML.match(/data-action="start"/g)||[]).length,1);
 });
 
-test('the configuration area is a link only for an actor who can manage Programs; others get text without an action',async()=>{
-  const admin=rosterCtx({members:[BLOCKED],can:()=>true});
+test('the configuration remedy is a System Configuration link only when the server derived one (organization-level actor); others get text without an action',async()=>{
+  // Program setup no longer lives on the operational page: the remedy points at
+  // System Configuration > Talent & Potential, and only ctx.configurationUrl (rendered
+  // by the server for an organization-level configuration actor) can produce a link.
+  const admin=rosterCtx({members:[BLOCKED],can:()=>true,configurationUrl:'/system-configuration/talent-potential'});
   await withWindow(()=>render(admin.ctx));
-  assert.match(admin.root.innerHTML,/data-start-blocked[\s\S]*<a class="tp-action-link" href="\/talent\/programs\?[^"]*program_id=11[^"]*">Open Program setup/);
+  assert.match(admin.root.innerHTML,/data-start-blocked[\s\S]*<a class="tp-action-link" href="\/system-configuration\/talent-potential\?[^"]*program_id=11[^"]*">Configure in System Configuration/);
+  assert.doesNotMatch(admin.root.innerHTML,/\/talent\/programs|Open Program setup/);
+  // Holding the permission hint alone (no server-derived URL, e.g. a Branch-scoped actor) yields no link.
+  const noUrl=rosterCtx({members:[BLOCKED],can:()=>true});
+  await withWindow(()=>render(noUrl.ctx));
+  assert.match(noUrl.root.innerHTML,/Your organization Administrator can configure them in System Configuration\./);
+  assert.doesNotMatch(noUrl.root.innerHTML,/tp-action-link|Open Program setup/);
   const teacher=rosterCtx({members:[BLOCKED],can:key=>key!=='talent_programs.manage'});
   await withWindow(()=>render(teacher.ctx));
-  assert.match(teacher.root.innerHTML,/A Program administrator can configure them in the Program setup\./);
+  assert.match(teacher.root.innerHTML,/Your organization Administrator can configure them in System Configuration\./);
   assert.doesNotMatch(teacher.root.innerHTML,/Open Program setup|data-action="start"/);
 });
 

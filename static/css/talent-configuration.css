@@ -1,0 +1,122 @@
+/* System Configuration > Talent & Potential Configuration shell (layout only).
+ * The editors inside the center column reuse talent-program-workspace.css. Part 1
+ * ships the functional three-column shell; the tree/detail visuals follow later. */
+.tpc {display:grid;gap:16px;min-width:0}
+.tpc-breadcrumb {display:flex;flex-wrap:wrap;gap:8px;list-style:none;margin:0;padding:0;font-size:13px;color:var(--app-muted)}
+.tpc-breadcrumb li+li::before {content:"›";margin-right:8px}
+.tpc-breadcrumb a {color:inherit;text-decoration:none}
+.tpc-breadcrumb a:hover {text-decoration:underline}
+.tpc-header {display:grid;grid-template-columns:auto minmax(0,1fr) minmax(220px,340px);gap:16px;align-items:center}
+.tpc-header-icon {display:grid;place-items:center;width:64px;height:64px;border-radius:16px;background:var(--app-brand);color:#fff}
+.tpc-header-svg {width:32px;height:32px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tpc-header-copy h2 {margin:0;font-size:clamp(22px,2.4vw,30px)}
+.tpc-header-copy p {margin:4px 0 0;color:var(--app-muted)}
+.tpc-header-copy .tpc-shared {font-size:13px}
+.tpc-banner {display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-brand-soft);color:var(--app-brand-deep)}
+.tpc-banner div {display:grid;gap:2px;font-size:13px}
+.tpc-banner strong {font-size:14px}
+.tpc-banner-icon {width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8}
+.tpc-toolbar {display:flex;flex-wrap:wrap;gap:12px;align-items:end;justify-content:space-between;border-bottom:1px solid var(--app-line)}
+.tpc-tabs {display:flex;flex-wrap:wrap;gap:4px}
+.tpc-tabs button {display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border:0;border-bottom:3px solid transparent;background:transparent;font:inherit;font-weight:650;color:var(--app-muted);cursor:pointer}
+.tpc-tabs button[aria-selected="true"] {color:var(--app-brand-deep);border-bottom-color:var(--app-brand)}
+.tpc-tab-icon {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8}
+.tpc-year {display:grid;gap:4px;font-size:12px;font-weight:650;color:var(--app-muted);padding-bottom:8px}
+.tpc-year select {min-height:38px;border:1px solid var(--app-line);border-radius:9px;padding:6px 10px;font:inherit;background:var(--app-surface);color:var(--app-ink)}
+.tpc-columns {display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr) minmax(220px,300px);gap:16px;align-items:start}
+.tpc-programs,.tpc-center,.tpc-drawer {border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface);padding:14px;min-width:0}
+.tpc-panel-head {display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tpc-panel-head h3,.tpc-drawer h3,.tpc-section-head h3 {margin:0}
+.tpc-primary,.tpc-secondary {min-height:38px;padding:7px 14px;border-radius:9px;font:inherit;font-weight:650;cursor:pointer;border:1px solid var(--app-brand)}
+.tpc-primary {background:var(--app-brand);color:#fff}
+.tpc-secondary {background:var(--app-surface);color:var(--app-brand-deep)}
+.tpc-search {display:grid;gap:4px;margin-block:12px;font-size:12px;font-weight:650;color:var(--app-muted)}
+.tpc-search input {min-height:40px;border:1px solid var(--app-line);border-radius:9px;padding:8px 12px;font:inherit}
+.tpc-program-list {display:grid;gap:8px}
+.tpc-program {display:flex;align-items:center;gap:6px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+.tpc-program.is-selected {border-color:var(--app-brand);background:var(--app-brand-soft)}
+.tpc-program-select {display:flex;flex:1;align-items:center;gap:10px;min-width:0;padding:10px;border:0;background:transparent;font:inherit;text-align:start;cursor:pointer;color:inherit}
+.tpc-program-text {display:grid;min-width:0}
+.tpc-program-text strong {overflow-wrap:anywhere}
+.tpc-program-text small {color:var(--app-muted)}
+.tpc-program-delete {margin-right:8px;padding:4px 8px;border:1px solid var(--app-line);border-radius:8px;background:transparent;color:#b42318;font:inherit;font-size:12px;cursor:pointer}
+.tpc-center-head:empty {display:none}
+.tpc-program-head {display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px}
+.tpc-program-title {flex:1;min-width:0}
+.tpc-program-title h3 {margin:0;overflow-wrap:anywhere}
+.tpc-program-title p {margin:2px 0 0;color:var(--app-muted)}
+.tpc-status-badge {display:inline-block;margin-left:8px;padding:2px 10px;border-radius:999px;background:var(--app-brand-soft);color:var(--app-brand-deep);font-size:12px;font-weight:650}
+.tpc-subtabs {display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--app-line);margin-bottom:12px}
+.tpc-subtabs a {padding:10px 12px;border-bottom:3px solid transparent;text-decoration:none;font-weight:650;color:var(--app-muted)}
+.tpc-subtabs a.is-current {color:var(--app-brand-deep);border-bottom-color:var(--app-brand)}
+.tpc-section-head p {margin:4px 0 0;color:var(--app-muted)}
+.tpc-period-list {list-style:none;margin:12px 0 0;padding:0;display:grid;gap:8px}
+.tpc-period-row {display:flex;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--app-line);border-radius:12px}
+.tpc-period-row div {flex:1;display:grid;min-width:0}
+.tpc-period-row small {color:var(--app-muted)}
+.tpc-drawer p {color:var(--app-muted)}
+.tpc :focus-visible {outline:3px solid var(--app-brand);outline-offset:2px}
+@media (max-width:1100px) {
+  .tpc-columns {grid-template-columns:minmax(220px,280px) minmax(0,1fr)}
+  .tpc-drawer {grid-column:1/-1}
+  .tpc-header {grid-template-columns:auto minmax(0,1fr)}
+  .tpc-banner {grid-column:1/-1}
+}
+@media (max-width:720px) {
+  .tpc-columns {grid-template-columns:minmax(0,1fr)}
+}
+
+/* ---- Rubric & Competencies tree (Grade > Competency > Rubric Level) and Level editor ---- */
+.tpc-tree,.tpc-tree-children {list-style:none;margin:0;padding:0}
+.tpc-tree {display:grid;gap:12px}
+.tpc-tree-children {display:grid;gap:4px;margin-top:6px;padding-inline-start:22px;border-inline-start:2px solid var(--app-line)}
+.tpc-tree-children[hidden] {display:none}
+.tpc-tree-grade {border:1px solid var(--app-line);border-radius:14px;background:var(--app-surface);padding:10px 12px}
+.tpc-tree-row {display:flex;align-items:center;gap:8px;min-height:40px;flex-wrap:wrap}
+.tpc-tree-row-grade {font-weight:700}
+.tpc-tree-grade:nth-child(3n+1) .tpc-tree-grade-label {color:#5b3fd0}
+.tpc-tree-grade:nth-child(3n+2) .tpc-tree-grade-label {color:#0f7b4f}
+.tpc-tree-grade:nth-child(3n) .tpc-tree-grade-label {color:#b45309}
+.tpc-tree-competency {border-radius:10px;padding:2px 0}
+.tpc-tree-row-competency {background:#f6f8fd;border-radius:10px;padding:4px 8px}
+.tpc-tree-competency-label,.tpc-tree-rubric-label {font-weight:650;flex:1;min-width:0;overflow-wrap:anywhere}
+.tpc-tree-count {padding:2px 10px;border-radius:999px;background:var(--app-brand-soft);color:var(--app-brand-deep);font-size:12px;font-weight:650;white-space:nowrap}
+.tpc-tree-actions {display:inline-flex;align-items:center;gap:6px;margin-inline-start:auto}
+.tpc-tree-toggle,.tpc-icon-btn {display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px;border:0;border-radius:8px;background:transparent;color:var(--app-muted);cursor:pointer}
+.tpc-tree-toggle:hover,.tpc-icon-btn:hover {background:var(--app-brand-soft);color:var(--app-brand-deep)}
+.tpc-icon-btn.tpc-danger {color:#b42318}
+.tpc-icon-btn.tpc-danger:hover {background:#fdecea}
+.tpc-tree-chevron {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;transition:transform .15s}
+.tpc-tree-chevron.is-open {transform:rotate(90deg)}
+.tpc-icon {width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.tpc-tree-level {border-radius:10px}
+.tpc-tree-level.is-selected {background:var(--app-brand-soft)}
+.tpc-tree-row-level {padding:2px 4px;flex-wrap:nowrap}
+.tpc-tree-select {display:flex;align-items:center;gap:10px;flex:1;min-width:0;min-height:36px;padding:2px 6px;border:0;background:transparent;font:inherit;text-align:start;cursor:pointer;color:inherit}
+.tpc-level-marker {display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#2f6fdd;color:#fff;font-size:12px;font-weight:700;flex:none}
+.tpc-level-name {font-weight:600}
+.tpc-level-desc {color:var(--app-muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tpc-add-btn {display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:4px 12px;border:1px solid var(--app-brand);border-radius:9px;background:var(--app-surface);color:var(--app-brand-deep);font:inherit;font-weight:650;cursor:pointer}
+.tpc-add-btn .tpc-icon {width:16px;height:16px}
+.tpc-tree-add,.tpc-tree-empty {padding:4px 6px;color:var(--app-muted);display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.tpc-inline-form {flex-basis:100%}
+.tpc-inline-form[hidden] {display:none}
+.tpc-inline,.tpc-editor {display:grid;gap:10px;padding:10px;border:1px solid var(--app-line);border-radius:12px;background:var(--app-surface)}
+.tpc-editor {border:0;padding:0}
+.tpc-editor-head {display:flex;align-items:center;gap:10px}
+.tpc-editor-field,.tpc-inline label {display:grid;gap:4px;font-size:12px;font-weight:650;color:var(--app-muted)}
+.tpc-editor-field input,.tpc-editor-field textarea,.tpc-inline input,.tpc-inline textarea {width:100%;box-sizing:border-box;min-height:40px;border:1px solid var(--app-line);border-radius:9px;padding:8px 12px;font:inherit;color:var(--app-ink);background:var(--app-surface)}
+.tpc-editor-field input:disabled,.tpc-editor-field textarea:disabled {background:#f3f5f9;color:var(--app-muted)}
+.tpc-editor-meta {margin:0;font-size:12px;color:var(--app-muted)}
+.tpc-editor-actions {display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.tpc-editor-actions button {min-height:38px;padding:7px 14px;border-radius:9px;font:inherit;font-weight:650;cursor:pointer;border:1px solid var(--app-line);background:var(--app-surface)}
+.tpc-editor-actions .tpc-primary {background:var(--app-brand);border-color:var(--app-brand);color:#fff}
+.tpc-drawer [data-feedback] {margin:0;min-height:1em;font-size:13px}
+@media (forced-colors:active) {
+  .tpc-tree-grade,.tpc-tree-level.is-selected,.tpc-level-marker {border:1px solid CanvasText}
+}
+@media (prefers-reduced-motion:reduce) {.tpc-tree-chevron {transition:none}}
+@media (max-width:720px) {
+  .tpc-level-desc {display:none}
+  .tpc-tree-children {padding-inline-start:12px}
+}

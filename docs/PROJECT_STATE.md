@@ -91,6 +91,60 @@ starts Assessments, tenant isolation), `tests/test_audit_talent_program_duplicat
 in `tests/test_talent_ui.py`, Node additions in `tests/talent_program_workspace.test.cjs`, and the deliberate
 replacement of the old Branch-author test in `test_talent_program_framework_foundation.py`.
 
+## System Configuration Centralization for Talent & Potential (2026-09-26)
+
+Implemented on `dev` (on top of the Executive Overview commit); Web Service only; not deployed. Completes
+the Part B decision's product surface: it moves the UI home of the already-decided organization-level
+authority (no new backend authority, no new permission key, no schema/migration/`tis.db` change). Product
+boundary: SYSTEM CONFIGURATION = DEFINE Talent & Potential; the normal Talent module = USE Talent &
+Potential. Organization-level Talent configuration (Programs, eligible Grades, Frameworks/Rubrics,
+Competencies, ordered Rubric Levels, KPI/criteria, Evaluation Plans/Periods) now lives only under
+`System Configuration -> Talent & Potential`; normal Talent pages (Overview, Programs, Student Assessments,
+Results & Analytics) contain no configuration mutation entry point, only read/operational use plus, for an
+organization-authorized actor, a single non-mutating "Configure in System Configuration" link.
+
+**New surface.** `talent_configuration_access.py` names the single access rule (existing
+`talent_programs.manage` or `talent_evaluation_plans.manage` permission AND organization/global scope,
+`auth.can_access_all_branches`); no new permission key. `routers/talent_configuration_ui.py` adds the
+presentation-only route `GET /system-configuration/talent-potential`, gated by that rule and denied
+server-side (`build_access_denied_response`) to every other actor; `main.py`/`authorization.py` register it
+under `CONFIGURATION_MODULES`/`PROTECTED_ROUTE_RULES` and `ui_shell.py` renders the sidebar
+"Talent & Potential" entry under System Configuration only when authorized. The workspace
+(`templates/talent/configuration.html`, `static/js/talent-configuration.js`) is a three-column shell
+(Programs list with search and `+ New Program`; selected Program with Program Setup / Rubric & Competencies
+/ Evaluation Periods / Criteria-KPI sub-tabs; a right-hand detail drawer) that mounts the existing, unchanged
+`TalentProgramWorkspace`/`TalentEvaluationWorkspace` editors for every sub-tab except Rubric & Competencies,
+which mounts the new `static/js/talent-configuration-tree.js` - a Grade -> Competency -> Rubric -> ordered
+Level tree with expand/collapse, server-derived edit/delete/add affordances, and a right-side Level editor
+(Level Name, Level Order, Description, Achievement Description, Cancel/Save Changes) reading and writing only
+the existing revision-guarded `/api/talent/programs/{id}/frameworks/{id}/...` routes; a locked (non-Draft or
+in-use) framework renders the tree and the selected Level read-only. Every read/write reuses the canonical
+API; no duplicate resource, validation or permission logic was introduced. `static/js/talent-program-grades.js`
+is a small shared "Grades N-M" label helper extracted for reuse between the operational and configuration
+Program cards.
+
+**Operational-page changes.** `static/js/talent.js`/`static/js/talent-operations.js`/
+`templates/talent/workspace.html` no longer contain any New/Edit Program, Rubric/Competency/Level, KPI, or
+Evaluation Plan/Period mutation control; the Programs view is read-only (`Open Program`,
+`Student Assessments`, `Follow Periods`, and the configuration link where authorized) and a bookmarked
+`#tp-basics`/`#tp-rubric`/`#tp-schedule`/`#tp-builder` deep link now redirects an authorized actor into the
+System Configuration workspace instead of a removed operational editor. The pre-existing
+`select-planned-evaluation` operational trigger (open/materialize a planned Evaluation Period into an
+assessable Cycle) is unchanged and remains gated exactly as Part B already requires (organization scope) -
+it is not a schedule-editing control.
+
+**Verification.** Focused Node (`tests/talent_configuration_tree.test.cjs`, `tests/talent_configuration_separation.test.cjs`):
+27/27 pass, including a rerender-handler-accumulation regression (`bindTreeEvents` now stores its delegated
+`click`/`submit` listeners on the container and removes the prior pair before attaching new ones, so
+selecting a different Program or sub-tab can never fire a mutation more than once per click). Full Node
+suite: 373/373 pass. Scoped Python regression (central configuration authority, Talent UI, System
+Configuration nav/route access, hard Branch scope, permission route coverage/surface consistency/matrix,
+dashboard sidebar permission consistency): 731 passed, 0 failed, both before and after reconciling this
+branch onto the Executive Overview commit. Real-browser acceptance (desktop 1440x1000, narrow 768x900,
+mobile 390x844) confirmed the approved visual reference is matched with no material remaining defect, 0
+console errors, 0 network failures, and exactly one request per Add Level action after the handler fix.
+`git diff --check` clean. No schema, migration, new permission key or `tis.db` change.
+
 ## Final Production Follow-Up Closure, Part A - Start Assessment must actually work (2026-09-25)
 
 Implemented on `dev`; Web Service only; not deployed. No schema, migration, permission, privacy or

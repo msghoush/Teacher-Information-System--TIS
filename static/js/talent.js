@@ -719,8 +719,23 @@
       if (token === dashToken) { setDashboardBusy(slot, false); if (slot.style) slot.style.minHeight = ''; }
     }
   }
+  // Operational Talent pages are READ-ONLY for Program and Evaluation configuration:
+  // that is defined only in System Configuration > Talent & Potential. An actor
+  // with organization-level configuration authority gets ONE non-mutating link
+  // (config.configurationUrl is rendered server-side only for them); the API gates
+  // stay authoritative and this link never replaces them.
+  const configurationHref=(extra={})=>{
+    if(!config.configurationUrl)return '';
+    const q=new URLSearchParams();
+    for(const [k,v] of Object.entries({academic_year_id:year.value,...extra})) if(v!==''&&v!=null)q.set(k,v);
+    const s=q.toString();
+    return config.configurationUrl+(s?`?${s}`:'');
+  };
+  const configureLink=(label,extra={})=>{const href=configurationHref(extra);return href?`<a class="tp-configure-link" href="${esc(href)}">${esc(label)}</a>`:'';};
+  const gradesLabel=levels=>typeof window!=='undefined'&&window.TalentProgramGrades?window.TalentProgramGrades.gradesSummary(levels):((levels||[]).length?`Grades ${(levels||[]).join(', ')}`:'Grades not set');
   function programCards(items) {
-    return items.length ? `<div class="tp-grid">${items.map(p=>`<article class="tp-card">${programLogo(p)}<h3>${esc(p.name)}</h3><p>${esc(p.description || 'Explore the Program framework and annual evaluation context.')}</p>${link('programs','Open Program',{program_id:p.id})}</article>`).join('')}</div>` : empty('No Programs are available. Ask your Program administrator to configure the first Program.');
+    const emptyText=config.configurationUrl?'No Programs are available yet. Create the first Program in System Configuration.':'No Programs are available. Ask your organization Administrator to configure the first Program.';
+    return items.length ? `<div class="tp-grid">${items.map(p=>`<article class="tp-card">${programLogo(p)}<h3>${esc(p.name)}</h3><p class="tp-program-grades">${esc(gradesLabel(p.annual?.eligible_grade_levels))}</p><p>${esc(p.description || 'Explore the Program framework and annual evaluation context.')}</p><div class="tp-actions">${link('programs','Open Program',{program_id:p.id})}${can('talent_assessments.view')?link('assessments','Student Assessments',{program_id:p.id}):''}</div></article>`).join('')}</div>` : `${empty(emptyText)}${configureLink('Configure in System Configuration')}`;
   }
   function periods(plans) {
     if (!plans.length) return empty('No annual evaluation plan is available for this context.');
@@ -728,7 +743,15 @@
   }
   async function render(signal, run) {
     const view=config.view, pid=params.get('program_id'), ay=year.value;
-    if (['programs','evaluation-plans','assessments','reviews'].includes(view)) {
+    // Old bookmarked Program-setup deep links (#tp-basics, #tp-builder, #tp-rubric,
+    // #tp-schedule) pointed at editors that no longer live on this operational page.
+    // An authorized organization-level actor is forwarded to the same step in System
+    // Configuration; everyone else stays on the read-only Program view below.
+    if (view==='programs'&&config.configurationUrl&&/^#tp-/.test(typeof location!=='undefined'?(location.hash||''):'')) {
+      location.replace(configurationHref({program_id:pid})+location.hash);
+      return null;
+    }
+    if (['assessments','reviews'].includes(view)) {
       // Reads are bounded like every other request; mutations (PUT/POST/PATCH/
       // DELETE) are intentionally not timed out client-side, because aborting a
       // write that may already have been committed would mislead the user.
@@ -745,25 +768,19 @@
         },method==='GET'?REQUEST_TIMEOUT_MS:0);
       };
       const ctx={root,view,api:operationApi,can,year,params,programCatalog,notify:message=>{status.textContent=message;},
+        // Non-empty only for an organization-level configuration actor (server-derived).
+        configurationUrl:config.configurationUrl||'',
         navigate:(target,extra)=>{location.href=`/talent/${target}?${qs({academic_year_id:year.value,...extra})}`;}};
-      // A direct/bookmarked evaluation-plans deep link resolves into the
-      // equivalent Program-workspace context (same program_id/academic_year_id,
-      // landing on the embedded #tp-schedule step) client-side only, so it
-      // never forces an extra authorization round-trip against a different
-      // permission key. A user who cannot also access Programs (holds only
-      // talent_evaluation_plans.* permissions, never talent_programs.view)
-      // keeps the pre-existing standalone Evaluation Plan workspace exactly
-      // as before - this is a real, still-supported access pattern, not a
-      // fallback for an error.
-      const mergeIntoProgram=view==='evaluation-plans'&&Boolean(pid)&&can('talent_programs.view');
-      if(mergeIntoProgram)history.replaceState(null,'',`/talent/programs?${qs({academic_year_id:ay,program_id:pid})}#tp-schedule`);
-      const workspace=(view==='programs'||mergeIntoProgram) ? window.TalentProgramWorkspace :
-        view==='evaluation-plans' ? window.TalentEvaluationWorkspace : window.TalentOperations;
+      const workspace=window.TalentOperations;
       if(!workspace||typeof workspace.render!=='function')throw userSafeError('A required page component did not load. Reload the page, or contact your administrator if the problem continues.',{code:'dependency_missing'});
       await workspace.render(ctx);
       return null;
     }
     if (view==='overview') {
+      // Executive Overview implementation is authoritative from origin/dev; it has no
+      // Programs/Evaluation-Plan route card left to carry a System Configuration link
+      // (Talent configuration lives only in System Configuration > Talent & Potential,
+      // never as an entry point here).
       if(!window.TalentDashboard)throw userSafeError('The Executive Overview component did not load. Reload this page.',{code:'dependency_missing'});
       const sections=createSections(run,signal);
       sections.add({id:'tp-executive-slot',label:'Executive Overview',keys:['executive'],build:async()=>{
@@ -779,10 +796,19 @@
       return slotHtml('tp-executive-slot','Executive Overview');
     }
     if (view==='programs') {
-      if (!pid) return programCards(await api('programs',signal));
+      if (!pid) {
+        // Summaries carry each Program's eligible Grades for the selected Academic Year.
+        const summaries=await api(`programs/summaries?${qs({academic_year_id:ay})}`,signal).catch(error=>{if(signal?.aborted)throw error;return null;});
+        return programCards(Array.isArray(summaries)?summaries:await api('programs',signal));
+      }
       const p=await api(`programs/${encodeURIComponent(pid)}`,signal);
       const frameworks=await api(`programs/${encodeURIComponent(pid)}/frameworks`,signal);
-      return `<article class="tp-card"><h3>${esc(p.name)}</h3><p>${esc(p.description)}</p><div class="tp-actions">${can('talent_evaluation_plans.view')?link('evaluation-plans','Evaluation Plan',{program_id:p.id}):''}${can('talent_analytics.view')?link('longitudinal','Follow Periods',{program_id:p.id}):''}</div></article><h3>Assessment setup history</h3><div class="tp-grid">${frameworks.map(f=>`<article class="tp-card">${badge(f.status)}<h3>${esc(f.title)}</h3><p>Saved setup ${esc(f.version_number)}</p><p>${esc(f.summary)}</p></article>`).join('')}</div>${!frameworks.length?empty('No saved assessment setup is available.'):''}`;
+      const annual=await api(`programs/${encodeURIComponent(pid)}/academic-years`,signal).catch(error=>{if(signal?.aborted)throw error;return [];});
+      const currentYear=(Array.isArray(annual)?annual:[]).find(item=>String(item.academic_year_id)===String(ay));
+      // Program -> Evaluation Period -> eligible Students -> Student Assessment: the
+      // Periods below are read-only; Student Assessments is where an evaluation starts.
+      const plans=can('talent_evaluation_plans.view')?await api(`evaluation-plans?${qs({academic_year_id:ay,program_id:p.id})}`,signal).catch(error=>{if(signal?.aborted)throw error;return [];}):[];
+      return `<article class="tp-card"><h3>${esc(p.name)}</h3><p class="tp-program-grades">${esc(gradesLabel(currentYear?.eligible_grade_levels))}</p><p>${esc(p.description)}</p><div class="tp-actions">${can('talent_assessments.view')?link('assessments','Student Assessments',{program_id:p.id}):''}${can('talent_analytics.view')?link('longitudinal','Follow Periods',{program_id:p.id}):''}${configureLink('Configure in System Configuration',{program_id:p.id})}</div></article>${can('talent_evaluation_plans.view')?`<h3>Evaluation Periods</h3>${periods(Array.isArray(plans)?plans:[])}`:''}<h3>Assessment setup history</h3><div class="tp-grid">${frameworks.map(f=>`<article class="tp-card">${badge(f.status)}<h3>${esc(f.title)}</h3><p>Saved setup ${esc(f.version_number)}</p><p>${esc(f.summary)}</p></article>`).join('')}</div>${!frameworks.length?empty('No saved assessment setup is available.'):''}`;
     }
     if (view==='evaluation-plans') return periods(await api(`evaluation-plans?${qs({academic_year_id:ay,program_id:pid})}`,signal));
     if (view==='learner-profile') {

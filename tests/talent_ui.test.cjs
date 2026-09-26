@@ -187,22 +187,19 @@ test('an absent program_id resolves to the neutral (no Program selected) state, 
   assert.equal(resolveProgramSelection([mentalMath, chessClub], undefined), '');
 });
 
-// Evaluation Plan is no longer a standalone top-level Talent surface - it is
-// configured only inside a Program's own guided setup (embedded #tp-schedule
-// step). A direct/bookmarked /talent/evaluation-plans deep link must resolve
-// into that same Program context client-side (never re-authorized against a
-// different permission key server-side - see routers/talent_ui.py), while a
-// user who lacks talent_programs.view keeps the pre-existing standalone
-// Evaluation Plan workspace exactly as before (a real, still-supported access
-// pattern, not a fallback for an error).
-test('an evaluation-plans deep link with Program access merges into the Program workspace at #tp-schedule', () => {
+// Configuration/System Configuration separation: Evaluation Plan/Period CONFIGURATION lives only in
+// System Configuration > Talent & Potential. The old bookmarked /talent/evaluation-plans deep link
+// is redirected SERVER-side for an authorized organization-level actor (routers/talent_ui.py); the
+// operational page renders only a read-only period list and never mounts an editor.
+test('the operational script no longer merges evaluation-plans into, or delegates to, any Program/Evaluation editor', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /mergeIntoProgram=view==='evaluation-plans'&&Boolean\(pid\)&&can\('talent_programs\.view'\)/);
-  assert.match(source, /history\.replaceState\(null,'',`\/talent\/programs\?\$\{qs\(\{academic_year_id:ay,program_id:pid\}\)\}#tp-schedule`\)/);
-  assert.match(source, /const workspace=\(view==='programs'\|\|mergeIntoProgram\) \? window\.TalentProgramWorkspace :/);
+  assert.doesNotMatch(source, /mergeIntoProgram/);
+  assert.doesNotMatch(source, /window\.TalentProgramWorkspace\s*:|window\.TalentEvaluationWorkspace/);
+  assert.match(source, /const workspace=window\.TalentOperations;/);
+  assert.match(source, /\['assessments','reviews'\]\.includes\(view\)/);
 });
 
-test('a user without talent_programs.view still resolves the standalone Evaluation Plan workspace', () => {
+test('a user without talent_programs.view still reads the read-only Evaluation Plan period list', () => {
   const source = fs.readFileSync(path.join(__dirname, '..', 'static', 'js', 'talent.js'), 'utf8');
-  assert.match(source, /view==='evaluation-plans' \? window\.TalentEvaluationWorkspace : window\.TalentOperations/);
+  assert.match(source, /if \(view==='evaluation-plans'\) return periods\(await api\(`evaluation-plans\?/);
 });

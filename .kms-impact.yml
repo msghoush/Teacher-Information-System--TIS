@@ -14,6 +14,29 @@ summary: "THIS TASK (Deployment Acceptance Batch 1 - data correctness, scope int
 # Branch URL transition by removing the stale branch_scope=all marker; authorization and
 # analytics semantics are unchanged.
 # No schema, migration, permission-key or tis.db change.
+#
+# SYSTEM CONFIGURATION CENTRALIZATION (2026-09-26): Talent & Potential configuration
+# (Programs, eligible Grades, Frameworks/Rubrics/Competencies/Levels, KPI/criteria,
+# Evaluation Plans/Periods) is centralized under System Configuration > Talent & Potential
+# (talent_configuration_access.py, routers/talent_configuration_ui.py; existing
+# talent_programs.manage/talent_evaluation_plans.manage permission AND organization/global
+# scope, no new permission key). New Grade > Competency > Rubric > ordered Level tree and
+# right-side Level editor (static/js/talent-configuration-tree.js) reuse the existing
+# canonical /api/talent/* framework/rubric/competency/level routes unchanged. Normal Talent
+# pages (Overview, Programs, Student Assessments, Results & Analytics) contain no
+# configuration mutation control; an authorized actor gets one non-mutating "Configure in
+# System Configuration" link, and a bookmarked Program-setup deep link redirects there.
+# Fixed: Add Level's missing required `code` field; a Rubric & Competencies tree rerender
+# accumulating duplicate delegated click/submit handlers (now removed and reattached per
+# render). Reconciled cleanly onto the Executive Overview commit (f2237e9): the Overview
+# branch of talent.js is that commit's implementation unchanged; this feature's other
+# talent.js changes sit outside it. Tests: talent_configuration_tree.test.cjs (27, incl.
+# handler-accumulation regression), talent_configuration_separation.test.cjs,
+# test_talent_system_configuration.py; full Node 373/373; scoped Talent authorization/
+# tenant-isolation/permission-matrix regression 731 passed, 0 failed, unchanged before and
+# after reconciliation. Real-browser acceptance (desktop 1440x1000, narrow 768x900, mobile
+# 390x844) matched the approved visual reference, 0 console errors, 0 network failures.
+# No schema, migration, new permission key or tis.db change; Web Service only.
 affected_areas:
   - architecture
   - analytics_privacy
@@ -30,6 +53,7 @@ kms_files_updated:
   - docs/CHANGE_HISTORY.md
   - docs/PROJECT_STATE.md
   - docs/TIS_MASTER_CONTEXT.md
+  - docs/adr/0044-talent-evaluation-progress-analytics.md
   - docs/engineering/TIS_MODULE_MAP.md
   - docs/engineering/USER_AND_SYSTEM_FLOWS.md
 no_impact_reason: ""

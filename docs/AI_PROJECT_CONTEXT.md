@@ -32,6 +32,10 @@ Editor/User/Limited hold no `talent_*` key by default) AND organization/global a
 router's `_authorize` (`CONFIG_MUTATION_KEYS`, `CYCLE_CONFIG_KEYS`, `PLAN_CONFIG_KEYS`). A new mutating Talent
 configuration route must be added to `tests/test_talent_central_configuration_authority.py`
 `EXPECTED_MUTATIONS`. The earlier "Branch-scoped `.manage` holder may author Draft" behavior is superseded.
+This authority's UI home is `System Configuration -> Talent & Potential` (System Configuration
+Centralization, 2026-09-26; ADR 0044 dated amendment) - the normal Talent module contains no
+configuration mutation control, only an authorized "Configure in System Configuration" link;
+`talent_configuration_access.py` names the same rule with no new permission key.
 
 ## Talent Chart Types, Background Refresh And Progress Over Time (Production Follow-up Part 2, 2026-09-25)
 

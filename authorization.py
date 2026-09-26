@@ -207,6 +207,10 @@ PROTECTED_ROUTE_RULES = (
     PermissionRule(r"/school-branding", ("GET",), ("branding.view",), "school-branding"),
     PermissionRule(r"/system-configuration", ("GET",), ("configuration.view", "schools.view", "branches.view", "academic_years.view", "branding.view", "configuration.manage_permissions", "configuration.manage_degrees", "configuration.manage_specializations", "timetable.manage_settings", "timetable.manage_teacher_rules", "timetable.manage_blocks", "calendar.manage_event_types"), "system-configuration", match="any"),
     PermissionRule(r"/system-configuration/role-permissions", ("GET", "POST"), ("configuration.manage_permissions",), "system-configuration"),
+    # Organization-level Talent configuration workspace. The permission gate here is
+    # the coarse middleware layer; the handler additionally requires organization/
+    # global access scope (talent_configuration_access.is_authorized).
+    PermissionRule(r"/system-configuration/talent-potential", ("GET",), ("talent_programs.manage", "talent_evaluation_plans.manage"), "system-configuration", match="any"),
     PermissionRule(r"/api/design-studio/config", ("GET",), ("design_control.manage",), "system-configuration"),
     PermissionRule(r"/api/design-studio/component-settings", ("POST",), ("design_control.manage",), "system-configuration"),
     PermissionRule(r"/api/design-studio/reset", ("POST",), ("design_control.manage",), "system-configuration"),

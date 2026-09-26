@@ -217,7 +217,9 @@ test('10b. Talent Review: a hanging workspace request times out into a retryable
 });
 
 test('10c. a missing operational delegate global yields a safe reload state, not the loader or a raw TypeError', async () => {
-  for (const view of ['assessments', 'reviews', 'programs', 'evaluation-plans']) {
+  // Programs and the Evaluation Plan list are READ-ONLY operational views rendered by talent.js itself
+  // (their editors live only in System Configuration), so only these two still need a delegate.
+  for (const view of ['assessments', 'reviews']) {
     const env = await createEnv({view, permissions: FULL, handler: okHandler()}).start();
     assert.doesNotMatch(env.text(), new RegExp(LOADER), view);
     assert.match(env.text(), /A required page component did not load/, view);

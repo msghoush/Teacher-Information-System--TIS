@@ -63,6 +63,21 @@ source_of_truth: true
 3. Branch operational work is unchanged: Students, placements, Cycle population, Start/complete Assessments
    and Branch results stay under the operational permissions and Branch authorization.
 
+## System Configuration Talent & Potential Flow (2026-09-26)
+
+1. An organization-authorized Administrator opens `System Configuration -> Talent & Potential`
+   (`/system-configuration/talent-potential`), the sole home for Program, eligible-Grade, Rubric/
+   Competency/Level, KPI/criteria and Evaluation Plan/Period configuration; every other actor is denied
+   the page server-side.
+2. Inside it, they select a Program, then Rubric & Competencies to work the Grade -> Competency -> Rubric
+   -> Level tree (expand/collapse, add/edit/delete where the framework is an editable Draft) and the
+   right-side Level editor (Cancel/Save Changes), or the Program Setup/Evaluation Periods/Criteria-KPI
+   sub-tabs for the rest of that Program's configuration - all through the existing canonical routes.
+3. On the normal Talent module, every user (including that same Administrator) sees Programs, Overview,
+   Student Assessments and Results & Analytics as operational/read-only for configuration; an
+   authorized actor sees one "Configure in System Configuration" link and never an inline mutation
+   control, and a bookmarked Program-setup deep link redirects them back to step 1.
+
 ## Start Assessment Flow (Final Closure Part A, 2026-09-25)
 
 1. Choose an Evaluation Period and Program; the roster lists every currently placed authorized Student

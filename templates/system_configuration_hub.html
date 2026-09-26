@@ -157,6 +157,12 @@
         font-size: 13px;
         line-height: 1.5;
     }
+
+    .config-module-card .config-module-note {
+        color: #0a4ea3;
+        font-size: 12px;
+        font-weight: 700;
+    }
 </style>
 {% endblock %}
 
@@ -190,6 +196,7 @@
             <span>{{ icon(module.icon, "icon") }} Configuration Module</span>
             <h3>{{ module.label }}</h3>
             <p>{{ module.description }}</p>
+            {% if module.note %}<p class="config-module-note">{{ module.note }}</p>{% endif %}
         </a>
         {% endfor %}
     </section>
