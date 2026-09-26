@@ -1,11 +1,31 @@
 ---
 title: TIS Master Context
-documentation_version: 4.15
+documentation_version: 4.16
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Master Context
+
+## Talent Executive Overview authority (2026-09-25)
+
+The Executive Overview's canonical Expected Assessment coordinate is one authorized
+current Academic-Year placement x one enabled Program for which that placement Grade is
+eligible x one planned Evaluation Period whose linked Cycle is open or closed. Future
+unopened and cancelled Periods never enter Expected. Completed and Remaining partition
+that same coordinate set; every Overview completion percentage is
+`completed_expected / expected`, and organization totals sum raw coordinates rather
+than averaging Branch rates. All-Periods Student Program results delegate to ADR 0044's
+`talent_evaluation_progress_service.current_overall_result` authority and become
+explicitly non-comparable across Framework Versions. Missing Cycle population membership
+does not shrink an otherwise eligible Expected Assessment coordinate.
+
+Classification is the backend M17 five-band projection with P4 privacy. Learning Style
+is exactly the M14 eight categories plus Unassigned. Student rows are a separately
+permissioned individual-record surface; only Exceptional produces a Program-specific
+Talented badge. Organization/global configuration authority is independent of a selected
+Branch filter; Branch-scoped actors retain their hard Branch ceiling. No legacy Review
+Candidate or Official Identification state drives any current Overview value.
 
 ## Talent Configuration Authority Amendment (Final Closure Part B, 2026-09-25)
 

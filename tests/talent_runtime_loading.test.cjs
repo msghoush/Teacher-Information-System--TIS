@@ -19,6 +19,13 @@ const overviewBody = {metrics: {completion_coverage: {state: 'visible', percenta
 const distribution = {distribution: {state: 'visible', buckets: [{label: 'Visual', state: 'visible', count: 1, percentage: 100}]}};
 // Acceptance C: Learning Style is served in its own `levels` contract (all nine categories, total_population).
 const learningStyleBody = {distribution: {state: 'visible', total_population: 1, total: {state: 'visible', value: 1}, levels: [{key: 'Visual', label: 'Visual', display_order: 0, state: 'visible', count: 1, percentage: 100}]}};
+const executiveBody = {
+  filters: {branches: [], grades: [], programs: [], periods: []},
+  summary: {students: {state:'visible',value:1}, expected: {state:'visible',value:2}, completed: {state:'visible',value:1,percentage:50}, remaining: {state:'visible',value:1,percentage:50}},
+  completion: {state:'visible',total:{state:'visible',value:2},buckets:[{label:'Completed',state:'visible',count:1,percentage:50},{label:'Remaining',state:'visible',count:1,percentage:50}]},
+  classification: distribution.distribution, learning_style: learningStyleBody.distribution,
+  programs: [], students: [], student_rows_state: 'restricted', can_configure: false,
+};
 
 // Default scripted API: every analytics endpoint succeeds with a minimal valid payload.
 function okHandler(overrides = {}) {
@@ -26,6 +33,7 @@ function okHandler(overrides = {}) {
     for (const [fragment, outcome] of Object.entries(overrides)) {
       if (url.includes(fragment)) return typeof outcome === 'function' ? outcome(url, init, call) : outcome;
     }
+    if (url.includes('/executive-overview')) return {body: executiveBody};
     if (url.includes('/dashboard?')) return {body: {options: {}, completion: {state:'visible', buckets:[{label:'Completed',state:'visible',count:1,percentage:100}]}, classification: distribution.distribution, learning_style: learningStyleBody.distribution}};
     if (url.includes('organization-analytics/overview')) return {body: overviewBody};
     if (url.includes('talent-map')) return {body: mapBody};
@@ -122,26 +130,23 @@ test('5. an aborted stale response never replaces newer content, and busy tracks
   assert.equal(env.busy(), 'false');
 });
 
-test('6/7/8. Organization landing: primary content renders when organization analytics fails, with a LOCAL retryable failure', async () => {
-  const env = await createEnv({view: 'overview', permissions: FULL, handler: okHandler({'organization-analytics/overview': {status: 500, body: {detail: 'x'}}})}).start();
+test('6/7/8. Executive Overview failure is local, explicit and retryable', async () => {
+  const env = await createEnv({view: 'overview', permissions: FULL, handler: okHandler({'/executive-overview': {status: 500, body: {detail: 'x'}}})}).start();
   const text = env.text();
-  assert.match(text, /Executive Overview/);
-  assert.match(text, /tp-overview-actions/);
   assert.match(text, /tp-section-error/);
-  assert.match(text, /data-tp-section-retry="tp-hero-stats"/);
-  assert.doesNotMatch(text, /Loading headline figures|Unable to load view/);
+  assert.match(text, /data-tp-section-retry="tp-executive-slot"/);
+  assert.doesNotMatch(text, /Unable to load view/);
   assert.equal(env.busy(), 'false');
   assert.equal(env.status.textContent, 'View loaded. Some sections could not be loaded.');
 });
 
-test('7b. a hanging organization analytics request times out locally while the page stays usable', async () => {
-  const env = await createEnv({view: 'overview', permissions: FULL, handler: okHandler({'organization-analytics/overview': 'hang'})}).start();
-  assert.match(env.text(), /tp-overview-actions/);
-  assert.match(env.text(), /Loading headline figures/);
+test('7b. a hanging Executive Overview request times out locally', async () => {
+  const env = await createEnv({view: 'overview', permissions: FULL, handler: okHandler({'/executive-overview': 'hang'})}).start();
+  assert.match(env.text(), /Loading Executive Overview/);
   assert.equal(env.busy(), 'true');
   await env.tick(25001);
   assert.match(env.text(), /Taking longer than expected/);
-  assert.match(env.text(), /tp-overview-actions/);
+  assert.match(env.text(), /data-tp-section-retry="tp-executive-slot"/);
   assert.equal(env.busy(), 'false');
 });
 

@@ -1,11 +1,26 @@
 ---
 title: TIS AI Project Context
-documentation_version: 4.13
+documentation_version: 4.14
 last_updated: 2026-09-25
 recommended_first_read: true
 ---
 
 # TIS AI Project Context
+
+## Talent Executive Overview invariant (2026-09-25)
+
+Do not calculate Overview values in the browser. The Executive Overview backend owns one
+Expected Assessment coordinate: authorized current Academic-Year placement x enabled
+Grade-applicable Program x planned Evaluation Period with a linked open/closed Cycle.
+Completed/Remaining partition that set, and organization totals sum raw counts. M17
+Classification/P4 privacy, M14 Learning Style (eight categories plus Unassigned), ADR
+0044 active-Period weighting/framework comparability, tenant/Branch scope and separate
+Student identity permissions remain authoritative. Only Exceptional is Talented; legacy
+Review Candidate and Official Identification are never current Overview inputs.
+All-Periods Program cells delegate to
+`talent_evaluation_progress_service.current_overall_result`; the Overview must not own
+a second longitudinal averaging formula. Missing Cycle population membership never
+removes an otherwise eligible Expected Assessment.
 
 ## Talent Configuration Is Organization-Level (Final Closure Part B, 2026-09-25)
 

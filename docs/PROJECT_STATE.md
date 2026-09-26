@@ -1,11 +1,36 @@
 ---
 title: TIS Project State
-documentation_version: 5.26
+documentation_version: 5.27
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Project State
+
+## Talent Executive Overview final batch (2026-09-25)
+
+Implemented locally on `dev`; Web Service only; not committed or deployed. The
+Overview is now one bounded repeatable-snapshot projection and one screenshot-aligned
+surface: Academic Year, Branch, Grade, Program and configured Evaluation Period
+filters; Students in Scope, Expected, Completed and Remaining cards; Classification,
+Learning Style and Completion charts; and one Student row with applicable Program
+cells. Expected Assessments is current authorized Academic-Year placement x enabled
+Grade-applicable Program x planned Period whose linked Cycle is open/closed. Unopened,
+cancelled and ineligible coordinates do not enter the denominator. Completed plus
+Remaining equals Expected, and all Overview completion displays reuse those exact raw
+counts; organization totals never average Branch percentages.
+
+M17 backend Classification and P4 suppression remain authoritative. Learning Style is
+the M14 eight-category distribution plus Unassigned. Individually authorized Student
+rows require both Student analytics and Student-record permissions; only Exceptional is
+Talented. All-Periods Program results delegate to ADR 0044's canonical
+`current_overall_result` projection, including its pending-result and framework
+comparability semantics; the Overview owns no local averaging formula. Organization configuration visibility requires
+organization/global scope plus an existing configuration-manage permission; selecting
+a Branch does not remove that authority, while Branch-locked actors cannot escape their
+ceiling. Final local browser acceptance verified the desktop/narrow layouts and fixed the
+Overview URL-state transition from All Branches to a selected Branch by clearing the stale
+`branch_scope=all` marker. No schema, migration, permission-key or `tis.db` change.
 
 ## Final Production Follow-Up Closure, Part B - central organization Talent configuration authority (2026-09-25)
 

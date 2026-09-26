@@ -764,36 +764,19 @@
       return null;
     }
     if (view==='overview') {
-      // Evaluation Plan is intentionally not a card here: it is configured
-      // only inside a Program's own guided setup (embedded Step 3), never as
-      // a second top-level entry point duplicating that configuration.
-      const routes=[['programs','Programs','Configure Programs and assessment setup.','talent_programs.view','edit'],['assessments','Assessments','Continue evidence entry in open evaluations.','talent_assessments.view','check'],['analytics','Results & Analytics','Open the executive summary and detailed result views.','talent_analytics.view','eye']];
-      const yearLabel=esc(year.options[year.selectedIndex]?.textContent || '');
-      const scopedBranchId=params.get('branch_id');
-      const scopedBranchName=scopedBranchId&&String(scopedBranchId)===(activeBranch||defaultBranch)?config.branchName:(branch.options?.find?.(o=>String(o.value)===String(scopedBranchId))?.textContent||'');
-      const branchLabel=scopedBranchId&&scopedBranchName?` · ${esc(scopedBranchName)}`:'';
-      // The page shell (hero copy + action cards) never waits on organization
-      // analytics: the headline figures are an independent section with their own
-      // loading, empty, unavailable and error states.
-      const headlineHtml=can('talent_analytics.view')
-        ? slotHtml('tp-hero-stats','headline figures','tp-hero-stats')
-        : '<div class="tp-hero-stats"><p class="tp-empty">Headline analytics require the Organization Analytics permission.</p></div>';
-      const hero=`<section class="tp-executive-hero"><div class="tp-executive-heading"><span class="tp-executive-icon" aria-hidden="true">${appIcon('eye')}</span><div><p class="tp-eyebrow">Talent &amp; Potential · Academic Year ${yearLabel}${branchLabel}</p><h2>Executive Overview</h2><p>Current, privacy-safe Talent signals for your authorized scope. Open a workspace to act on the detail.</p></div></div>${headlineHtml}</section>`;
-      if (can('talent_analytics.view')) {
-        const sections=createSections(run,signal);
-        sections.add({id:'tp-hero-stats',label:'headline figures',keys:['overview'],build:async()=>{
-          const overview=await sections.request('overview',`organization-analytics/overview?${qs({academic_year_id:ay,branch_id:params.get('branch_id')})}`);
-          const headline=['distinct_students','frozen_eligible_memberships','completion_coverage','programs_configured'].filter(k=>overview.metrics && Object.hasOwn(overview.metrics,k));
-          const icons={distinct_students:'users',frozen_eligible_memberships:'layers',completion_coverage:'check',active_programs:'star',programs_configured:'star'};
-          return headline.length ? `<div class="tp-executive-kpis">${headline.map(k=>`<article class="tp-executive-kpi tp-kpi-${esc(k)}"><span class="tp-kpi-icon" aria-hidden="true">${appIcon(icons[k]||'eye')}</span><span class="tp-stat-label">${esc(k==='distinct_students'?'Distinct current Students':labels[k]||human(k))}</span><strong class="tp-stat-value">${metric(overview.metrics[k])}</strong><small>${esc(k==='frozen_eligible_memberships'?'Program participations':'Backend-authoritative')}</small></article>`).join('')}</div>` : '<p class="tp-empty">No headline figures are available for this Academic Year yet.</p>';
-        }});
-        if(window.TalentDashboard)sections.add({id:'tp-overview-charts',label:'executive charts',keys:['dashboard'],build:async()=>{
-          const data=await sections.request('dashboard',`results-analytics/academic-years/${encodeURIComponent(ay)}/dashboard?${qs({branch_id:params.get('branch_id')})}`);
-          return window.TalentDashboard.overview(data,{animate:shouldAnimateEntrance()});
-        }});
-        registerSections(sections);
-      }
-      return hero+(can('talent_analytics.view')&&window.TalentDashboard?slotHtml('tp-overview-charts','executive charts'):'')+`<section class="tp-overview-command" aria-label="Open a Talent workspace"><div><p class="tp-eyebrow">Continue work</p><h3>Take the next useful action</h3></div><div class="tp-overview-actions">${routes.filter(r=>can(r[3])).map((r,index)=>`<a class="tp-dashboard-action ${index===0?'is-primary':''}" href="${esc(`/talent/${r[0]}?${qs({academic_year_id:ay})}`)}"><span aria-hidden="true">${appIcon(r[4])}</span><span><strong>${esc(r[1])}</strong><small>${esc(r[2])}</small></span><b aria-hidden="true">${chevron}</b></a>`).join('')}</div></section>${can('talent_review_candidates.view')?`<p class="tp-legacy-link">${link('reviews','Legacy Review & Identification History')} <span>Preserved audit history only; not part of the current workflow.</span></p>`:''}`;
+      if(!window.TalentDashboard)throw userSafeError('The Executive Overview component did not load. Reload this page.',{code:'dependency_missing'});
+      const sections=createSections(run,signal);
+      sections.add({id:'tp-executive-slot',label:'Executive Overview',keys:['executive'],build:async()=>{
+        const query={branch_id:params.get('branch_id'),grade_level:params.get('grade_level'),program_id:params.get('program_id'),period_id:params.get('period_id')};
+        const data=await sections.request('executive',`results-analytics/academic-years/${encodeURIComponent(ay)}/executive-overview?${qs(query)}`);
+        const years=Array.from(year.options||[]).map(o=>({id:o.value,label:o.textContent}));
+        // Only a Branch-locked actor has a ceiling. An organization actor's
+        // sidebar Branch is a default selection, never a reason to hide All
+        // Branches or the other authorized Branch options.
+        return window.TalentDashboard.executive(data,params,years,activeBranch);
+      }});
+      registerSections(sections);
+      return slotHtml('tp-executive-slot','Executive Overview');
     }
     if (view==='programs') {
       if (!pid) return programCards(await api('programs',signal));
@@ -1014,6 +997,38 @@
     if (eventsBound) return;
     eventsBound = true;
     window.TalentCharts?.bind(root);
+    const publishExecutive=(name,value)=>{
+      const next=new URLSearchParams(params);
+      value?next.set(name,value):next.delete(name);
+      const children={academic_year_id:['grade_level','program_id','period_id'],branch_id:['grade_level'],grade_level:[],program_id:['period_id']};
+      (children[name]||[]).forEach(key=>next.delete(key));
+      if(activeBranch){next.set('branch_id',activeBranch);next.delete('branch_scope');}
+      else if(!next.get('branch_id'))next.set('branch_scope','all');
+      else next.delete('branch_scope');
+      if(name==='academic_year_id')year.value=value;
+      for(const key of [...params.keys()])params.delete(key);
+      for(const [key,item] of next)params.set(key,item);
+      history.replaceState(null,'',`${location.pathname}?${params}`);
+      load();
+    };
+    root.addEventListener('change',event=>{
+      if(config.view!=='overview'||!event.target.closest?.('[data-executive-filters]')||!event.target.name)return;
+      publishExecutive(event.target.name,event.target.value);
+    });
+    root.addEventListener('input',event=>{
+      if(!event.target.matches?.('[data-executive-search]'))return;
+      const term=event.target.value.trim().toLowerCase();
+      root.querySelectorAll('[data-executive-student]').forEach(row=>{row.hidden=!row.dataset.search.includes(term);});
+    });
+    root.addEventListener('click',event=>{
+      if(!event.target.closest?.('[data-executive-clear]'))return;
+      const next=new URLSearchParams({academic_year_id:year.value});
+      if(activeBranch)next.set('branch_id',activeBranch);else next.set('branch_scope','all');
+      for(const key of [...params.keys()])params.delete(key);
+      for(const [key,item] of next)params.set(key,item);
+      history.replaceState(null,'',`${location.pathname}?${params}`);
+      load();
+    });
     const publishDashboard=(next,delay=0)=>{
       if(activeBranch)next.set('branch_id',activeBranch);
       else{
@@ -1116,7 +1131,7 @@
   }
   async function init() {
     reconcileBranchScope();
-    if(config.view==='learner-profile'||params.has('assessment_id'))form.hidden=true;
+    if(config.view==='overview'||config.view==='learner-profile'||params.has('assessment_id'))form.hidden=true;
     if (params.has('academic_year_id') && [...year.options].some(o=>o.value===params.get('academic_year_id'))) year.value=params.get('academic_year_id');
     const metricViews=['talent-map','longitudinal'];
     if(metricViews.includes(config.view)) {
@@ -1140,7 +1155,7 @@
     // individually bounded and boot proceeds after INIT_CONTEXT_DEADLINE_MS at the
     // latest. A lookup that fails simply leaves its selector at its neutral default.
     const planningContext=async()=>{
-      if(['overview','assessments','portfolio','talent-map','overlap','longitudinal','students','reviews'].includes(config.view)) {
+      if(['assessments','portfolio','talent-map','overlap','longitudinal','students','reviews'].includes(config.view)) {
         document.getElementById('tp-branch-field').hidden=false;
         await refreshPlanningBranches();
       }

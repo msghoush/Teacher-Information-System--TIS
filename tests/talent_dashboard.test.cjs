@@ -93,3 +93,34 @@ test('new dashboard loads one unified request without Student previews or old du
   assert.equal(env.calls.filter(c=>String(c.url||c).includes('/dashboard?')).length,1);
   assert.ok(!env.calls.some(c=>String(c.url||c).includes('/students?')));
 });
+
+const executivePayload={
+  filters:{branches:[{id:'6',label:'Allowed'}],grades:['3'],programs:[{id:'9',label:'Mental Math'}],periods:[{id:'11',label:'Semester 1'}]},
+  summary:{students:{state:'visible',value:1},expected:{state:'visible',value:2},completed:{state:'visible',value:1,percentage:50},remaining:{state:'visible',value:1,percentage:50}},
+  classification:visible,learning_style:{state:'visible',levels:[{label:'Visual',state:'visible',count:1,percentage:100}]},completion:visible,
+  programs:[{id:'9',label:'Mental Math'}],student_rows_state:'visible',can_configure:true,
+  students:[{student_id:1,display_name:'Student One',grade_level:'3',section_name:'A',learning_style:'Visual',talented_program_count:1,programs:[{program_id:'9',result_state:'visible',normalized_percent:92,classification:'Exceptional',is_talented:true}]}]
+};
+test('Executive Overview matches the approved information architecture without legacy or old KPIs',()=>{
+  const html=dashboard.executive(executivePayload,new URLSearchParams('academic_year_id=1'),[{id:'1',label:'2026–2027'}],'6');
+  for(const text of ['Executive Overview','Organization Configuration','Students in Scope','Expected Assessments','Assessments Completed','Assessments Remaining','Current Classification','Learning Style','Assessment Completion','Student Progress by Program'])assert.match(html,new RegExp(text));
+  for(const old of ['Program participations','Programs configured','Legacy Review','Official Identification'])assert.ok(!html.includes(old),old);
+  assert.match(html,/Semester 1/);assert.match(html,/★ Talented/);assert.match(html,/Exceptional/);
+  assert.ok(!html.includes('All Branches'),'hard Branch ceiling has no All Branches option');
+});
+test('Executive Overview preserves organization-wide Branch choices and hides configuration without authority',()=>{
+  const payload={...executivePayload,can_configure:false,filters:{...executivePayload.filters,branches:[{id:'6',label:'North'},{id:'7',label:'South'}]}};
+  const html=dashboard.executive(payload,new URLSearchParams('academic_year_id=1&branch_id=6'),[{id:'1',label:'2026â€“2027'}],'');
+  assert.match(html,/All Branches/);assert.match(html,/South/);
+  assert.ok(!html.includes('Organization Configuration'));
+});
+test('Executive chart modes are exactly the approved Bar/Doughnut/Table sets',()=>{
+  assert.deepEqual(charts.modes(visible,'executive-classification'),['bar','doughnut','table']);
+  assert.deepEqual(charts.modes(visible,'executive-learning'),['bar','doughnut','table']);
+  assert.deepEqual(charts.modes(visible,'executive-completion'),['doughnut','bar','table']);
+});
+test('Executive protected Classification leaks no count, percentage, geometry or ARIA magnitude',()=>{
+  const protectedClass={state:'restricted',total:{state:'restricted',value:417},buckets:[{label:'Exceptional',state:'suppressed',count:417,percentage:91.2}]};
+  const html=charts.chart('Current Classification',protectedClass,'executive-classification');
+  for(const token of ['417','91.2','aria-valuenow','conic-gradient'])assert.ok(!html.includes(token),token);
+});

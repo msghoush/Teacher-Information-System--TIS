@@ -1,11 +1,36 @@
 ---
 title: TIS Change History
-documentation_version: 5.17
+documentation_version: 5.18
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Change History
+
+## 2026-09-25 - Talent Executive Overview final UI and backend semantics
+
+- Added a bounded repeatable-snapshot Executive Overview contract whose Expected
+  Assessment grain is authorized current Academic-Year placement x enabled
+  Grade-applicable Program x configured planned Period with a linked open/closed Cycle.
+  Unopened/cancelled Periods and ineligible Student/Program pairs are excluded.
+- Replaced the old Overview headlines with Students in Scope, Expected Assessments,
+  Completed and Remaining; all completion cards/charts/tables derive from the same raw
+  numerator and denominator, including raw-sum organization/Branch projections.
+- Added the approved five filters, M17 Classification, M14 Learning Style, Completion
+  chart modes, and one-row-per-Student Program progress table. P4 privacy, separate
+  identity permission, Exceptional-only Talented, Branch ceiling and tenant isolation
+  remain server-authoritative. Organization configuration remains visible only with
+  organization/global scope and an existing manage permission.
+- No schema, migration, permission-key, deployment or `tis.db` change; ADR 0044's
+  existing active-Period weighting and framework-comparability decisions are reused.
+- Final semantic acceptance confirmed that frozen Cycle population membership is not
+  the Expected denominator and added the missing-membership regression. It also removed
+  the Overview's local All-Periods mean in favor of direct delegation to
+  `talent_evaluation_progress_service.current_overall_result`.
+- Final browser acceptance found and fixed one Overview-only URL-state defect: choosing
+  a real Branch after All Branches left the `branch_scope=all` marker behind, so scope
+  reconciliation could discard the chosen Branch. The Executive filter now removes the
+  marker whenever a Branch is selected; server authorization and Branch ceilings are unchanged.
 
 ## 2026-09-25 - Progress Over Time comparability closure (frontend, presentation only)
 

@@ -1,11 +1,34 @@
 ---
 title: TIS User And System Flows
-documentation_version: 3.14
+documentation_version: 3.15
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS User And System Flows
+
+## Executive Overview flow (2026-09-25)
+
+1. An actor opens Overview; Academic Year, Branch, Grade, Program and configured
+   Evaluation Period filters form one request context. Organization actors may select
+   All Branches; Branch-locked actors stay at their server-enforced ceiling.
+2. One repeatable snapshot resolves current active Students/placements, enabled annual
+   Programs whose eligible Grades include each placement, and planned Periods with
+   linked open/closed Cycles. Each matching Student x Program x Period is one Expected
+   Assessment; unopened/cancelled/ineligible coordinates are absent.
+3. The backend resolves current assessments. Completed and Remaining partition Expected,
+   then the top cards and every Completion mode consume that same projection. Branch and
+   organization values sum raw coordinates before calculating percentages.
+4. The backend emits M17 Classification under P4 privacy and the M14 Learning Style
+   distribution. Protected aggregates contain no usable magnitudes. Student identity and
+   Program cells are emitted only with separate Student permissions.
+5. For one Period a Program cell shows that Period's governed result. For All Periods it
+   delegates to ADR 0044's canonical `current_overall_result`; missing results remain
+   pending rather than zero and Framework changes remain non-comparable.
+   Exceptional alone emits the Program-specific Talented label; legacy review/identification
+   never participates.
+6. Organization/global actors with an existing configuration-manage permission see the
+   shared Organization Configuration action even when a Branch filter is selected.
 
 ## Agent 3 filtered analysis flow (2026-09-25)
 

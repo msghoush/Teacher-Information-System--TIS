@@ -1,11 +1,28 @@
 ---
 title: TIS Module Map
-documentation_version: 4.10
+documentation_version: 4.11
 last_updated: 2026-09-25
 source_of_truth: true
 ---
 
 # TIS Module Map
+
+## Talent Executive Overview (2026-09-25)
+
+- `talent_executive_overview_service.py`: bounded Expected Assessment coordinates,
+  canonical completion partition, backend Classification, categorical Learning Style,
+  privacy-closed Branch completion, and separately permissioned one-row-per-Student
+  Program projections. Reuses ADR 0037 results and delegates All-Periods Program cells
+  to ADR 0044's `talent_evaluation_progress_service.current_overall_result`; performs no write.
+- `routers/talent_results_analytics.py` GET
+  `/api/talent/results-analytics/academic-years/{academic_year_id}/executive-overview`:
+  repeatable-snapshot dependency, tenant/Branch scope, fail-closed privacy provider,
+  separate Student identity permission, and organization configuration affordance.
+- `static/js/talent-dashboard.js`, `static/js/talent-charts.js`,
+  `static/js/talent.js`, `static/css/talent-experience.css`: approved Overview
+  composition, shared filters, privacy-safe chart modes, one Student Program table and
+  responsive/forced-colors presentation. The browser never calculates Classification,
+  eligibility, completion or privacy.
 
 ## Talent filtered aggregate workspace (Agent 3, 2026-09-25)
 

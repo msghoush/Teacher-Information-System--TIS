@@ -40,7 +40,7 @@
   const CIRCULAR_FAMILIES=['classification','completion'];
   const SERIES_FAMILIES=['trend','series'];
   const RATE_FAMILIES=['trend','series','comparison'];
-  const MODE_LABELS={bar:'Bar',doughnut:'Doughnut',trend:'Trend'};
+  const MODE_LABELS={bar:'Bar',doughnut:'Doughnut',trend:'Trend',table:'Table'};
   // Explicit user selections survive a data refetch re-render (presentation state only).
   const chosen=new Map();
 
@@ -52,6 +52,12 @@
   }
   const valueOf=r=>r.state!=='visible'?null:(r.percentage!==null&&r.percentage!==undefined?r.percentage:(r.count??null));
   function modesForRows(rows,family){
+    if(family==='executive-classification'||family==='executive-learning'||family==='executive-completion'){
+      const full=rows.length>0&&rows.every(r=>r.state==='visible'&&r.count!==null&&r.percentage!==null);
+      return family==='executive-completion'
+        ?[...(full?['doughnut']:[]),'bar','table']
+        :['bar',...(full?['doughnut']:[]),'table'];
+    }
     if(SERIES_FAMILIES.includes(family))return rows.filter(r=>valueOf(r)!==null).length>=2?['trend','bar']:['bar'];
     const full=rows.length>0&&rows.every(r=>r.state==='visible'&&r.count!==null&&r.percentage!==null);
     const circular=full&&rows.length>=2&&rows.length<=MAX_CIRCULAR_CATEGORIES&&Math.abs(rows.reduce((s,r)=>s+r.percentage,0)-100)<.2;
@@ -83,9 +89,11 @@
     return `<svg class="tp-trend" viewBox="0 0 300 120" aria-hidden="true" focusable="false"><line x1="6" x2="294" y1="110" y2="110" stroke="currentColor" stroke-opacity=".25"/>${gaps}${lines}${dots}</svg><ol class="tp-chart-legend tp-trend-legend">${rows.map((r,i)=>`<li>${esc(r.label)}: ${r.state==='visible'?rowText(r,'series'):stateText(r)}${broken(i)?' (not connected: periods are not comparable)':''}</li>`).join('')}</ol>`;
   }
   function visual(rows,mode,family='classification'){
+    if(mode==='table')return `<div class="tp-table-wrap"><table><thead><tr><th scope="col">Category</th><th scope="col">Count</th><th scope="col">Percentage</th></tr></thead><tbody>${rows.map(r=>`<tr><th scope="row">${esc(r.label)}</th><td>${r.state==='visible'?esc(r.count):stateText(r)}</td><td>${r.state==='visible'&&r.percentage!=null?esc(r.percentage)+'%':stateText(r)}</td></tr>`).join('')}</tbody></table></div>`;
     if(mode==='doughnut'){
       let start=0;const stops=rows.map((r,i)=>{const end=start+r.percentage;const s=`${colors[i%colors.length]} ${start}% ${end}%`;start=end;return s;});
-      return `<div class="tp-chart-round is-doughnut" aria-hidden="true" style="background:conic-gradient(${stops.join(',')})"></div><ul class="tp-chart-legend">${rows.map((r,i)=>`<li><i style="background:${colors[i%colors.length]}" aria-hidden="true"></i>${esc(r.label)}: ${esc(r.count)} (${esc(r.percentage)}%)</li>`).join('')}</ul>`;
+      const completed=family==='executive-completion'?rows.find(r=>r.label==='Completed'):null,total=rows.reduce((sum,r)=>sum+(r.count||0),0);
+      return `<div class="tp-doughnut-wrap"><div class="tp-chart-round is-doughnut" aria-hidden="true" style="background:conic-gradient(${stops.join(',')})"></div>${completed?`<div class="tp-doughnut-center"><strong>${esc(completed.percentage)}%</strong><span>${esc(completed.count)} / ${esc(total)}<br>completed</span></div>`:''}</div><ul class="tp-chart-legend">${rows.map((r,i)=>`<li><i style="background:${colors[i%colors.length]}" aria-hidden="true"></i>${esc(r.label)}: ${esc(r.count)} (${esc(r.percentage)}%)</li>`).join('')}</ul>`;
     }
     if(mode==='trend')return trendVisual(rows);
     const rate=RATE_FAMILIES.includes(family);
